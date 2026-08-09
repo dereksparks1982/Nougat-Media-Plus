@@ -1,35 +1,22 @@
 # ReddMedia Roadmap
 
-## Current target
+## Current accepted line
 
-ReddMedia starts with a clean base video player. The first accepted build must launch by double-clicking a visible executable and must be usable by a non-programmer after unzipping.
+- v0.0.1: VLC-style base video player foundation.
+- v0.0.2: VLC-style player repair for fullscreen, resume, mouse wheel volume, flicker, and close behavior.
 
-## v0.0.1 - Base Video Player
+## Next base-player work
 
-- Standalone executable.
-- VLC-style video playback window.
-- Open local video file.
-- Basic playback controls.
-- Fullscreen behavior.
-- Cursor auto-hide over video.
-- Clean close.
-- Resume last watched file.
+- Strengthen subtitle selection and external subtitle loading.
+- Improve audio track selection.
+- Improve playback error reporting.
+- Improve package/install handoff after Derek accepts a candidate.
 
-## Future builds after v0.0.1 is accepted
+## Later media-suite work
 
-Future work is not part of v0.0.1 and requires separate proposals and approval.
-
-Potential future directions:
-
-- Better subtitle controls.
-- Audio/subtitle track selection polish.
-- Local media library.
-- Playlist support.
-- Music support.
-- Photo support.
-- Optional YT-DLP module.
-- Optional P2P module.
-- Optional LAN/local server features.
-- Packaging polish.
-
-No future feature is approved merely because it appears in this roadmap.
+- Media library.
+- Music.
+- Photos.
+- Playlists.
+- YT-DLP module.
+- P2P module.

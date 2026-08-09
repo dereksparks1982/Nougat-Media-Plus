@@ -164,7 +164,9 @@ class App {
 public:
     Display* d=nullptr; int screen=0; Window win=0, video=0; GC gc=0;
     int W=1000,H=650;
+    int videoW=980, videoH=530;
     Rect openBtn, playBtn, stopBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
+    Rect videoResumeBtn, videoLoadBtn;
     VlcApi api; std::string vlcErr;
     libvlc_instance_t* inst=nullptr; libvlc_media_player_t* mp=nullptr;
     bool running=true, paused=false, fullscreen=false, hasMedia=false, needResumePrompt=false;
@@ -175,6 +177,9 @@ public:
     time_t lastMouse=0;
     Time lastClickTime=0;
     int lastClickX=0, lastClickY=0;
+    bool pendingSeek=false;
+    long long pendingSeekMs=0;
+    time_t pendingSeekDeadline=0;
 
     unsigned long col(unsigned short r, unsigned short g, unsigned short b) {
         XColor color; color.red=r; color.green=g; color.blue=b; color.flags=DoRed|DoGreen|DoBlue;
@@ -186,8 +191,11 @@ public:
     void fill(Window target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XFillRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
     void outline(Window target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XDrawRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
     void button(const Rect& r, const std::string& label) {
-        fill(win, r, col(0xeeee,0xeeee,0xeeee)); outline(win, r, col(0x7777,0x7777,0x7777));
-        text(win, r.x+10, r.y+20, label, col(0x1111,0x1111,0x1111));
+        button_on(win, r, label);
+    }
+    void button_on(Window target, const Rect& r, const std::string& label) {
+        fill(target, r, col(0xeeee,0xeeee,0xeeee)); outline(target, r, col(0x7777,0x7777,0x7777));
+        text(target, r.x+10, r.y+20, label, col(0x1111,0x1111,0x1111));
     }
 
     bool init() {
@@ -195,15 +203,16 @@ public:
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.1");
+        XStoreName(d, win, "ReddMedia v0.0.2");
         XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|KeyPressMask|PointerMotionMask);
         Atom wmDelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(d, win, &wmDelete, 1);
         gc = XCreateGC(d, win, 0, nullptr);
         layout();
-        video = XCreateSimpleWindow(d, win, 10, 42, W-20, H-120, 1, BlackPixel(d,screen), BlackPixel(d,screen));
+        video = XCreateSimpleWindow(d, win, 10, 42, W-20, H-120, 0, BlackPixel(d,screen), BlackPixel(d,screen));
         XSelectInput(d, video, ExposureMask|ButtonPressMask|PointerMotionMask|EnterWindowMask|LeaveWindowMask|KeyPressMask);
         XMapWindow(d, video);
+        apply_video_layout();
         create_cursors();
         XMapWindow(d, win);
 
@@ -225,6 +234,41 @@ public:
         volRect = {W-160, controlsY-2, 140, 18};
         resumeBtn = {W/2-155, H/2+40, 130, 34};
         loadBtn = {W/2+25, H/2+40, 170, 34};
+        update_video_prompt_layout();
+    }
+    void update_video_prompt_layout() {
+        videoResumeBtn = {std::max(20, videoW/2-165), std::max(88, videoH/2+36), 130, 34};
+        videoLoadBtn = {std::max(20, videoW/2+15), std::max(88, videoH/2+36), 170, 34};
+    }
+    void apply_video_layout() {
+        if (!video) return;
+        if (fullscreen) {
+            videoW = std::max(100, W);
+            videoH = std::max(100, H);
+            XMoveResizeWindow(d, video, 0, 0, videoW, videoH);
+        } else {
+            videoW = std::max(100, W-20);
+            videoH = std::max(100, H-120);
+            XMoveResizeWindow(d, video, 10, 42, videoW, videoH);
+        }
+        update_video_prompt_layout();
+    }
+    void adjust_volume(int delta) {
+        if (!mp) return;
+        int vol = api.get_volume(mp);
+        if (vol < 0) vol = 80;
+        vol = std::max(0, std::min(100, vol + delta));
+        api.set_volume(mp, vol);
+        if (!fullscreen) redraw();
+    }
+    void tick_resume_seek() {
+        if (!pendingSeek || !mp) return;
+        if (pendingSeekMs <= 0) { pendingSeek=false; return; }
+        api.set_time(mp, pendingSeekMs);
+        long long current = api.get_time(mp);
+        if (current >= pendingSeekMs - 1000 || time(nullptr) >= pendingSeekDeadline) {
+            pendingSeek = false;
+        }
     }
     void create_cursors() {
         normalCursor = XCreateFontCursor(d, XC_left_ptr);
@@ -254,7 +298,7 @@ public:
     }
     void cleanup_player() {
         if (mp) { api.stop(mp); api.player_release(mp); mp=nullptr; }
-        hasMedia=false; paused=false;
+        hasMedia=false; paused=false; pendingSeek=false;
     }
     void open_media(const std::string& path, long long seek=0) {
         if (!inst || !api.media_new_path) return;
@@ -268,7 +312,11 @@ public:
         api.set_volume(mp, 80);
         currentPath = path; hasMedia=true; paused=false; needResumePrompt=false;
         api.play(mp);
-        if (seek > 0) { usleep(250000); api.set_time(mp, seek); }
+        if (seek > 0) {
+            pendingSeek = true;
+            pendingSeekMs = seek;
+            pendingSeekDeadline = time(nullptr) + 6;
+        }
         redraw();
     }
     void do_open() {
@@ -292,6 +340,8 @@ public:
         xev.xclient.data.l[2] = 0;
         XSendEvent(d, DefaultRootWindow(d), False, SubstructureNotifyMask|SubstructureRedirectMask, &xev);
         fullscreen = !fullscreen;
+        apply_video_layout();
+        redraw();
     }
     void exit_fullscreen() {
         if (!fullscreen) return;
@@ -303,13 +353,16 @@ public:
         xev.xclient.data.l[1] = fs_atom;
         XSendEvent(d, DefaultRootWindow(d), False, SubstructureNotifyMask|SubstructureRedirectMask, &xev);
         fullscreen=false;
+        apply_video_layout();
+        redraw();
     }
     void resize(int w, int h) {
         W=w; H=h; layout();
-        XMoveResizeWindow(d, video, 10, 42, std::max(100, W-20), std::max(100, H-120));
+        apply_video_layout();
         redraw();
     }
     void draw_video_message() {
+        if (hasMedia && !needResumePrompt && vlcErr.empty()) return;
         XClearWindow(d, video);
         if (!vlcErr.empty()) {
             text(video, 22, 40, vlcErr, col(0xffff,0xdddd,0xdddd));
@@ -320,6 +373,8 @@ public:
             std::string title = "Resume " + basename_only(sessionPath) + "?";
             text(video, 28, 44, title, col(0xeeee,0xeeee,0xeeee));
             text(video, 28, 68, "Last position: " + format_time(sessionTime), col(0xcccc,0xcccc,0xcccc));
+            button_on(video, videoResumeBtn, "Resume");
+            button_on(video, videoLoadBtn, "Load Different");
             return;
         }
         if (!hasMedia) {
@@ -328,12 +383,17 @@ public:
         }
     }
     void redraw() {
+        if (fullscreen) {
+            draw_video_message();
+            XFlush(d);
+            return;
+        }
         XClearWindow(d, win);
         unsigned long dark = col(0x1111,0x1111,0x1111);
         fill(win, {0,0,W,24}, col(0xf2f2,0xf2f2,0xf2f2));
         outline(win, {0,24,W,1}, col(0xb0b0,0xb0b0,0xb0b0));
         text(win, 10, 17, "File", dark); text(win, 55, 17, "Audio", dark); text(win, 112, 17, "Subtitle", dark);
-        text(win, W-155, 17, "ReddMedia v0.0.1", col(0x3333,0x3333,0x3333));
+        text(win, W-155, 17, "ReddMedia v0.0.2", col(0x3333,0x3333,0x3333));
         button(openBtn, "Open");
         button(playBtn, paused ? "Play" : "Pause");
         button(stopBtn, "Stop");
@@ -349,14 +409,13 @@ public:
         int vol = mp ? api.get_volume(mp) : 80; vol = std::max(0,std::min(100,vol));
         fill(win, {volRect.x, volRect.y, volRect.w*vol/100, volRect.h}, col(0x7070,0x7070,0x7070));
         text(win, volRect.x, volRect.y-8, "Volume", dark);
-        if (needResumePrompt) {
-            button(resumeBtn, "Resume"); button(loadBtn, "Load Different");
-        }
         draw_video_message();
         XFlush(d);
     }
     void handle_click(Window target, int x, int y, Time eventTime) {
         if (target == video) {
+            if (needResumePrompt && videoResumeBtn.contains(x,y)) { open_media(sessionPath, sessionTime); return; }
+            if (needResumePrompt && videoLoadBtn.contains(x,y)) { needResumePrompt=false; redraw(); do_open(); return; }
             if (lastClickTime && eventTime - lastClickTime < 400 && abs(x-lastClickX)<8 && abs(y-lastClickY)<8) {
                 toggle_fullscreen(); lastClickTime=0; return;
             }
@@ -392,7 +451,11 @@ public:
                 if (e.type == Expose) redraw();
                 else if (e.type == ConfigureNotify && e.xconfigure.window == win) resize(e.xconfigure.width, e.xconfigure.height);
                 else if (e.type == ClientMessage) running=false;
-                else if (e.type == ButtonPress) handle_click(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.time);
+                else if (e.type == ButtonPress) {
+                    if (e.xbutton.button == Button4) adjust_volume(5);
+                    else if (e.xbutton.button == Button5) adjust_volume(-5);
+                    else handle_click(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.time);
+                }
                 else if (e.type == MotionNotify) { lastMouse=time(nullptr); show_pointer(); }
                 else if (e.type == EnterNotify && e.xcrossing.window == video) { pointerInVideo=true; lastMouse=time(nullptr); show_pointer(); }
                 else if (e.type == LeaveNotify && e.xcrossing.window == video) { pointerInVideo=false; show_pointer(); }
@@ -404,8 +467,9 @@ public:
                     else if (ks == XK_f || ks == XK_F) toggle_fullscreen();
                 }
             }
+            tick_resume_seek();
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
-            static time_t lastRedraw=0; time_t now=time(nullptr); if (now != lastRedraw) { redraw(); lastRedraw=now; }
+            static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && now != lastRedraw) { redraw(); lastRedraw=now; }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
         }
     }
