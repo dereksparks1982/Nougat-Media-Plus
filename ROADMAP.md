@@ -1,24 +1,24 @@
 # ReddMedia Roadmap
 
-## Current accepted baseline before this candidate
+## Current accepted direction
 
-- v0.0.3: Mouse, keyboard, time display, and flicker repair.
+ReddMedia is a standalone Linux desktop media player built around local playback first.
 
-## Current candidate
+## Current build line
 
-- v0.0.4: Time layout, skip buttons, red timeline, red volume bar, and chapter-style seek marks.
+- v0.0.4 completed the core video player layout and controls.
+- v0.0.5 focuses on branding and polish.
 
-## Near-term planned work
+## Future planning
 
-- Continue player-control repairs from Derek's manual tests.
-- Improve right-click options after Derek chooses the exact menu content.
-- Add subtitle work only after a separate proposal and approval.
-- Add audio track and subtitle track selection only after a separate proposal and approval.
+Future top menu plan when those modules are real:
 
-## Later product work
+`File   Audio   Subtitle   yt-dlp   p2p`
 
-- Media library.
-- Playlist support.
-- yt-dlp add-on.
-- Optional P2P add-on.
-- Linux packaging polish.
+Potential later build:
+
+- yt-dlp download add-on foundation.
+- p2p add-on foundation.
+- media library.
+- playlists.
+- subtitle sync controls.

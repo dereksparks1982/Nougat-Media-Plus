@@ -1,7 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=ReddMedia
-Comment=ReddMedia VLC-style base video player
+Comment=ReddMedia video player
 Exec=./ReddMedia
+Icon=reddmedia
+StartupWMClass=ReddMedia
 Terminal=false
 Categories=AudioVideo;Player;

@@ -197,18 +197,56 @@ public:
         XColor color; color.red=r; color.green=g; color.blue=b; color.flags=DoRed|DoGreen|DoBlue;
         XAllocColor(d, DefaultColormap(d, screen), &color); return color.pixel;
     }
-    void text(Window target, int x, int y, const std::string& s, unsigned long c) {
+    void text(Drawable target, int x, int y, const std::string& s, unsigned long c) {
         XSetForeground(d, gc, c); XDrawString(d, target, gc, x, y, s.c_str(), (int)s.size());
     }
-    void fill(Window target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XFillRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
-    void outline(Window target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XDrawRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
-    void line(Window target, int x1, int y1, int x2, int y2, unsigned long c) { XSetForeground(d,gc,c); XDrawLine(d,target,gc,x1,y1,x2,y2); }
+    void fill(Drawable target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XFillRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
+    void outline(Drawable target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XDrawRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
+    void line(Drawable target, int x1, int y1, int x2, int y2, unsigned long c) { XSetForeground(d,gc,c); XDrawLine(d,target,gc,x1,y1,x2,y2); }
     void button(const Rect& r, const std::string& label) {
         button_on(win, r, label);
     }
-    void button_on(Window target, const Rect& r, const std::string& label) {
+    void button_on(Drawable target, const Rect& r, const std::string& label) {
         fill(target, r, col(0xeeee,0xeeee,0xeeee)); outline(target, r, col(0x7777,0x7777,0x7777));
         text(target, r.x+10, r.y+20, label, col(0x1111,0x1111,0x1111));
+    }
+
+    unsigned long icon_pixel(int x, int y, int size) {
+        double cx = (size - 1) / 2.0;
+        double top = size * 0.12;
+        double bottom = size * 0.86;
+        double halfWidthAtBottom = size * 0.38;
+        if (y < top || y > bottom) return 0x00000000UL;
+        double t = (y - top) / (bottom - top);
+        double half = halfWidthAtBottom * t;
+        double left = cx - half;
+        double right = cx + half;
+        if (x >= left && x <= right) return 0xffbb0000UL;
+        return 0x00000000UL;
+    }
+
+    void set_net_wm_icon() {
+        std::vector<unsigned long> data;
+        const int sizes[] = {16, 32, 64};
+        for (int size : sizes) {
+            data.push_back((unsigned long)size);
+            data.push_back((unsigned long)size);
+            for (int y=0; y<size; ++y) {
+                for (int x=0; x<size; ++x) data.push_back(icon_pixel(x, y, size));
+            }
+        }
+        Atom netWmIcon = XInternAtom(d, "_NET_WM_ICON", False);
+        Atom cardinal = XInternAtom(d, "CARDINAL", False);
+        XChangeProperty(d, win, netWmIcon, cardinal, 32, PropModeReplace,
+                        reinterpret_cast<unsigned char*>(data.data()), (int)data.size());
+    }
+
+    void set_window_identity() {
+        XClassHint classHint;
+        classHint.res_name = const_cast<char*>("reddmedia");
+        classHint.res_class = const_cast<char*>("ReddMedia");
+        XSetClassHint(d, win, &classHint);
+        set_net_wm_icon();
     }
 
     bool init() {
@@ -216,7 +254,8 @@ public:
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.4");
+        XStoreName(d, win, "ReddMedia v0.0.5");
+        set_window_identity();
         XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|KeyPressMask|PointerMotionMask);
         Atom wmDelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(d, win, &wmDelete, 1);
@@ -286,7 +325,7 @@ public:
         if (vol < 0) vol = 80;
         vol = std::max(0, std::min(100, vol + delta));
         api.set_volume(mp, vol);
-        if (!fullscreen) redraw();
+        if (!fullscreen) draw_volume_only();
     }
     void seek_relative(long long deltaMs) {
         if (!mp) return;
@@ -297,7 +336,7 @@ public:
         if (nt < 0) nt = 0;
         if (l > 0 && nt > l) nt = l;
         api.set_time(mp, nt);
-        redraw();
+        if (!fullscreen) draw_seek_time_only();
     }
     void tick_resume_seek() {
         if (!pendingSeek || !mp) return;
@@ -420,6 +459,76 @@ public:
             text(video, 28, 68, "File menu or Open button.", col(0xcccc,0xcccc,0xcccc));
         }
     }
+    void draw_top_bar(Drawable target) {
+        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
+        unsigned long topText = col(0xffff,0xffff,0xffff);
+        fill(target, {0,0,W,26}, companyRed);
+        outline(target, {0,24,W,1}, col(0x6600,0x0000,0x0000));
+        text(target, 10, 17, "File", topText);
+        text(target, 55, 17, "Audio", topText);
+        text(target, 112, 17, "Subtitle", topText);
+        text(target, W-155, 17, "ReddMedia v0.0.5", topText);
+    }
+
+    void draw_seek_time_row(Drawable target) {
+        unsigned long dark = col(0x1111,0x1111,0x1111);
+        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
+        unsigned long markDark = col(0x3333,0x3333,0x3333);
+        unsigned long bg = col(0xdede,0xdede,0xdede);
+        fill(target, {0, std::max(0, seekRect.y-6), W, seekRect.h+16}, bg);
+        fill(target, seekRect, col(0xeeee,0xeeee,0xeeee));
+        outline(target, seekRect, col(0x8888,0x8888,0x8888));
+        long long t=0,l=0;
+        if (mp) { t=api.get_time(mp); l=api.get_length(mp); }
+        if (l > 0) {
+            int pos = (int)((double)t / (double)l * seekRect.w);
+            fill(target, {seekRect.x, seekRect.y, std::max(1,pos), seekRect.h}, companyRed);
+            long long chapterEveryMs = 300000;
+            if (l > 7200000) chapterEveryMs = 900000;
+            else if (l > 3600000) chapterEveryMs = 600000;
+            for (long long markMs = chapterEveryMs; markMs < l; markMs += chapterEveryMs) {
+                int mx = seekRect.x + (int)((double)markMs / (double)l * seekRect.w);
+                line(target, mx, seekRect.y, mx, seekRect.y + seekRect.h, markDark);
+            }
+        }
+        text(target, 10, seekRect.y+14, format_time(t), dark);
+        int totalX = seekRect.x + seekRect.w + 10;
+        text(target, totalX, seekRect.y+14, format_time(l), dark);
+    }
+
+    void draw_volume_bar(Drawable target) {
+        unsigned long dark = col(0x1111,0x1111,0x1111);
+        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
+        unsigned long bg = col(0xdede,0xdede,0xdede);
+        fill(target, {std::max(0, volRect.x-62), std::max(0, volRect.y-6), volRect.w+72, volRect.h+16}, bg);
+        fill(target, volRect, col(0xeeee,0xeeee,0xeeee));
+        outline(target, volRect, col(0x8888,0x8888,0x8888));
+        int vol = mp ? api.get_volume(mp) : 80;
+        vol = std::max(0,std::min(100,vol));
+        fill(target, {volRect.x, volRect.y, volRect.w*vol/100, volRect.h}, companyRed);
+        text(target, volRect.x-56, volRect.y+14, "Volume", dark);
+    }
+
+    void draw_controls(Drawable target) {
+        draw_top_bar(target);
+        button_on(target, openBtn, "Open");
+        button_on(target, rewindBtn, "Rewind 10s");
+        button_on(target, playBtn, "Play/Pause");
+        button_on(target, stopBtn, "Stop");
+        button_on(target, forwardBtn, "Fast Forward 10s");
+        button_on(target, fsBtn, "Fullscreen");
+        draw_seek_time_row(target);
+        draw_volume_bar(target);
+    }
+
+    void draw_seek_time_only() {
+        if (!fullscreen) redraw();
+    }
+
+    void draw_volume_only() {
+        if (!fullscreen) redraw();
+    }
+
     void redraw() {
         if (fullscreen) {
             draw_video_message();
@@ -427,40 +536,11 @@ public:
             XFlush(d);
             return;
         }
-        unsigned long dark = col(0x1111,0x1111,0x1111);
-        fill(win, {0,0,W,26}, col(0xf2f2,0xf2f2,0xf2f2));
-        outline(win, {0,24,W,1}, col(0xb0b0,0xb0b0,0xb0b0));
-        fill(win, {0,std::max(0,H-114),W,114}, col(0xdede,0xdede,0xdede));
-        text(win, 10, 17, "File", dark); text(win, 55, 17, "Audio", dark); text(win, 112, 17, "Subtitle", dark);
-        text(win, W-155, 17, "ReddMedia v0.0.4", col(0x3333,0x3333,0x3333));
-        button(openBtn, "Open");
-        button(rewindBtn, "Rewind 10s");
-        button(playBtn, "Play/Pause");
-        button(stopBtn, "Stop");
-        button(forwardBtn, "Fast Forward 10s");
-        button(fsBtn, "Fullscreen");
-        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
-        unsigned long markDark = col(0x3333,0x3333,0x3333);
-        fill(win, seekRect, col(0xeeee,0xeeee,0xeeee)); outline(win, seekRect, col(0x8888,0x8888,0x8888));
-        long long t=0,l=0; if (mp) { t=api.get_time(mp); l=api.get_length(mp); }
-        if (l > 0) {
-            int pos = (int)((double)t / (double)l * seekRect.w);
-            fill(win, {seekRect.x, seekRect.y, std::max(1,pos), seekRect.h}, companyRed);
-            long long chapterEveryMs = 300000;
-            if (l > 7200000) chapterEveryMs = 900000;
-            else if (l > 3600000) chapterEveryMs = 600000;
-            for (long long markMs = chapterEveryMs; markMs < l; markMs += chapterEveryMs) {
-                int mx = seekRect.x + (int)((double)markMs / (double)l * seekRect.w);
-                line(win, mx, seekRect.y, mx, seekRect.y + seekRect.h, markDark);
-            }
-        }
-        text(win, 10, seekRect.y+14, format_time(t), dark);
-        int totalX = seekRect.x + seekRect.w + 10;
-        text(win, totalX, seekRect.y+14, format_time(l), dark);
-        fill(win, volRect, col(0xeeee,0xeeee,0xeeee)); outline(win, volRect, col(0x8888,0x8888,0x8888));
-        int vol = mp ? api.get_volume(mp) : 80; vol = std::max(0,std::min(100,vol));
-        fill(win, {volRect.x, volRect.y, volRect.w*vol/100, volRect.h}, companyRed);
-        text(win, volRect.x-56, volRect.y+14, "Volume", dark);
+        Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
+        fill(buffer, {0,0,W,H}, col(0xdede,0xdede,0xdede));
+        draw_controls(buffer);
+        XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
+        XFreePixmap(d, buffer);
         draw_video_message();
         if (contextMenuOpen) draw_context_menu();
         XFlush(d);
@@ -540,10 +620,10 @@ public:
         if (needResumePrompt && resumeBtn.contains(x,y)) { open_media(sessionPath, sessionTime); return; }
         if (needResumePrompt && loadBtn.contains(x,y)) { needResumePrompt=false; redraw(); do_open(); return; }
         if (seekRect.contains(x,y) && mp) {
-            long long l = api.get_length(mp); if (l > 0) api.set_time(mp, (long long)((double)(x-seekRect.x)/seekRect.w*l)); redraw(); return;
+            long long l = api.get_length(mp); if (l > 0) api.set_time(mp, (long long)((double)(x-seekRect.x)/seekRect.w*l)); draw_seek_time_only(); return;
         }
         if (volRect.contains(x,y) && mp) {
-            int v = std::max(0, std::min(100, (x-volRect.x)*100/volRect.w)); api.set_volume(mp, v); redraw(); return;
+            int v = std::max(0, std::min(100, (x-volRect.x)*100/volRect.w)); api.set_volume(mp, v); draw_volume_only(); return;
         }
     }
     void run_pending_video_click() {
@@ -566,7 +646,18 @@ public:
         while (running) {
             while (XPending(d)) {
                 XEvent e; XNextEvent(d, &e);
-                if (e.type == Expose) redraw();
+                if (e.type == Expose) {
+                    if (e.xexpose.count != 0) continue;
+                    if (e.xexpose.window == win) {
+                        redraw();
+                    } else if (e.xexpose.window == video) {
+                        draw_video_message();
+                        XFlush(d);
+                    } else if (contextMenuOpen && e.xexpose.window == contextMenu) {
+                        draw_context_menu();
+                        XFlush(d);
+                    }
+                }
                 else if (e.type == ConfigureNotify && e.xconfigure.window == win) resize(e.xconfigure.width, e.xconfigure.height);
                 else if (e.type == ClientMessage) running=false;
                 else if (e.type == ButtonPress) {
@@ -592,7 +683,7 @@ public:
             run_pending_video_click();
             tick_resume_seek();
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
-            static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && now != lastRedraw) { redraw(); lastRedraw=now; }
+            static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
         }
     }

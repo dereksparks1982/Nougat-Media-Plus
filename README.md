@@ -1,6 +1,6 @@
 # ReddMedia
 
-## v0.0.4 - Time Layout, Skip Buttons, and Red Timeline Repair
+## v0.0.5 - Branding and Polish
 
 This build does the following:
 
@@ -9,10 +9,16 @@ This build does the following:
 - Opens local media files.
 - Plays video through VLC/libVLC.
 - Provides play, pause, stop, seek, time display, fullscreen, and volume controls.
-- Shows the current playback time before the seek bar.
-- Shows the total media duration after the seek bar.
-- Lowers the current time, seek bar, and total time row below the video area.
-- Adds spacing between the video area and the seek/time row.
+- Uses a red ReddMedia triangle icon for the app window.
+- Includes red triangle icon files for local Linux launcher and dock registration.
+- Uses a red triangle icon in `ReddMedia.desktop`.
+- Uses `ReddMedia` as the window class for launcher and dock matching.
+- Uses a red in-app top menu/header bar.
+- Uses buffered drawing for the parent-window controls to keep the red header, seek bar, and volume bar stable during playback.
+- Keeps the current playback time before the seek bar.
+- Keeps the total media duration after the seek bar.
+- Keeps the current time, seek bar, and total time row below the video area.
+- Keeps spacing between the video area and the seek/time row.
 - Uses a red seek/progress bar.
 - Shows chapter-style marks on the seek bar.
 - Uses a red volume bar.
