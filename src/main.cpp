@@ -15,6 +15,8 @@
 #include <algorithm>
 #include <vector>
 #include <chrono>
+#include <cctype>
+#include <dirent.h>
 #include <X11/keysym.h>
 
 struct libvlc_instance_t;
@@ -37,6 +39,34 @@ typedef long long (*fn_libvlc_media_player_get_length)(libvlc_media_player_t*);
 typedef int (*fn_libvlc_audio_get_volume)(libvlc_media_player_t*);
 typedef int (*fn_libvlc_audio_set_volume)(libvlc_media_player_t*, int);
 
+struct libvlc_track_description_t {
+    int i_id;
+    char* psz_name;
+    libvlc_track_description_t* p_next;
+};
+struct libvlc_chapter_description_t {
+    long long i_time_offset;
+    long long i_duration;
+    char* psz_name;
+};
+
+typedef libvlc_track_description_t* (*fn_libvlc_audio_get_track_description)(libvlc_media_player_t*);
+typedef int (*fn_libvlc_audio_get_track)(libvlc_media_player_t*);
+typedef int (*fn_libvlc_audio_set_track)(libvlc_media_player_t*, int);
+typedef libvlc_track_description_t* (*fn_libvlc_video_get_spu_description)(libvlc_media_player_t*);
+typedef int (*fn_libvlc_video_get_spu)(libvlc_media_player_t*);
+typedef int (*fn_libvlc_video_set_spu)(libvlc_media_player_t*, int);
+typedef int (*fn_libvlc_video_set_subtitle_file)(libvlc_media_player_t*, const char*);
+typedef long long (*fn_libvlc_video_get_spu_delay)(libvlc_media_player_t*);
+typedef int (*fn_libvlc_video_set_spu_delay)(libvlc_media_player_t*, long long);
+typedef void (*fn_libvlc_track_description_list_release)(libvlc_track_description_t*);
+typedef int (*fn_libvlc_media_player_get_chapter_count)(libvlc_media_player_t*);
+typedef int (*fn_libvlc_media_player_get_chapter)(libvlc_media_player_t*);
+typedef void (*fn_libvlc_media_player_set_chapter)(libvlc_media_player_t*, int);
+typedef int (*fn_libvlc_media_player_get_title)(libvlc_media_player_t*);
+typedef int (*fn_libvlc_media_player_get_full_chapter_descriptions)(libvlc_media_player_t*, int, libvlc_chapter_description_t***);
+typedef void (*fn_libvlc_chapter_descriptions_release)(libvlc_chapter_description_t**, unsigned);
+
 struct VlcApi {
     void* handle = nullptr;
     fn_libvlc_new new_ = nullptr;
@@ -54,6 +84,22 @@ struct VlcApi {
     fn_libvlc_media_player_get_length get_length = nullptr;
     fn_libvlc_audio_get_volume get_volume = nullptr;
     fn_libvlc_audio_set_volume set_volume = nullptr;
+    fn_libvlc_audio_get_track_description audio_get_track_description = nullptr;
+    fn_libvlc_audio_get_track audio_get_track = nullptr;
+    fn_libvlc_audio_set_track audio_set_track = nullptr;
+    fn_libvlc_video_get_spu_description video_get_spu_description = nullptr;
+    fn_libvlc_video_get_spu video_get_spu = nullptr;
+    fn_libvlc_video_set_spu video_set_spu = nullptr;
+    fn_libvlc_video_set_subtitle_file video_set_subtitle_file = nullptr;
+    fn_libvlc_video_get_spu_delay video_get_spu_delay = nullptr;
+    fn_libvlc_video_set_spu_delay video_set_spu_delay = nullptr;
+    fn_libvlc_track_description_list_release track_description_list_release = nullptr;
+    fn_libvlc_media_player_get_chapter_count get_chapter_count = nullptr;
+    fn_libvlc_media_player_get_chapter get_chapter = nullptr;
+    fn_libvlc_media_player_set_chapter set_chapter = nullptr;
+    fn_libvlc_media_player_get_title get_title = nullptr;
+    fn_libvlc_media_player_get_full_chapter_descriptions get_full_chapter_descriptions = nullptr;
+    fn_libvlc_chapter_descriptions_release chapter_descriptions_release = nullptr;
 
     bool load(std::string& err) {
         const char* names[] = {"libvlc.so.5", "libvlc.so", nullptr};
@@ -79,6 +125,24 @@ struct VlcApi {
         LOAD_SYM(get_volume, "libvlc_audio_get_volume");
         LOAD_SYM(set_volume, "libvlc_audio_set_volume");
 #undef LOAD_SYM
+#define LOAD_OPTIONAL(field, name) do { field = (decltype(field))dlsym(handle, name); } while(0)
+        LOAD_OPTIONAL(audio_get_track_description, "libvlc_audio_get_track_description");
+        LOAD_OPTIONAL(audio_get_track, "libvlc_audio_get_track");
+        LOAD_OPTIONAL(audio_set_track, "libvlc_audio_set_track");
+        LOAD_OPTIONAL(video_get_spu_description, "libvlc_video_get_spu_description");
+        LOAD_OPTIONAL(video_get_spu, "libvlc_video_get_spu");
+        LOAD_OPTIONAL(video_set_spu, "libvlc_video_set_spu");
+        LOAD_OPTIONAL(video_set_subtitle_file, "libvlc_video_set_subtitle_file");
+        LOAD_OPTIONAL(video_get_spu_delay, "libvlc_video_get_spu_delay");
+        LOAD_OPTIONAL(video_set_spu_delay, "libvlc_video_set_spu_delay");
+        LOAD_OPTIONAL(track_description_list_release, "libvlc_track_description_list_release");
+        LOAD_OPTIONAL(get_chapter_count, "libvlc_media_player_get_chapter_count");
+        LOAD_OPTIONAL(get_chapter, "libvlc_media_player_get_chapter");
+        LOAD_OPTIONAL(set_chapter, "libvlc_media_player_set_chapter");
+        LOAD_OPTIONAL(get_title, "libvlc_media_player_get_title");
+        LOAD_OPTIONAL(get_full_chapter_descriptions, "libvlc_media_player_get_full_chapter_descriptions");
+        LOAD_OPTIONAL(chapter_descriptions_release, "libvlc_chapter_descriptions_release");
+#undef LOAD_OPTIONAL
         return true;
     }
 };
@@ -98,6 +162,22 @@ static void ensure_config_dir() {
 }
 static std::string basename_only(const std::string& path) {
     size_t p = path.find_last_of('/'); return p == std::string::npos ? path : path.substr(p+1);
+}
+static std::string dirname_only(const std::string& path) {
+    size_t p = path.find_last_of('/'); return p == std::string::npos ? std::string(".") : path.substr(0,p);
+}
+static std::string stem_only(const std::string& path) {
+    std::string b = basename_only(path);
+    size_t p = b.find_last_of('.');
+    return p == std::string::npos ? b : b.substr(0,p);
+}
+static std::string lower_copy(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return (char)std::tolower(c); });
+    return s;
+}
+static bool ends_with_lower(const std::string& s, const std::string& ending) {
+    std::string a = lower_copy(s);
+    return a.size() >= ending.size() && a.substr(a.size()-ending.size()) == ending;
 }
 static std::string json_escape(const std::string& s) {
     std::ostringstream o;
@@ -152,6 +232,26 @@ static std::string choose_file_dialog() {
     p = run_command_capture(py);
     return p;
 }
+static std::string choose_subtitle_file_dialog() {
+    std::string p;
+    p = run_command_capture("command -v zenity >/dev/null 2>&1 && zenity --file-selection --title='Load Subtitle File' --file-filter='Subtitle files | *.srt *.SRT' 2>/dev/null");
+    if (!p.empty()) return p;
+    std::string py =
+        "python3 -c \"import tkinter as tk; from tkinter import filedialog; "
+        "root=tk.Tk(); root.withdraw(); "
+        "p=filedialog.askopenfilename(title='Load Subtitle File', filetypes=[('Subtitle files','*.srt'),('All files','*')]); print(p if p else '')\" 2>/dev/null";
+    return run_command_capture(py);
+}
+static std::string choose_folder_dialog() {
+    std::string p;
+    p = run_command_capture("command -v zenity >/dev/null 2>&1 && zenity --file-selection --directory --title='Open Subtitle Folder' 2>/dev/null");
+    if (!p.empty()) return p;
+    std::string py =
+        "python3 -c \"import tkinter as tk; from tkinter import filedialog; "
+        "root=tk.Tk(); root.withdraw(); "
+        "p=filedialog.askdirectory(title='Open Subtitle Folder'); print(p if p else '')\" 2>/dev/null";
+    return run_command_capture(py);
+}
 static long long now_ms() {
     using namespace std::chrono;
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
@@ -166,6 +266,18 @@ static std::string format_time(long long ms) {
     else snprintf(b, sizeof(b), "%lld:%02lld", m, s);
     return b;
 }
+
+enum class MenuAction {
+    NoAction, OpenFile, ExitApp, TogglePlay, ToggleFullscreen, Rewind10, Forward10,
+    SubtitleToggle, SubtitleLoadFile, SubtitleLoadFolder, SubtitleDelayPlus, SubtitleDelayMinus, SubtitleDelayReset, SubtitleTrack,
+    AudioTrack, PrevChapter, NextChapter, ChapterJump
+};
+struct MenuItem {
+    std::string label;
+    MenuAction action = MenuAction::NoAction;
+    int value = 0;
+};
+struct TrackChoice { int id = -1; std::string name; };
 
 class App {
 public:
@@ -188,7 +300,17 @@ public:
     long long pendingVideoSingleClickDeadlineMs=0;
     Window contextMenu=0;
     bool contextMenuOpen=false;
-    std::vector<std::string> contextMenuItems;
+    std::vector<MenuItem> contextMenuItems;
+    int contextMenuW=220;
+    int contextMenuH=32;
+    bool subtitlesOn=false;
+    std::string subtitlePath;
+    std::string subtitleFolder;
+    long long subtitleDelayUs=0;
+    std::vector<long long> chapterMarksMs;
+    std::vector<std::string> chapterNames;
+    bool chapterMarksAreReal=false;
+    long long lastChapterScanMs=0;
     bool pendingSeek=false;
     long long pendingSeekMs=0;
     time_t pendingSeekDeadline=0;
@@ -254,7 +376,7 @@ public:
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.5");
+        XStoreName(d, win, "ReddMedia v0.0.6");
         set_window_identity();
         XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|KeyPressMask|PointerMotionMask);
         Atom wmDelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
@@ -375,7 +497,7 @@ public:
     }
     void cleanup_player() {
         if (mp) { api.stop(mp); api.player_release(mp); mp=nullptr; }
-        hasMedia=false; paused=false; pendingSeek=false;
+        hasMedia=false; paused=false; pendingSeek=false; subtitlesOn=false; chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false;
     }
     void open_media(const std::string& path, long long seek=0) {
         if (!inst || !api.media_new_path) return;
@@ -388,7 +510,10 @@ public:
         api.set_xwindow(mp, (unsigned int)video);
         api.set_volume(mp, 80);
         currentPath = path; hasMedia=true; paused=false; needResumePrompt=false;
+        subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
+        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; lastChapterScanMs=0;
         api.play(mp);
+        auto_load_subtitle_for_current_media();
         if (seek > 0) {
             pendingSeek = true;
             pendingSeekMs = seek;
@@ -407,6 +532,144 @@ public:
     void stop_media() {
         if (mp) { api.stop(mp); paused=false; redraw(); }
     }
+
+    std::vector<TrackChoice> audio_tracks() {
+        std::vector<TrackChoice> out;
+        if (!mp || !api.audio_get_track_description) return out;
+        libvlc_track_description_t* list = api.audio_get_track_description(mp);
+        for (libvlc_track_description_t* n=list; n; n=n->p_next) {
+            TrackChoice t; t.id=n->i_id; t.name=n->psz_name ? n->psz_name : "Audio Track"; out.push_back(t);
+        }
+        if (list && api.track_description_list_release) api.track_description_list_release(list);
+        return out;
+    }
+    std::vector<TrackChoice> subtitle_tracks() {
+        std::vector<TrackChoice> out;
+        if (!mp || !api.video_get_spu_description) return out;
+        libvlc_track_description_t* list = api.video_get_spu_description(mp);
+        for (libvlc_track_description_t* n=list; n; n=n->p_next) {
+            TrackChoice t; t.id=n->i_id; t.name=n->psz_name ? n->psz_name : "Subtitle Track"; out.push_back(t);
+        }
+        if (list && api.track_description_list_release) api.track_description_list_release(list);
+        return out;
+    }
+    int current_audio_track() { return (mp && api.audio_get_track) ? api.audio_get_track(mp) : -9999; }
+    int current_subtitle_track() { return (mp && api.video_get_spu) ? api.video_get_spu(mp) : -1; }
+
+    bool load_subtitle_file(const std::string& path) {
+        if (!mp || !api.video_set_subtitle_file || path.empty() || !exists_file(path)) return false;
+        int ok = api.video_set_subtitle_file(mp, path.c_str());
+        if (ok != 0) {
+            subtitlePath = path;
+            subtitleFolder = dirname_only(path);
+            subtitlesOn = true;
+            if (api.video_set_spu_delay) api.video_set_spu_delay(mp, subtitleDelayUs);
+            redraw();
+            return true;
+        }
+        return false;
+    }
+    std::string find_subtitle_in_dir(const std::string& dir, const std::string& stem) {
+        if (dir.empty()) return "";
+        std::vector<std::string> candidates = {
+            dir + "/" + stem + ".en.srt",
+            dir + "/" + stem + ".eng.srt",
+            dir + "/" + stem + ".english.srt",
+            dir + "/" + stem + ".srt"
+        };
+        for (const std::string& c : candidates) if (exists_file(c)) return c;
+        DIR* dp = opendir(dir.c_str());
+        if (!dp) return "";
+        std::string lowerStem = lower_copy(stem);
+        std::string best;
+        while (dirent* ent = readdir(dp)) {
+            std::string name = ent->d_name;
+            std::string low = lower_copy(name);
+            if (!ends_with_lower(name, ".srt")) continue;
+            if (low.find(lowerStem) == std::string::npos) continue;
+            bool english = low.find(".en.") != std::string::npos || low.find("_en.") != std::string::npos ||
+                           low.find("english") != std::string::npos || low.find("eng") != std::string::npos;
+            if (english) { best = dir + "/" + name; break; }
+            if (best.empty()) best = dir + "/" + name;
+        }
+        closedir(dp);
+        return best;
+    }
+    std::string find_auto_subtitle(const std::string& mediaPath) {
+        std::string dir = dirname_only(mediaPath);
+        std::string stem = stem_only(mediaPath);
+        std::string found = find_subtitle_in_dir(dir, stem);
+        if (!found.empty()) return found;
+        const char* subdirs[] = {"Subs", "subs", "Subtitles", "subtitles", nullptr};
+        for (int i=0; subdirs[i]; ++i) {
+            found = find_subtitle_in_dir(dir + "/" + subdirs[i], stem);
+            if (!found.empty()) return found;
+        }
+        return "";
+    }
+    void auto_load_subtitle_for_current_media() {
+        if (!mp || currentPath.empty()) return;
+        std::string srt = find_auto_subtitle(currentPath);
+        if (!srt.empty()) load_subtitle_file(srt);
+    }
+    void choose_and_load_subtitle_file() {
+        std::string p = choose_subtitle_file_dialog();
+        if (!p.empty()) load_subtitle_file(p);
+    }
+    void choose_and_load_subtitle_folder() {
+        std::string folder = choose_folder_dialog();
+        if (folder.empty()) return;
+        subtitleFolder = folder;
+        if (!currentPath.empty()) {
+            std::string srt = find_subtitle_in_dir(folder, stem_only(currentPath));
+            if (!srt.empty()) load_subtitle_file(srt);
+        }
+    }
+    void set_subtitles_enabled(bool on) {
+        if (!mp) return;
+        if (!on) {
+            if (api.video_set_spu) api.video_set_spu(mp, -1);
+            subtitlesOn = false;
+            redraw();
+            return;
+        }
+        if (!subtitlePath.empty() && exists_file(subtitlePath) && load_subtitle_file(subtitlePath)) return;
+        std::vector<TrackChoice> tracks = subtitle_tracks();
+        for (const TrackChoice& t : tracks) {
+            if (t.id >= 0 && api.video_set_spu) { api.video_set_spu(mp, t.id); subtitlesOn = true; redraw(); return; }
+        }
+    }
+    void toggle_subtitles() { set_subtitles_enabled(!subtitlesOn); }
+    void set_subtitle_track(int id) {
+        if (!mp || !api.video_set_spu) return;
+        api.video_set_spu(mp, id);
+        subtitlesOn = id >= 0;
+        redraw();
+    }
+    void set_audio_track(int id) {
+        if (mp && api.audio_set_track) api.audio_set_track(mp, id);
+    }
+    void change_subtitle_delay(long long deltaUs) {
+        if (mp && api.video_get_spu_delay) subtitleDelayUs = api.video_get_spu_delay(mp);
+        subtitleDelayUs += deltaUs;
+        if (subtitleDelayUs > 60000000LL) subtitleDelayUs = 60000000LL;
+        if (subtitleDelayUs < -60000000LL) subtitleDelayUs = -60000000LL;
+        if (mp && api.video_set_spu_delay) api.video_set_spu_delay(mp, subtitleDelayUs);
+        redraw();
+    }
+    void reset_subtitle_delay() {
+        subtitleDelayUs = 0;
+        if (mp && api.video_set_spu_delay) api.video_set_spu_delay(mp, 0);
+        redraw();
+    }
+    std::string subtitle_delay_label() {
+        long long us = subtitleDelayUs;
+        if (mp && api.video_get_spu_delay) us = api.video_get_spu_delay(mp);
+        char b[64];
+        snprintf(b, sizeof(b), "Delay: %+.1fs", (double)us / 1000000.0);
+        return b;
+    }
+
     void toggle_fullscreen() {
         Atom wm_state = XInternAtom(d, "_NET_WM_STATE", False);
         Atom fs_atom = XInternAtom(d, "_NET_WM_STATE_FULLSCREEN", False);
@@ -467,13 +730,85 @@ public:
         text(target, 10, 17, "File", topText);
         text(target, 55, 17, "Audio", topText);
         text(target, 112, 17, "Subtitle", topText);
-        text(target, W-155, 17, "ReddMedia v0.0.5", topText);
+        text(target, W-155, 17, "ReddMedia v0.0.6", topText);
+    }
+
+    void update_chapter_marks(bool force=false) {
+        if (!mp) { chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; return; }
+        long long l = api.get_length(mp);
+        if (l <= 0) return;
+        long long n = now_ms();
+        if (!force && n - lastChapterScanMs < 2500 && !chapterMarksMs.empty()) return;
+        lastChapterScanMs = n;
+
+        std::vector<long long> realMarks;
+        std::vector<std::string> realNames;
+        if (api.get_full_chapter_descriptions && api.chapter_descriptions_release) {
+            int title = api.get_title ? api.get_title(mp) : -1;
+            libvlc_chapter_description_t** chapters = nullptr;
+            int count = api.get_full_chapter_descriptions(mp, title, &chapters);
+            if (count > 0 && chapters) {
+                for (int i=0; i<count; ++i) {
+                    if (!chapters[i]) continue;
+                    long long offset = chapters[i]->i_time_offset;
+                    if (offset >= 0 && offset < l) {
+                        realMarks.push_back(offset);
+                        std::string name = chapters[i]->psz_name ? chapters[i]->psz_name : "";
+                        if (name.empty()) { char b[40]; snprintf(b, sizeof(b), "Chapter %d", i+1); name = b; }
+                        realNames.push_back(name);
+                    }
+                }
+                api.chapter_descriptions_release(chapters, (unsigned)count);
+            }
+        }
+        if (realMarks.size() > 1) {
+            chapterMarksMs = realMarks;
+            chapterNames = realNames;
+            chapterMarksAreReal = true;
+            return;
+        }
+
+        chapterMarksMs.clear();
+        chapterNames.clear();
+        chapterMarksAreReal = false;
+        long long chapterEveryMs = 300000;
+        if (l > 7200000) chapterEveryMs = 900000;
+        else if (l > 3600000) chapterEveryMs = 600000;
+        for (long long markMs = chapterEveryMs; markMs < l; markMs += chapterEveryMs) {
+            chapterMarksMs.push_back(markMs);
+            chapterNames.push_back("Default mark");
+        }
+    }
+    void jump_to_chapter_index(int idx) {
+        if (!mp || !chapterMarksAreReal || idx < 0 || idx >= (int)chapterMarksMs.size()) return;
+        api.set_time(mp, chapterMarksMs[(size_t)idx]);
+        draw_seek_time_only();
+    }
+    int current_chapter_index() {
+        if (!mp || !chapterMarksAreReal || chapterMarksMs.empty()) return -1;
+        long long t = api.get_time(mp);
+        int idx = 0;
+        for (size_t i=0; i<chapterMarksMs.size(); ++i) if (chapterMarksMs[i] <= t) idx = (int)i;
+        return idx;
+    }
+    void previous_chapter() {
+        if (!chapterMarksAreReal) return;
+        int idx = current_chapter_index();
+        long long t = mp ? api.get_time(mp) : 0;
+        if (idx > 0 && idx < (int)chapterMarksMs.size() && t - chapterMarksMs[(size_t)idx] < 3000) idx--;
+        jump_to_chapter_index(std::max(0, idx));
+    }
+    void next_chapter() {
+        if (!chapterMarksAreReal) return;
+        int idx = current_chapter_index();
+        jump_to_chapter_index(std::min((int)chapterMarksMs.size()-1, idx+1));
     }
 
     void draw_seek_time_row(Drawable target) {
         unsigned long dark = col(0x1111,0x1111,0x1111);
         unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
         unsigned long markDark = col(0x3333,0x3333,0x3333);
+        unsigned long markReal = col(0x0000,0x0000,0x0000);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         fill(target, {0, std::max(0, seekRect.y-6), W, seekRect.h+16}, bg);
         fill(target, seekRect, col(0xeeee,0xeeee,0xeeee));
@@ -481,14 +816,13 @@ public:
         long long t=0,l=0;
         if (mp) { t=api.get_time(mp); l=api.get_length(mp); }
         if (l > 0) {
+            update_chapter_marks(false);
             int pos = (int)((double)t / (double)l * seekRect.w);
             fill(target, {seekRect.x, seekRect.y, std::max(1,pos), seekRect.h}, companyRed);
-            long long chapterEveryMs = 300000;
-            if (l > 7200000) chapterEveryMs = 900000;
-            else if (l > 3600000) chapterEveryMs = 600000;
-            for (long long markMs = chapterEveryMs; markMs < l; markMs += chapterEveryMs) {
+            for (long long markMs : chapterMarksMs) {
+                if (markMs <= 0 || markMs >= l) continue;
                 int mx = seekRect.x + (int)((double)markMs / (double)l * seekRect.w);
-                line(target, mx, seekRect.y, mx, seekRect.y + seekRect.h, markDark);
+                line(target, mx, seekRect.y, mx, seekRect.y + seekRect.h, chapterMarksAreReal ? markReal : markDark);
             }
         }
         text(target, 10, seekRect.y+14, format_time(t), dark);
@@ -549,48 +883,139 @@ public:
         if (contextMenuOpen && contextMenu) {
             XDestroyWindow(d, contextMenu);
         }
-        contextMenu=0; contextMenuOpen=false;
+        contextMenu=0; contextMenuOpen=false; contextMenuItems.clear();
+    }
+    int label_pixel_width(const std::string& label) {
+        return 18 + (int)label.size() * 8;
     }
     void draw_context_menu() {
         if (!contextMenuOpen || !contextMenu) return;
         unsigned long bg = col(0xf4f4,0xf4f4,0xf4f4);
         unsigned long border = col(0x5555,0x5555,0x5555);
         unsigned long dark = col(0x1111,0x1111,0x1111);
-        fill(contextMenu, {0,0,190,152}, bg);
-        outline(contextMenu, {0,0,189,151}, border);
+        unsigned long muted = col(0x7777,0x7777,0x7777);
+        fill(contextMenu, {0,0,contextMenuW,contextMenuH}, bg);
+        outline(contextMenu, {0,0,contextMenuW-1,contextMenuH-1}, border);
         for (size_t i=0; i<contextMenuItems.size(); ++i) {
-            int y = 26 + (int)i*28;
-            text(contextMenu, 12, y, contextMenuItems[i], dark);
+            int y = 24 + (int)i*26;
+            text(contextMenu, 12, y, contextMenuItems[i].label, contextMenuItems[i].action == MenuAction::NoAction ? muted : dark);
         }
     }
-    void show_context_menu(Window target, int x, int y) {
+    void show_menu(Window target, int x, int y, const std::vector<MenuItem>& items) {
         close_context_menu();
         int wx=x, wy=y; Window child=0;
         if (target != win) XTranslateCoordinates(d, target, win, x, y, &wx, &wy, &child);
-        const int menuW=190, menuH=152;
-        wx = std::max(0, std::min(wx, std::max(0,W-menuW-4)));
-        wy = std::max(0, std::min(wy, std::max(0,H-menuH-4)));
-        contextMenuItems.clear();
-        contextMenuItems.push_back(paused ? "Play" : "Pause");
-        contextMenuItems.push_back(fullscreen ? "Exit Fullscreen" : "Fullscreen");
-        contextMenuItems.push_back("Rewind 10 seconds");
-        contextMenuItems.push_back("Forward 10 seconds");
-        contextMenuItems.push_back("Open File");
-        contextMenu = XCreateSimpleWindow(d, win, wx, wy, menuW, menuH, 1, BlackPixel(d,screen), col(0xf4f4,0xf4f4,0xf4f4));
+        contextMenuItems = items;
+        contextMenuW = 190;
+        for (const MenuItem& it : items) contextMenuW = std::max(contextMenuW, label_pixel_width(it.label));
+        contextMenuW = std::min(contextMenuW, std::max(190, W-8));
+        contextMenuH = std::max(32, 10 + (int)items.size()*26);
+        wx = std::max(0, std::min(wx, std::max(0,W-contextMenuW-4)));
+        wy = std::max(0, std::min(wy, std::max(0,H-contextMenuH-4)));
+        contextMenu = XCreateSimpleWindow(d, win, wx, wy, contextMenuW, contextMenuH, 1, BlackPixel(d,screen), col(0xf4f4,0xf4f4,0xf4f4));
         XSelectInput(d, contextMenu, ExposureMask|ButtonPressMask);
         XMapRaised(d, contextMenu);
         contextMenuOpen=true;
         draw_context_menu();
         XFlush(d);
     }
-    void handle_context_menu_click(int, int y) {
-        int idx = (y - 8) / 28;
+    void show_file_menu(int x, int y) {
+        std::vector<MenuItem> items;
+        items.push_back({"Open File", MenuAction::OpenFile, 0});
+        items.push_back({"Exit ReddMedia", MenuAction::ExitApp, 0});
+        show_menu(win, x, y, items);
+    }
+    void show_audio_menu(int x, int y) {
+        std::vector<MenuItem> items;
+        if (!mp) {
+            items.push_back({"Open media first", MenuAction::NoAction, 0});
+        } else if (!api.audio_get_track_description || !api.audio_set_track) {
+            items.push_back({"Audio tracks unavailable", MenuAction::NoAction, 0});
+        } else {
+            int current = current_audio_track();
+            std::vector<TrackChoice> tracks = audio_tracks();
+            if (tracks.empty()) items.push_back({"No audio tracks found", MenuAction::NoAction, 0});
+            for (const TrackChoice& t : tracks) {
+                std::string label = (t.id == current ? "* " : "  ") + t.name;
+                items.push_back({label, MenuAction::AudioTrack, t.id});
+            }
+        }
+        show_menu(win, x, y, items);
+    }
+    void show_subtitle_menu(int x, int y) {
+        std::vector<MenuItem> items;
+        items.push_back({subtitlesOn ? "Subtitles Off" : "Subtitles On", MenuAction::SubtitleToggle, 0});
+        items.push_back({"Load Subtitle File", MenuAction::SubtitleLoadFile, 0});
+        items.push_back({"Open Subtitle Folder", MenuAction::SubtitleLoadFolder, 0});
+        items.push_back({"Delay -0.5s (earlier)", MenuAction::SubtitleDelayMinus, 0});
+        items.push_back({"Delay +0.5s (later)", MenuAction::SubtitleDelayPlus, 0});
+        items.push_back({"Reset Subtitle Delay", MenuAction::SubtitleDelayReset, 0});
+        items.push_back({subtitle_delay_label(), MenuAction::NoAction, 0});
+        if (mp && api.video_get_spu_description && api.video_set_spu) {
+            int current = current_subtitle_track();
+            std::vector<TrackChoice> tracks = subtitle_tracks();
+            if (!tracks.empty()) items.push_back({"Subtitle Tracks", MenuAction::NoAction, 0});
+            for (const TrackChoice& t : tracks) {
+                std::string name = t.name;
+                if (t.id < 0) name = "Disable subtitles";
+                std::string label = (t.id == current ? "* " : "  ") + name;
+                items.push_back({label, MenuAction::SubtitleTrack, t.id});
+            }
+        }
+        show_menu(win, x, y, items);
+    }
+    void show_context_menu(Window target, int x, int y) {
+        std::vector<MenuItem> items;
+        items.push_back({paused ? "Play" : "Pause", MenuAction::TogglePlay, 0});
+        items.push_back({fullscreen ? "Exit Fullscreen" : "Fullscreen", MenuAction::ToggleFullscreen, 0});
+        items.push_back({"Subtitles On / Off", MenuAction::SubtitleToggle, 0});
+        items.push_back({"Rewind 10 seconds", MenuAction::Rewind10, 0});
+        items.push_back({"Forward 10 seconds", MenuAction::Forward10, 0});
+        update_chapter_marks(true);
+        if (chapterMarksAreReal) {
+            items.push_back({"Previous Chapter", MenuAction::PrevChapter, 0});
+            items.push_back({"Next Chapter", MenuAction::NextChapter, 0});
+            int maxList = std::min((int)chapterMarksMs.size(), 10);
+            for (int i=0; i<maxList; ++i) {
+                std::string name = (i < (int)chapterNames.size() ? chapterNames[(size_t)i] : "Chapter");
+                std::string label = "Chapter " + std::to_string(i+1) + ": " + name;
+                items.push_back({label, MenuAction::ChapterJump, i});
+            }
+        } else {
+            items.push_back({"No real chapters found", MenuAction::NoAction, 0});
+        }
+        items.push_back({"Open File", MenuAction::OpenFile, 0});
+        show_menu(target, x, y, items);
+    }
+    void run_menu_action(const MenuItem& item) {
+        MenuAction action = item.action;
+        int value = item.value;
         close_context_menu();
-        if (idx == 0) toggle_play();
-        else if (idx == 1) { if (fullscreen) exit_fullscreen(); else toggle_fullscreen(); }
-        else if (idx == 2) seek_relative(-10000);
-        else if (idx == 3) seek_relative(10000);
-        else if (idx == 4) do_open();
+        switch (action) {
+            case MenuAction::OpenFile: do_open(); break;
+            case MenuAction::ExitApp: running=false; break;
+            case MenuAction::TogglePlay: toggle_play(); break;
+            case MenuAction::ToggleFullscreen: if (fullscreen) exit_fullscreen(); else toggle_fullscreen(); break;
+            case MenuAction::Rewind10: seek_relative(-10000); break;
+            case MenuAction::Forward10: seek_relative(10000); break;
+            case MenuAction::SubtitleToggle: toggle_subtitles(); break;
+            case MenuAction::SubtitleLoadFile: choose_and_load_subtitle_file(); break;
+            case MenuAction::SubtitleLoadFolder: choose_and_load_subtitle_folder(); break;
+            case MenuAction::SubtitleDelayPlus: change_subtitle_delay(500000); break;
+            case MenuAction::SubtitleDelayMinus: change_subtitle_delay(-500000); break;
+            case MenuAction::SubtitleDelayReset: reset_subtitle_delay(); break;
+            case MenuAction::SubtitleTrack: set_subtitle_track(value); break;
+            case MenuAction::AudioTrack: set_audio_track(value); break;
+            case MenuAction::PrevChapter: previous_chapter(); break;
+            case MenuAction::NextChapter: next_chapter(); break;
+            case MenuAction::ChapterJump: jump_to_chapter_index(value); break;
+            case MenuAction::NoAction: break;
+        }
+    }
+    void handle_context_menu_click(int, int y) {
+        int idx = (y - 8) / 26;
+        if (idx >= 0 && idx < (int)contextMenuItems.size()) run_menu_action(contextMenuItems[(size_t)idx]);
+        else close_context_menu();
     }
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
         if (contextMenuOpen && target == contextMenu) { handle_context_menu_click(x,y); return; }
@@ -610,7 +1035,9 @@ public:
             return;
         }
         if (button != Button1) return;
-        if (x < 45 && y < 24) { do_open(); return; }
+        if (y < 26 && x >= 0 && x < 50) { show_file_menu(8, 26); return; }
+        if (y < 26 && x >= 50 && x < 108) { show_audio_menu(50, 26); return; }
+        if (y < 26 && x >= 108 && x < 190) { show_subtitle_menu(108, 26); return; }
         if (openBtn.contains(x,y)) { do_open(); return; }
         if (rewindBtn.contains(x,y)) { seek_relative(-10000); return; }
         if (playBtn.contains(x,y)) { toggle_play(); return; }

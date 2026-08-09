@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.0.6 - Menu, Audio, Subtitle, Chapter, and Close Behavior Repair
+
+- Reworked the red in-app top bar so File, Audio, and Subtitle open working menus.
+- Added File menu actions for Open File and Exit ReddMedia.
+- Added embedded audio track discovery and selection through the Audio menu.
+- Added Subtitle menu actions for on/off, loading a subtitle file, selecting a subtitle folder, track selection, delay earlier, delay later, and delay reset.
+- Added automatic nearby `.srt` subtitle detection for matching video files.
+- Added default-on behavior when matching subtitles are detected.
+- Added right-click video subtitle on/off.
+- Added right-click chapter navigation using real embedded chapters when present.
+- Updated seek bar chapter marks to use real embedded chapter timestamps when present.
+- Preserved default decorative chapter-style marks when real embedded chapters are not present.
+- Preserved the v0.0.5 buffered drawing approach for stable red header, seek, and volume controls.
+- Preserved v0.0.5 player controls, red branding, red bars, fullscreen behavior, and resume behavior.
+
+# Changelog
+
 ## v0.0.5 - Branding and Polish
 
 - Added a red ReddMedia triangle icon asset set.
