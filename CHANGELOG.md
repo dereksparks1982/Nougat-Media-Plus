@@ -1,20 +1,27 @@
 # ReddMedia Changelog
 
-## v0.0.2 - VLC-Style Player Repair 1
+## v0.0.3 - Mouse, Keyboard, Time Display, and Flicker Repair
 
-This build repairs the base video player behavior from v0.0.1.
+This build repairs player input and bottom-control behavior from v0.0.2.
 
 ### Changed
 
-- Fullscreen now resizes the video surface to cover the player window.
-- Normal player controls are hidden while fullscreen is active.
-- Mouse wheel input now controls volume only.
-- README wording is limited to what the build does.
+- Single left-click on the video area now pauses or resumes playback.
+- Double left-click on the video area remains the fullscreen toggle.
+- Right-click on the video area now opens a basic options menu.
+- Up Arrow raises volume.
+- Down Arrow lowers volume.
+- Left Arrow rewinds 10 seconds.
+- Right Arrow fast-forwards 10 seconds.
+- The default skip interval is 10 seconds.
+- Bottom controls reserve room for the time display so it is not cut off.
+- Normal redraw avoids clearing the video surface while media is playing.
 
-### Fixed
+### Preserved
 
-- Fixed the Resume prompt so Resume is a clickable action inside the video area.
-- Fixed Resume so it loads the saved file and retries seeking to the saved position after playback starts.
-- Reduced playback flicker by no longer clearing the video surface during normal playback refresh.
-- Preserved Escape as fullscreen-exit behavior.
-- Preserved clean shutdown path when closing the window.
+- Spacebar pause/resume.
+- Escape exits fullscreen.
+- Mouse wheel controls volume only.
+- Fullscreen shows only the video surface.
+- Resume and Load Different File startup choices.
+- Clean close behavior.

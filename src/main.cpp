@@ -14,6 +14,8 @@
 #include <fstream>
 #include <algorithm>
 #include <vector>
+#include <chrono>
+#include <X11/keysym.h>
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -150,6 +152,11 @@ static std::string choose_file_dialog() {
     p = run_command_capture(py);
     return p;
 }
+static long long now_ms() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
 static std::string format_time(long long ms) {
     if (ms < 0) ms = 0;
     long long sec = ms / 1000;
@@ -177,6 +184,11 @@ public:
     time_t lastMouse=0;
     Time lastClickTime=0;
     int lastClickX=0, lastClickY=0;
+    bool pendingVideoSingleClick=false;
+    long long pendingVideoSingleClickDeadlineMs=0;
+    Window contextMenu=0;
+    bool contextMenuOpen=false;
+    std::vector<std::string> contextMenuItems;
     bool pendingSeek=false;
     long long pendingSeekMs=0;
     time_t pendingSeekDeadline=0;
@@ -203,7 +215,7 @@ public:
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.2");
+        XStoreName(d, win, "ReddMedia v0.0.3");
         XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|KeyPressMask|PointerMotionMask);
         Atom wmDelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(d, win, &wmDelete, 1);
@@ -225,13 +237,15 @@ public:
         return true;
     }
     void layout() {
-        int controlsY = H - 68;
-        openBtn = {10, H-34, 78, 26};
-        playBtn = {98, H-34, 86, 26};
-        stopBtn = {194, H-34, 70, 26};
-        fsBtn = {274, H-34, 96, 26};
-        seekRect = {10, controlsY, W-190, 16};
-        volRect = {W-160, controlsY-2, 140, 18};
+        int bottomY = H - 38;
+        int seekY = H - 78;
+        openBtn = {10, bottomY, 78, 28};
+        playBtn = {98, bottomY, 86, 28};
+        stopBtn = {194, bottomY, 70, 28};
+        fsBtn = {274, bottomY, 104, 28};
+        int reservedForTime = 230;
+        seekRect = {10, seekY, std::max(220, W-reservedForTime-20), 18};
+        volRect = {std::max(400, W-170), bottomY+5, 150, 18};
         resumeBtn = {W/2-155, H/2+40, 130, 34};
         loadBtn = {W/2+25, H/2+40, 170, 34};
         update_video_prompt_layout();
@@ -260,6 +274,17 @@ public:
         vol = std::max(0, std::min(100, vol + delta));
         api.set_volume(mp, vol);
         if (!fullscreen) redraw();
+    }
+    void seek_relative(long long deltaMs) {
+        if (!mp) return;
+        long long t = api.get_time(mp);
+        long long l = api.get_length(mp);
+        if (t < 0) t = 0;
+        long long nt = t + deltaMs;
+        if (nt < 0) nt = 0;
+        if (l > 0 && nt > l) nt = l;
+        api.set_time(mp, nt);
+        redraw();
     }
     void tick_resume_seek() {
         if (!pendingSeek || !mp) return;
@@ -385,15 +410,16 @@ public:
     void redraw() {
         if (fullscreen) {
             draw_video_message();
+            if (contextMenuOpen) draw_context_menu();
             XFlush(d);
             return;
         }
-        XClearWindow(d, win);
         unsigned long dark = col(0x1111,0x1111,0x1111);
-        fill(win, {0,0,W,24}, col(0xf2f2,0xf2f2,0xf2f2));
+        fill(win, {0,0,W,26}, col(0xf2f2,0xf2f2,0xf2f2));
         outline(win, {0,24,W,1}, col(0xb0b0,0xb0b0,0xb0b0));
+        fill(win, {0,std::max(0,H-100),W,100}, col(0xdede,0xdede,0xdede));
         text(win, 10, 17, "File", dark); text(win, 55, 17, "Audio", dark); text(win, 112, 17, "Subtitle", dark);
-        text(win, W-155, 17, "ReddMedia v0.0.2", col(0x3333,0x3333,0x3333));
+        text(win, W-155, 17, "ReddMedia v0.0.3", col(0x3333,0x3333,0x3333));
         button(openBtn, "Open");
         button(playBtn, paused ? "Play" : "Pause");
         button(stopBtn, "Stop");
@@ -404,23 +430,81 @@ public:
             int pos = (int)((double)t / (double)l * seekRect.w);
             fill(win, {seekRect.x, seekRect.y, std::max(1,pos), seekRect.h}, col(0x7070,0x7070,0x7070));
         }
-        text(win, seekRect.x, seekRect.y-8, format_time(t) + " / " + format_time(l), dark);
+        int timeX = seekRect.x + seekRect.w + 12;
+        text(win, timeX, seekRect.y+14, format_time(t) + " / " + format_time(l), dark);
         fill(win, volRect, col(0xeeee,0xeeee,0xeeee)); outline(win, volRect, col(0x8888,0x8888,0x8888));
         int vol = mp ? api.get_volume(mp) : 80; vol = std::max(0,std::min(100,vol));
         fill(win, {volRect.x, volRect.y, volRect.w*vol/100, volRect.h}, col(0x7070,0x7070,0x7070));
-        text(win, volRect.x, volRect.y-8, "Volume", dark);
+        text(win, volRect.x-56, volRect.y+14, "Volume", dark);
         draw_video_message();
+        if (contextMenuOpen) draw_context_menu();
         XFlush(d);
     }
-    void handle_click(Window target, int x, int y, Time eventTime) {
+    void close_context_menu() {
+        if (contextMenuOpen && contextMenu) {
+            XDestroyWindow(d, contextMenu);
+        }
+        contextMenu=0; contextMenuOpen=false;
+    }
+    void draw_context_menu() {
+        if (!contextMenuOpen || !contextMenu) return;
+        unsigned long bg = col(0xf4f4,0xf4f4,0xf4f4);
+        unsigned long border = col(0x5555,0x5555,0x5555);
+        unsigned long dark = col(0x1111,0x1111,0x1111);
+        fill(contextMenu, {0,0,190,152}, bg);
+        outline(contextMenu, {0,0,189,151}, border);
+        for (size_t i=0; i<contextMenuItems.size(); ++i) {
+            int y = 26 + (int)i*28;
+            text(contextMenu, 12, y, contextMenuItems[i], dark);
+        }
+    }
+    void show_context_menu(Window target, int x, int y) {
+        close_context_menu();
+        int wx=x, wy=y; Window child=0;
+        if (target != win) XTranslateCoordinates(d, target, win, x, y, &wx, &wy, &child);
+        const int menuW=190, menuH=152;
+        wx = std::max(0, std::min(wx, std::max(0,W-menuW-4)));
+        wy = std::max(0, std::min(wy, std::max(0,H-menuH-4)));
+        contextMenuItems.clear();
+        contextMenuItems.push_back(paused ? "Play" : "Pause");
+        contextMenuItems.push_back(fullscreen ? "Exit Fullscreen" : "Fullscreen");
+        contextMenuItems.push_back("Rewind 10 seconds");
+        contextMenuItems.push_back("Forward 10 seconds");
+        contextMenuItems.push_back("Open File");
+        contextMenu = XCreateSimpleWindow(d, win, wx, wy, menuW, menuH, 1, BlackPixel(d,screen), col(0xf4f4,0xf4f4,0xf4f4));
+        XSelectInput(d, contextMenu, ExposureMask|ButtonPressMask);
+        XMapRaised(d, contextMenu);
+        contextMenuOpen=true;
+        draw_context_menu();
+        XFlush(d);
+    }
+    void handle_context_menu_click(int, int y) {
+        int idx = (y - 8) / 28;
+        close_context_menu();
+        if (idx == 0) toggle_play();
+        else if (idx == 1) { if (fullscreen) exit_fullscreen(); else toggle_fullscreen(); }
+        else if (idx == 2) seek_relative(-10000);
+        else if (idx == 3) seek_relative(10000);
+        else if (idx == 4) do_open();
+    }
+    void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
+        if (contextMenuOpen && target == contextMenu) { handle_context_menu_click(x,y); return; }
+        if (contextMenuOpen) close_context_menu();
         if (target == video) {
-            if (needResumePrompt && videoResumeBtn.contains(x,y)) { open_media(sessionPath, sessionTime); return; }
-            if (needResumePrompt && videoLoadBtn.contains(x,y)) { needResumePrompt=false; redraw(); do_open(); return; }
-            if (lastClickTime && eventTime - lastClickTime < 400 && abs(x-lastClickX)<8 && abs(y-lastClickY)<8) {
+            if (button == Button3) { show_context_menu(target, x, y); return; }
+            if (button != Button1) return;
+            if (needResumePrompt && videoResumeBtn.contains(x,y)) { pendingVideoSingleClick=false; open_media(sessionPath, sessionTime); return; }
+            if (needResumePrompt && videoLoadBtn.contains(x,y)) { pendingVideoSingleClick=false; needResumePrompt=false; redraw(); do_open(); return; }
+            if (lastClickTime && eventTime - lastClickTime < 350 && abs(x-lastClickX)<8 && abs(y-lastClickY)<8) {
+                pendingVideoSingleClick=false;
                 toggle_fullscreen(); lastClickTime=0; return;
             }
-            lastClickTime=eventTime; lastClickX=x; lastClickY=y; return;
+            lastClickTime=eventTime; lastClickX=x; lastClickY=y;
+            pendingVideoSingleClick=true;
+            pendingVideoSingleClickDeadlineMs=now_ms()+360;
+            return;
         }
+        if (button != Button1) return;
         if (x < 45 && y < 24) { do_open(); return; }
         if (openBtn.contains(x,y)) { do_open(); return; }
         if (playBtn.contains(x,y)) { toggle_play(); return; }
@@ -434,6 +518,13 @@ public:
         if (volRect.contains(x,y) && mp) {
             int v = std::max(0, std::min(100, (x-volRect.x)*100/volRect.w)); api.set_volume(mp, v); redraw(); return;
         }
+    }
+    void run_pending_video_click() {
+        if (!pendingVideoSingleClick) return;
+        if (now_ms() < pendingVideoSingleClickDeadlineMs) return;
+        pendingVideoSingleClick=false;
+        lastClickTime=0;
+        if (hasMedia && mp) toggle_play();
     }
     void show_pointer() {
         if (pointerHidden) { XDefineCursor(d, video, normalCursor); pointerHidden=false; XFlush(d); }
@@ -454,7 +545,7 @@ public:
                 else if (e.type == ButtonPress) {
                     if (e.xbutton.button == Button4) adjust_volume(5);
                     else if (e.xbutton.button == Button5) adjust_volume(-5);
-                    else handle_click(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.time);
+                    else handle_button(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button, e.xbutton.time);
                 }
                 else if (e.type == MotionNotify) { lastMouse=time(nullptr); show_pointer(); }
                 else if (e.type == EnterNotify && e.xcrossing.window == video) { pointerInVideo=true; lastMouse=time(nullptr); show_pointer(); }
@@ -463,10 +554,15 @@ public:
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
                     if (ks == XK_Escape) exit_fullscreen();
                     else if (ks == XK_space) toggle_play();
+                    else if (ks == XK_Up) adjust_volume(5);
+                    else if (ks == XK_Down) adjust_volume(-5);
+                    else if (ks == XK_Left) seek_relative(-10000);
+                    else if (ks == XK_Right) seek_relative(10000);
                     else if (ks == XK_o || ks == XK_O) do_open();
                     else if (ks == XK_f || ks == XK_F) toggle_fullscreen();
                 }
             }
+            run_pending_video_click();
             tick_resume_seek();
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && now != lastRedraw) { redraw(); lastRedraw=now; }
@@ -474,7 +570,7 @@ public:
         }
     }
     void shutdown() {
-        save_session(); cleanup_player(); if (inst) api.release(inst); inst=nullptr;
+        close_context_menu(); save_session(); cleanup_player(); if (inst) api.release(inst); inst=nullptr;
         if (d) { XCloseDisplay(d); }
         d=nullptr;
     }
