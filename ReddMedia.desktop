@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=ReddMedia
+Comment=ReddMedia VLC-style base video player
+Exec=ReddMedia
+Terminal=false
+Categories=AudioVideo;Player;
