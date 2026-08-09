@@ -8,7 +8,8 @@ ReddMedia is a standalone Linux desktop media player built around local playback
 
 - v0.0.4 completed the core video player layout and controls.
 - v0.0.5 completed branding and polish.
-- v0.0.6 repairs and completes the core File, Audio, Subtitle, chapter, and close behavior.
+- v0.0.6 repaired and completed the core File, Audio, Subtitle, chapter, and close behavior.
+- v0.0.7 polishes the bottom player buttons with red buttons and white lettering.
 
 ## Future planning
 

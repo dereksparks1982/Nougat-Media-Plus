@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.0.7 - Red Button Polish
+
+- Changed the bottom control buttons from grey/white to red.
+- Changed bottom button lettering to white.
+- Preserved the requested bottom button order: Open, Rewind 10s, Play/Pause, Stop, Fast Forward 10s, Fullscreen.
+- Preserved v0.0.6 File, Audio, Subtitle, chapter, and close behavior.
+- Preserved the no-flashing buffered drawing behavior.
+
 ## v0.0.6 - Menu, Audio, Subtitle, Chapter, and Close Behavior Repair
 
 - Reworked the red in-app top bar so File, Audio, and Subtitle open working menus.

@@ -1,6 +1,6 @@
 # ReddMedia
 
-## v0.0.6 - Menu, Audio, Subtitle, Chapter, and Close Behavior Repair
+## v0.0.7 - Red Button Polish
 
 This build does the following:
 
@@ -9,6 +9,10 @@ This build does the following:
 - Opens local media files.
 - Plays video through VLC/libVLC.
 - Provides play, pause, stop, seek, time display, fullscreen, and volume controls.
+- Uses red bottom control buttons with white lettering.
+- Provides bottom buttons in this order: Open, Rewind 10s, Play/Pause, Stop, Fast Forward 10s, Fullscreen.
+- Rewinds 10 seconds with the Rewind 10s button.
+- Fast-forwards 10 seconds with the Fast Forward 10s button.
 - Opens a working File menu from the red in-app top bar.
 - Provides Open File and Exit ReddMedia actions in the File menu.
 - Opens a working Audio menu from the red in-app top bar.
@@ -31,13 +35,10 @@ This build does the following:
 - Uses a red seek/progress bar.
 - Uses a red volume bar.
 - Uses a red in-app top menu/header bar.
-- Uses buffered drawing for the parent-window controls to keep the header, seek bar, and volume bar stable during playback.
+- Uses buffered drawing for the parent-window controls to keep the header, seek bar, volume bar, and buttons stable during playback.
 - Uses a red ReddMedia triangle icon for the app window.
 - Includes red triangle icon files for local Linux launcher and dock registration.
 - Uses a red triangle icon in `ReddMedia.desktop`.
-- Provides bottom buttons in this order: Open, Rewind 10s, Play/Pause, Stop, Fast Forward 10s, Fullscreen.
-- Rewinds 10 seconds with the Rewind 10s button.
-- Fast-forwards 10 seconds with the Fast Forward 10s button.
 - Shows only the video surface while fullscreen is active.
 - Pauses or resumes when the video area is single left-clicked.
 - Toggles fullscreen when the video area is double left-clicked.

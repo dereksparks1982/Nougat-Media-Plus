@@ -329,8 +329,14 @@ public:
         button_on(win, r, label);
     }
     void button_on(Drawable target, const Rect& r, const std::string& label) {
-        fill(target, r, col(0xeeee,0xeeee,0xeeee)); outline(target, r, col(0x7777,0x7777,0x7777));
-        text(target, r.x+10, r.y+20, label, col(0x1111,0x1111,0x1111));
+        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
+        unsigned long darkRed = col(0x6600,0x0000,0x0000);
+        unsigned long lightRed = col(0xffff,0x2222,0x2222);
+        unsigned long white = col(0xffff,0xffff,0xffff);
+        fill(target, r, companyRed);
+        outline(target, r, darkRed);
+        line(target, r.x + 1, r.y + 1, r.x + (int)r.w - 2, r.y + 1, lightRed);
+        text(target, r.x+10, r.y+20, label, white);
     }
 
     unsigned long icon_pixel(int x, int y, int size) {
@@ -376,7 +382,7 @@ public:
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.6");
+        XStoreName(d, win, "ReddMedia v0.0.7");
         set_window_identity();
         XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|KeyPressMask|PointerMotionMask);
         Atom wmDelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
@@ -730,7 +736,7 @@ public:
         text(target, 10, 17, "File", topText);
         text(target, 55, 17, "Audio", topText);
         text(target, 112, 17, "Subtitle", topText);
-        text(target, W-155, 17, "ReddMedia v0.0.6", topText);
+        text(target, W-155, 17, "ReddMedia v0.0.7", topText);
     }
 
     void update_chapter_marks(bool force=false) {
