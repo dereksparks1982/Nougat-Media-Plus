@@ -172,7 +172,7 @@ public:
     Display* d=nullptr; int screen=0; Window win=0, video=0; GC gc=0;
     int W=1000,H=650;
     int videoW=980, videoH=530;
-    Rect openBtn, playBtn, stopBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
+    Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn;
     VlcApi api; std::string vlcErr;
     libvlc_instance_t* inst=nullptr; libvlc_media_player_t* mp=nullptr;
@@ -202,6 +202,7 @@ public:
     }
     void fill(Window target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XFillRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
     void outline(Window target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XDrawRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
+    void line(Window target, int x1, int y1, int x2, int y2, unsigned long c) { XSetForeground(d,gc,c); XDrawLine(d,target,gc,x1,y1,x2,y2); }
     void button(const Rect& r, const std::string& label) {
         button_on(win, r, label);
     }
@@ -215,7 +216,7 @@ public:
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.3");
+        XStoreName(d, win, "ReddMedia v0.0.4");
         XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|KeyPressMask|PointerMotionMask);
         Atom wmDelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(d, win, &wmDelete, 1);
@@ -237,15 +238,27 @@ public:
         return true;
     }
     void layout() {
-        int bottomY = H - 38;
-        int seekY = H - 78;
-        openBtn = {10, bottomY, 78, 28};
-        playBtn = {98, bottomY, 86, 28};
-        stopBtn = {194, bottomY, 70, 28};
-        fsBtn = {274, bottomY, 104, 28};
-        int reservedForTime = 230;
-        seekRect = {10, seekY, std::max(220, W-reservedForTime-20), 18};
-        volRect = {std::max(400, W-170), bottomY+5, 150, 18};
+        int bottomY = H - 36;
+        int seekY = H - 72;
+        const int gap = 8;
+        int x = 10;
+        openBtn = {x, bottomY, 78, 28}; x += openBtn.w + gap;
+        rewindBtn = {x, bottomY, 116, 28}; x += rewindBtn.w + gap;
+        playBtn = {x, bottomY, 104, 28}; x += playBtn.w + gap;
+        stopBtn = {x, bottomY, 70, 28}; x += stopBtn.w + gap;
+        forwardBtn = {x, bottomY, 148, 28}; x += forwardBtn.w + gap;
+        fsBtn = {x, bottomY, 104, 28};
+
+        int currentTimeWidth = 64;
+        int totalTimeWidth = 74;
+        int seekX = 10 + currentTimeWidth + 10;
+        int seekRightPad = totalTimeWidth + 20;
+        seekRect = {seekX, seekY, std::max(220, W-seekX-seekRightPad), 18};
+
+        volRect = {std::max(fsBtn.x + fsBtn.w + 74, W-170), bottomY+5, 150, 18};
+        if (volRect.x + volRect.w > W - 10) {
+            volRect.x = std::max(10, W - volRect.w - 10);
+        }
         resumeBtn = {W/2-155, H/2+40, 130, 34};
         loadBtn = {W/2+25, H/2+40, 170, 34};
         update_video_prompt_layout();
@@ -262,7 +275,7 @@ public:
             XMoveResizeWindow(d, video, 0, 0, videoW, videoH);
         } else {
             videoW = std::max(100, W-20);
-            videoH = std::max(100, H-120);
+            videoH = std::max(100, H-156);
             XMoveResizeWindow(d, video, 10, 42, videoW, videoH);
         }
         update_video_prompt_layout();
@@ -417,24 +430,36 @@ public:
         unsigned long dark = col(0x1111,0x1111,0x1111);
         fill(win, {0,0,W,26}, col(0xf2f2,0xf2f2,0xf2f2));
         outline(win, {0,24,W,1}, col(0xb0b0,0xb0b0,0xb0b0));
-        fill(win, {0,std::max(0,H-100),W,100}, col(0xdede,0xdede,0xdede));
+        fill(win, {0,std::max(0,H-114),W,114}, col(0xdede,0xdede,0xdede));
         text(win, 10, 17, "File", dark); text(win, 55, 17, "Audio", dark); text(win, 112, 17, "Subtitle", dark);
-        text(win, W-155, 17, "ReddMedia v0.0.3", col(0x3333,0x3333,0x3333));
+        text(win, W-155, 17, "ReddMedia v0.0.4", col(0x3333,0x3333,0x3333));
         button(openBtn, "Open");
-        button(playBtn, paused ? "Play" : "Pause");
+        button(rewindBtn, "Rewind 10s");
+        button(playBtn, "Play/Pause");
         button(stopBtn, "Stop");
+        button(forwardBtn, "Fast Forward 10s");
         button(fsBtn, "Fullscreen");
+        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
+        unsigned long markDark = col(0x3333,0x3333,0x3333);
         fill(win, seekRect, col(0xeeee,0xeeee,0xeeee)); outline(win, seekRect, col(0x8888,0x8888,0x8888));
         long long t=0,l=0; if (mp) { t=api.get_time(mp); l=api.get_length(mp); }
         if (l > 0) {
             int pos = (int)((double)t / (double)l * seekRect.w);
-            fill(win, {seekRect.x, seekRect.y, std::max(1,pos), seekRect.h}, col(0x7070,0x7070,0x7070));
+            fill(win, {seekRect.x, seekRect.y, std::max(1,pos), seekRect.h}, companyRed);
+            long long chapterEveryMs = 300000;
+            if (l > 7200000) chapterEveryMs = 900000;
+            else if (l > 3600000) chapterEveryMs = 600000;
+            for (long long markMs = chapterEveryMs; markMs < l; markMs += chapterEveryMs) {
+                int mx = seekRect.x + (int)((double)markMs / (double)l * seekRect.w);
+                line(win, mx, seekRect.y, mx, seekRect.y + seekRect.h, markDark);
+            }
         }
-        int timeX = seekRect.x + seekRect.w + 12;
-        text(win, timeX, seekRect.y+14, format_time(t) + " / " + format_time(l), dark);
+        text(win, 10, seekRect.y+14, format_time(t), dark);
+        int totalX = seekRect.x + seekRect.w + 10;
+        text(win, totalX, seekRect.y+14, format_time(l), dark);
         fill(win, volRect, col(0xeeee,0xeeee,0xeeee)); outline(win, volRect, col(0x8888,0x8888,0x8888));
         int vol = mp ? api.get_volume(mp) : 80; vol = std::max(0,std::min(100,vol));
-        fill(win, {volRect.x, volRect.y, volRect.w*vol/100, volRect.h}, col(0x7070,0x7070,0x7070));
+        fill(win, {volRect.x, volRect.y, volRect.w*vol/100, volRect.h}, companyRed);
         text(win, volRect.x-56, volRect.y+14, "Volume", dark);
         draw_video_message();
         if (contextMenuOpen) draw_context_menu();
@@ -507,8 +532,10 @@ public:
         if (button != Button1) return;
         if (x < 45 && y < 24) { do_open(); return; }
         if (openBtn.contains(x,y)) { do_open(); return; }
+        if (rewindBtn.contains(x,y)) { seek_relative(-10000); return; }
         if (playBtn.contains(x,y)) { toggle_play(); return; }
         if (stopBtn.contains(x,y)) { stop_media(); return; }
+        if (forwardBtn.contains(x,y)) { seek_relative(10000); return; }
         if (fsBtn.contains(x,y)) { toggle_fullscreen(); return; }
         if (needResumePrompt && resumeBtn.contains(x,y)) { open_media(sessionPath, sessionTime); return; }
         if (needResumePrompt && loadBtn.contains(x,y)) { needResumePrompt=false; redraw(); do_open(); return; }
