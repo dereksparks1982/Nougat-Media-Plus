@@ -57,31 +57,35 @@ struct P2PEngine::Impl {
     mutable std::mutex mutex;
     int selected = -1;
     std::string error;
+    bool paused = false;
 };
 
 P2PEngine::P2PEngine() : impl_(std::make_unique<Impl>()) {}
 P2PEngine::~P2PEngine() = default;
 
 bool P2PEngine::start_magnet(const std::string&, const std::string&, std::string& error) {
-    error = "P2P stub build does not start torrents.";
+    error = "P2P stub build does not start transfers.";
     return false;
 }
 bool P2PEngine::start_torrent_file(const std::string&, const std::string&, std::string& error) {
-    error = "P2P stub build does not start torrents.";
+    error = "P2P stub build does not start transfers.";
     return false;
 }
 bool P2PEngine::restore_last(std::string&) { return false; }
+bool P2PEngine::pause_transfer(std::string& error) { std::lock_guard<std::mutex> lock(impl_->mutex); if (impl_->paused) { error="P2P download is already stopped."; return false; } impl_->paused=true; return true; }
+bool P2PEngine::resume_transfer(std::string& error) { std::lock_guard<std::mutex> lock(impl_->mutex); if (!impl_->paused) { error="P2P download is already running."; return false; } impl_->paused=false; return true; }
+bool P2PEngine::is_paused() const { std::lock_guard<std::mutex> lock(impl_->mutex); return impl_->paused; }
 void P2PEngine::shutdown() {}
 P2PStatus P2PEngine::status() const { return {}; }
 std::vector<P2PFileInfo> P2PEngine::files() const { return {}; }
-bool P2PEngine::select_file(int, std::string& error) { error = "No torrent metadata."; return false; }
+bool P2PEngine::select_file(int, std::string& error) { error = "No P2P metadata."; return false; }
 int P2PEngine::selected_file() const { return -1; }
 std::uint64_t P2PEngine::selected_file_size() const { return 0; }
 std::string P2PEngine::selected_file_name() const { return {}; }
 void P2PEngine::prioritize_range(std::uint64_t, std::uint64_t) {}
 bool P2PEngine::wait_for_range(std::uint64_t, std::uint64_t, int) { return false; }
 bool P2PEngine::read_selected_range(std::uint64_t, char*, std::size_t, std::size_t& bytes_read, std::string& error) const {
-    bytes_read = 0; error = "P2P stub build has no torrent data."; return false;
+    bytes_read = 0; error = "P2P stub build has no transfer data."; return false;
 }
 void P2PEngine::clear_stream_priority() {}
 std::string P2PEngine::libtorrent_version() const { return "libtorrent stub"; }
@@ -160,6 +164,8 @@ bool P2PEngine::start_magnet(const std::string& uri, const std::string& save_pat
     params.save_path = save_path;
     lt::torrent_handle handle = impl_->session.add_torrent(std::move(params), ec);
     if (ec || !handle.is_valid()) { error = "Could not add magnet: " + ec.message(); return false; }
+    handle.unset_flags(lt::torrent_flags::auto_managed);
+    handle.resume();
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);
         impl_->handle = handle;
@@ -179,7 +185,9 @@ bool P2PEngine::start_torrent_file(const std::string& torrent_path, const std::s
         params.save_path = save_path;
         lt::error_code ec;
         lt::torrent_handle handle = impl_->session.add_torrent(std::move(params), ec);
-        if (ec || !handle.is_valid()) { error = "Could not add torrent: " + ec.message(); return false; }
+        if (ec || !handle.is_valid()) { error = "Could not add P2P metadata file: " + ec.message(); return false; }
+        handle.unset_flags(lt::torrent_flags::auto_managed);
+        handle.resume();
         {
             std::lock_guard<std::mutex> lock(impl_->mutex);
             impl_->handle = handle;
@@ -189,7 +197,7 @@ bool P2PEngine::start_torrent_file(const std::string& torrent_path, const std::s
         }
         return true;
     } catch (const std::exception& e) {
-        error = std::string("Torrent file error: ") + e.what();
+        error = std::string("P2P metadata file error: ") + e.what();
         return false;
     }
 }
@@ -205,6 +213,7 @@ bool P2PEngine::restore_last(std::string& error) {
     if (params.save_path.empty()) { error = "P2P resume data has no save path."; return false; }
     lt::torrent_handle handle = impl_->session.add_torrent(std::move(params), ec);
     if (ec || !handle.is_valid()) { error = "Could not restore P2P download: " + ec.message(); return false; }
+    handle.unset_flags(lt::torrent_flags::auto_managed);
     int selected = -1;
     std::ifstream selected_in(selected_file_state());
     if (selected_in) selected_in >> selected;
@@ -216,6 +225,36 @@ bool P2PEngine::restore_last(std::string& error) {
         impl_->stopped = false;
     }
     return true;
+}
+
+bool P2PEngine::pause_transfer(std::string& error) {
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (!impl_->valid()) { error="No active P2P download."; return false; }
+        try {
+            impl_->handle.unset_flags(lt::torrent_flags::auto_managed);
+            impl_->handle.clear_piece_deadlines();
+            impl_->handle.pause();
+        } catch (const std::exception& e) { error=e.what(); return false; }
+    }
+    impl_->save_resume();
+    return true;
+}
+
+bool P2PEngine::resume_transfer(std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid()) { error="No active P2P download."; return false; }
+    try {
+        impl_->handle.unset_flags(lt::torrent_flags::auto_managed);
+        impl_->handle.resume();
+        return true;
+    } catch (const std::exception& e) { error=e.what(); return false; }
+}
+
+bool P2PEngine::is_paused() const {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid()) return false;
+    try { return bool(impl_->handle.flags() & lt::torrent_flags::paused); } catch (const std::exception&) { return false; }
 }
 
 void P2PEngine::shutdown() {
@@ -234,6 +273,7 @@ P2PStatus P2PEngine::status() const {
         out.active = true;
         out.metadata_ready = st.has_metadata;
         out.seeding = st.is_seeding;
+        out.paused = bool(st.flags & lt::torrent_flags::paused);
         out.progress = st.progress;
         out.downloaded = st.total_done;
         out.total = st.total;
@@ -245,7 +285,8 @@ P2PStatus P2PEngine::status() const {
         out.save_path = st.save_path;
         if (st.errc) out.error = st.errc.message();
         else out.error = impl_->last_error;
-        switch (st.state) {
+        if (out.paused) out.state = "Stopped";
+        else switch (st.state) {
             case lt::torrent_status::checking_files: out.state = "Checking files"; break;
             case lt::torrent_status::downloading_metadata: out.state = "Getting metadata"; break;
             case lt::torrent_status::downloading: out.state = "Downloading"; break;
@@ -284,10 +325,10 @@ std::vector<P2PFileInfo> P2PEngine::files() const {
 
 bool P2PEngine::select_file(int index, std::string& error) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
-    if (!impl_->valid()) { error = "No active torrent."; return false; }
+    if (!impl_->valid()) { error = "No active P2P transfer."; return false; }
     std::shared_ptr<const lt::torrent_info> info = impl_->handle.torrent_file();
-    if (!info) { error = "Torrent metadata is still loading."; return false; }
-    if (index < 0 || index >= info->files().num_files()) { error = "Invalid torrent file selection."; return false; }
+    if (!info) { error = "P2P metadata is still loading."; return false; }
+    if (index < 0 || index >= info->files().num_files()) { error = "Invalid P2P file selection."; return false; }
     impl_->selected = index;
     return true;
 }
@@ -385,7 +426,7 @@ bool P2PEngine::read_selected_range(std::uint64_t offset, char* destination, std
         if (!impl_->valid() || impl_->selected < 0) { error = "No video selected."; return false; }
         try {
             std::shared_ptr<const lt::torrent_info> info = impl_->handle.torrent_file();
-            if (!info) { error = "Torrent metadata is not ready."; return false; }
+            if (!info) { error = "P2P metadata is not ready."; return false; }
             const lt::file_storage& storage = info->files();
             const lt::file_index_t file_index(impl_->selected);
             const std::uint64_t file_size = static_cast<std::uint64_t>(storage.file_size(file_index));
@@ -397,12 +438,12 @@ bool P2PEngine::read_selected_range(std::uint64_t offset, char* destination, std
         }
     }
     std::ifstream input(path, std::ios::binary);
-    if (!input) { error = "Could not open downloaded torrent data: " + path; return false; }
+    if (!input) { error = "Could not open downloaded P2P data: " + path; return false; }
     input.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
-    if (!input) { error = "Could not seek downloaded torrent data."; return false; }
+    if (!input) { error = "Could not seek downloaded P2P data."; return false; }
     input.read(destination, static_cast<std::streamsize>(length));
     bytes_read = static_cast<std::size_t>(input.gcount());
-    if (bytes_read == 0 && length != 0) { error = "Torrent data was not readable yet."; return false; }
+    if (bytes_read == 0 && length != 0) { error = "P2P data was not readable yet."; return false; }
     return true;
 }
 

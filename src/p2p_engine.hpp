@@ -17,6 +17,7 @@ struct P2PStatus {
     bool active = false;
     bool metadata_ready = false;
     bool seeding = false;
+    bool paused = false;
     float progress = 0.0f;
     std::int64_t downloaded = 0;
     std::int64_t total = 0;
@@ -41,6 +42,9 @@ public:
     bool start_magnet(const std::string& uri, const std::string& save_path, std::string& error);
     bool start_torrent_file(const std::string& torrent_path, const std::string& save_path, std::string& error);
     bool restore_last(std::string& error);
+    bool pause_transfer(std::string& error);
+    bool resume_transfer(std::string& error);
+    bool is_paused() const;
     void shutdown();
 
     P2PStatus status() const;

@@ -6,4 +6,4 @@ ReddMedia uses FFmpeg/FFprobe through yt-dlp for stream merging and media post-p
 
 ReddMedia includes the yt-dlp Linux standalone executable provided by the yt-dlp project. The included executable is stored at `tools/yt-dlp/yt-dlp`.
 
-ReddMedia v0.0.10 uses libtorrent-rasterbar as its P2P/P2P engine. Libtorrent is distributed under a BSD-style license. The required libtorrent license notice is reproduced in `licenses/LIBTORRENT_BSD_LICENSE.txt`.
+ReddMedia uses libtorrent-rasterbar as its P2P engine. Libtorrent is distributed under a BSD-style license. The required libtorrent license notice is reproduced in `licenses/LIBTORRENT_BSD_LICENSE.txt`.

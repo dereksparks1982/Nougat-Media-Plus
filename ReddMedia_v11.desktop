@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=ReddMedia_v10
+Name=ReddMedia_v11
 Comment=ReddMedia media player with P2P streaming
-Exec=/home/dereksparks1982/DKLab/Projects/ReddMedia/ReddMedia_v10
+Exec=/home/dereksparks1982/DKLab/Projects/ReddMedia/ReddMedia_v11
 Icon=reddmedia
 StartupWMClass=ReddMedia
 Terminal=false

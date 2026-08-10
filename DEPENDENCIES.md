@@ -4,7 +4,7 @@ ReddMedia is currently developed and validated on Ubuntu Linux.
 
 ## Runtime dependencies
 
-A normal user running ReddMedia v0.0.10 needs:
+A normal user running ReddMedia v0.0.11 needs:
 
 ```bash
 sudo apt install -y \
@@ -21,11 +21,11 @@ sudo apt install -y \
 - `ffmpeg` provides FFmpeg/FFprobe for yt-dlp merging and media post-processing.
 - `zenity` provides the current Linux file and folder dialogs.
 - `libx11-6` provides the X11 runtime used by ReddMedia's native desktop interface.
-- `libtorrent-rasterbar2.0t64` provides the P2P/P2P runtime engine.
+- `libtorrent-rasterbar2.0t64` provides the P2P runtime engine.
 
 ReddMedia bundles yt-dlp at `tools/yt-dlp/yt-dlp`; users do not need a separate yt-dlp package.
 
-The exact runtime package name for libtorrent can vary between Ubuntu releases because of ABI transitions. ReddMedia v0.0.10 is validated against Ubuntu Resolute's libtorrent-rasterbar 2.0.12 package family.
+The exact runtime package name for libtorrent can vary between Ubuntu releases because of ABI transitions. ReddMedia v0.0.11 targets the same libtorrent-rasterbar 2.0.12 package family proven on the accepted v0.0.10 development machine.
 
 ## Build and patch-installer dependencies
 
@@ -46,7 +46,7 @@ sudo apt install -y \
 
 `libtorrent-rasterbar-dev` pulls the appropriate libtorrent runtime and its required Boost/OpenSSL development dependencies on Ubuntu. `libglib2.0-bin` supplies `gio`, which the development patch installer uses to assign and verify the red-triangle custom icon on the raw versioned executable in GNOME Files.
 
-The v0.0.10 patch installer checks these requirements before changing the project tree.
+ReddMedia patch installers check these requirements before changing the project tree.
 
 ## Distribution direction
 

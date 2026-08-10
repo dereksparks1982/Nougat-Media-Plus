@@ -1,10 +1,10 @@
-# ReddMedia v0.0.10
+# ReddMedia v0.0.11
 
-ReddMedia is a standalone Linux desktop media player by Elderredd Softworks. It combines local video playback, yt-dlp downloading, and built-in P2P/P2P downloading and streaming in one application.
+ReddMedia is a standalone Linux desktop media player by Elderredd Softworks. It combines local video playback, yt-dlp downloading/direct playback, and built-in P2P file transfer and streaming in one application.
 
-## Current build: v0.0.10 P2P Streaming Core
+## Current build: v0.0.11 Playback & Transfer Controls
 
-The current build adds a permanent P2P screen powered by libtorrent-rasterbar and connects torrent downloading directly to ReddMedia's VLC-based video player.
+v0.0.11 builds on the accepted P2P Streaming Core with explicit P2P Stop/Resume controls and direct yt-dlp playback inside ReddMedia. Public-facing documentation describes the feature simply as **P2P**: a general peer-to-peer file-transfer and streaming capability.
 
 ### Current P2P workflow
 
@@ -30,7 +30,26 @@ The v0.0.10 stabilization pass keeps the same feature version while repairing de
 - Stream sockets have bounded send/receive waits so abandoned seek connections cannot hang indefinitely.
 - The installer reapplies and verifies the ReddMedia red-triangle custom icon on the versioned executable.
 
-The versioned executable is `ReddMedia_v10`.
+The versioned executable is `ReddMedia_v11`.
+
+### v0.0.11 transfer and playback controls
+
+- yt-dlp Play streams directly into ReddMedia through yt-dlp/FFmpeg, capped at 1080p by default.
+
+- **Stop Download** pauses the active P2P transfer, stops active P2P playback, and preserves partial data/resume state.
+- The same control becomes **Resume Download** while paused and continues the existing transfer.
+- yt-dlp now has **Play** beside **Download**. Play resolves a network media location and hands it to ReddMedia's embedded VLC player without performing the normal saved-file download first.
+- yt-dlp Download remains the normal save-to-disk path.
+
+### v0.0.11 same-version repair
+
+Owner testing proved P2P Stop/Resume but exposed two release defects before acceptance. The v0.0.11 repair keeps the same version number and corrects them:
+
+- yt-dlp Play now carries yt-dlp's resolved HTTP request headers into libVLC instead of handing VLC only the bare media URL.
+- libVLC Play startup is checked instead of silently treating a failed start as success.
+- The red-triangle executable icon is assigned after the final binary write and GNOME Files/Nautilus is refreshed when available; owner-side visual confirmation remains an acceptance gate.
+- Repository text is scanned case-insensitively so the retired public protocol branding cannot survive in README, release history, roadmap, changelog, validation records, or other tracked text.
+- The visible top-bar version surface is corrected to `ReddMedia v0.0.11`.
 
 ## Main ReddMedia features
 
@@ -56,19 +75,19 @@ ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpe
 From the ReddMedia project folder:
 
 ```bash
-./ReddMedia_v10
+./ReddMedia_v11
 ```
 
 Version check:
 
 ```bash
-./ReddMedia_v10 --version
+./ReddMedia_v11 --version
 ```
 
 Expected output:
 
 ```text
-ReddMedia v0.0.10
+ReddMedia v0.0.11
 ```
 
 # Release history
@@ -264,7 +283,7 @@ Validation highlights:
 
 ## v0.0.10 — P2P Streaming Core
 
-**Purpose:** add P2P directly to ReddMedia and make watching while downloading the normal P2P behavior.
+**Purpose:** add built-in P2P file transfer to ReddMedia and make watching while downloading the normal P2P behavior.
 
 What this build added:
 
@@ -294,7 +313,7 @@ Owner-test results that established the milestone:
 - Torrent metadata, file list, peer/seed status, and automatic video selection worked.
 - Playback began while a torrent was still downloading.
 
-Stabilization repairs in the current v0.0.10 candidate:
+Stabilization repairs accepted in v0.0.10:
 
 - Restores buffered seek/time and volume partial repainting to remove the flashing regression.
 - Cancels obsolete P2P stream requests when VLC seeks to a new range.
@@ -304,7 +323,28 @@ Stabilization repairs in the current v0.0.10 candidate:
 - Reapplies and validates the red-triangle custom icon on `ReddMedia_v10`.
 - Expands this README so every numbered ReddMedia release explains what it actually did.
 
-Further owner testing is still the authority for seek behavior under slow or difficult swarms because peer availability can change how long an undownloaded seek takes to resume.
+Seek behavior under slow or difficult P2P swarms can still take time because peer availability controls how quickly an undownloaded region arrives.
+
+## v0.0.11 — Playback & Transfer Controls
+
+**Purpose:** give the two network-media paths the controls needed for everyday use while keeping ReddMedia's public P2P identity neutral and technical.
+
+What this build adds:
+
+- **Stop Download / Resume Download** on the P2P screen.
+- Stopping a P2P transfer also stops active P2P playback and seeding/uploading while preserving partial files and resume state.
+- Resume continues the same P2P transfer without discarding completed data.
+- A **Play** button on the yt-dlp screen that resolves a playable network stream with the bundled yt-dlp engine and opens it in ReddMedia's embedded VLC player.
+- The existing yt-dlp **Download** path remains available for saving media normally.
+- Public-facing repository wording uses **P2P** for the feature and presents it as general peer-to-peer file transfer/streaming. Technical `libtorrent` and `.torrent` references remain only where required for implementation, dependency, file-format, or license truth.
+- The roadmap records future Archive, Online Video, Live TV, and supported streaming-service integration work.
+
+Validation target:
+
+- P2P Stop/Resume preserves partial progress.
+- yt-dlp Play hands a resolved network location to the embedded player.
+- `ReddMedia_v11` retains the red-triangle executable icon.
+- Public-facing P2P terminology is consistent across the active repository documentation.
 
 ## Third-party software
 
