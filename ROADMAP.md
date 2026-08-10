@@ -1,26 +1,10 @@
 # ReddMedia Roadmap
 
-## Current accepted direction
+## Current
 
-ReddMedia is a standalone Linux desktop media player built around local playback first.
+- v0.0.8 adds direct yt-dlp download support to the video player.
 
-## Current build line
+## Next
 
-- v0.0.4 completed the core video player layout and controls.
-- v0.0.5 completed branding and polish.
-- v0.0.6 repaired and completed the core File, Audio, Subtitle, chapter, and close behavior.
-- v0.0.7 polishes the bottom player buttons with red buttons and white lettering.
-
-## Future planning
-
-Future top menu plan when those modules are real:
-
-`File   Audio   Subtitle   yt-dlp   p2p`
-
-Future feature work after the core player shell is stable:
-
-- Module/add-on system foundation.
-- yt-dlp download add-on foundation.
-- p2p add-on foundation.
-- media library.
-- playlists.
+- Continue repairing and polishing direct download workflow if Derek finds bugs.
+- Keep p2p as a later feature.

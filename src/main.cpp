@@ -17,7 +17,12 @@
 #include <chrono>
 #include <cctype>
 #include <dirent.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <limits.h>
 #include <X11/keysym.h>
+#include <X11/Xatom.h>
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -252,6 +257,31 @@ static std::string choose_folder_dialog() {
         "p=filedialog.askdirectory(title='Open Subtitle Folder'); print(p if p else '')\" 2>/dev/null";
     return run_command_capture(py);
 }
+
+static std::string exe_dir() {
+    char buf[PATH_MAX];
+    ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf)-1);
+    if (n > 0) {
+        buf[n] = 0;
+        std::string p(buf);
+        return dirname_only(p);
+    }
+    return ".";
+}
+static std::string read_clipboard_text() {
+    const char* cmds[] = {
+        "timeout 1 bash -lc 'command -v xclip >/dev/null 2>&1 && xclip -selection clipboard -o 2>/dev/null'",
+        "timeout 1 bash -lc 'command -v xsel >/dev/null 2>&1 && xsel --clipboard --output 2>/dev/null'",
+        "timeout 1 bash -lc 'command -v wl-paste >/dev/null 2>&1 && wl-paste -n 2>/dev/null'",
+        nullptr
+    };
+    for (int i=0; cmds[i]; ++i) {
+        std::string out = run_command_capture(cmds[i]);
+        if (!out.empty()) return out;
+    }
+    return "";
+}
+
 static long long now_ms() {
     using namespace std::chrono;
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
@@ -270,8 +300,9 @@ static std::string format_time(long long ms) {
 enum class MenuAction {
     NoAction, OpenFile, ExitApp, TogglePlay, ToggleFullscreen, Rewind10, Forward10,
     SubtitleToggle, SubtitleLoadFile, SubtitleLoadFolder, SubtitleDelayPlus, SubtitleDelayMinus, SubtitleDelayReset, SubtitleTrack,
-    AudioTrack, PrevChapter, NextChapter, ChapterJump
+    AudioTrack, PrevChapter, NextChapter, ChapterJump, YtDlpClearLog
 };
+enum class ViewMode { VideoPlayer, YtDlp };
 struct MenuItem {
     std::string label;
     MenuAction action = MenuAction::NoAction;
@@ -281,11 +312,13 @@ struct TrackChoice { int id = -1; std::string name; };
 
 class App {
 public:
-    Display* d=nullptr; int screen=0; Window win=0, video=0; GC gc=0;
+    Display* d=nullptr; int screen=0; Window win=0, video=0; GC gc=0; XFontStruct* fontInfo=nullptr;
     int W=1000,H=650;
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn;
+    Rect videoPlayerTab, ytdlpTab;
+    Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpClearBtn, ytdlpFolderBtn;
     VlcApi api; std::string vlcErr;
     libvlc_instance_t* inst=nullptr; libvlc_media_player_t* mp=nullptr;
     bool running=true, paused=false, fullscreen=false, hasMedia=false, needResumePrompt=false;
@@ -314,6 +347,15 @@ public:
     bool pendingSeek=false;
     long long pendingSeekMs=0;
     time_t pendingSeekDeadline=0;
+    ViewMode currentView = ViewMode::VideoPlayer;
+    bool urlFocused=false;
+    std::string ytdlpUrl;
+    std::string ytdlpOutputFolder = home_dir() + "/Downloads";
+    std::string ytdlpStatus = "Ready.";
+    std::string ytdlpLog = "No download output yet.";
+    pid_t ytdlpPid = -1;
+    int ytdlpPipe = -1;
+    int controlsScrollX = 0;
 
     unsigned long col(unsigned short r, unsigned short g, unsigned short b) {
         XColor color; color.red=r; color.green=g; color.blue=b; color.flags=DoRed|DoGreen|DoBlue;
@@ -321,6 +363,18 @@ public:
     }
     void text(Drawable target, int x, int y, const std::string& s, unsigned long c) {
         XSetForeground(d, gc, c); XDrawString(d, target, gc, x, y, s.c_str(), (int)s.size());
+    }
+    int text_width(const std::string& s) {
+        if (s.empty()) return 0;
+        if (fontInfo) return XTextWidth(fontInfo, s.c_str(), (int)s.size());
+        return (int)s.size() * 8;
+    }
+    std::string tail_to_width(const std::string& s, int maxPixels) {
+        if (maxPixels <= 0) return "";
+        if (text_width(s) <= maxPixels) return s;
+        std::string out = s;
+        while (!out.empty() && text_width(out) > maxPixels) out.erase(out.begin());
+        return out;
     }
     void fill(Drawable target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XFillRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
     void outline(Drawable target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XDrawRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
@@ -382,12 +436,14 @@ public:
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.7");
+        XStoreName(d, win, "ReddMedia v0.0.8");
         set_window_identity();
         XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|KeyPressMask|PointerMotionMask);
         Atom wmDelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(d, win, &wmDelete, 1);
         gc = XCreateGC(d, win, 0, nullptr);
+        fontInfo = XLoadQueryFont(d, "fixed");
+        if (fontInfo) XSetFont(d, gc, fontInfo->fid);
         layout();
         video = XCreateSimpleWindow(d, win, 10, 42, W-20, H-120, 0, BlackPixel(d,screen), BlackPixel(d,screen));
         XSelectInput(d, video, ExposureMask|ButtonPressMask|PointerMotionMask|EnterWindowMask|LeaveWindowMask|KeyPressMask);
@@ -405,10 +461,16 @@ public:
         return true;
     }
     void layout() {
+        videoPlayerTab = {0,0,118,26};
+        ytdlpTab = {118,0,82,26};
         int bottomY = H - 36;
         int seekY = H - 72;
         const int gap = 8;
-        int x = 10;
+        int totalButtonsW = 78 + gap + 116 + gap + 104 + gap + 70 + gap + 148 + gap + 104;
+        int availableButtonW = std::max(160, W - 200);
+        int maxScroll = std::max(0, totalButtonsW - availableButtonW);
+        controlsScrollX = std::max(0, std::min(controlsScrollX, maxScroll));
+        int x = 10 - controlsScrollX;
         openBtn = {x, bottomY, 78, 28}; x += openBtn.w + gap;
         rewindBtn = {x, bottomY, 116, 28}; x += rewindBtn.w + gap;
         playBtn = {x, bottomY, 104, 28}; x += playBtn.w + gap;
@@ -422,12 +484,14 @@ public:
         int seekRightPad = totalTimeWidth + 20;
         seekRect = {seekX, seekY, std::max(220, W-seekX-seekRightPad), 18};
 
-        volRect = {std::max(fsBtn.x + fsBtn.w + 74, W-170), bottomY+5, 150, 18};
-        if (volRect.x + volRect.w > W - 10) {
-            volRect.x = std::max(10, W - volRect.w - 10);
-        }
+        volRect = {std::max(10, W-170), bottomY+5, 150, 18};
         resumeBtn = {W/2-155, H/2+40, 130, 34};
         loadBtn = {W/2+25, H/2+40, 170, 34};
+        ytdlpUrlRect = {28, 118, std::max(240, W-56), 28};
+        ytdlpOutputRect = {28, 158, std::max(240, W-56), 28};
+        ytdlpDownloadBtn = {28, 204, 150, 32};
+        ytdlpFolderBtn = {0, 0, 0, 0};
+        ytdlpClearBtn = {190, 204, 130, 32};
         update_video_prompt_layout();
     }
     void update_video_prompt_layout() {
@@ -436,6 +500,11 @@ public:
     }
     void apply_video_layout() {
         if (!video) return;
+        if (currentView == ViewMode::YtDlp) {
+            XUnmapWindow(d, video);
+            return;
+        }
+        XMapWindow(d, video);
         if (fullscreen) {
             videoW = std::max(100, W);
             videoH = std::max(100, H);
@@ -730,13 +799,17 @@ public:
     }
     void draw_top_bar(Drawable target) {
         unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
+        unsigned long activeRed = col(0x9900,0x0000,0x0000);
         unsigned long topText = col(0xffff,0xffff,0xffff);
         fill(target, {0,0,W,26}, companyRed);
+        if (currentView == ViewMode::VideoPlayer) fill(target, videoPlayerTab, activeRed);
+        if (currentView == ViewMode::YtDlp) fill(target, ytdlpTab, activeRed);
         outline(target, {0,24,W,1}, col(0x6600,0x0000,0x0000));
-        text(target, 10, 17, "File", topText);
-        text(target, 55, 17, "Audio", topText);
-        text(target, 112, 17, "Subtitle", topText);
-        text(target, W-155, 17, "ReddMedia v0.0.7", topText);
+        line(target, videoPlayerTab.x + videoPlayerTab.w, 0, videoPlayerTab.x + videoPlayerTab.w, 25, col(0x6600,0x0000,0x0000));
+        line(target, ytdlpTab.x + ytdlpTab.w, 0, ytdlpTab.x + ytdlpTab.w, 25, col(0x6600,0x0000,0x0000));
+        text(target, 10, 17, "Video Player", topText);
+        text(target, 132, 17, "yt-dlp", topText);
+        text(target, W-155, 17, "ReddMedia v0.0.8", topText);
     }
 
     void update_chapter_marks(bool force=false) {
@@ -851,6 +924,7 @@ public:
 
     void draw_controls(Drawable target) {
         draw_top_bar(target);
+        if (currentView != ViewMode::VideoPlayer) return;
         button_on(target, openBtn, "Open");
         button_on(target, rewindBtn, "Rewind 10s");
         button_on(target, playBtn, "Play/Pause");
@@ -862,11 +936,69 @@ public:
     }
 
     void draw_seek_time_only() {
-        if (!fullscreen) redraw();
+        if (!fullscreen && currentView == ViewMode::VideoPlayer) { draw_seek_time_row(win); XFlush(d); }
     }
 
     void draw_volume_only() {
-        if (!fullscreen) redraw();
+        if (!fullscreen && currentView == ViewMode::VideoPlayer) { draw_volume_bar(win); XFlush(d); }
+    }
+
+    void draw_yt_dlp_screen(Drawable target) {
+        unsigned long bg = col(0xdede,0xdede,0xdede);
+        unsigned long dark = col(0x1111,0x1111,0x1111);
+        unsigned long border = urlFocused ? col(0xbbbb,0x0000,0x0000) : col(0x7777,0x7777,0x7777);
+        fill(target, {0,26,W,H-26}, bg);
+        text(target, 28, 68, "yt-dlp", dark);
+        text(target, 28, 92, "Download videos with ReddMedia's bundled yt-dlp engine.", dark);
+        fill(target, ytdlpUrlRect, col(0xffff,0xffff,0xffff));
+        outline(target, ytdlpUrlRect, border);
+        text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y-8, "URL", dark);
+        int urlTextMax = std::max(24, ytdlpUrlRect.w - 18);
+        std::string visibleUrl = ytdlpUrl.empty() ? std::string("") : tail_to_width(ytdlpUrl, urlTextMax);
+        XRectangle urlClip;
+        urlClip.x = (short)(ytdlpUrlRect.x + 5);
+        urlClip.y = (short)(ytdlpUrlRect.y + 2);
+        urlClip.width = (unsigned short)std::max(1, ytdlpUrlRect.w - 10);
+        urlClip.height = (unsigned short)std::max(1, ytdlpUrlRect.h - 4);
+        XSetClipRectangles(d, gc, 0, 0, &urlClip, 1, Unsorted);
+        if (visibleUrl.empty() && !urlFocused) {
+            std::string hint = "click here, then Ctrl+V or right-click to paste";
+            text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18, hint, col(0x5555,0x5555,0x5555));
+        } else {
+            text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18, visibleUrl, dark);
+        }
+        if (urlFocused) {
+            int cx = ytdlpUrlRect.x + 8 + text_width(visibleUrl);
+            int rightEdge = ytdlpUrlRect.x + ytdlpUrlRect.w - 8;
+            if (cx > rightEdge) cx = rightEdge;
+            line(target, cx, ytdlpUrlRect.y+5, cx, ytdlpUrlRect.y+23, dark);
+        }
+        XSetClipMask(d, gc, None);
+        fill(target, ytdlpOutputRect, col(0xffff,0xffff,0xffff));
+        outline(target, ytdlpOutputRect, col(0x7777,0x7777,0x7777));
+        std::string outLine = "Output folder: " + ytdlpOutputFolder;
+        if ((int)outLine.size() > std::max(12, (ytdlpOutputRect.w-14)/8)) outLine = outLine.substr(0, std::max(12, (ytdlpOutputRect.w-14)/8));
+        text(target, ytdlpOutputRect.x+8, ytdlpOutputRect.y+18, outLine, dark);
+        button_on(target, ytdlpDownloadBtn, "Download");
+        button_on(target, ytdlpClearBtn, "Clear Log");
+        text(target, 28, 258, "Status: " + ytdlpStatus, dark);
+        Rect logBox = {28, 280, std::max(240, W-56), std::max(100, H-305)};
+        fill(target, logBox, col(0xf7f7,0xf7f7,0xf7f7));
+        outline(target, logBox, col(0x7777,0x7777,0x7777));
+        text(target, logBox.x+8, logBox.y+20, "Download log", dark);
+        int lineY = logBox.y + 44;
+        std::istringstream iss(ytdlpLog);
+        std::string lineText;
+        std::vector<std::string> lines;
+        while (std::getline(iss, lineText)) lines.push_back(lineText);
+        int maxLines = std::max(1, (logBox.h - 52) / 18);
+        int start = std::max(0, (int)lines.size() - maxLines);
+        for (int i=start; i<(int)lines.size() && lineY < logBox.y + logBox.h - 8; ++i) {
+            std::string ln = lines[(size_t)i];
+            if ((int)ln.size() > std::max(10, (logBox.w-18)/8)) ln = ln.substr(0, std::max(10, (logBox.w-18)/8));
+            text(target, logBox.x+8, lineY, ln, dark);
+            lineY += 18;
+        }
     }
 
     void redraw() {
@@ -879,12 +1011,141 @@ public:
         Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
         fill(buffer, {0,0,W,H}, col(0xdede,0xdede,0xdede));
         draw_controls(buffer);
+        if (currentView == ViewMode::YtDlp) draw_yt_dlp_screen(buffer);
         XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
         XFreePixmap(d, buffer);
-        draw_video_message();
+        if (currentView == ViewMode::VideoPlayer) draw_video_message();
         if (contextMenuOpen) draw_context_menu();
         XFlush(d);
     }
+
+    std::string ytdlp_engine_path() {
+        return exe_dir() + "/tools/yt-dlp/yt-dlp";
+    }
+    void append_ytdlp_log(const std::string& s) {
+        if (s.empty()) return;
+        if (ytdlpLog == "No download output yet.") ytdlpLog.clear();
+        ytdlpLog += s;
+        if (ytdlpLog.size() > 24000) ytdlpLog = ytdlpLog.substr(ytdlpLog.size() - 24000);
+    }
+    void poll_ytdlp_process() {
+        if (ytdlpPipe >= 0) {
+            char buf[4096];
+            for (;;) {
+                ssize_t n = read(ytdlpPipe, buf, sizeof(buf)-1);
+                if (n > 0) { buf[n]=0; append_ytdlp_log(buf); }
+                else break;
+            }
+        }
+        if (ytdlpPid > 0) {
+            int status=0;
+            pid_t r = waitpid(ytdlpPid, &status, WNOHANG);
+            if (r == ytdlpPid) {
+                if (ytdlpPipe >= 0) { close(ytdlpPipe); ytdlpPipe=-1; }
+                if (WIFEXITED(status) && WEXITSTATUS(status)==0) ytdlpStatus = "Download complete.";
+                else ytdlpStatus = "Download failed. See log.";
+                ytdlpPid = -1;
+                if (currentView == ViewMode::YtDlp) redraw();
+            }
+        }
+    }
+    void stop_ytdlp_process() {
+        if (ytdlpPipe >= 0) { close(ytdlpPipe); ytdlpPipe=-1; }
+        if (ytdlpPid > 0) {
+            kill(ytdlpPid, SIGTERM);
+            int status=0;
+            bool done=false;
+            for (int i=0; i<20; ++i) {
+                pid_t r = waitpid(ytdlpPid, &status, WNOHANG);
+                if (r == ytdlpPid || r == -1) { done=true; break; }
+                usleep(25000);
+            }
+            if (!done) {
+                kill(ytdlpPid, SIGKILL);
+                waitpid(ytdlpPid, &status, WNOHANG);
+            }
+            ytdlpPid=-1;
+        }
+    }
+    std::string read_clipboard_x11() {
+        Atom clipboard = XInternAtom(d, "CLIPBOARD", False);
+        Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
+        Atom property = XInternAtom(d, "REDDMEDIA_CLIPBOARD_TEXT", False);
+        XDeleteProperty(d, win, property);
+        XConvertSelection(d, clipboard, utf8, property, win, CurrentTime);
+        XFlush(d);
+        long long start = now_ms();
+        while (now_ms() - start < 700) {
+            while (XPending(d)) {
+                XEvent ev; XNextEvent(d, &ev);
+                if (ev.type == SelectionNotify) {
+                    if (ev.xselection.property == None) return "";
+                    Atom actualType = None; int actualFormat = 0; unsigned long nitems = 0, bytesAfter = 0; unsigned char* data = nullptr;
+                    int rc = XGetWindowProperty(d, win, property, 0, 1024 * 1024, False, AnyPropertyType, &actualType, &actualFormat, &nitems, &bytesAfter, &data);
+                    std::string out;
+                    if (rc == Success && data && nitems > 0) out.assign((char*)data, (size_t)nitems);
+                    if (data) XFree(data);
+                    XDeleteProperty(d, win, property);
+                    return out;
+                }
+            }
+            usleep(10000);
+        }
+        return "";
+    }
+    void paste_into_url() {
+        urlFocused = true;
+        XSetInputFocus(d, win, RevertToParent, CurrentTime);
+        std::string clip = read_clipboard_text();
+        if (clip.empty()) clip = read_clipboard_x11();
+        clip.erase(std::remove(clip.begin(), clip.end(), '\r'), clip.end());
+        while (!clip.empty() && (clip.back() == '\n' || clip.back() == '\t' || clip.back() == ' ')) clip.pop_back();
+        while (!clip.empty() && (clip.front() == '\n' || clip.front() == '\t' || clip.front() == ' ')) clip.erase(clip.begin());
+        if (!clip.empty()) { ytdlpUrl += clip; ytdlpStatus = "URL pasted."; }
+        else ytdlpStatus = "Clipboard is empty.";
+        redraw();
+    }
+    void start_ytdlp_download() {
+        if (ytdlpPid > 0) { ytdlpStatus = "Download already running."; redraw(); return; }
+        if (ytdlpUrl.empty()) { ytdlpStatus = "Paste or type a URL first."; redraw(); return; }
+        std::string engine = ytdlp_engine_path();
+        if (!exists_file(engine)) { ytdlpStatus = "Bundled yt-dlp missing from tools/yt-dlp/yt-dlp."; redraw(); return; }
+        int pipefd[2];
+        if (pipe(pipefd) != 0) { ytdlpStatus = "Could not start download pipe."; redraw(); return; }
+        pid_t pid = fork();
+        if (pid == 0) {
+            dup2(pipefd[1], STDOUT_FILENO);
+            dup2(pipefd[1], STDERR_FILENO);
+            close(pipefd[0]); close(pipefd[1]);
+            execl(engine.c_str(), engine.c_str(), "--newline", "-P", ytdlpOutputFolder.c_str(), ytdlpUrl.c_str(), (char*)nullptr);
+            _exit(127);
+        }
+        close(pipefd[1]);
+        if (pid < 0) { close(pipefd[0]); ytdlpStatus = "Could not start yt-dlp."; redraw(); return; }
+        ytdlpPid = pid;
+        ytdlpPipe = pipefd[0];
+        fcntl(ytdlpPipe, F_SETFL, fcntl(ytdlpPipe, F_GETFL, 0) | O_NONBLOCK);
+        ytdlpLog.clear();
+        ytdlpStatus = "Downloading...";
+        redraw();
+    }
+    void switch_view(ViewMode v) {
+        if (currentView == v) return;
+        currentView = v;
+        urlFocused = false;
+        close_context_menu();
+        apply_video_layout();
+        redraw();
+    }
+    void scroll_bottom_controls(int delta) {
+        int totalButtonsW = 78 + 8 + 116 + 8 + 104 + 8 + 70 + 8 + 148 + 8 + 104;
+        int availableButtonW = std::max(160, W - 200);
+        int maxScroll = std::max(0, totalButtonsW - availableButtonW);
+        controlsScrollX = std::max(0, std::min(maxScroll, controlsScrollX + delta));
+        layout();
+        redraw();
+    }
+
     void close_context_menu() {
         if (contextMenuOpen && contextMenu) {
             XDestroyWindow(d, contextMenu);
@@ -970,6 +1231,11 @@ public:
         }
         show_menu(win, x, y, items);
     }
+    void show_ytdlp_menu(int x, int y) {
+        std::vector<MenuItem> items;
+        items.push_back({"Clear Log", MenuAction::YtDlpClearLog, 0});
+        show_menu(win, x, y, items);
+    }
     void show_context_menu(Window target, int x, int y) {
         std::vector<MenuItem> items;
         items.push_back({paused ? "Play" : "Pause", MenuAction::TogglePlay, 0});
@@ -1015,6 +1281,7 @@ public:
             case MenuAction::PrevChapter: previous_chapter(); break;
             case MenuAction::NextChapter: next_chapter(); break;
             case MenuAction::ChapterJump: jump_to_chapter_index(value); break;
+            case MenuAction::YtDlpClearLog: ytdlpLog = "No download output yet."; ytdlpStatus = "Ready."; redraw(); break;
             case MenuAction::NoAction: break;
         }
     }
@@ -1023,12 +1290,26 @@ public:
         if (idx >= 0 && idx < (int)contextMenuItems.size()) run_menu_action(contextMenuItems[(size_t)idx]);
         else close_context_menu();
     }
+
+    bool handle_wheel(Window target, int x, int y, unsigned int button) {
+        int delta = (button == Button4) ? -40 : 40;
+        if (currentView == ViewMode::VideoPlayer && target == win && y >= H-42 && !volRect.contains(x,y)) {
+            scroll_bottom_controls(delta);
+            return true;
+        }
+        if (target == video || (target == win && volRect.contains(x,y))) {
+            adjust_volume(button == Button4 ? 5 : -5);
+            return true;
+        }
+        return true;
+    }
+
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
         if (contextMenuOpen && target == contextMenu) { handle_context_menu_click(x,y); return; }
         if (contextMenuOpen) close_context_menu();
         if (target == video) {
             if (button == Button3) { show_context_menu(target, x, y); return; }
-            if (button != Button1) return;
+            if (button != Button1 && !(currentView == ViewMode::YtDlp && ytdlpUrlRect.contains(x,y) && button == Button3)) return;
             if (needResumePrompt && videoResumeBtn.contains(x,y)) { pendingVideoSingleClick=false; open_media(sessionPath, sessionTime); return; }
             if (needResumePrompt && videoLoadBtn.contains(x,y)) { pendingVideoSingleClick=false; needResumePrompt=false; redraw(); do_open(); return; }
             if (lastClickTime && eventTime - lastClickTime < 350 && abs(x-lastClickX)<8 && abs(y-lastClickY)<8) {
@@ -1041,9 +1322,51 @@ public:
             return;
         }
         if (button != Button1) return;
-        if (y < 26 && x >= 0 && x < 50) { show_file_menu(8, 26); return; }
-        if (y < 26 && x >= 50 && x < 108) { show_audio_menu(50, 26); return; }
-        if (y < 26 && x >= 108 && x < 190) { show_subtitle_menu(108, 26); return; }
+        if (y < 26 && videoPlayerTab.contains(x,y)) {
+            if (currentView != ViewMode::VideoPlayer) { switch_view(ViewMode::VideoPlayer); return; }
+            std::vector<MenuItem> items;
+            items.push_back({"Open File", MenuAction::OpenFile, 0});
+            items.push_back({"Audio", MenuAction::NoAction, 0});
+            std::vector<TrackChoice> ats = audio_tracks();
+            int ca = current_audio_track();
+            for (const TrackChoice& t : ats) items.push_back({(t.id==ca?"* ":"  ") + t.name, MenuAction::AudioTrack, t.id});
+            items.push_back({subtitlesOn ? "Subtitles Off" : "Subtitles On", MenuAction::SubtitleToggle, 0});
+            items.push_back({"Load Subtitle File", MenuAction::SubtitleLoadFile, 0});
+            items.push_back({"Open Subtitle Folder", MenuAction::SubtitleLoadFolder, 0});
+            items.push_back({"Delay -0.5s (earlier)", MenuAction::SubtitleDelayMinus, 0});
+            items.push_back({"Delay +0.5s (later)", MenuAction::SubtitleDelayPlus, 0});
+            items.push_back({"Reset Subtitle Delay", MenuAction::SubtitleDelayReset, 0});
+            items.push_back({"Exit ReddMedia", MenuAction::ExitApp, 0});
+            show_menu(win, 8, 26, items);
+            return;
+        }
+        if (y < 26 && ytdlpTab.contains(x,y)) {
+            if (currentView != ViewMode::YtDlp) { switch_view(ViewMode::YtDlp); return; }
+            show_ytdlp_menu(ytdlpTab.x, 26);
+            return;
+        }
+        if (currentView == ViewMode::YtDlp) {
+            if (ytdlpUrlRect.contains(x,y)) {
+                urlFocused=true;
+                XSetInputFocus(d, win, RevertToParent, CurrentTime);
+                if (button == Button3) { paste_into_url(); return; }
+                ytdlpStatus = "URL field ready. Ctrl+V or right-click pastes here.";
+                redraw();
+                return;
+            }
+            if (ytdlpOutputRect.contains(x,y)) {
+                urlFocused=false;
+                std::string folder = choose_folder_dialog();
+                if (!folder.empty()) { ytdlpOutputFolder = folder; ytdlpStatus = "Output folder set."; }
+                redraw();
+                return;
+            }
+            if (ytdlpDownloadBtn.contains(x,y)) { urlFocused=false; start_ytdlp_download(); return; }
+            if (ytdlpClearBtn.contains(x,y)) { urlFocused=false; ytdlpLog = "No download output yet."; ytdlpStatus = "Ready."; redraw(); return; }
+            urlFocused=false;
+            redraw();
+            return;
+        }
         if (openBtn.contains(x,y)) { do_open(); return; }
         if (rewindBtn.contains(x,y)) { seek_relative(-10000); return; }
         if (playBtn.contains(x,y)) { toggle_play(); return; }
@@ -1094,8 +1417,7 @@ public:
                 else if (e.type == ConfigureNotify && e.xconfigure.window == win) resize(e.xconfigure.width, e.xconfigure.height);
                 else if (e.type == ClientMessage) running=false;
                 else if (e.type == ButtonPress) {
-                    if (e.xbutton.button == Button4) adjust_volume(5);
-                    else if (e.xbutton.button == Button5) adjust_volume(-5);
+                    if (e.xbutton.button == Button4 || e.xbutton.button == Button5) handle_wheel(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button);
                     else handle_button(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button, e.xbutton.time);
                 }
                 else if (e.type == MotionNotify) { lastMouse=time(nullptr); show_pointer(); }
@@ -1103,31 +1425,49 @@ public:
                 else if (e.type == LeaveNotify && e.xcrossing.window == video) { pointerInVideo=false; show_pointer(); }
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
-                    if (ks == XK_Escape) exit_fullscreen();
-                    else if (ks == XK_space) toggle_play();
-                    else if (ks == XK_Up) adjust_volume(5);
-                    else if (ks == XK_Down) adjust_volume(-5);
-                    else if (ks == XK_Left) seek_relative(-10000);
-                    else if (ks == XK_Right) seek_relative(10000);
-                    else if (ks == XK_o || ks == XK_O) do_open();
-                    else if (ks == XK_f || ks == XK_F) toggle_fullscreen();
+                    if (currentView == ViewMode::YtDlp && urlFocused) {
+                        if (ks == XK_Escape) { urlFocused=false; redraw(); }
+                        else if (ks == XK_Return || ks == XK_KP_Enter) { start_ytdlp_download(); }
+                        else if (ks == XK_BackSpace) { if (!ytdlpUrl.empty()) ytdlpUrl.pop_back(); redraw(); }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_v || ks == XK_V)) { paste_into_url(); }
+                        else if ((e.xkey.state & ShiftMask) && ks == XK_Insert) { paste_into_url(); }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_u || ks == XK_U)) { ytdlpUrl.clear(); redraw(); }
+                        else {
+                            char buf[32]; KeySym outks=0; int n = XLookupString(&e.xkey, buf, sizeof(buf)-1, &outks, nullptr);
+                            if (n > 0) { buf[n]=0; ytdlpUrl += std::string(buf, n); redraw(); }
+                        }
+                    } else {
+                        if (ks == XK_Escape) exit_fullscreen();
+                        else if (ks == XK_space) toggle_play();
+                        else if (ks == XK_Up) adjust_volume(5);
+                        else if (ks == XK_Down) adjust_volume(-5);
+                        else if (ks == XK_Left) seek_relative(-10000);
+                        else if (ks == XK_Right) seek_relative(10000);
+                        else if (ks == XK_o || ks == XK_O) do_open();
+                        else if (ks == XK_f || ks == XK_F) toggle_fullscreen();
+                    }
                 }
             }
             run_pending_video_click();
             tick_resume_seek();
+            poll_ytdlp_process();
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
-            static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
+            static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
         }
     }
     void shutdown() {
-        close_context_menu(); save_session(); cleanup_player(); if (inst) api.release(inst); inst=nullptr;
+        stop_ytdlp_process(); close_context_menu(); save_session(); cleanup_player(); if (inst) api.release(inst); inst=nullptr;
         if (d) { XCloseDisplay(d); }
         d=nullptr;
     }
 };
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc > 1 && std::string(argv[1]) == "--version") {
+        printf("ReddMedia v0.0.8\n");
+        return 0;
+    }
     App app;
     if (!app.init()) return 1;
     app.event_loop();

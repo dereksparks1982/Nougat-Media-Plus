@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ReddMedia_v8
+Comment=ReddMedia video player
+Exec=/home/dereksparks1982/DKLab/Projects/ReddMedia/ReddMedia_v8
+Icon=reddmedia
+StartupWMClass=ReddMedia
+Terminal=false
+Categories=AudioVideo;Player;
