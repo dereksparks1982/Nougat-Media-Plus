@@ -1,10 +1,10 @@
-# ReddMedia v0.0.11
+# ReddMedia v0.0.12
 
-ReddMedia is a standalone Linux desktop media player by Elderredd Softworks. It combines local video playback, yt-dlp downloading/direct playback, and built-in P2P file transfer and streaming in one application.
+ReddMedia is a standalone Linux desktop media player by Elderredd Softworks. It combines local video playback, YouTube downloading/playback powered by the bundled yt-dlp engine, and built-in P2P file transfer and streaming in one application.
 
-## Current build: v0.0.11 Playback & Transfer Controls
+## Current build: v0.0.12 YouTube Seekable Cache Bridge
 
-v0.0.11 builds on the accepted P2P Streaming Core with explicit P2P Stop/Resume controls and direct yt-dlp playback inside ReddMedia. Public-facing documentation describes the feature simply as **P2P**: a general peer-to-peer file-transfer and streaming capability.
+v0.0.12 builds on the accepted v0.0.11 playback controls by replacing the one-way YouTube playback pipe with a ReddMedia-managed temporary cache and localhost HTTP bridge. The bridge keeps the 1080p default cap while giving the player a bounded, restartable path for seeking instead of asking libVLC to seek through stdin. Public-facing documentation describes the peer-transfer feature simply as **P2P**: a general peer-to-peer file-transfer and streaming capability.
 
 ### Current P2P workflow
 
@@ -30,22 +30,36 @@ The v0.0.10 stabilization pass keeps the same feature version while repairing de
 - Stream sockets have bounded send/receive waits so abandoned seek connections cannot hang indefinitely.
 - The installer reapplies and verifies the ReddMedia red-triangle custom icon on the versioned executable.
 
-The versioned executable is `ReddMedia_v11`.
+The versioned executable is `ReddMedia_v12`.
+
+### v0.0.12 YouTube seekable cache bridge
+
+- Same-version identity repair: the application/window/launcher/raw-executable identity now uses the **red ReddMedia star** instead of the former triangle.
+- The GNOME/X11 window title is `★ ReddMedia` with no version number in that title, while the in-app top-right version surface shows only `v0.0.12`.
+- Same-version UI repair: the creator-facing tab, screen heading, activity-log heading, and status messages now use **YouTube**. The technical `yt-dlp` name remains only where it identifies the bundled engine, executable, command options, or implementation details.
+- YouTube **Play** remains capped at 1080p by default.
+- ReddMedia asks the bundled yt-dlp engine for the video's duration so the normal seek timeline has a stable full-video time scale.
+- The bundled yt-dlp/FFmpeg pipeline writes the active playback segment into a private temporary cache under `/tmp`.
+- ReddMedia serves that growing cache only on `127.0.0.1` through an internal HTTP server with byte-range support.
+- Seeking within material already reached by the current cached segment uses the local HTTP source.
+- Seeking beyond the current cached segment cancels the obsolete feeder/server and restarts the bundled yt-dlp engine at the requested timestamp using `--download-sections` and keyframe-aware cuts.
+- Stop, replacement playback, and clean shutdown terminate the active feeder and remove its temporary cache file.
+- The embedded libVLC player continues to render inside ReddMedia.
 
 ### v0.0.11 transfer and playback controls
 
-- yt-dlp Play streams directly into ReddMedia through yt-dlp/FFmpeg, capped at 1080p by default.
+- YouTube Play streams directly into ReddMedia through the bundled yt-dlp/FFmpeg pipeline, capped at 1080p by default.
 
 - **Stop Download** pauses the active P2P transfer, stops active P2P playback, and preserves partial data/resume state.
 - The same control becomes **Resume Download** while paused and continues the existing transfer.
-- yt-dlp now has **Play** beside **Download**. Play resolves a network media location and hands it to ReddMedia's embedded VLC player without performing the normal saved-file download first.
-- yt-dlp Download remains the normal save-to-disk path.
+- YouTube now has **Play** beside **Download**. Play resolves a network media location and hands it to ReddMedia's embedded VLC player without performing the normal saved-file download first.
+- YouTube Download remains the normal save-to-disk path.
 
 ### v0.0.11 same-version repair
 
 Owner testing proved P2P Stop/Resume but exposed two release defects before acceptance. The v0.0.11 repair keeps the same version number and corrects them:
 
-- yt-dlp Play now carries yt-dlp's resolved HTTP request headers into libVLC instead of handing VLC only the bare media URL.
+- YouTube Play was repaired to stream the bundled yt-dlp/FFmpeg output into embedded libVLC, which proved that supported YouTube playback works inside ReddMedia at up to 1080p.
 - libVLC Play startup is checked instead of silently treating a failed start as success.
 - The red-triangle executable icon is assigned after the final binary write and GNOME Files/Nautilus is refreshed when available; owner-side visual confirmation remains an acceptance gate.
 - Repository text is scanned case-insensitively so the retired public protocol branding cannot survive in README, release history, roadmap, changelog, validation records, or other tracked text.
@@ -60,9 +74,9 @@ Owner testing proved P2P Stop/Resume but exposed two release defects before acce
 - Embedded audio-track selection.
 - External and embedded subtitle controls, automatic matching `.srt` loading, subtitle folder selection, and subtitle delay controls.
 - Embedded chapter discovery and chapter navigation when exposed by libVLC.
-- Bundled yt-dlp downloader with URL entry and output-folder selection.
+- YouTube download/playback screen with URL entry and output-folder selection, powered by the bundled yt-dlp engine.
 - Built-in P2P magnet and `.torrent` downloading with stream-while-downloading playback.
-- Red ReddMedia branding, red controls, red seek/volume bars, and red-triangle window/launcher/executable identity.
+- Red ReddMedia branding, red controls, red seek/volume bars, and red-star window/launcher/executable identity.
 
 ## Dependencies
 
@@ -75,19 +89,19 @@ ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpe
 From the ReddMedia project folder:
 
 ```bash
-./ReddMedia_v11
+./ReddMedia_v12
 ```
 
 Version check:
 
 ```bash
-./ReddMedia_v11 --version
+./ReddMedia_v12 --version
 ```
 
 Expected output:
 
 ```text
-ReddMedia v0.0.11
+ReddMedia v0.0.12
 ```
 
 # Release history
@@ -240,13 +254,13 @@ Validation highlights:
 - Executable/package and version checks passed.
 - Desktop testing verified the visual behavior before acceptance.
 
-## v0.0.8 — Direct yt-dlp
+## v0.0.8 — Direct YouTube
 
 **Purpose:** put the downloader inside ReddMedia as a permanent application screen.
 
 What changed:
 
-- Added the direct yt-dlp screen inside ReddMedia.
+- Added the direct YouTube screen inside ReddMedia, powered by the bundled yt-dlp engine.
 - Bundled the real Linux yt-dlp executable at `tools/yt-dlp/yt-dlp`.
 - Added direct URL typing.
 - Added Ctrl+V keyboard paste and right-click paste to the URL field.
@@ -262,11 +276,11 @@ Validation highlights:
 
 ## v0.0.9 — URL Field Text Controls
 
-**Purpose:** make the yt-dlp URL box behave like a normal editable text field.
+**Purpose:** make the YouTube URL box behave like a normal editable text field.
 
 What changed:
 
-- Ctrl+A selects the entire yt-dlp URL.
+- Ctrl+A selects the entire YouTube URL.
 - Full-field selection is visibly highlighted.
 - Right-click opens **Cut / Copy / Paste**.
 - Cut and Copy place the complete selected URL on the X11 clipboard.
@@ -325,6 +339,27 @@ Stabilization repairs accepted in v0.0.10:
 
 Seek behavior under slow or difficult P2P swarms can still take time because peer availability controls how quickly an undownloaded region arrives.
 
+## v0.0.12 — YouTube Seekable Cache Bridge
+
+**Purpose:** turn the proven v0.0.11 YouTube playback path into a restartable, seek-aware embedded stream.
+
+What changed:
+
+- Replaced direct libVLC stdin playback for YouTube with a temporary yt-dlp/FFmpeg cache served by a ReddMedia localhost-only HTTP bridge.
+- Kept the default YouTube playback ceiling at 1080p.
+- Added duration probing so ReddMedia's normal seek timeline represents the full video.
+- Added HTTP `HEAD`, full `GET`, byte-range, suffix-range, and invalid-range handling for the local cache source.
+- Added timestamp restarts for seeks beyond the current cached playback segment.
+- Added stale feeder cancellation and temporary-cache cleanup for seek replacement, Stop, and shutdown.
+- Same-version UI/identity repair renames creator-facing network-video labels to **YouTube**, changes the window title to `★ ReddMedia`, shows only `v0.0.12` at the in-app top right, and replaces the application/launcher/raw-executable triangle with the red ReddMedia star.
+
+Validation targets:
+
+- C++17 warnings-as-errors build.
+- Localhost-only listener and HTTP range fixture tests.
+- yt-dlp 1080p selector and timestamp-restart contract checks.
+- Real libtorrent linkage, embedded libVLC location playback, version identity, YouTube labels, title/version split, and red-star application/executable icon gates on the Ubuntu target machine.
+
 ## v0.0.11 — Playback & Transfer Controls
 
 **Purpose:** give the two network-media paths the controls needed for everyday use while keeping ReddMedia's public P2P identity neutral and technical.
@@ -334,15 +369,15 @@ What this build adds:
 - **Stop Download / Resume Download** on the P2P screen.
 - Stopping a P2P transfer also stops active P2P playback and seeding/uploading while preserving partial files and resume state.
 - Resume continues the same P2P transfer without discarding completed data.
-- A **Play** button on the yt-dlp screen that resolves a playable network stream with the bundled yt-dlp engine and opens it in ReddMedia's embedded VLC player.
-- The existing yt-dlp **Download** path remains available for saving media normally.
+- A **Play** button on the YouTube screen that streams the bundled yt-dlp/FFmpeg output into ReddMedia's embedded VLC player.
+- The existing YouTube **Download** path remains available for saving media normally.
 - Public-facing repository wording uses **P2P** for the feature and presents it as general peer-to-peer file transfer/streaming. Technical `libtorrent` and `.torrent` references remain only where required for implementation, dependency, file-format, or license truth.
 - The roadmap records future Archive, Online Video, Live TV, and supported streaming-service integration work.
 
 Validation target:
 
 - P2P Stop/Resume preserves partial progress.
-- yt-dlp Play hands a resolved network location to the embedded player.
+- YouTube Play starts embedded playback through the bundled yt-dlp/FFmpeg stream path.
 - `ReddMedia_v11` retains the red-triangle executable icon.
 - Public-facing P2P terminology is consistent across the active repository documentation.
 

@@ -1,5 +1,20 @@
 # ReddMedia Changelog
 
+## v0.0.12
+
+### YouTube Seekable Cache Bridge
+
+- Same-version identity repair: replaced the ReddMedia triangle with a red star for the application/window/launcher/raw-executable identity.
+- Changed the GNOME/X11 window title to `★ ReddMedia` with no version number and changed the in-app top-right identity surface to version-only `v0.0.12`.
+- Same-version UI repair: renamed the creator-facing tab, page heading, activity-log heading, and visible status messages to **YouTube** while retaining `yt-dlp` only as the technical engine/tool name.
+- Replaced the accepted v0.0.11 YouTube stdout-to-libVLC pipe with a ReddMedia-managed temporary cache and localhost HTTP playback bridge.
+- Kept YouTube Play capped at 1080p by default.
+- Added yt-dlp duration probing so the normal ReddMedia seek timeline can represent the complete video.
+- Added localhost-only HTTP `HEAD`, full `GET`, byte-range, suffix-range, and invalid-range handling for cached playback.
+- Added seek restart support using yt-dlp `--download-sections` with keyframe-aware cuts when the requested position is outside the current cached segment.
+- Added cancellation of obsolete seek feeders and cleanup of temporary YouTube cache files on replacement playback, Stop, and shutdown.
+- Added the dedicated `YtDlpStreamServer` source module and versioned `ReddMedia_v12` executable/desktop identity.
+
 ## v0.0.11
 
 ### Same-version repair after owner testing
@@ -15,7 +30,7 @@
 
 - Added **Stop Download / Resume Download** to P2P transfers.
 - Stopping a P2P transfer stops active P2P playback and transfer activity while preserving partial data and resume state.
-- Added yt-dlp **Play** for direct network playback through ReddMedia's embedded VLC player while preserving the existing Download path.
+- Added YouTube **Play** for direct network playback through ReddMedia's embedded VLC player while preserving the existing Download path.
 - Standardized public-facing feature wording on **P2P** across README, roadmap, dependency, and third-party documentation.
 - Added Archive, Online Video, Live TV, and supported streaming-service integration directions to the roadmap.
 
@@ -46,15 +61,15 @@
 
 ## v0.0.9
 
-- Ctrl+A now selects the full URL in the yt-dlp URL field.
+- Ctrl+A now selects the full URL in the YouTube URL field.
 - Right-click inside the URL field now opens Cut / Copy / Paste.
 
 ## v0.0.8
 
-- Added direct yt-dlp screen to ReddMedia.
+- Added direct YouTube screen to ReddMedia, powered by the bundled yt-dlp engine.
 - Bundled the real yt-dlp Linux engine inside `tools/yt-dlp/yt-dlp`.
 - Added versioned executable name `ReddMedia_v8`.
 - Added inline URL entry with keyboard paste and right-click paste support.
 - Preserved v0.0.7 video player behavior.
 
-- yt-dlp Play now streams through yt-dlp/FFmpeg stdout into embedded libVLC and caps playback at 1080p by default.
+- YouTube Play now streams through the bundled yt-dlp/FFmpeg pipeline into embedded libVLC and caps playback at 1080p by default.

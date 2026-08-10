@@ -4,7 +4,7 @@ ReddMedia is currently developed and validated on Ubuntu Linux.
 
 ## Runtime dependencies
 
-A normal user running ReddMedia v0.0.11 needs:
+A normal user running ReddMedia v0.0.12 needs:
 
 ```bash
 sudo apt install -y \
@@ -25,7 +25,11 @@ sudo apt install -y \
 
 ReddMedia bundles yt-dlp at `tools/yt-dlp/yt-dlp`; users do not need a separate yt-dlp package.
 
-The exact runtime package name for libtorrent can vary between Ubuntu releases because of ABI transitions. ReddMedia v0.0.11 targets the same libtorrent-rasterbar 2.0.12 package family proven on the accepted v0.0.10 development machine.
+The exact runtime package name for libtorrent can vary between Ubuntu releases because of ABI transitions. ReddMedia v0.0.12 targets the same libtorrent-rasterbar 2.0.12 package family proven on the accepted v0.0.10 development machine.
+
+## v0.0.12 cache bridge
+
+v0.0.12 adds no new runtime package. Its YouTube cache bridge is implemented in ReddMedia's native C++ code using Linux/POSIX files, processes, threads, and localhost sockets. yt-dlp and FFmpeg remain responsible for obtaining and remuxing supported web video, and libVLC remains the embedded playback engine.
 
 ## Build and patch-installer dependencies
 
@@ -44,7 +48,7 @@ sudo apt install -y \
   zenity
 ```
 
-`libtorrent-rasterbar-dev` pulls the appropriate libtorrent runtime and its required Boost/OpenSSL development dependencies on Ubuntu. `libglib2.0-bin` supplies `gio`, which the development patch installer uses to assign and verify the red-triangle custom icon on the raw versioned executable in GNOME Files.
+`libtorrent-rasterbar-dev` pulls the appropriate libtorrent runtime and its required Boost/OpenSSL development dependencies on Ubuntu. `libglib2.0-bin` supplies `gio`, which the development patch installer uses to assign and verify the red-star custom icon on the raw versioned executable in GNOME Files.
 
 ReddMedia patch installers check these requirements before changing the project tree.
 

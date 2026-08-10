@@ -1,12 +1,14 @@
 # ReddMedia Roadmap
 
-## Current: v0.0.11 Playback & Transfer Controls
+## Current: v0.0.12 YouTube Seekable Cache Bridge
 
-- Add **Stop Download / Resume Download** to the P2P screen while preserving partial files and resume state.
-- Stop active P2P playback and transfer activity together when the user chooses Stop Download.
-- Add yt-dlp **Play** so supported web video can be watched directly in ReddMedia without waiting for a normal saved download.
-- Keep the existing yt-dlp **Download** path.
-- Use **P2P** as the public-facing feature name across ReddMedia documentation and interface text.
+- Replace the accepted v0.0.11 one-way YouTube playback pipe with a temporary local cache served through a localhost-only HTTP bridge, powered internally by the bundled yt-dlp/FFmpeg engine.
+- Keep YouTube Play capped at 1080p by default.
+- Resolve the source duration so the ReddMedia seek timeline can address the full video.
+- Support HTTP byte ranges for cached media and restart the internal YouTube feeder at the requested timestamp when a seek moves beyond the current cached segment.
+- Cancel obsolete seek/feed jobs before starting a replacement segment.
+- Remove temporary YouTube cache data on Stop, replacement playback, and clean shutdown.
+- Keep playback inside the existing embedded libVLC player.
 
 ## Archive
 

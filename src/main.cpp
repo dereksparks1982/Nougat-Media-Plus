@@ -8,13 +8,16 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 #include <ctime>
 #include <string>
 #include <sstream>
 #include <fstream>
 #include <algorithm>
 #include <vector>
+#include <thread>
 #include <chrono>
+#include <cerrno>
 #include <cctype>
 #include <dirent.h>
 #include <fcntl.h>
@@ -25,6 +28,7 @@
 #include <X11/Xatom.h>
 #include "p2p_engine.hpp"
 #include "p2p_stream_server.hpp"
+#include "ytdlp_stream_server.hpp"
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -34,7 +38,6 @@ typedef libvlc_instance_t* (*fn_libvlc_new)(int, const char* const*);
 typedef void (*fn_libvlc_release)(libvlc_instance_t*);
 typedef libvlc_media_t* (*fn_libvlc_media_new_path)(libvlc_instance_t*, const char*);
 typedef libvlc_media_t* (*fn_libvlc_media_new_location)(libvlc_instance_t*, const char*);
-typedef libvlc_media_t* (*fn_libvlc_media_new_fd)(libvlc_instance_t*, int);
 typedef void (*fn_libvlc_media_release)(libvlc_media_t*);
 typedef void (*fn_libvlc_media_add_option)(libvlc_media_t*, const char*);
 typedef libvlc_media_player_t* (*fn_libvlc_media_player_new_from_media)(libvlc_media_t*);
@@ -83,7 +86,6 @@ struct VlcApi {
     fn_libvlc_release release = nullptr;
     fn_libvlc_media_new_path media_new_path = nullptr;
     fn_libvlc_media_new_location media_new_location = nullptr;
-    fn_libvlc_media_new_fd media_new_fd = nullptr;
     fn_libvlc_media_release media_release = nullptr;
     fn_libvlc_media_add_option media_add_option = nullptr;
     fn_libvlc_media_player_new_from_media player_new_from_media = nullptr;
@@ -126,7 +128,6 @@ struct VlcApi {
         LOAD_SYM(release, "libvlc_release");
         LOAD_SYM(media_new_path, "libvlc_media_new_path");
         LOAD_SYM(media_new_location, "libvlc_media_new_location");
-        LOAD_SYM(media_new_fd, "libvlc_media_new_fd");
         LOAD_SYM(media_release, "libvlc_media_release");
         LOAD_SYM(media_add_option, "libvlc_media_add_option");
         LOAD_SYM(player_new_from_media, "libvlc_media_player_new_from_media");
@@ -398,10 +399,11 @@ public:
     int ytdlpPipe = -1;
     YtDlpJob ytdlpJob = YtDlpJob::Idle;
     std::string ytdlpProcessOutput;
-    pid_t ytdlpStreamPid = -1;
-    int ytdlpStreamLogPipe = -1;
-    int ytdlpStreamMediaFd = -1;
+    YtDlpStreamServer ytdlpStream;
     bool currentMediaIsYtDlpStream = false;
+    long long ytdlpStreamBaseMs = 0;
+    long long ytdlpTotalDurationMs = 0;
+    long long ytdlpCachedThroughMs = 0;
     int controlsScrollX = 0;
     P2PEngine p2p;
     P2PStreamServer p2pStream{p2p};
@@ -450,17 +452,27 @@ public:
     }
 
     unsigned long icon_pixel(int x, int y, int size) {
-        double cx = (size - 1) / 2.0;
-        double top = size * 0.12;
-        double bottom = size * 0.86;
-        double halfWidthAtBottom = size * 0.38;
-        if (y < top || y > bottom) return 0x00000000UL;
-        double t = (y - top) / (bottom - top);
-        double half = halfWidthAtBottom * t;
-        double left = cx - half;
-        double right = cx + half;
-        if (x >= left && x <= right) return 0xffbb0000UL;
-        return 0x00000000UL;
+        constexpr double pi = 3.14159265358979323846;
+        const double cx = (size - 1) / 2.0;
+        const double cy = (size - 1) / 2.0;
+        const double outer = size * 0.43;
+        const double inner = size * 0.19;
+        double vx[10]{};
+        double vy[10]{};
+        for (int i = 0; i < 10; ++i) {
+            const double radius = (i % 2 == 0) ? outer : inner;
+            const double angle = -pi / 2.0 + i * pi / 5.0;
+            vx[i] = cx + std::cos(angle) * radius;
+            vy[i] = cy + std::sin(angle) * radius;
+        }
+        bool inside = false;
+        for (int i = 0, j = 9; i < 10; j = i++) {
+            const bool crosses = ((vy[i] > y) != (vy[j] > y));
+            if (!crosses) continue;
+            const double edgeX = (vx[j] - vx[i]) * (y - vy[i]) / (vy[j] - vy[i]) + vx[i];
+            if (x < edgeX) inside = !inside;
+        }
+        return inside ? 0xffbb0000UL : 0x00000000UL;
     }
 
     void set_net_wm_icon() {
@@ -487,12 +499,22 @@ public:
         set_net_wm_icon();
     }
 
+    void set_window_title() {
+        const char* title = "\xE2\x98\x85 ReddMedia";
+        XStoreName(d, win, title);
+        Atom netWmName = XInternAtom(d, "_NET_WM_NAME", False);
+        Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
+        XChangeProperty(d, win, netWmName, utf8, 8, PropModeReplace,
+                        reinterpret_cast<const unsigned char*>(title),
+                        (int)std::strlen(title));
+    }
+
     bool init() {
         d = XOpenDisplay(nullptr); if (!d) return false;
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.11");
+        set_window_title();
         set_window_identity();
         clipboardAtom = XInternAtom(d, "CLIPBOARD", False);
         utf8Atom = XInternAtom(d, "UTF8_STRING", False);
@@ -595,16 +617,130 @@ public:
         api.set_volume(mp, vol);
         if (!fullscreen) draw_volume_only();
     }
+    long long playback_time_ms() {
+        if (!mp) return 0;
+        long long t = api.get_time(mp);
+        if (t < 0) t = 0;
+        if (currentMediaIsYtDlpStream) return ytdlpStreamBaseMs + t;
+        return t;
+    }
+    long long playback_length_ms() {
+        if (!mp) return 0;
+        long long l = api.get_length(mp);
+        if (!currentMediaIsYtDlpStream) return l;
+        if (l > 0 && ytdlpTotalDurationMs <= 0) {
+            ytdlpTotalDurationMs = ytdlpStreamBaseMs > 0 ? ytdlpStreamBaseMs + l : l;
+        }
+        return ytdlpTotalDurationMs > 0 ? ytdlpTotalDurationMs : (l > 0 ? ytdlpStreamBaseMs + l : 0);
+    }
+    long long resolve_ytdlp_duration_ms(const std::string& engine, const std::string& url) {
+        int outputPipe[2];
+        if (pipe(outputPipe) != 0) return 0;
+        pid_t pid = fork();
+        if (pid == 0) {
+            dup2(outputPipe[1], STDOUT_FILENO);
+            int devnull = open("/dev/null", O_WRONLY);
+            if (devnull >= 0) { dup2(devnull, STDERR_FILENO); close(devnull); }
+            close(outputPipe[0]); close(outputPipe[1]);
+            execl(engine.c_str(), engine.c_str(),
+                  "--ignore-config", "--no-playlist", "--skip-download",
+                  "--print", "duration", url.c_str(), (char*)nullptr);
+            _exit(127);
+        }
+        close(outputPipe[1]);
+        if (pid < 0) { close(outputPipe[0]); return 0; }
+        fcntl(outputPipe[0], F_SETFL, fcntl(outputPipe[0], F_GETFL, 0) | O_NONBLOCK);
+        std::string output;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(12);
+        int status = 0;
+        bool childDone = false;
+        while (std::chrono::steady_clock::now() < deadline) {
+            char buffer[128];
+            for (;;) {
+                ssize_t n = read(outputPipe[0], buffer, sizeof(buffer));
+                if (n > 0) output.append(buffer, static_cast<std::size_t>(n));
+                else break;
+            }
+            pid_t result = waitpid(pid, &status, WNOHANG);
+            if (result == pid || result == -1) { childDone = true; break; }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        if (!childDone) {
+            kill(pid, SIGTERM);
+            for (int i=0;i<10;++i) {
+                pid_t result=waitpid(pid,&status,WNOHANG);
+                if (result==pid || result==-1) { childDone=true; break; }
+                std::this_thread::sleep_for(std::chrono::milliseconds(25));
+            }
+            if (!childDone) { kill(pid,SIGKILL); waitpid(pid,&status,0); }
+        }
+        char tail[128];
+        for (;;) {
+            ssize_t n=read(outputPipe[0],tail,sizeof(tail));
+            if(n>0) output.append(tail,static_cast<std::size_t>(n)); else break;
+        }
+        close(outputPipe[0]);
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return 0;
+        char* end=nullptr;
+        errno=0;
+        const double seconds=std::strtod(output.c_str(),&end);
+        if (errno!=0 || end==output.c_str() || seconds<=0.0 || seconds>864000.0) return 0;
+        return static_cast<long long>(seconds*1000.0 + 0.5);
+    }
+
+    bool start_ytdlp_cache_playback_at(long long targetMs) {
+        if (ytdlpUrl.empty()) return false;
+        std::string engine = ytdlp_engine_path();
+        std::string error;
+        cleanup_player();
+        if (!ytdlpStream.start(engine, ytdlpUrl, targetMs, error)) {
+            ytdlpStatus = error.empty() ? "Could not start YouTube cache bridge." : error;
+            switch_view(ViewMode::YtDlp);
+            redraw();
+            return false;
+        }
+        if (!ytdlpStream.wait_for_initial_cache(256 * 1024, 15000, error)) {
+            append_ytdlp_log(ytdlpStream.take_log());
+            ytdlpStream.stop();
+            ytdlpStatus = error.empty() ? "YouTube cache did not buffer enough media." : error;
+            switch_view(ViewMode::YtDlp);
+            redraw();
+            return false;
+        }
+        append_ytdlp_log(ytdlpStream.take_log());
+        ytdlpStreamBaseMs = std::max<long long>(0, targetMs);
+        ytdlpCachedThroughMs = ytdlpStreamBaseMs;
+        if (!open_ytdlp_cache_location(ytdlpStream.url(), ytdlpStreamBaseMs)) {
+            ytdlpStream.stop();
+            ytdlpStatus = "VLC could not start the YouTube cache stream. See log.";
+            switch_view(ViewMode::YtDlp);
+            redraw();
+            return false;
+        }
+        ytdlpStatus = targetMs > 0 ? "Seek buffered. Playing through local cache bridge."
+                                   : "Playing through local cache bridge at up to 1080p.";
+        return true;
+    }
+    void seek_to_ms(long long targetMs) {
+        if (!mp) return;
+        long long l = playback_length_ms();
+        if (targetMs < 0) targetMs = 0;
+        if (l > 0 && targetMs > l) targetMs = l;
+        if (currentMediaIsYtDlpStream) {
+            if (targetMs >= ytdlpStreamBaseMs && targetMs <= ytdlpCachedThroughMs) {
+                api.set_time(mp, targetMs - ytdlpStreamBaseMs);
+                if (!fullscreen) draw_seek_time_only();
+                return;
+            }
+            start_ytdlp_cache_playback_at(targetMs);
+            return;
+        }
+        api.set_time(mp, targetMs);
+        if (!fullscreen) draw_seek_time_only();
+    }
     void seek_relative(long long deltaMs) {
         if (!mp) return;
-        long long t = api.get_time(mp);
-        long long l = api.get_length(mp);
-        if (t < 0) t = 0;
-        long long nt = t + deltaMs;
-        if (nt < 0) nt = 0;
-        if (l > 0 && nt > l) nt = l;
-        api.set_time(mp, nt);
-        if (!fullscreen) draw_seek_time_only();
+        seek_to_ms(playback_time_ms() + deltaMs);
     }
     void tick_resume_seek() {
         if (!pendingSeek || !mp) return;
@@ -642,22 +778,12 @@ public:
         f << "}\n";
     }
     void stop_ytdlp_stream_process() {
-        if (ytdlpStreamLogPipe >= 0) { close(ytdlpStreamLogPipe); ytdlpStreamLogPipe=-1; }
-        if (ytdlpStreamPid > 0) {
-            if (kill(-ytdlpStreamPid, SIGTERM) != 0) kill(ytdlpStreamPid, SIGTERM);
-            int status=0; bool done=false;
-            for (int i=0; i<20; ++i) {
-                pid_t r=waitpid(ytdlpStreamPid,&status,WNOHANG);
-                if (r==ytdlpStreamPid || r==-1) { done=true; break; }
-                usleep(25000);
-            }
-            if (!done) { if (kill(-ytdlpStreamPid,SIGKILL) != 0) kill(ytdlpStreamPid,SIGKILL); waitpid(ytdlpStreamPid,&status,0); }
-            ytdlpStreamPid=-1;
-        }
+        ytdlpStream.stop();
+        ytdlpStreamBaseMs = 0;
+        ytdlpCachedThroughMs = 0;
     }
     void cleanup_player() {
         if (mp) { api.stop(mp); api.player_release(mp); mp=nullptr; }
-        if (ytdlpStreamMediaFd >= 0) { close(ytdlpStreamMediaFd); ytdlpStreamMediaFd=-1; }
         if (currentMediaIsYtDlpStream) stop_ytdlp_stream_process();
         currentMediaIsYtDlpStream=false;
         hasMedia=false; paused=false; pendingSeek=false; subtitlesOn=false; chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false;
@@ -702,30 +828,31 @@ public:
         redraw();
         return true;
     }
-    bool open_ytdlp_stream_fd(int fd) {
-        if (!inst || !api.media_new_fd || fd < 0) return false;
+    bool open_ytdlp_cache_location(const std::string& url, long long baseMs) {
+        if (!inst || !api.media_new_location || url.empty()) return false;
         p2pStream.stop();
-        cleanup_player();
-        libvlc_media_t* media = api.media_new_fd(inst, fd);
-        if (!media) { close(fd); return false; }
-        ytdlpStreamMediaFd=fd;
-        if (api.media_add_option) api.media_add_option(media, ":file-caching=3000");
+        libvlc_media_t* media = api.media_new_location(inst, url.c_str());
+        if (!media) return false;
+        if (api.media_add_option) api.media_add_option(media, ":network-caching=2500");
         mp = api.player_new_from_media(media);
         api.media_release(media);
         if (!mp) return false;
         api.set_xwindow(mp, (unsigned int)video);
         api.set_volume(mp, 80);
+        ytdlpStreamBaseMs = std::max<long long>(0, baseMs);
         currentPath.clear(); currentMediaIsP2P=false; currentMediaIsNetwork=true; currentMediaIsYtDlpStream=true; hasMedia=true; paused=false; needResumePrompt=false;
         subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
         chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; lastChapterScanMs=0;
         const int rc = api.play(mp);
         if (rc != 0) {
+            api.player_release(mp);
+            mp=nullptr;
             currentMediaIsYtDlpStream=false;
-            cleanup_player();
-            stop_ytdlp_stream_process();
+            hasMedia=false;
             currentMediaIsNetwork=false;
             return false;
         }
+        switch_view(ViewMode::VideoPlayer);
         redraw();
         return true;
     }
@@ -950,9 +1077,9 @@ public:
         line(target, ytdlpTab.x + ytdlpTab.w, 0, ytdlpTab.x + ytdlpTab.w, 25, col(0x6600,0x0000,0x0000));
         line(target, p2pTab.x + p2pTab.w, 0, p2pTab.x + p2pTab.w, 25, col(0x6600,0x0000,0x0000));
         text(target, 10, 17, "Video Player", topText);
-        text(target, 132, 17, "yt-dlp", topText);
+        text(target, 132, 17, "YouTube", topText);
         text(target, 216, 17, "P2P", topText);
-        text(target, W-164, 17, "ReddMedia v0.0.11", topText);
+        text(target, W-66, 17, "v0.0.12", topText);
     }
 
     void update_chapter_marks(bool force=false) {
@@ -1036,7 +1163,7 @@ public:
         fill(target, seekRect, col(0xeeee,0xeeee,0xeeee));
         outline(target, seekRect, col(0x8888,0x8888,0x8888));
         long long t=0,l=0;
-        if (mp) { t=api.get_time(mp); l=api.get_length(mp); }
+        if (mp) { t=playback_time_ms(); l=playback_length_ms(); }
         if (l > 0) {
             update_chapter_marks(false);
             int pos = (int)((double)t / (double)l * seekRect.w);
@@ -1109,8 +1236,8 @@ public:
         unsigned long dark = col(0x1111,0x1111,0x1111);
         unsigned long border = urlFocused ? col(0xbbbb,0x0000,0x0000) : col(0x7777,0x7777,0x7777);
         fill(target, {0,26,W,H-26}, bg);
-        text(target, 28, 68, "yt-dlp", dark);
-        text(target, 28, 92, "Download or play videos with ReddMedia's bundled yt-dlp engine.", dark);
+        text(target, 28, 68, "YouTube", dark);
+        text(target, 28, 92, "Download or play YouTube videos.", dark);
         fill(target, ytdlpUrlRect, col(0xffff,0xffff,0xffff));
         outline(target, ytdlpUrlRect, border);
         text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y-8, "URL", dark);
@@ -1151,7 +1278,7 @@ public:
         Rect logBox = {28, 280, std::max(240, W-56), std::max(100, H-305)};
         fill(target, logBox, col(0xf7f7,0xf7f7,0xf7f7));
         outline(target, logBox, col(0x7777,0x7777,0x7777));
-        text(target, logBox.x+8, logBox.y+20, "yt-dlp activity log", dark);
+        text(target, logBox.x+8, logBox.y+20, "YouTube activity log", dark);
         int lineY = logBox.y + 44;
         std::istringstream iss(ytdlpLog);
         std::string lineText;
@@ -1347,26 +1474,12 @@ public:
                 ytdlpProcessOutput.clear();
             }
         }
-        if (ytdlpStreamLogPipe >= 0) {
-            char buf[4096];
-            for (;;) {
-                ssize_t n=read(ytdlpStreamLogPipe,buf,sizeof(buf)-1);
-                if (n>0) { buf[n]=0; append_ytdlp_log(buf); }
-                else break;
-            }
-        }
-        if (ytdlpStreamPid > 0) {
-            int status=0;
-            pid_t r=waitpid(ytdlpStreamPid,&status,WNOHANG);
-            if (r==ytdlpStreamPid) {
-                if (ytdlpStreamLogPipe >= 0) {
-                    char tail[4096];
-                    for (;;) { ssize_t n=read(ytdlpStreamLogPipe,tail,sizeof(tail)-1); if(n>0){tail[n]=0;append_ytdlp_log(tail);} else break; }
-                    close(ytdlpStreamLogPipe); ytdlpStreamLogPipe=-1;
-                }
-                const bool ok=WIFEXITED(status) && WEXITSTATUS(status)==0;
-                ytdlpStreamPid=-1;
-                if (!ok) { ytdlpStatus="Play stream ended with an error. See log."; if (currentView==ViewMode::YtDlp) redraw(); }
+        if (ytdlpStream.running()) {
+            ytdlpStream.poll();
+            append_ytdlp_log(ytdlpStream.take_log());
+            if (ytdlpStream.failed()) {
+                ytdlpStatus="YouTube cache feeder ended with an error. See log.";
+                if (currentView==ViewMode::YtDlp) redraw();
             }
         }
     }
@@ -1514,7 +1627,7 @@ public:
         if (ytdlpPid > 0) { ytdlpStatus = "Download already running."; redraw(); return; }
         if (ytdlpUrl.empty()) { ytdlpStatus = "Paste or type a URL first."; redraw(); return; }
         std::string engine = ytdlp_engine_path();
-        if (!exists_file(engine)) { ytdlpStatus = "Bundled yt-dlp missing from tools/yt-dlp/yt-dlp."; redraw(); return; }
+        if (!exists_file(engine)) { ytdlpStatus = "YouTube engine is missing."; redraw(); return; }
         int pipefd[2];
         if (pipe(pipefd) != 0) { ytdlpStatus = "Could not start download pipe."; redraw(); return; }
         pid_t pid = fork();
@@ -1526,7 +1639,7 @@ public:
             _exit(127);
         }
         close(pipefd[1]);
-        if (pid < 0) { close(pipefd[0]); ytdlpStatus = "Could not start yt-dlp."; redraw(); return; }
+        if (pid < 0) { close(pipefd[0]); ytdlpStatus = "Could not start YouTube download."; redraw(); return; }
         ytdlpPid = pid;
         ytdlpPipe = pipefd[0];
         ytdlpJob = YtDlpJob::Download;
@@ -1537,52 +1650,19 @@ public:
         redraw();
     }
     void start_ytdlp_play() {
-        if (ytdlpPid > 0) { ytdlpStatus = "yt-dlp download is already running."; redraw(); return; }
+        if (ytdlpPid > 0) { ytdlpStatus = "YouTube download is already running."; redraw(); return; }
         if (ytdlpUrl.empty()) { ytdlpStatus = "Paste or type a URL first."; redraw(); return; }
         std::string engine = ytdlp_engine_path();
-        if (!exists_file(engine)) { ytdlpStatus = "Bundled yt-dlp missing from tools/yt-dlp/yt-dlp."; redraw(); return; }
+        if (!exists_file(engine)) { ytdlpStatus = "YouTube engine is missing."; redraw(); return; }
 
-        if (currentMediaIsYtDlpStream || ytdlpStreamPid > 0) {
-            cleanup_player();
-            stop_ytdlp_stream_process();
-        }
-
-        int mediaPipe[2];
-        int logPipe[2];
-        if (pipe(mediaPipe) != 0) { ytdlpStatus = "Could not start Play media pipe."; redraw(); return; }
-        if (pipe(logPipe) != 0) { close(mediaPipe[0]); close(mediaPipe[1]); ytdlpStatus = "Could not start Play log pipe."; redraw(); return; }
-
-        pid_t pid=fork();
-        if (pid==0) {
-            setpgid(0,0);
-            dup2(mediaPipe[1],STDOUT_FILENO);
-            dup2(logPipe[1],STDERR_FILENO);
-            close(mediaPipe[0]); close(mediaPipe[1]); close(logPipe[0]); close(logPipe[1]);
-            execl(engine.c_str(),engine.c_str(),
-                  "--ignore-config","--no-playlist",
-                  "--downloader","ffmpeg",
-                  "-f","bv*[height<=1080]+ba/b[height<=1080]",
-                  "-o","-",
-                  ytdlpUrl.c_str(),(char*)nullptr);
-            _exit(127);
-        }
-
-        close(mediaPipe[1]); close(logPipe[1]);
-        if (pid<0) { close(mediaPipe[0]); close(logPipe[0]); ytdlpStatus="Could not start yt-dlp Play stream."; redraw(); return; }
-
-        setpgid(pid,pid);
-        ytdlpStreamPid=pid;
-        ytdlpStreamLogPipe=logPipe[0];
-        fcntl(ytdlpStreamLogPipe,F_SETFL,fcntl(ytdlpStreamLogPipe,F_GETFL,0)|O_NONBLOCK);
+        ytdlpTotalDurationMs = 0;
         ytdlpLog.clear();
-        ytdlpStatus="Streaming through yt-dlp at up to 1080p...";
-        switch_view(ViewMode::VideoPlayer);
-        if (!open_ytdlp_stream_fd(mediaPipe[0])) {
-            stop_ytdlp_stream_process();
-            switch_view(ViewMode::YtDlp);
-            ytdlpStatus="VLC could not start the yt-dlp stream. See log.";
-            redraw();
-        }
+        ytdlpStatus = "Reading YouTube duration...";
+        redraw();
+        ytdlpTotalDurationMs = resolve_ytdlp_duration_ms(engine, ytdlpUrl);
+        ytdlpStatus = "Buffering YouTube cache at up to 1080p...";
+        redraw();
+        start_ytdlp_cache_playback_at(0);
     }
 
     void switch_view(ViewMode v) {
@@ -1902,7 +1982,10 @@ public:
         if (needResumePrompt && resumeBtn.contains(x,y)) { open_media(sessionPath, sessionTime); return; }
         if (needResumePrompt && loadBtn.contains(x,y)) { needResumePrompt=false; redraw(); do_open(); return; }
         if (seekRect.contains(x,y) && mp) {
-            long long l = api.get_length(mp); if (l > 0) api.set_time(mp, (long long)((double)(x-seekRect.x)/seekRect.w*l)); draw_seek_time_only(); return;
+            long long l = playback_length_ms();
+            if (l > 0) seek_to_ms((long long)((double)(x-seekRect.x)/seekRect.w*l));
+            draw_seek_time_only();
+            return;
         }
         if (volRect.contains(x,y) && mp) {
             int v = std::max(0, std::min(100, (x-volRect.x)*100/volRect.w)); api.set_volume(mp, v); draw_volume_only(); return;
@@ -2003,6 +2086,11 @@ public:
             run_pending_video_click();
             tick_resume_seek();
             poll_ytdlp_process();
+            if (currentMediaIsYtDlpStream && mp) {
+                const long long current = playback_time_ms();
+                if (current > ytdlpCachedThroughMs) ytdlpCachedThroughMs = current;
+                playback_length_ms();
+            }
             if (!fullscreen && currentView == ViewMode::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
@@ -2018,7 +2106,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.11\n");
+        printf("ReddMedia v0.0.12\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
