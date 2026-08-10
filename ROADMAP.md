@@ -2,9 +2,8 @@
 
 ## Current
 
-- v0.0.8 adds direct yt-dlp download support to the video player.
+- v0.0.9 adds full-URL Ctrl+A selection and a Cut / Copy / Paste right-click menu to the yt-dlp URL field.
 
 ## Next
 
-- Continue repairing and polishing direct download workflow if Derek finds bugs.
-- Keep p2p as a later feature.
+- Continue from the accepted ReddMedia build under Derek's next approved scope.

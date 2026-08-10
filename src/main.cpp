@@ -300,7 +300,7 @@ static std::string format_time(long long ms) {
 enum class MenuAction {
     NoAction, OpenFile, ExitApp, TogglePlay, ToggleFullscreen, Rewind10, Forward10,
     SubtitleToggle, SubtitleLoadFile, SubtitleLoadFolder, SubtitleDelayPlus, SubtitleDelayMinus, SubtitleDelayReset, SubtitleTrack,
-    AudioTrack, PrevChapter, NextChapter, ChapterJump, YtDlpClearLog
+    AudioTrack, PrevChapter, NextChapter, ChapterJump, YtDlpClearLog, UrlCut, UrlCopy, UrlPaste
 };
 enum class ViewMode { VideoPlayer, YtDlp };
 struct MenuItem {
@@ -349,7 +349,13 @@ public:
     time_t pendingSeekDeadline=0;
     ViewMode currentView = ViewMode::VideoPlayer;
     bool urlFocused=false;
+    bool urlSelectAll=false;
     std::string ytdlpUrl;
+    std::string ownedClipboardText;
+    Atom clipboardAtom=None;
+    Atom utf8Atom=None;
+    Atom targetsAtom=None;
+    Atom textAtom=None;
     std::string ytdlpOutputFolder = home_dir() + "/Downloads";
     std::string ytdlpStatus = "Ready.";
     std::string ytdlpLog = "No download output yet.";
@@ -436,8 +442,12 @@ public:
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.8");
+        XStoreName(d, win, "ReddMedia v0.0.9");
         set_window_identity();
+        clipboardAtom = XInternAtom(d, "CLIPBOARD", False);
+        utf8Atom = XInternAtom(d, "UTF8_STRING", False);
+        targetsAtom = XInternAtom(d, "TARGETS", False);
+        textAtom = XInternAtom(d, "TEXT", False);
         XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|KeyPressMask|PointerMotionMask);
         Atom wmDelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(d, win, &wmDelete, 1);
@@ -809,7 +819,7 @@ public:
         line(target, ytdlpTab.x + ytdlpTab.w, 0, ytdlpTab.x + ytdlpTab.w, 25, col(0x6600,0x0000,0x0000));
         text(target, 10, 17, "Video Player", topText);
         text(target, 132, 17, "yt-dlp", topText);
-        text(target, W-155, 17, "ReddMedia v0.0.8", topText);
+        text(target, W-155, 17, "ReddMedia v0.0.9", topText);
     }
 
     void update_chapter_marks(bool force=false) {
@@ -962,12 +972,16 @@ public:
         urlClip.height = (unsigned short)std::max(1, ytdlpUrlRect.h - 4);
         XSetClipRectangles(d, gc, 0, 0, &urlClip, 1, Unsorted);
         if (visibleUrl.empty() && !urlFocused) {
-            std::string hint = "click here, then Ctrl+V or right-click to paste";
+            std::string hint = "click here, then Ctrl+V or right-click";
             text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18, hint, col(0x5555,0x5555,0x5555));
+        } else if (urlSelectAll && !visibleUrl.empty()) {
+            int selectedW = std::min(text_width(visibleUrl) + 4, std::max(1, ytdlpUrlRect.w - 12));
+            fill(target, {ytdlpUrlRect.x+6, ytdlpUrlRect.y+4, selectedW, ytdlpUrlRect.h-8}, col(0x3333,0x6666,0xaaaa));
+            text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18, visibleUrl, col(0xffff,0xffff,0xffff));
         } else {
             text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18, visibleUrl, dark);
         }
-        if (urlFocused) {
+        if (urlFocused && !urlSelectAll) {
             int cx = ytdlpUrlRect.x + 8 + text_width(visibleUrl);
             int rightEdge = ytdlpUrlRect.x + ytdlpUrlRect.w - 8;
             if (cx > rightEdge) cx = rightEdge;
@@ -1093,16 +1107,72 @@ public:
         }
         return "";
     }
+    void own_clipboard_text(const std::string& value) {
+        ownedClipboardText = value;
+        XSetSelectionOwner(d, clipboardAtom, win, CurrentTime);
+        XFlush(d);
+        if (XGetSelectionOwner(d, clipboardAtom) != win) ownedClipboardText.clear();
+    }
+    void handle_clipboard_selection_request(const XSelectionRequestEvent& req) {
+        XSelectionEvent reply{};
+        reply.type = SelectionNotify;
+        reply.display = req.display;
+        reply.requestor = req.requestor;
+        reply.selection = req.selection;
+        reply.target = req.target;
+        reply.time = req.time;
+        reply.property = None;
+        Atom property = req.property == None ? req.target : req.property;
+        if (req.selection == clipboardAtom && !ownedClipboardText.empty()) {
+            if (req.target == targetsAtom) {
+                Atom supported[] = {targetsAtom, utf8Atom, XA_STRING, textAtom};
+                XChangeProperty(d, req.requestor, property, XA_ATOM, 32, PropModeReplace,
+                                reinterpret_cast<unsigned char*>(supported), 4);
+                reply.property = property;
+            } else if (req.target == utf8Atom || req.target == XA_STRING || req.target == textAtom) {
+                Atom type = req.target == XA_STRING ? XA_STRING : utf8Atom;
+                XChangeProperty(d, req.requestor, property, type, 8, PropModeReplace,
+                                reinterpret_cast<const unsigned char*>(ownedClipboardText.data()),
+                                static_cast<int>(ownedClipboardText.size()));
+                reply.property = property;
+            }
+        }
+        XSendEvent(d, req.requestor, False, 0, reinterpret_cast<XEvent*>(&reply));
+        XFlush(d);
+    }
+    void copy_url_selection() {
+        if (!urlSelectAll || ytdlpUrl.empty()) return;
+        own_clipboard_text(ytdlpUrl);
+        ytdlpStatus = "URL copied.";
+        redraw();
+    }
+    void cut_url_selection() {
+        if (!urlSelectAll || ytdlpUrl.empty()) return;
+        own_clipboard_text(ytdlpUrl);
+        ytdlpUrl.clear();
+        urlSelectAll = false;
+        ytdlpStatus = "URL cut.";
+        redraw();
+    }
     void paste_into_url() {
         urlFocused = true;
         XSetInputFocus(d, win, RevertToParent, CurrentTime);
-        std::string clip = read_clipboard_text();
-        if (clip.empty()) clip = read_clipboard_x11();
+        std::string clip;
+        if (clipboardAtom != None && XGetSelectionOwner(d, clipboardAtom) == win && !ownedClipboardText.empty()) {
+            clip = ownedClipboardText;
+        } else {
+            clip = read_clipboard_text();
+            if (clip.empty()) clip = read_clipboard_x11();
+        }
         clip.erase(std::remove(clip.begin(), clip.end(), '\r'), clip.end());
         while (!clip.empty() && (clip.back() == '\n' || clip.back() == '\t' || clip.back() == ' ')) clip.pop_back();
         while (!clip.empty() && (clip.front() == '\n' || clip.front() == '\t' || clip.front() == ' ')) clip.erase(clip.begin());
-        if (!clip.empty()) { ytdlpUrl += clip; ytdlpStatus = "URL pasted."; }
-        else ytdlpStatus = "Clipboard is empty.";
+        if (!clip.empty()) {
+            if (urlSelectAll) ytdlpUrl.clear();
+            ytdlpUrl += clip;
+            urlSelectAll = false;
+            ytdlpStatus = "URL pasted.";
+        } else ytdlpStatus = "Clipboard is empty.";
         redraw();
     }
     void start_ytdlp_download() {
@@ -1133,6 +1203,7 @@ public:
         if (currentView == v) return;
         currentView = v;
         urlFocused = false;
+        urlSelectAll = false;
         close_context_menu();
         apply_video_layout();
         redraw();
@@ -1236,6 +1307,14 @@ public:
         items.push_back({"Clear Log", MenuAction::YtDlpClearLog, 0});
         show_menu(win, x, y, items);
     }
+    void show_url_context_menu(int x, int y) {
+        std::vector<MenuItem> items;
+        bool hasSelection = urlSelectAll && !ytdlpUrl.empty();
+        items.push_back({"Cut", hasSelection ? MenuAction::UrlCut : MenuAction::NoAction, 0});
+        items.push_back({"Copy", hasSelection ? MenuAction::UrlCopy : MenuAction::NoAction, 0});
+        items.push_back({"Paste", MenuAction::UrlPaste, 0});
+        show_menu(win, x, y, items);
+    }
     void show_context_menu(Window target, int x, int y) {
         std::vector<MenuItem> items;
         items.push_back({paused ? "Play" : "Pause", MenuAction::TogglePlay, 0});
@@ -1282,6 +1361,9 @@ public:
             case MenuAction::NextChapter: next_chapter(); break;
             case MenuAction::ChapterJump: jump_to_chapter_index(value); break;
             case MenuAction::YtDlpClearLog: ytdlpLog = "No download output yet."; ytdlpStatus = "Ready."; redraw(); break;
+            case MenuAction::UrlCut: cut_url_selection(); break;
+            case MenuAction::UrlCopy: copy_url_selection(); break;
+            case MenuAction::UrlPaste: paste_into_url(); break;
             case MenuAction::NoAction: break;
         }
     }
@@ -1307,6 +1389,13 @@ public:
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
         if (contextMenuOpen && target == contextMenu) { handle_context_menu_click(x,y); return; }
         if (contextMenuOpen) close_context_menu();
+        if (currentView == ViewMode::YtDlp && target == win && ytdlpUrlRect.contains(x,y) && button == Button3) {
+            urlFocused = true;
+            XSetInputFocus(d, win, RevertToParent, CurrentTime);
+            redraw();
+            show_url_context_menu(x, y);
+            return;
+        }
         if (target == video) {
             if (button == Button3) { show_context_menu(target, x, y); return; }
             if (button != Button1 && !(currentView == ViewMode::YtDlp && ytdlpUrlRect.contains(x,y) && button == Button3)) return;
@@ -1348,22 +1437,24 @@ public:
         if (currentView == ViewMode::YtDlp) {
             if (ytdlpUrlRect.contains(x,y)) {
                 urlFocused=true;
+                urlSelectAll=false;
                 XSetInputFocus(d, win, RevertToParent, CurrentTime);
-                if (button == Button3) { paste_into_url(); return; }
-                ytdlpStatus = "URL field ready. Ctrl+V or right-click pastes here.";
+                ytdlpStatus = "URL field ready. Ctrl+A selects all. Right-click opens Cut / Copy / Paste.";
                 redraw();
                 return;
             }
             if (ytdlpOutputRect.contains(x,y)) {
                 urlFocused=false;
+                urlSelectAll=false;
                 std::string folder = choose_folder_dialog();
                 if (!folder.empty()) { ytdlpOutputFolder = folder; ytdlpStatus = "Output folder set."; }
                 redraw();
                 return;
             }
-            if (ytdlpDownloadBtn.contains(x,y)) { urlFocused=false; start_ytdlp_download(); return; }
-            if (ytdlpClearBtn.contains(x,y)) { urlFocused=false; ytdlpLog = "No download output yet."; ytdlpStatus = "Ready."; redraw(); return; }
+            if (ytdlpDownloadBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; start_ytdlp_download(); return; }
+            if (ytdlpClearBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; ytdlpLog = "No download output yet."; ytdlpStatus = "Ready."; redraw(); return; }
             urlFocused=false;
+            urlSelectAll=false;
             redraw();
             return;
         }
@@ -1420,21 +1511,31 @@ public:
                     if (e.xbutton.button == Button4 || e.xbutton.button == Button5) handle_wheel(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button);
                     else handle_button(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button, e.xbutton.time);
                 }
+                else if (e.type == SelectionRequest) handle_clipboard_selection_request(e.xselectionrequest);
+                else if (e.type == SelectionClear && e.xselectionclear.selection == clipboardAtom) ownedClipboardText.clear();
                 else if (e.type == MotionNotify) { lastMouse=time(nullptr); show_pointer(); }
                 else if (e.type == EnterNotify && e.xcrossing.window == video) { pointerInVideo=true; lastMouse=time(nullptr); show_pointer(); }
                 else if (e.type == LeaveNotify && e.xcrossing.window == video) { pointerInVideo=false; show_pointer(); }
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
                     if (currentView == ViewMode::YtDlp && urlFocused) {
-                        if (ks == XK_Escape) { urlFocused=false; redraw(); }
+                        if (ks == XK_Escape) { urlFocused=false; urlSelectAll=false; redraw(); }
                         else if (ks == XK_Return || ks == XK_KP_Enter) { start_ytdlp_download(); }
-                        else if (ks == XK_BackSpace) { if (!ytdlpUrl.empty()) ytdlpUrl.pop_back(); redraw(); }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_a || ks == XK_A)) { urlSelectAll = !ytdlpUrl.empty(); redraw(); }
+                        else if (ks == XK_BackSpace) {
+                            if (urlSelectAll) { ytdlpUrl.clear(); urlSelectAll=false; }
+                            else if (!ytdlpUrl.empty()) ytdlpUrl.pop_back();
+                            redraw();
+                        }
                         else if ((e.xkey.state & ControlMask) && (ks == XK_v || ks == XK_V)) { paste_into_url(); }
                         else if ((e.xkey.state & ShiftMask) && ks == XK_Insert) { paste_into_url(); }
-                        else if ((e.xkey.state & ControlMask) && (ks == XK_u || ks == XK_U)) { ytdlpUrl.clear(); redraw(); }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_u || ks == XK_U)) { ytdlpUrl.clear(); urlSelectAll=false; redraw(); }
                         else {
                             char buf[32]; KeySym outks=0; int n = XLookupString(&e.xkey, buf, sizeof(buf)-1, &outks, nullptr);
-                            if (n > 0) { buf[n]=0; ytdlpUrl += std::string(buf, n); redraw(); }
+                            if (n > 0) {
+                                if (urlSelectAll) { ytdlpUrl.clear(); urlSelectAll=false; }
+                                buf[n]=0; ytdlpUrl += std::string(buf, n); redraw();
+                            }
                         }
                     } else {
                         if (ks == XK_Escape) exit_fullscreen();
@@ -1465,7 +1566,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.8\n");
+        printf("ReddMedia v0.0.9\n");
         return 0;
     }
     App app;

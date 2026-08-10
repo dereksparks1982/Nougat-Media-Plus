@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=ReddMedia_v8
+Name=ReddMedia_v9
 Comment=ReddMedia video player
-Exec=/home/dereksparks1982/DKLab/Projects/ReddMedia/ReddMedia_v8
+Exec=/home/dereksparks1982/DKLab/Projects/ReddMedia/ReddMedia_v9
 Icon=reddmedia
 StartupWMClass=ReddMedia
 Terminal=false
