@@ -100,3 +100,15 @@ Known limitations:
 - Seeking can take approximately 10 to 15 seconds to resume.
 - Playback may alternate between buffering and playing after a seek.
 - Further sustained-buffering and quality improvements are planned for v0.0.14.
+
+## v0.0.14 - Local Pause Stability & Red Tree Identity
+
+- Local-file Play/Pause now uses explicit libVLC pause state instead of a blind toggle.
+- ReddMedia snapshots playback time and duration when pausing and uses cached values for paused seek-bar/time refresh.
+- Paused UI refresh no longer performs recurring libVLC time, length, or full chapter-description queries.
+- Chapter metadata is cached once per media item after playback metadata becomes available.
+- Closing while paused saves the cached resume position without first querying libVLC again.
+- Final player shutdown has a bounded teardown safeguard so a stuck libVLC stop/release cannot leave the ReddMedia window alive indefinitely.
+- Replaced active ReddMedia icon assets with the approved red-tree artwork.
+- The tree identity is used for the launcher, dock/app switcher, raw executable, MIME icons, X11 window icon, and top-right version badge.
+- The window title is `ReddMedia`; the in-app top-right identity is a small red tree followed by `v0.0.14`.

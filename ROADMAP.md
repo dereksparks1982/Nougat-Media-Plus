@@ -1,13 +1,15 @@
 # ReddMedia Roadmap
 
-## Current: v0.0.13 YouTube Growing Cache Stream Repair
+## Current: v0.0.14 Local Pause Stability & Red Tree Identity
 
-- Preserve the v0.0.12 localhost YouTube cache architecture and repair the real-world 4-to-5-second playback freeze.
-- Serve VLC open-ended byte requests as an indeterminate-length growing stream that waits for newly cached bytes instead of declaring the current cache frontier to be the media end.
-- Keep YouTube Play capped at 1080p by default.
-- Keep timestamp-restart seeking and stale-stream cancellation.
-- Increase startup/network buffering enough to reduce underruns without turning Play into a full download-first workflow.
-- Validate with deterministic slow-cache growth and owner testing on a long-form YouTube episode.
+- Keep local-file playback responsive after a multi-minute pause.
+- Use explicit libVLC pause/resume state and cached paused playback timing.
+- Stop recurring full chapter-description scans during paused playback and cache chapter metadata per media item.
+- Keep close responsive during a long pause with cached session-save state and bounded final player teardown.
+- Replace every active ReddMedia icon surface with the approved red-tree artwork.
+- Show a small red tree immediately beside the top-right `v0.0.14` label.
+- Preserve accepted v0.0.13 YouTube, P2P, subtitles, local playback, and seek behavior outside the pause-lifecycle repair.
+- Owner validation target: local episode -> play -> pause 1 minute -> resume -> pause at least 5 minutes -> resume -> pause and close -> reopen/resume -> repeated pause/resume cycles.
 
 ## Archive
 
@@ -18,7 +20,7 @@ Initial targets:
 - **Internet Archive**
   - Search and browse archive items where supported.
   - Open playable media in ReddMedia when the source permits it.
-  - Hand P2P sources and downloaded `.torrent` metadata files to ReddMedia's existing P2P system.
+  - Hand supported P2P sources and metadata files to ReddMedia's existing P2P system.
 - **MiNERVA Archive**
   - Browse/search preserved collections where practical.
   - Hand supported downloads or P2P sources into the appropriate ReddMedia path.

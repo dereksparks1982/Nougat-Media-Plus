@@ -1,22 +1,22 @@
-# ReddMedia v0.0.13
+# ReddMedia v0.0.14
 
 ReddMedia is a standalone Linux desktop media player by Elderredd Softworks. It combines local video playback, YouTube downloading/playback powered by the bundled yt-dlp engine, and built-in P2P file transfer and streaming in one application.
 
-## Current build: v0.0.13 YouTube Growing Cache Stream Repair
+## Current build: v0.0.14 Local Pause Stability & Red Tree Identity
 
-v0.0.13 keeps the accepted v0.0.12 YouTube cache architecture and repairs the real-world freeze discovered during long-video owner testing. VLC open-ended byte requests now remain attached to the growing local cache instead of treating the cache size at request time as the end of the media. YouTube Play remains capped at 1080p, timestamp-restart seeking remains available, and public-facing peer-transfer terminology remains **P2P**.
+v0.0.14 hardens ordinary local-file pause/resume behavior so a long pause cannot strand the X11 event loop behind repeated libVLC polling. Paused playback uses cached time/length state, chapter metadata is discovered once per media item instead of being queried every few seconds, pause/resume uses explicit libVLC pause state, and final player teardown has a bounded close safeguard. The ReddMedia identity now uses the approved red-tree artwork across the launcher, dock/app switcher, raw executable, MIME icons, X11 window icon, and the small tree badge beside the top-right version label.
 
 ### Current P2P workflow
 
-- Paste a magnet link or open a local `.torrent` file.
+- Paste a magnet link or open a local P2P metadata file.
 - Choose a download folder.
-- ReddMedia retrieves torrent metadata and displays the files in the torrent.
-- A single obvious video file is selected automatically; multi-file torrents can be selected manually.
-- Press **Play** to begin playback before the torrent finishes downloading.
-- ReddMedia serves the selected torrent file to VLC through a localhost-only HTTP Range stream.
+- ReddMedia retrieves P2P transfer metadata and displays the files in the P2P transfer.
+- A single obvious video file is selected automatically; multi-file P2P transfers can be selected manually.
+- Press **Play** to begin playback before the P2P transfer finishes downloading.
+- ReddMedia serves the selected P2P transfer file to VLC through a localhost-only HTTP Range stream.
 - Playback requests drive libtorrent time-critical piece priorities automatically. The user does not choose a technical download strategy.
-- The full torrent keeps downloading behind playback and can seed after completion.
-- Active torrent resume data is stored under `~/.config/reddmedia/p2p/`.
+- The full P2P transfer keeps downloading behind playback and can seed after completion.
+- Active P2P transfer resume data is stored under `~/.config/reddmedia/p2p/`.
 - The P2P source field supports Ctrl+A and Cut / Copy / Paste.
 
 ### v0.0.10 stabilization carried under the same version
@@ -24,21 +24,23 @@ v0.0.13 keeps the accepted v0.0.12 YouTube cache architecture and repairs the re
 The v0.0.10 stabilization pass keeps the same feature version while repairing defects found during owner testing:
 
 - Seek/time and volume partial updates are buffered offscreen before being copied to the X11 window, preventing the direct erase/redraw path that caused visible flashing.
-- A new P2P HTTP range request supersedes obsolete stream workers so an old seek cannot continue fighting a newer seek for torrent pieces.
-- Old time-critical torrent piece deadlines are cleared when VLC starts a new stream range request.
+- A new P2P HTTP range request supersedes obsolete stream workers so an old seek cannot continue fighting a newer seek for P2P transfer pieces.
+- Old time-critical P2P transfer piece deadlines are cleared when VLC starts a new stream range request.
 - HTTP suffix byte ranges such as `Range: bytes=-5000000` are supported for VLC/container probing.
 - Stream sockets have bounded send/receive waits so abandoned seek connections cannot hang indefinitely.
 - The installer reapplies and verifies the ReddMedia red-triangle custom icon on the versioned executable.
 
-The versioned executable is `ReddMedia_v12`.
+The versioned executable is `ReddMedia_v14`.
 
-### v0.0.13 YouTube growing cache stream repair
+### v0.0.13 YouTube seek and close stability repair
 
-- Fixed the 4-to-5-second freeze exposed by real long-form YouTube playback.
-- VLC-style open-ended range requests now use a chunked indeterminate-length response that continues delivering bytes as the local cache grows.
-- The bridge no longer advertises the current cache frontier as the complete media length while the feeder is active.
-- Startup buffering is increased to 512 KiB and libVLC network caching to 5000 ms.
-- YouTube remains capped at 1080p and the existing timestamp-restart seek path is preserved.
+- Preserves the growing-cache fix that carried long-form YouTube playback beyond the original 4-to-5-second wall.
+- Every YouTube rewind, fast-forward, and seek-bar request now restarts the feeder at the requested timestamp with keyframe-aware cuts. ReddMedia no longer uses libVLC `set_time()` inside a growing YouTube cache.
+- Seek replacement returns control to the UI immediately and finishes startup from the normal event-loop poll once enough replacement media has buffered.
+- A newer seek replaces the previous pending seek by shutting down its localhost bridge and feeder before starting the newer timestamp.
+- YouTube shutdown disconnects the localhost bridge/client sockets before stopping and releasing libVLC, preventing the network reader from holding application close hostage.
+- YouTube format selection excludes AV1 and prefers H.264/AVC video with AAC audio, with a non-AV1 fallback, at a maximum of 1080p.
+- Keeps the 512 KiB startup target, 5000 ms VLC network cache, red-star identity, P2P behavior, and v0.0.13 version identity.
 
 ### v0.0.12 YouTube seekable cache bridge
 
@@ -70,7 +72,6 @@ Owner testing proved P2P Stop/Resume but exposed two release defects before acce
 - YouTube Play was repaired to stream the bundled yt-dlp/FFmpeg output into embedded libVLC, which proved that supported YouTube playback works inside ReddMedia at up to 1080p.
 - libVLC Play startup is checked instead of silently treating a failed start as success.
 - The red-triangle executable icon is assigned after the final binary write and GNOME Files/Nautilus is refreshed when available; owner-side visual confirmation remains an acceptance gate.
-- Repository text is scanned case-insensitively so the retired public protocol branding cannot survive in README, release history, roadmap, changelog, validation records, or other tracked text.
 - The visible top-bar version surface is corrected to `ReddMedia v0.0.11`.
 
 ## Main ReddMedia features
@@ -83,8 +84,8 @@ Owner testing proved P2P Stop/Resume but exposed two release defects before acce
 - External and embedded subtitle controls, automatic matching `.srt` loading, subtitle folder selection, and subtitle delay controls.
 - Embedded chapter discovery and chapter navigation when exposed by libVLC.
 - YouTube download/playback screen with URL entry and output-folder selection, powered by the bundled yt-dlp engine.
-- Built-in P2P magnet and `.torrent` downloading with stream-while-downloading playback.
-- Red ReddMedia branding, red controls, red seek/volume bars, and red-star window/launcher/executable identity.
+- Built-in P2P magnet and local metadata-file downloading with stream-while-downloading playback.
+- Red ReddMedia branding, red controls, red seek/volume bars, and red-tree window/launcher/executable identity.
 
 ## Dependencies
 
@@ -97,19 +98,19 @@ ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpe
 From the ReddMedia project folder:
 
 ```bash
-./ReddMedia_v12
+./ReddMedia_v14
 ```
 
 Version check:
 
 ```bash
-./ReddMedia_v12 --version
+./ReddMedia_v14 --version
 ```
 
 Expected output:
 
 ```text
-ReddMedia v0.0.13
+ReddMedia v0.0.14
 ```
 
 # Release history
@@ -312,16 +313,16 @@ What this build added:
 - Permanent **P2P** application screen.
 - libtorrent-rasterbar 2.x integration.
 - Magnet-link loading.
-- Local `.torrent` file loading.
-- Torrent metadata retrieval and file listing.
+- Local P2P metadata-file loading.
+- P2P transfer metadata retrieval and file listing.
 - Automatic selection of a single obvious video file.
-- Manual file selection for multi-file torrents.
+- Manual file selection for multi-file P2P transfers.
 - Download folder selection.
-- Live torrent name, state, progress, downloaded amount, download/upload speed, peers, and seeds.
-- Complete torrent downloading and seeding behind playback.
+- Live P2P transfer name, state, progress, downloaded amount, download/upload speed, peers, and seeds.
+- Complete P2P transfer downloading and seeding behind playback.
 - Persistent P2P resume data.
 - Ctrl+A and Cut / Copy / Paste in the P2P source field.
-- A localhost-only HTTP Range bridge between the torrent engine and VLC.
+- A localhost-only HTTP Range bridge between the P2P transfer engine and VLC.
 - Time-critical libtorrent piece deadlines driven by what VLC needs for playback.
 - Stream-while-downloading playback without exposing separate sequential-download controls.
 - `DEPENDENCIES.md` for runtime and developer requirements.
@@ -330,16 +331,16 @@ What this build added:
 
 Owner-test results that established the milestone:
 
-- Magnet-link intake and torrent downloading worked.
-- Local `.torrent` intake and torrent downloading worked.
-- Torrent metadata, file list, peer/seed status, and automatic video selection worked.
-- Playback began while a torrent was still downloading.
+- Magnet-link intake and P2P transfer downloading worked.
+- Local P2P metadata-file intake and transfer downloading worked.
+- P2P transfer metadata, file list, peer/seed status, and automatic video selection worked.
+- Playback began while a P2P transfer was still downloading.
 
 Stabilization repairs accepted in v0.0.10:
 
 - Restores buffered seek/time and volume partial repainting to remove the flashing regression.
 - Cancels obsolete P2P stream requests when VLC seeks to a new range.
-- Clears obsolete torrent piece deadlines on a new stream range request.
+- Clears obsolete P2P transfer piece deadlines on a new stream range request.
 - Adds legal HTTP suffix-range support used by media probing/seeking.
 - Adds bounded stream-socket waits for abandoned requests.
 - Reapplies and validates the red-triangle custom icon on `ReddMedia_v10`.
@@ -347,15 +348,16 @@ Stabilization repairs accepted in v0.0.10:
 
 Seek behavior under slow or difficult P2P swarms can still take time because peer availability controls how quickly an undownloaded region arrives.
 
-## v0.0.13 — YouTube Growing Cache Stream Repair
+## v0.0.13 — YouTube Seek and Close Stability Repair
 
-**Purpose:** keep YouTube playback alive while the yt-dlp/FFmpeg cache continues growing during real long-form playback.
+**Purpose:** keep long-form YouTube playback alive and make rewind/fast-forward/seek replacement and application close stable under the growing-cache architecture.
 
 - Repaired the localhost bridge so an open-ended VLC byte request no longer freezes the cache size at request time.
 - Added chunked indeterminate-length range delivery for the growing cache.
 - Increased startup and libVLC network buffering for steadier playback.
 - Preserved the 1080p ceiling and timestamp-restart seek behavior from v0.0.12.
 - Added a slow-growing stream regression specifically designed to catch the 4-to-5-second freeze.
+- Same-version stability repair: every YouTube seek now restarts the feeder, seek buffering is non-blocking to the main UI, shutdown disconnects the bridge before libVLC release, and AV1 is excluded in favor of H.264/AVC + AAC preference with a non-AV1 fallback.
 
 ## v0.0.12 — YouTube Seekable Cache Bridge
 
@@ -380,7 +382,7 @@ Validation targets:
 
 ## v0.0.11 — Playback & Transfer Controls
 
-**Purpose:** give the two network-media paths the controls needed for everyday use while keeping ReddMedia's public P2P identity neutral and technical.
+**Purpose:** give the two network-media paths the controls needed for everyday use.
 
 What this build adds:
 
@@ -389,7 +391,6 @@ What this build adds:
 - Resume continues the same P2P transfer without discarding completed data.
 - A **Play** button on the YouTube screen that streams the bundled yt-dlp/FFmpeg output into ReddMedia's embedded VLC player.
 - The existing YouTube **Download** path remains available for saving media normally.
-- Public-facing repository wording uses **P2P** for the feature and presents it as general peer-to-peer file transfer/streaming. Technical `libtorrent` and `.torrent` references remain only where required for implementation, dependency, file-format, or license truth.
 - The roadmap records future Archive, Online Video, Live TV, and supported streaming-service integration work.
 
 Validation target:
@@ -397,7 +398,6 @@ Validation target:
 - P2P Stop/Resume preserves partial progress.
 - YouTube Play starts embedded playback through the bundled yt-dlp/FFmpeg stream path.
 - `ReddMedia_v11` retains the red-triangle executable icon.
-- Public-facing P2P terminology is consistent across the active repository documentation.
 
 ## Third-party software
 

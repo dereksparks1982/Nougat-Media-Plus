@@ -1,3 +1,10 @@
+# ReddMedia Known Bugs
+
+## v0.0.14 owner-test focus
+
+- v0.0.13 owner testing found that a local video paused for several minutes could freeze the application and prevent normal close. v0.0.14 changes the local pause/poll/shutdown lifecycle and requires owner validation with long pauses before acceptance.
+
+## Carried forward from accepted v0.0.13
 
 ## v0.0.13
 

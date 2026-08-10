@@ -14,6 +14,8 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
+#include <atomic>
+#include <memory>
 #include <vector>
 #include <thread>
 #include <chrono>
@@ -29,6 +31,7 @@
 #include "p2p_engine.hpp"
 #include "p2p_stream_server.hpp"
 #include "ytdlp_stream_server.hpp"
+#include "reddmedia_icon_data.hpp"
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -43,7 +46,7 @@ typedef void (*fn_libvlc_media_add_option)(libvlc_media_t*, const char*);
 typedef libvlc_media_player_t* (*fn_libvlc_media_player_new_from_media)(libvlc_media_t*);
 typedef void (*fn_libvlc_media_player_release)(libvlc_media_player_t*);
 typedef int (*fn_libvlc_media_player_play)(libvlc_media_player_t*);
-typedef void (*fn_libvlc_media_player_pause)(libvlc_media_player_t*);
+typedef void (*fn_libvlc_media_player_set_pause)(libvlc_media_player_t*, int);
 typedef void (*fn_libvlc_media_player_stop)(libvlc_media_player_t*);
 typedef void (*fn_libvlc_media_player_set_xwindow)(libvlc_media_player_t*, unsigned int);
 typedef long long (*fn_libvlc_media_player_get_time)(libvlc_media_player_t*);
@@ -91,7 +94,7 @@ struct VlcApi {
     fn_libvlc_media_player_new_from_media player_new_from_media = nullptr;
     fn_libvlc_media_player_release player_release = nullptr;
     fn_libvlc_media_player_play play = nullptr;
-    fn_libvlc_media_player_pause pause = nullptr;
+    fn_libvlc_media_player_set_pause set_pause = nullptr;
     fn_libvlc_media_player_stop stop = nullptr;
     fn_libvlc_media_player_set_xwindow set_xwindow = nullptr;
     fn_libvlc_media_player_get_time get_time = nullptr;
@@ -133,7 +136,7 @@ struct VlcApi {
         LOAD_SYM(player_new_from_media, "libvlc_media_player_new_from_media");
         LOAD_SYM(player_release, "libvlc_media_player_release");
         LOAD_SYM(play, "libvlc_media_player_play");
-        LOAD_SYM(pause, "libvlc_media_player_pause");
+        LOAD_SYM(set_pause, "libvlc_media_player_set_pause");
         LOAD_SYM(stop, "libvlc_media_player_stop");
         LOAD_SYM(set_xwindow, "libvlc_media_player_set_xwindow");
         LOAD_SYM(get_time, "libvlc_media_player_get_time");
@@ -356,6 +359,11 @@ public:
     VlcApi api; std::string vlcErr;
     libvlc_instance_t* inst=nullptr; libvlc_media_player_t* mp=nullptr;
     bool running=true, paused=false, fullscreen=false, hasMedia=false, needResumePrompt=false;
+    bool shuttingDown=false;
+    bool playbackCacheValid=false;
+    long long cachedPlaybackTimeMs=0;
+    long long cachedPlaybackLengthMs=0;
+    bool chapterScanComplete=false;
     std::string currentPath, sessionPath;
     bool currentMediaIsP2P=false;
     bool currentMediaIsNetwork=false;
@@ -379,7 +387,6 @@ public:
     std::vector<long long> chapterMarksMs;
     std::vector<std::string> chapterNames;
     bool chapterMarksAreReal=false;
-    long long lastChapterScanMs=0;
     bool pendingSeek=false;
     long long pendingSeekMs=0;
     time_t pendingSeekDeadline=0;
@@ -403,7 +410,9 @@ public:
     bool currentMediaIsYtDlpStream = false;
     long long ytdlpStreamBaseMs = 0;
     long long ytdlpTotalDurationMs = 0;
-    long long ytdlpCachedThroughMs = 0;
+    bool ytdlpSeekBuffering = false;
+    long long ytdlpSeekTargetMs = 0;
+    long long ytdlpSeekStartedAtMs = 0;
     int controlsScrollX = 0;
     P2PEngine p2p;
     P2PStreamServer p2pStream{p2p};
@@ -451,44 +460,57 @@ public:
         text(target, r.x+10, r.y+20, label, white);
     }
 
-    unsigned long icon_pixel(int x, int y, int size) {
-        constexpr double pi = 3.14159265358979323846;
-        const double cx = (size - 1) / 2.0;
-        const double cy = (size - 1) / 2.0;
-        const double outer = size * 0.43;
-        const double inner = size * 0.19;
-        double vx[10]{};
-        double vy[10]{};
-        for (int i = 0; i < 10; ++i) {
-            const double radius = (i % 2 == 0) ? outer : inner;
-            const double angle = -pi / 2.0 + i * pi / 5.0;
-            vx[i] = cx + std::cos(angle) * radius;
-            vy[i] = cy + std::sin(angle) * radius;
+    static unsigned long component_to_visual_mask(unsigned char value, unsigned long mask) {
+        if (mask == 0) return 0;
+        int shift = 0;
+        unsigned long scaledMask = mask;
+        while ((scaledMask & 1UL) == 0UL) { scaledMask >>= 1U; ++shift; }
+        const unsigned long scaled = (static_cast<unsigned long>(value) * scaledMask + 127UL) / 255UL;
+        return (scaled << shift) & mask;
+    }
+
+    unsigned long visual_pixel(unsigned char r, unsigned char g, unsigned char b) const {
+        Visual* visual = DefaultVisual(d, screen);
+        return component_to_visual_mask(r, visual->red_mask) |
+               component_to_visual_mask(g, visual->green_mask) |
+               component_to_visual_mask(b, visual->blue_mask);
+    }
+
+    void draw_tree_badge(Drawable target, int x0, int y0, unsigned char bgR, unsigned char bgG, unsigned char bgB) {
+        for (int y=0; y<reddmedia_icon::kTopBar14Size; ++y) {
+            for (int x=0; x<reddmedia_icon::kTopBar14Size; ++x) {
+                const std::uint32_t argb = reddmedia_icon::kTopBar14[y * reddmedia_icon::kTopBar14Size + x];
+                const unsigned char a = static_cast<unsigned char>((argb >> 24) & 0xffU);
+                if (a == 0) continue;
+                const unsigned char sr = static_cast<unsigned char>((argb >> 16) & 0xffU);
+                const unsigned char sg = static_cast<unsigned char>((argb >> 8) & 0xffU);
+                const unsigned char sb = static_cast<unsigned char>(argb & 0xffU);
+                const unsigned char r = static_cast<unsigned char>((static_cast<unsigned>(sr) * a + static_cast<unsigned>(bgR) * (255U-a)) / 255U);
+                const unsigned char g = static_cast<unsigned char>((static_cast<unsigned>(sg) * a + static_cast<unsigned>(bgG) * (255U-a)) / 255U);
+                const unsigned char b = static_cast<unsigned char>((static_cast<unsigned>(sb) * a + static_cast<unsigned>(bgB) * (255U-a)) / 255U);
+                XSetForeground(d, gc, visual_pixel(r,g,b));
+                XDrawPoint(d, target, gc, x0+x, y0+y);
+            }
         }
-        bool inside = false;
-        for (int i = 0, j = 9; i < 10; j = i++) {
-            const bool crosses = ((vy[i] > y) != (vy[j] > y));
-            if (!crosses) continue;
-            const double edgeX = (vx[j] - vx[i]) * (y - vy[i]) / (vy[j] - vy[i]) + vx[i];
-            if (x < edgeX) inside = !inside;
-        }
-        return inside ? 0xffbb0000UL : 0x00000000UL;
+    }
+
+    void append_net_wm_icon(std::vector<unsigned long>& data, int size, const std::uint32_t* pixels) {
+        data.push_back(static_cast<unsigned long>(size));
+        data.push_back(static_cast<unsigned long>(size));
+        const int count = size * size;
+        for (int i=0; i<count; ++i) data.push_back(static_cast<unsigned long>(pixels[i]));
     }
 
     void set_net_wm_icon() {
         std::vector<unsigned long> data;
-        const int sizes[] = {16, 32, 64};
-        for (int size : sizes) {
-            data.push_back((unsigned long)size);
-            data.push_back((unsigned long)size);
-            for (int y=0; y<size; ++y) {
-                for (int x=0; x<size; ++x) data.push_back(icon_pixel(x, y, size));
-            }
-        }
+        data.reserve(2 + 16*16 + 2 + 32*32 + 2 + 64*64);
+        append_net_wm_icon(data, reddmedia_icon::kIcon16Size, reddmedia_icon::kIcon16);
+        append_net_wm_icon(data, reddmedia_icon::kIcon32Size, reddmedia_icon::kIcon32);
+        append_net_wm_icon(data, reddmedia_icon::kIcon64Size, reddmedia_icon::kIcon64);
         Atom netWmIcon = XInternAtom(d, "_NET_WM_ICON", False);
         Atom cardinal = XInternAtom(d, "CARDINAL", False);
         XChangeProperty(d, win, netWmIcon, cardinal, 32, PropModeReplace,
-                        reinterpret_cast<unsigned char*>(data.data()), (int)data.size());
+                        reinterpret_cast<unsigned char*>(data.data()), static_cast<int>(data.size()));
     }
 
     void set_window_identity() {
@@ -500,13 +522,13 @@ public:
     }
 
     void set_window_title() {
-        const char* title = "\xE2\x98\x85 ReddMedia";
+        const char* title = "ReddMedia";
         XStoreName(d, win, title);
         Atom netWmName = XInternAtom(d, "_NET_WM_NAME", False);
         Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
         XChangeProperty(d, win, netWmName, utf8, 8, PropModeReplace,
                         reinterpret_cast<const unsigned char*>(title),
-                        (int)std::strlen(title));
+                        static_cast<int>(std::strlen(title)));
     }
 
     bool init() {
@@ -618,20 +640,28 @@ public:
         if (!fullscreen) draw_volume_only();
     }
     long long playback_time_ms() {
-        if (!mp) return 0;
+        if (paused && playbackCacheValid) return cachedPlaybackTimeMs;
+        if (!mp) return playbackCacheValid ? cachedPlaybackTimeMs : 0;
         long long t = api.get_time(mp);
         if (t < 0) t = 0;
-        if (currentMediaIsYtDlpStream) return ytdlpStreamBaseMs + t;
-        return t;
+        const long long resolved = currentMediaIsYtDlpStream ? ytdlpStreamBaseMs + t : t;
+        cachedPlaybackTimeMs = resolved;
+        playbackCacheValid = true;
+        return resolved;
     }
     long long playback_length_ms() {
-        if (!mp) return 0;
+        if (paused && playbackCacheValid) return cachedPlaybackLengthMs;
+        if (!mp) return cachedPlaybackLengthMs;
         long long l = api.get_length(mp);
-        if (!currentMediaIsYtDlpStream) return l;
-        if (l > 0 && ytdlpTotalDurationMs <= 0) {
-            ytdlpTotalDurationMs = ytdlpStreamBaseMs > 0 ? ytdlpStreamBaseMs + l : l;
+        long long resolved = l;
+        if (currentMediaIsYtDlpStream) {
+            if (l > 0 && ytdlpTotalDurationMs <= 0) {
+                ytdlpTotalDurationMs = ytdlpStreamBaseMs > 0 ? ytdlpStreamBaseMs + l : l;
+            }
+            resolved = ytdlpTotalDurationMs > 0 ? ytdlpTotalDurationMs : (l > 0 ? ytdlpStreamBaseMs + l : 0);
         }
-        return ytdlpTotalDurationMs > 0 ? ytdlpTotalDurationMs : (l > 0 ? ytdlpStreamBaseMs + l : 0);
+        if (resolved > 0) { cachedPlaybackLengthMs = resolved; playbackCacheValid = true; }
+        return resolved;
     }
     long long resolve_ytdlp_duration_ms(const std::string& engine, const std::string& url) {
         int outputPipe[2];
@@ -688,57 +718,110 @@ public:
         return static_cast<long long>(seconds*1000.0 + 0.5);
     }
 
+    void release_player_instance_only() {
+        if (mp) {
+            api.stop(mp);
+            api.player_release(mp);
+            mp = nullptr;
+        }
+        hasMedia = false;
+        paused = false;
+        pendingSeek = false;
+        subtitlesOn = false;
+        chapterMarksMs.clear();
+        chapterNames.clear();
+        chapterMarksAreReal = false;
+        chapterScanComplete = false;
+        playbackCacheValid = false;
+        cachedPlaybackTimeMs = 0;
+        cachedPlaybackLengthMs = 0;
+    }
     bool start_ytdlp_cache_playback_at(long long targetMs) {
         if (ytdlpUrl.empty()) return false;
+        if (targetMs < 0) targetMs = 0;
+        if (ytdlpTotalDurationMs > 0 && targetMs > ytdlpTotalDurationMs) targetMs = ytdlpTotalDurationMs;
+
+        // Tear down the localhost stream first. This disconnects libVLC's network
+        // reader before we stop/release the player and avoids close/seek deadlocks.
+        ytdlpStream.stop();
+        release_player_instance_only();
+        currentMediaIsYtDlpStream = false;
+        currentMediaIsNetwork = true;
+
         std::string engine = ytdlp_engine_path();
         std::string error;
-        cleanup_player();
         if (!ytdlpStream.start(engine, ytdlpUrl, targetMs, error)) {
+            ytdlpSeekBuffering = false;
             ytdlpStatus = error.empty() ? "Could not start YouTube cache bridge." : error;
             switch_view(ViewMode::YtDlp);
             redraw();
             return false;
         }
-        if (!ytdlpStream.wait_for_initial_cache(512 * 1024, 20000, error)) {
-            append_ytdlp_log(ytdlpStream.take_log());
+        ytdlpStreamBaseMs = targetMs;
+        ytdlpSeekTargetMs = targetMs;
+        ytdlpSeekStartedAtMs = now_ms();
+        ytdlpSeekBuffering = true;
+        ytdlpStatus = targetMs > 0 ? "Buffering YouTube seek..."
+                                   : "Buffering YouTube cache at up to 1080p...";
+        redraw();
+        return true;
+    }
+    void finish_ytdlp_buffer_if_ready() {
+        if (!ytdlpSeekBuffering || !ytdlpStream.running()) return;
+        constexpr std::uint64_t kStartupBytes = 512ULL * 1024ULL;
+        const std::uint64_t bytes = ytdlpStream.cache_bytes();
+        const bool feederDone = !ytdlpStream.feeder_running();
+        const bool timedOut = now_ms() - ytdlpSeekStartedAtMs >= 20000;
+        const bool enough = bytes >= kStartupBytes || ((feederDone || timedOut) && bytes >= 65536);
+        if (!enough && !feederDone && !timedOut) return;
+
+        append_ytdlp_log(ytdlpStream.take_log());
+        if (!enough) {
+            ytdlpSeekBuffering = false;
             ytdlpStream.stop();
-            ytdlpStatus = error.empty() ? "YouTube cache did not buffer enough media." : error;
+            ytdlpStatus = ytdlpStream.failed() ? "YouTube cache feeder failed before playback could start."
+                                               : "YouTube cache did not buffer enough media.";
             switch_view(ViewMode::YtDlp);
             redraw();
-            return false;
+            return;
         }
-        append_ytdlp_log(ytdlpStream.take_log());
-        ytdlpStreamBaseMs = std::max<long long>(0, targetMs);
-        ytdlpCachedThroughMs = ytdlpStreamBaseMs;
-        if (!open_ytdlp_cache_location(ytdlpStream.url(), ytdlpStreamBaseMs)) {
+
+        const long long targetMs = ytdlpSeekTargetMs;
+        ytdlpSeekBuffering = false;
+        if (!open_ytdlp_cache_location(ytdlpStream.url(), targetMs)) {
             ytdlpStream.stop();
             ytdlpStatus = "VLC could not start the YouTube cache stream. See log.";
             switch_view(ViewMode::YtDlp);
             redraw();
-            return false;
+            return;
         }
         ytdlpStatus = targetMs > 0 ? "Seek buffered. Playing through local cache bridge."
                                    : "Playing through local cache bridge at up to 1080p.";
-        return true;
     }
     void seek_to_ms(long long targetMs) {
-        if (!mp) return;
-        long long l = playback_length_ms();
         if (targetMs < 0) targetMs = 0;
+        long long l = ytdlpTotalDurationMs > 0 ? ytdlpTotalDurationMs : playback_length_ms();
         if (l > 0 && targetMs > l) targetMs = l;
-        if (currentMediaIsYtDlpStream) {
-            if (targetMs >= ytdlpStreamBaseMs && targetMs <= ytdlpCachedThroughMs) {
-                api.set_time(mp, targetMs - ytdlpStreamBaseMs);
-                if (!fullscreen) draw_seek_time_only();
-                return;
-            }
+        if (currentMediaIsYtDlpStream || ytdlpSeekBuffering) {
+            // Every YouTube seek gets a fresh keyframe-aware feeder. Never ask
+            // libVLC to seek inside a growing cache because that can feed a
+            // decoder from a stale or incomplete container position.
             start_ytdlp_cache_playback_at(targetMs);
             return;
         }
+        if (!mp) return;
         api.set_time(mp, targetMs);
         if (!fullscreen) draw_seek_time_only();
     }
     void seek_relative(long long deltaMs) {
+        if (currentMediaIsYtDlpStream && mp) {
+            seek_to_ms(playback_time_ms() + deltaMs);
+            return;
+        }
+        if (ytdlpSeekBuffering) {
+            seek_to_ms(ytdlpSeekTargetMs + deltaMs);
+            return;
+        }
         if (!mp) return;
         seek_to_ms(playback_time_ms() + deltaMs);
     }
@@ -768,7 +851,10 @@ public:
     void save_session() {
         if (!hasMedia || currentPath.empty() || currentMediaIsP2P || currentMediaIsNetwork) return;
         ensure_config_dir();
-        long long t = mp ? api.get_time(mp) : 0;
+        long long t = 0;
+        if (shuttingDown) t = playbackCacheValid ? cachedPlaybackTimeMs : 0;
+        else if (paused && playbackCacheValid) t = cachedPlaybackTimeMs;
+        else if (mp) t = playback_time_ms();
         std::ofstream f(session_file());
         f << "{\n";
         f << "  \"path\": \"" << json_escape(currentPath) << "\",\n";
@@ -778,15 +864,21 @@ public:
         f << "}\n";
     }
     void stop_ytdlp_stream_process() {
+        ytdlpSeekBuffering = false;
         ytdlpStream.stop();
         ytdlpStreamBaseMs = 0;
-        ytdlpCachedThroughMs = 0;
+        ytdlpSeekTargetMs = 0;
+        ytdlpSeekStartedAtMs = 0;
     }
     void cleanup_player() {
-        if (mp) { api.stop(mp); api.player_release(mp); mp=nullptr; }
-        if (currentMediaIsYtDlpStream) stop_ytdlp_stream_process();
+        // If YouTube owns the localhost bridge, disconnect the bridge before
+        // stopping libVLC so its network reader cannot hold shutdown hostage.
+        if (currentMediaIsYtDlpStream || ytdlpSeekBuffering || ytdlpStream.running()) {
+            stop_ytdlp_stream_process();
+        }
+        release_player_instance_only();
         currentMediaIsYtDlpStream=false;
-        hasMedia=false; paused=false; pendingSeek=false; subtitlesOn=false; chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false;
+        currentMediaIsNetwork=false;
     }
     void open_media(const std::string& path, long long seek=0) {
         if (!inst || !api.media_new_path) return;
@@ -801,7 +893,8 @@ public:
         api.set_volume(mp, 80);
         currentPath = path; currentMediaIsP2P=false; currentMediaIsNetwork=false; hasMedia=true; paused=false; needResumePrompt=false;
         subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
-        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; lastChapterScanMs=0;
+        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; chapterScanComplete=false;
+        playbackCacheValid=false; cachedPlaybackTimeMs=0; cachedPlaybackLengthMs=0;
         api.play(mp);
         auto_load_subtitle_for_current_media();
         if (seek > 0) {
@@ -823,7 +916,8 @@ public:
         api.set_volume(mp, 80);
         currentPath.clear(); currentMediaIsP2P=true; currentMediaIsNetwork=true; hasMedia=true; paused=false; needResumePrompt=false;
         subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
-        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; lastChapterScanMs=0;
+        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; chapterScanComplete=false;
+        playbackCacheValid=false; cachedPlaybackTimeMs=0; cachedPlaybackLengthMs=0;
         api.play(mp);
         redraw();
         return true;
@@ -842,7 +936,8 @@ public:
         ytdlpStreamBaseMs = std::max<long long>(0, baseMs);
         currentPath.clear(); currentMediaIsP2P=false; currentMediaIsNetwork=true; currentMediaIsYtDlpStream=true; hasMedia=true; paused=false; needResumePrompt=false;
         subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
-        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; lastChapterScanMs=0;
+        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; chapterScanComplete=false;
+        playbackCacheValid=false; cachedPlaybackTimeMs=0; cachedPlaybackLengthMs=0;
         const int rc = api.play(mp);
         if (rc != 0) {
             api.player_release(mp);
@@ -862,7 +957,18 @@ public:
     }
     void toggle_play() {
         if (!mp) return;
-        api.pause(mp); paused=!paused; redraw();
+        if (!paused) {
+            cachedPlaybackTimeMs = playback_time_ms();
+            const long long length = playback_length_ms();
+            if (length > 0) cachedPlaybackLengthMs = length;
+            playbackCacheValid = true;
+            api.set_pause(mp, 1);
+            paused = true;
+        } else {
+            api.set_pause(mp, 0);
+            paused = false;
+        }
+        redraw();
     }
     void stop_media() {
         if (currentMediaIsYtDlpStream) {
@@ -872,7 +978,7 @@ public:
             redraw();
             return;
         }
-        if (mp) { api.stop(mp); paused=false; redraw(); }
+        if (mp) { api.stop(mp); paused=false; cachedPlaybackTimeMs=0; playbackCacheValid=true; redraw(); }
     }
 
     std::vector<TrackChoice> audio_tracks() {
@@ -1079,16 +1185,20 @@ public:
         text(target, 10, 17, "Video Player", topText);
         text(target, 132, 17, "YouTube", topText);
         text(target, 216, 17, "P2P", topText);
-        text(target, W-66, 17, "v0.0.13", topText);
+        const std::string versionLabel = "v0.0.14";
+        const int versionWidth = text_width(versionLabel);
+        const int versionX = W - 10 - versionWidth;
+        const int treeX = versionX - reddmedia_icon::kTopBar14Size - 6;
+        draw_tree_badge(target, treeX, 5, 0xbb, 0x00, 0x00);
+        text(target, versionX, 17, versionLabel, topText);
     }
 
     void update_chapter_marks(bool force=false) {
-        if (!mp) { chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; return; }
-        long long l = api.get_length(mp);
+        (void)force;
+        if (!mp) { chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; chapterScanComplete=false; return; }
+        if (paused || chapterScanComplete) return;
+        long long l = playback_length_ms();
         if (l <= 0) return;
-        long long n = now_ms();
-        if (!force && n - lastChapterScanMs < 2500 && !chapterMarksMs.empty()) return;
-        lastChapterScanMs = n;
 
         std::vector<long long> realMarks;
         std::vector<std::string> realNames;
@@ -1107,13 +1217,14 @@ public:
                         realNames.push_back(name);
                     }
                 }
-                api.chapter_descriptions_release(chapters, (unsigned)count);
+                api.chapter_descriptions_release(chapters, static_cast<unsigned>(count));
             }
         }
         if (realMarks.size() > 1) {
             chapterMarksMs = realMarks;
             chapterNames = realNames;
             chapterMarksAreReal = true;
+            chapterScanComplete = true;
             return;
         }
 
@@ -1127,15 +1238,18 @@ public:
             chapterMarksMs.push_back(markMs);
             chapterNames.push_back("Default mark");
         }
+        chapterScanComplete = true;
     }
     void jump_to_chapter_index(int idx) {
         if (!mp || !chapterMarksAreReal || idx < 0 || idx >= (int)chapterMarksMs.size()) return;
         api.set_time(mp, chapterMarksMs[(size_t)idx]);
+        cachedPlaybackTimeMs = chapterMarksMs[(size_t)idx];
+        playbackCacheValid = true;
         draw_seek_time_only();
     }
     int current_chapter_index() {
         if (!mp || !chapterMarksAreReal || chapterMarksMs.empty()) return -1;
-        long long t = api.get_time(mp);
+        long long t = playback_time_ms();
         int idx = 0;
         for (size_t i=0; i<chapterMarksMs.size(); ++i) if (chapterMarksMs[i] <= t) idx = (int)i;
         return idx;
@@ -1143,7 +1257,7 @@ public:
     void previous_chapter() {
         if (!chapterMarksAreReal) return;
         int idx = current_chapter_index();
-        long long t = mp ? api.get_time(mp) : 0;
+        long long t = mp ? playback_time_ms() : 0;
         if (idx > 0 && idx < (int)chapterMarksMs.size() && t - chapterMarksMs[(size_t)idx] < 3000) idx--;
         jump_to_chapter_index(std::max(0, idx));
     }
@@ -1345,7 +1459,7 @@ public:
         outline(target,p2pOutputRect,col(0x7777,0x7777,0x7777));
         text(target,p2pOutputRect.x+8,p2pOutputRect.y+18,tail_to_width("Download folder: "+p2pOutputFolder,p2pOutputRect.w-16),dark);
         button_on(target,p2pLoadMagnetBtn,"Load Magnet");
-        button_on(target,p2pOpenTorrentBtn,"Open .torrent");
+        button_on(target,p2pOpenTorrentBtn,"Open P2P File");
         button_on(target,p2pPlayBtn,"Play");
         button_on(target,p2pStopResumeBtn,p2p.is_paused()?"Resume Download":"Stop Download");
 
@@ -1477,7 +1591,8 @@ public:
         if (ytdlpStream.running()) {
             ytdlpStream.poll();
             append_ytdlp_log(ytdlpStream.take_log());
-            if (ytdlpStream.failed()) {
+            if (ytdlpSeekBuffering) finish_ytdlp_buffer_if_ready();
+            if (ytdlpStream.failed() && !ytdlpSeekBuffering) {
                 ytdlpStatus="YouTube cache feeder ended with an error. See log.";
                 if (currentView==ViewMode::YtDlp) redraw();
             }
@@ -1660,8 +1775,6 @@ public:
         ytdlpStatus = "Reading YouTube duration...";
         redraw();
         ytdlpTotalDurationMs = resolve_ytdlp_duration_ms(engine, ytdlpUrl);
-        ytdlpStatus = "Buffering YouTube cache at up to 1080p...";
-        redraw();
         start_ytdlp_cache_playback_at(0);
     }
 
@@ -1820,7 +1933,7 @@ public:
         close_context_menu();
         switch (action) {
             case MenuAction::OpenFile: do_open(); break;
-            case MenuAction::ExitApp: running=false; break;
+            case MenuAction::ExitApp: shuttingDown=true; running=false; break;
             case MenuAction::TogglePlay: toggle_play(); break;
             case MenuAction::ToggleFullscreen: if (fullscreen) exit_fullscreen(); else toggle_fullscreen(); break;
             case MenuAction::Rewind10: seek_relative(-10000); break;
@@ -2004,6 +2117,37 @@ public:
     void hide_pointer() {
         if (!pointerHidden) { XDefineCursor(d, video, blankCursor); pointerHidden=true; XFlush(d); }
     }
+    bool final_player_cleanup_bounded(int timeoutMs) {
+        if (currentMediaIsYtDlpStream || ytdlpSeekBuffering || ytdlpStream.running()) stop_ytdlp_stream_process();
+        libvlc_media_player_t* player = mp;
+        mp = nullptr;
+        hasMedia = false;
+        paused = false;
+        pendingSeek = false;
+        currentMediaIsYtDlpStream = false;
+        currentMediaIsNetwork = false;
+        if (!player) return true;
+
+        auto done = std::make_shared<std::atomic<bool>>(false);
+        const auto stopFn = api.stop;
+        const auto releaseFn = api.player_release;
+        std::thread worker([player, stopFn, releaseFn, done]() {
+            if (stopFn) stopFn(player);
+            if (releaseFn) releaseFn(player);
+            done->store(true, std::memory_order_release);
+        });
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+        while (!done->load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        if (done->load(std::memory_order_acquire)) {
+            worker.join();
+            return true;
+        }
+        worker.detach();
+        return false;
+    }
+
     void event_loop() {
         lastMouse = time(nullptr);
         redraw();
@@ -2024,7 +2168,7 @@ public:
                     }
                 }
                 else if (e.type == ConfigureNotify && e.xconfigure.window == win) resize(e.xconfigure.width, e.xconfigure.height);
-                else if (e.type == ClientMessage) running=false;
+                else if (e.type == ClientMessage) { shuttingDown=true; running=false; break; }
                 else if (e.type == ButtonPress) {
                     if (e.xbutton.button == Button4 || e.xbutton.button == Button5) handle_wheel(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button);
                     else handle_button(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button, e.xbutton.time);
@@ -2086,11 +2230,7 @@ public:
             run_pending_video_click();
             tick_resume_seek();
             poll_ytdlp_process();
-            if (currentMediaIsYtDlpStream && mp) {
-                const long long current = playback_time_ms();
-                if (current > ytdlpCachedThroughMs) ytdlpCachedThroughMs = current;
-                playback_length_ms();
-            }
+            if (currentMediaIsYtDlpStream && mp) playback_length_ms();
             if (!fullscreen && currentView == ViewMode::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
@@ -2098,15 +2238,27 @@ public:
         }
     }
     void shutdown() {
-        stop_ytdlp_process(); stop_ytdlp_stream_process(); close_context_menu(); save_session(); p2pStream.stop(); p2p.shutdown(); cleanup_player(); if (inst) api.release(inst); inst=nullptr;
-        if (d) { XCloseDisplay(d); }
+        shuttingDown = true;
+        stop_ytdlp_process();
+        close_context_menu();
+        save_session();
+        p2pStream.stop();
+        p2p.shutdown();
+        if (!final_player_cleanup_bounded(3000)) {
+            if (d) XCloseDisplay(d);
+            d = nullptr;
+            _exit(0);
+        }
+        if (inst) api.release(inst);
+        inst=nullptr;
+        if (d) XCloseDisplay(d);
         d=nullptr;
     }
 };
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.13\n");
+        printf("ReddMedia v0.0.14\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
