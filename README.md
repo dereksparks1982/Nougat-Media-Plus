@@ -1,10 +1,10 @@
-# ReddMedia v0.0.12
+# ReddMedia v0.0.13
 
 ReddMedia is a standalone Linux desktop media player by Elderredd Softworks. It combines local video playback, YouTube downloading/playback powered by the bundled yt-dlp engine, and built-in P2P file transfer and streaming in one application.
 
-## Current build: v0.0.12 YouTube Seekable Cache Bridge
+## Current build: v0.0.13 YouTube Growing Cache Stream Repair
 
-v0.0.12 builds on the accepted v0.0.11 playback controls by replacing the one-way YouTube playback pipe with a ReddMedia-managed temporary cache and localhost HTTP bridge. The bridge keeps the 1080p default cap while giving the player a bounded, restartable path for seeking instead of asking libVLC to seek through stdin. Public-facing documentation describes the peer-transfer feature simply as **P2P**: a general peer-to-peer file-transfer and streaming capability.
+v0.0.13 keeps the accepted v0.0.12 YouTube cache architecture and repairs the real-world freeze discovered during long-video owner testing. VLC open-ended byte requests now remain attached to the growing local cache instead of treating the cache size at request time as the end of the media. YouTube Play remains capped at 1080p, timestamp-restart seeking remains available, and public-facing peer-transfer terminology remains **P2P**.
 
 ### Current P2P workflow
 
@@ -31,6 +31,14 @@ The v0.0.10 stabilization pass keeps the same feature version while repairing de
 - The installer reapplies and verifies the ReddMedia red-triangle custom icon on the versioned executable.
 
 The versioned executable is `ReddMedia_v12`.
+
+### v0.0.13 YouTube growing cache stream repair
+
+- Fixed the 4-to-5-second freeze exposed by real long-form YouTube playback.
+- VLC-style open-ended range requests now use a chunked indeterminate-length response that continues delivering bytes as the local cache grows.
+- The bridge no longer advertises the current cache frontier as the complete media length while the feeder is active.
+- Startup buffering is increased to 512 KiB and libVLC network caching to 5000 ms.
+- YouTube remains capped at 1080p and the existing timestamp-restart seek path is preserved.
 
 ### v0.0.12 YouTube seekable cache bridge
 
@@ -101,7 +109,7 @@ Version check:
 Expected output:
 
 ```text
-ReddMedia v0.0.12
+ReddMedia v0.0.13
 ```
 
 # Release history
@@ -338,6 +346,16 @@ Stabilization repairs accepted in v0.0.10:
 - Expands this README so every numbered ReddMedia release explains what it actually did.
 
 Seek behavior under slow or difficult P2P swarms can still take time because peer availability controls how quickly an undownloaded region arrives.
+
+## v0.0.13 — YouTube Growing Cache Stream Repair
+
+**Purpose:** keep YouTube playback alive while the yt-dlp/FFmpeg cache continues growing during real long-form playback.
+
+- Repaired the localhost bridge so an open-ended VLC byte request no longer freezes the cache size at request time.
+- Added chunked indeterminate-length range delivery for the growing cache.
+- Increased startup and libVLC network buffering for steadier playback.
+- Preserved the 1080p ceiling and timestamp-restart seek behavior from v0.0.12.
+- Added a slow-growing stream regression specifically designed to catch the 4-to-5-second freeze.
 
 ## v0.0.12 — YouTube Seekable Cache Bridge
 

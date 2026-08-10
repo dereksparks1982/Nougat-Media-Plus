@@ -1,5 +1,17 @@
 # ReddMedia Changelog
 
+## v0.0.13
+
+### YouTube Growing Cache Stream Repair
+
+- Fixed the real-world YouTube freeze where playback stopped after only the bytes that existed when VLC first opened the localhost cache bridge.
+- Open-ended VLC range requests are now served as an indeterminate-length growing HTTP stream instead of advertising the current cache frontier as the complete media length.
+- Added chunked live-range delivery so the bridge waits for newly appended cache bytes and keeps feeding VLC while yt-dlp/FFmpeg continues downloading.
+- Kept bounded and suffix byte-range support for cached probes while reporting unknown total length until the feeder is complete.
+- Increased the YouTube startup cache target to 512 KiB and embedded VLC network caching to 5000 ms for a steadier start.
+- Kept YouTube playback capped at 1080p and preserved timestamp-restart seeking, stale-stream replacement, Stop cleanup, P2P behavior, and the red-star ReddMedia identity.
+- Added a deterministic slow-growing stream regression that proves a single VLC-style open-ended request continues receiving bytes beyond the cache size that existed when the request began.
+
 ## v0.0.12
 
 ### YouTube Seekable Cache Bridge
@@ -73,3 +85,18 @@
 - Preserved v0.0.7 video player behavior.
 
 - YouTube Play now streams through the bundled yt-dlp/FFmpeg pipeline into embedded libVLC and caps playback at 1080p by default.
+
+## v0.0.13 - YouTube Growing Cache and Seek Stability
+
+- Improved sustained YouTube playback through the growing localhost cache bridge.
+- YouTube playback progressed beyond the previous few-second playback limit.
+- Seek-bar selection can restart playback near the requested position.
+- YouTube feeder replacement is used for seeking.
+- Improved playback and shutdown stability.
+- Preserved embedded YouTube playback and the 1080p maximum target.
+
+Known limitations:
+- Actual selected playback resolution still needs direct verification.
+- Seeking can take approximately 10 to 15 seconds to resume.
+- Playback may alternate between buffering and playing after a seek.
+- Further sustained-buffering and quality improvements are planned for v0.0.14.

@@ -36,6 +36,18 @@ bool send_all(int fd, const std::string& data) {
     return send_all(fd, data.data(), data.size());
 }
 
+bool send_chunk(int fd, const char* data, std::size_t size) {
+    std::ostringstream prefix;
+    prefix << std::hex << size << "\r\n";
+    if (!send_all(fd, prefix.str())) return false;
+    if (size > 0 && !send_all(fd, data, size)) return false;
+    return send_all(fd, "\r\n", 2);
+}
+
+bool finish_chunked(int fd) {
+    return send_all(fd, "0\r\n\r\n", 5);
+}
+
 std::string section_from_ms(long long ms) {
     if (ms < 0) ms = 0;
     const long long whole = ms / 1000;
@@ -399,10 +411,12 @@ void YtDlpStreamServer::handle_client(int client_fd) {
         ~ClientGuard() { owner->unregister_client(fd); }
     } guard{this, client_fd};
 
-    timeval timeout{};
-    timeout.tv_sec = 3;
-    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+    timeval recv_timeout{};
+    recv_timeout.tv_sec = 5;
+    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof(recv_timeout));
+    timeval send_timeout{};
+    send_timeout.tv_sec = 15;
+    setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout));
 
     std::string request;
     char input[4096];
@@ -430,51 +444,93 @@ void YtDlpStreamServer::handle_client(int client_fd) {
         response << "HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\n"
                  << "Content-Type: application/octet-stream\r\n"
                  << "X-ReddMedia-Cache-Bytes: " << cache_bytes() << "\r\n"
+                 << "X-ReddMedia-Growing-Stream: 1\r\n"
                  << "Cache-Control: no-store\r\nConnection: close\r\n\r\n";
         send_all(client_fd, response.str());
         close(client_fd);
         return;
     }
 
-    if (!range.present) {
-        const std::string headers =
-            "HTTP/1.1 200 OK\r\n"
-            "Accept-Ranges: bytes\r\n"
-            "Content-Type: application/octet-stream\r\n"
-            "Cache-Control: no-store\r\n"
-            "Connection: close\r\n\r\n";
-        if (!send_all(client_fd, headers)) { close(client_fd); return; }
-        int file_fd = open(cache_path_.c_str(), O_RDONLY);
-        if (file_fd < 0) { close(client_fd); return; }
-        std::uint64_t position = 0;
+    auto wait_until_available = [&](std::uint64_t start, int loops) {
+        std::uint64_t available = cache_bytes();
+        for (int i = 0; i < loops && running_ && feeder_running_ && start >= available; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            available = cache_bytes();
+        }
+        return available;
+    };
+
+    auto stream_growing = [&](std::uint64_t start, bool partial) {
+        std::uint64_t available = wait_until_available(start, 200);
+        if (available == 0 || start >= available) {
+            std::ostringstream response;
+            response << "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */"
+                     << available << "\r\nConnection: close\r\n\r\n";
+            send_all(client_fd, response.str());
+            return;
+        }
+
+        std::ostringstream response;
+        if (partial) {
+            constexpr std::uint64_t kLiveRangeEnd = 999999999999ULL;
+            const std::uint64_t live_end = start < kLiveRangeEnd ? kLiveRangeEnd : start + 999999999999ULL;
+            response << "HTTP/1.1 206 Partial Content\r\n"
+                     << "Content-Range: bytes " << start << '-' << live_end << "/*\r\n";
+        } else {
+            response << "HTTP/1.1 200 OK\r\n";
+        }
+        response << "Accept-Ranges: bytes\r\n"
+                 << "Content-Type: application/octet-stream\r\n"
+                 << "Transfer-Encoding: chunked\r\n"
+                 << "X-ReddMedia-Growing-Stream: 1\r\n"
+                 << "Cache-Control: no-store\r\nConnection: close\r\n\r\n";
+        if (!send_all(client_fd, response.str())) return;
+
+        const int file_fd = open(cache_path_.c_str(), O_RDONLY);
+        if (file_fd < 0) return;
         std::vector<char> buffer(1024 * 1024);
+        std::uint64_t position = start;
         int idle_loops = 0;
-        while (running_) {
-            const std::uint64_t available = cache_bytes();
+        bool socket_ok = true;
+        while (running_ && socket_ok) {
+            available = cache_bytes();
             if (position < available) {
-                const std::size_t wanted = static_cast<std::size_t>(std::min<std::uint64_t>(buffer.size(), available - position));
+                const std::size_t wanted = static_cast<std::size_t>(
+                    std::min<std::uint64_t>(buffer.size(), available - position));
                 const ssize_t n = pread(file_fd, buffer.data(), wanted, static_cast<off_t>(position));
-                if (n <= 0) break;
-                if (!send_all(client_fd, buffer.data(), static_cast<std::size_t>(n))) break;
-                position += static_cast<std::uint64_t>(n);
-                idle_loops = 0;
-                continue;
+                if (n > 0) {
+                    socket_ok = send_chunk(client_fd, buffer.data(), static_cast<std::size_t>(n));
+                    position += static_cast<std::uint64_t>(n);
+                    idle_loops = 0;
+                    continue;
+                }
             }
             if (!feeder_running_) break;
-            if (++idle_loops > 600) break;
+            if (++idle_loops > 2400) break;
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
         close(file_fd);
+        if (socket_ok) finish_chunked(client_fd);
+    };
+
+    if (!range.present) {
+        stream_growing(0, false);
+        close(client_fd);
+        return;
+    }
+
+    // An open-ended byte request is VLC's normal progressive-playback shape.
+    // Treat it as an indeterminate-length aggregating resource instead of
+    // freezing the current cache frontier into Content-Length/Content-Range.
+    if (!range.suffix && !range.has_end) {
+        stream_growing(range.start, true);
         close(client_fd);
         return;
     }
 
     std::uint64_t available = cache_bytes();
     if (!range.suffix && range.start >= available && feeder_running_) {
-        for (int i = 0; i < 40 && running_ && feeder_running_ && range.start >= available; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            available = cache_bytes();
-        }
+        available = wait_until_available(range.start, 80);
     }
     if (available == 0 || (!range.suffix && range.start >= available)) {
         std::ostringstream response;
@@ -483,6 +539,13 @@ void YtDlpStreamServer::handle_client(int client_fd) {
         send_all(client_fd, response.str());
         close(client_fd);
         return;
+    }
+
+    if (!range.suffix && range.has_end && range.end >= available && feeder_running_) {
+        for (int i = 0; i < 100 && running_ && feeder_running_ && range.end >= available; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            available = cache_bytes();
+        }
     }
 
     std::uint64_t start = range.start;
@@ -496,22 +559,26 @@ void YtDlpStreamServer::handle_client(int client_fd) {
         close(client_fd);
         return;
     }
+
     const std::uint64_t length = end - start + 1;
     std::ostringstream response;
     response << "HTTP/1.1 206 Partial Content\r\n"
              << "Accept-Ranges: bytes\r\n"
              << "Content-Type: application/octet-stream\r\n"
              << "Content-Length: " << length << "\r\n"
-             << "Content-Range: bytes " << start << '-' << end << '/' << available << "\r\n"
-             << "Cache-Control: no-store\r\nConnection: close\r\n\r\n";
+             << "Content-Range: bytes " << start << '-' << end << '/';
+    if (feeder_running_) response << '*';
+    else response << available;
+    response << "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
     if (!send_all(client_fd, response.str())) { close(client_fd); return; }
 
-    int file_fd = open(cache_path_.c_str(), O_RDONLY);
+    const int file_fd = open(cache_path_.c_str(), O_RDONLY);
     if (file_fd < 0) { close(client_fd); return; }
     std::vector<char> buffer(1024 * 1024);
     std::uint64_t position = start;
     while (running_ && position <= end) {
-        const std::size_t wanted = static_cast<std::size_t>(std::min<std::uint64_t>(buffer.size(), end - position + 1));
+        const std::size_t wanted = static_cast<std::size_t>(
+            std::min<std::uint64_t>(buffer.size(), end - position + 1));
         const ssize_t n = pread(file_fd, buffer.data(), wanted, static_cast<off_t>(position));
         if (n <= 0) break;
         if (!send_all(client_fd, buffer.data(), static_cast<std::size_t>(n))) break;
@@ -520,3 +587,4 @@ void YtDlpStreamServer::handle_client(int client_fd) {
     close(file_fd);
     close(client_fd);
 }
+

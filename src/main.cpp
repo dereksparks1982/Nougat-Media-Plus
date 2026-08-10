@@ -699,7 +699,7 @@ public:
             redraw();
             return false;
         }
-        if (!ytdlpStream.wait_for_initial_cache(256 * 1024, 15000, error)) {
+        if (!ytdlpStream.wait_for_initial_cache(512 * 1024, 20000, error)) {
             append_ytdlp_log(ytdlpStream.take_log());
             ytdlpStream.stop();
             ytdlpStatus = error.empty() ? "YouTube cache did not buffer enough media." : error;
@@ -833,7 +833,7 @@ public:
         p2pStream.stop();
         libvlc_media_t* media = api.media_new_location(inst, url.c_str());
         if (!media) return false;
-        if (api.media_add_option) api.media_add_option(media, ":network-caching=2500");
+        if (api.media_add_option) api.media_add_option(media, ":network-caching=5000");
         mp = api.player_new_from_media(media);
         api.media_release(media);
         if (!mp) return false;
@@ -1079,7 +1079,7 @@ public:
         text(target, 10, 17, "Video Player", topText);
         text(target, 132, 17, "YouTube", topText);
         text(target, 216, 17, "P2P", topText);
-        text(target, W-66, 17, "v0.0.12", topText);
+        text(target, W-66, 17, "v0.0.13", topText);
     }
 
     void update_chapter_marks(bool force=false) {
@@ -2106,7 +2106,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.12\n");
+        printf("ReddMedia v0.0.13\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {

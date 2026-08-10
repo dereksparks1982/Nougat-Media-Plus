@@ -1,14 +1,13 @@
 # ReddMedia Roadmap
 
-## Current: v0.0.12 YouTube Seekable Cache Bridge
+## Current: v0.0.13 YouTube Growing Cache Stream Repair
 
-- Replace the accepted v0.0.11 one-way YouTube playback pipe with a temporary local cache served through a localhost-only HTTP bridge, powered internally by the bundled yt-dlp/FFmpeg engine.
+- Preserve the v0.0.12 localhost YouTube cache architecture and repair the real-world 4-to-5-second playback freeze.
+- Serve VLC open-ended byte requests as an indeterminate-length growing stream that waits for newly cached bytes instead of declaring the current cache frontier to be the media end.
 - Keep YouTube Play capped at 1080p by default.
-- Resolve the source duration so the ReddMedia seek timeline can address the full video.
-- Support HTTP byte ranges for cached media and restart the internal YouTube feeder at the requested timestamp when a seek moves beyond the current cached segment.
-- Cancel obsolete seek/feed jobs before starting a replacement segment.
-- Remove temporary YouTube cache data on Stop, replacement playback, and clean shutdown.
-- Keep playback inside the existing embedded libVLC player.
+- Keep timestamp-restart seeking and stale-stream cancellation.
+- Increase startup/network buffering enough to reduce underruns without turning Play into a full download-first workflow.
+- Validate with deterministic slow-cache growth and owner testing on a long-form YouTube episode.
 
 ## Archive
 
