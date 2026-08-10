@@ -1,6 +1,9 @@
 # Third Party Notices
 
-ReddMedia uses VLC/libVLC for playback when available on the user system.
+ReddMedia uses VLC/libVLC for media playback when available on the user system.
 
-This build includes the yt-dlp Linux standalone executable provided by the yt-dlp project.
-The included binary is stored at `tools/yt-dlp/yt-dlp`.
+ReddMedia uses FFmpeg/FFprobe through yt-dlp for stream merging and media post-processing when available on the user system.
+
+ReddMedia includes the yt-dlp Linux standalone executable provided by the yt-dlp project. The included executable is stored at `tools/yt-dlp/yt-dlp`.
+
+ReddMedia v0.0.10 uses libtorrent-rasterbar as its P2P/P2P engine. Libtorrent is distributed under a BSD-style license. The required libtorrent license notice is reproduced in `licenses/LIBTORRENT_BSD_LICENSE.txt`.

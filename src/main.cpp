@@ -23,6 +23,8 @@
 #include <limits.h>
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
+#include "p2p_engine.hpp"
+#include "p2p_stream_server.hpp"
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -31,6 +33,7 @@ struct libvlc_media_player_t;
 typedef libvlc_instance_t* (*fn_libvlc_new)(int, const char* const*);
 typedef void (*fn_libvlc_release)(libvlc_instance_t*);
 typedef libvlc_media_t* (*fn_libvlc_media_new_path)(libvlc_instance_t*, const char*);
+typedef libvlc_media_t* (*fn_libvlc_media_new_location)(libvlc_instance_t*, const char*);
 typedef void (*fn_libvlc_media_release)(libvlc_media_t*);
 typedef libvlc_media_player_t* (*fn_libvlc_media_player_new_from_media)(libvlc_media_t*);
 typedef void (*fn_libvlc_media_player_release)(libvlc_media_player_t*);
@@ -77,6 +80,7 @@ struct VlcApi {
     fn_libvlc_new new_ = nullptr;
     fn_libvlc_release release = nullptr;
     fn_libvlc_media_new_path media_new_path = nullptr;
+    fn_libvlc_media_new_location media_new_location = nullptr;
     fn_libvlc_media_release media_release = nullptr;
     fn_libvlc_media_player_new_from_media player_new_from_media = nullptr;
     fn_libvlc_media_player_release player_release = nullptr;
@@ -117,6 +121,7 @@ struct VlcApi {
         LOAD_SYM(new_, "libvlc_new");
         LOAD_SYM(release, "libvlc_release");
         LOAD_SYM(media_new_path, "libvlc_media_new_path");
+        LOAD_SYM(media_new_location, "libvlc_media_new_location");
         LOAD_SYM(media_release, "libvlc_media_release");
         LOAD_SYM(player_new_from_media, "libvlc_media_player_new_from_media");
         LOAD_SYM(player_release, "libvlc_media_player_release");
@@ -258,6 +263,26 @@ static std::string choose_folder_dialog() {
     return run_command_capture(py);
 }
 
+static std::string choose_torrent_file_dialog() {
+    std::string p = run_command_capture("command -v zenity >/dev/null 2>&1 && zenity --file-selection --title='Open Torrent' --file-filter='Torrent files | *.torrent' 2>/dev/null");
+    if (!p.empty()) return p;
+    std::string py =
+        "python3 -c \"import tkinter as tk; from tkinter import filedialog; "
+        "root=tk.Tk(); root.withdraw(); "
+        "p=filedialog.askopenfilename(title='Open Torrent', filetypes=[('Torrent files','*.torrent'),('All files','*')]); print(p if p else '')\" 2>/dev/null";
+    return run_command_capture(py);
+}
+
+static std::string choose_p2p_folder_dialog() {
+    std::string p = run_command_capture("command -v zenity >/dev/null 2>&1 && zenity --file-selection --directory --title='P2P Download Folder' 2>/dev/null");
+    if (!p.empty()) return p;
+    std::string py =
+        "python3 -c \"import tkinter as tk; from tkinter import filedialog; "
+        "root=tk.Tk(); root.withdraw(); "
+        "p=filedialog.askdirectory(title='P2P Download Folder'); print(p if p else '')\" 2>/dev/null";
+    return run_command_capture(py);
+}
+
 static std::string exe_dir() {
     char buf[PATH_MAX];
     ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf)-1);
@@ -300,9 +325,10 @@ static std::string format_time(long long ms) {
 enum class MenuAction {
     NoAction, OpenFile, ExitApp, TogglePlay, ToggleFullscreen, Rewind10, Forward10,
     SubtitleToggle, SubtitleLoadFile, SubtitleLoadFolder, SubtitleDelayPlus, SubtitleDelayMinus, SubtitleDelayReset, SubtitleTrack,
-    AudioTrack, PrevChapter, NextChapter, ChapterJump, YtDlpClearLog, UrlCut, UrlCopy, UrlPaste
+    AudioTrack, PrevChapter, NextChapter, ChapterJump, YtDlpClearLog, UrlCut, UrlCopy, UrlPaste,
+    P2pUrlCut, P2pUrlCopy, P2pUrlPaste
 };
-enum class ViewMode { VideoPlayer, YtDlp };
+enum class ViewMode { VideoPlayer, YtDlp, P2P };
 struct MenuItem {
     std::string label;
     MenuAction action = MenuAction::NoAction;
@@ -317,12 +343,14 @@ public:
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn;
-    Rect videoPlayerTab, ytdlpTab;
+    Rect videoPlayerTab, ytdlpTab, p2pTab;
     Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpClearBtn, ytdlpFolderBtn;
+    Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn;
     VlcApi api; std::string vlcErr;
     libvlc_instance_t* inst=nullptr; libvlc_media_player_t* mp=nullptr;
     bool running=true, paused=false, fullscreen=false, hasMedia=false, needResumePrompt=false;
     std::string currentPath, sessionPath;
+    bool currentMediaIsP2P=false;
     long long sessionTime=0;
     Cursor blankCursor=0, normalCursor=0;
     bool pointerInVideo=false, pointerHidden=false;
@@ -362,6 +390,15 @@ public:
     pid_t ytdlpPid = -1;
     int ytdlpPipe = -1;
     int controlsScrollX = 0;
+    P2PEngine p2p;
+    P2PStreamServer p2pStream{p2p};
+    bool p2pMagnetFocused=false;
+    bool p2pMagnetSelectAll=false;
+    std::string p2pMagnet;
+    std::string p2pOutputFolder = home_dir() + "/Downloads";
+    std::string p2pUiStatus = "Ready.";
+    std::vector<Rect> p2pFileRows;
+    long long lastP2PRedrawMs=0;
 
     unsigned long col(unsigned short r, unsigned short g, unsigned short b) {
         XColor color; color.red=r; color.green=g; color.blue=b; color.flags=DoRed|DoGreen|DoBlue;
@@ -442,7 +479,7 @@ public:
         screen = DefaultScreen(d);
         unsigned long bg = col(0xdede,0xdede,0xdede);
         win = XCreateSimpleWindow(d, RootWindow(d,screen), 100, 80, W, H, 1, BlackPixel(d,screen), bg);
-        XStoreName(d, win, "ReddMedia v0.0.9");
+        XStoreName(d, win, "ReddMedia v0.0.10");
         set_window_identity();
         clipboardAtom = XInternAtom(d, "CLIPBOARD", False);
         utf8Atom = XInternAtom(d, "UTF8_STRING", False);
@@ -468,11 +505,15 @@ public:
             if (!inst) vlcErr = "Could not start VLC engine.";
         }
         load_session();
+        std::string p2pRestoreError;
+        if (p2p.restore_last(p2pRestoreError)) p2pUiStatus = "Previous P2P download restored.";
+        else if (!p2pRestoreError.empty()) p2pUiStatus = p2pRestoreError;
         return true;
     }
     void layout() {
         videoPlayerTab = {0,0,118,26};
         ytdlpTab = {118,0,82,26};
+        p2pTab = {200,0,64,26};
         int bottomY = H - 36;
         int seekY = H - 72;
         const int gap = 8;
@@ -502,6 +543,11 @@ public:
         ytdlpDownloadBtn = {28, 204, 150, 32};
         ytdlpFolderBtn = {0, 0, 0, 0};
         ytdlpClearBtn = {190, 204, 130, 32};
+        p2pMagnetRect = {28, 112, std::max(240, W-56), 28};
+        p2pOutputRect = {28, 152, std::max(240, W-56), 28};
+        p2pLoadMagnetBtn = {28, 198, 148, 32};
+        p2pOpenTorrentBtn = {188, 198, 148, 32};
+        p2pPlayBtn = {348, 198, 110, 32};
         update_video_prompt_layout();
     }
     void update_video_prompt_layout() {
@@ -510,7 +556,7 @@ public:
     }
     void apply_video_layout() {
         if (!video) return;
-        if (currentView == ViewMode::YtDlp) {
+        if (currentView == ViewMode::YtDlp || currentView == ViewMode::P2P) {
             XUnmapWindow(d, video);
             return;
         }
@@ -569,7 +615,7 @@ public:
         if (!sessionPath.empty() && exists_file(sessionPath)) needResumePrompt = true;
     }
     void save_session() {
-        if (!hasMedia || currentPath.empty()) return;
+        if (!hasMedia || currentPath.empty() || currentMediaIsP2P) return;
         ensure_config_dir();
         long long t = mp ? api.get_time(mp) : 0;
         std::ofstream f(session_file());
@@ -586,6 +632,7 @@ public:
     }
     void open_media(const std::string& path, long long seek=0) {
         if (!inst || !api.media_new_path) return;
+        p2pStream.stop();
         cleanup_player();
         libvlc_media_t* media = api.media_new_path(inst, path.c_str());
         if (!media) return;
@@ -594,7 +641,7 @@ public:
         if (!mp) return;
         api.set_xwindow(mp, (unsigned int)video);
         api.set_volume(mp, 80);
-        currentPath = path; hasMedia=true; paused=false; needResumePrompt=false;
+        currentPath = path; currentMediaIsP2P=false; hasMedia=true; paused=false; needResumePrompt=false;
         subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
         chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; lastChapterScanMs=0;
         api.play(mp);
@@ -605,6 +652,23 @@ public:
             pendingSeekDeadline = time(nullptr) + 6;
         }
         redraw();
+    }
+    bool open_p2p_stream_location(const std::string& url) {
+        if (!inst || !api.media_new_location || url.empty()) return false;
+        cleanup_player();
+        libvlc_media_t* media = api.media_new_location(inst, url.c_str());
+        if (!media) return false;
+        mp = api.player_new_from_media(media);
+        api.media_release(media);
+        if (!mp) return false;
+        api.set_xwindow(mp, (unsigned int)video);
+        api.set_volume(mp, 80);
+        currentPath.clear(); currentMediaIsP2P=true; hasMedia=true; paused=false; needResumePrompt=false;
+        subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
+        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; lastChapterScanMs=0;
+        api.play(mp);
+        redraw();
+        return true;
     }
     void do_open() {
         std::string p = choose_file_dialog();
@@ -814,12 +878,15 @@ public:
         fill(target, {0,0,W,26}, companyRed);
         if (currentView == ViewMode::VideoPlayer) fill(target, videoPlayerTab, activeRed);
         if (currentView == ViewMode::YtDlp) fill(target, ytdlpTab, activeRed);
+        if (currentView == ViewMode::P2P) fill(target, p2pTab, activeRed);
         outline(target, {0,24,W,1}, col(0x6600,0x0000,0x0000));
         line(target, videoPlayerTab.x + videoPlayerTab.w, 0, videoPlayerTab.x + videoPlayerTab.w, 25, col(0x6600,0x0000,0x0000));
         line(target, ytdlpTab.x + ytdlpTab.w, 0, ytdlpTab.x + ytdlpTab.w, 25, col(0x6600,0x0000,0x0000));
+        line(target, p2pTab.x + p2pTab.w, 0, p2pTab.x + p2pTab.w, 25, col(0x6600,0x0000,0x0000));
         text(target, 10, 17, "Video Player", topText);
         text(target, 132, 17, "yt-dlp", topText);
-        text(target, W-155, 17, "ReddMedia v0.0.9", topText);
+        text(target, 216, 17, "P2P", topText);
+        text(target, W-164, 17, "ReddMedia v0.0.10", topText);
     }
 
     void update_chapter_marks(bool force=false) {
@@ -946,11 +1013,29 @@ public:
     }
 
     void draw_seek_time_only() {
-        if (!fullscreen && currentView == ViewMode::VideoPlayer) { draw_seek_time_row(win); XFlush(d); }
+        if (fullscreen || currentView != ViewMode::VideoPlayer) return;
+        const int y0 = std::max(0, seekRect.y - 6);
+        const int h = std::min(H - y0, seekRect.h + 16);
+        if (h <= 0) return;
+        Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
+        draw_seek_time_row(buffer);
+        XCopyArea(d, buffer, win, gc, 0, y0, W, h, 0, y0);
+        XFreePixmap(d, buffer);
+        XFlush(d);
     }
 
     void draw_volume_only() {
-        if (!fullscreen && currentView == ViewMode::VideoPlayer) { draw_volume_bar(win); XFlush(d); }
+        if (fullscreen || currentView != ViewMode::VideoPlayer) return;
+        const int x0 = std::max(0, volRect.x - 62);
+        const int y0 = std::max(0, volRect.y - 6);
+        const int w = std::min(W - x0, volRect.w + 72);
+        const int h = std::min(H - y0, volRect.h + 16);
+        if (w <= 0 || h <= 0) return;
+        Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
+        draw_volume_bar(buffer);
+        XCopyArea(d, buffer, win, gc, x0, y0, w, h, x0, y0);
+        XFreePixmap(d, buffer);
+        XFlush(d);
     }
 
     void draw_yt_dlp_screen(Drawable target) {
@@ -1015,6 +1100,120 @@ public:
         }
     }
 
+    std::string format_bytes(std::int64_t bytes) {
+        const char* units[] = {"B", "KiB", "MiB", "GiB", "TiB"};
+        double value = bytes < 0 ? 0.0 : static_cast<double>(bytes);
+        int unit = 0;
+        while (value >= 1024.0 && unit < 4) { value /= 1024.0; ++unit; }
+        char out[64];
+        if (unit == 0) snprintf(out, sizeof(out), "%.0f %s", value, units[unit]);
+        else snprintf(out, sizeof(out), "%.1f %s", value, units[unit]);
+        return out;
+    }
+    void auto_select_single_video() {
+        if (p2p.selected_file() >= 0) return;
+        std::vector<P2PFileInfo> fs = p2p.files();
+        int videoIndex = -1;
+        int videoCount = 0;
+        for (const P2PFileInfo& f : fs) if (f.video) { videoIndex = f.index; ++videoCount; }
+        if (videoCount == 1) {
+            std::string error;
+            if (p2p.select_file(videoIndex, error)) p2pUiStatus = "Video selected automatically.";
+        }
+    }
+    void draw_p2p_screen(Drawable target) {
+        unsigned long bg = col(0xdede,0xdede,0xdede);
+        unsigned long dark = col(0x1111,0x1111,0x1111);
+        unsigned long border = p2pMagnetFocused ? col(0xbbbb,0x0000,0x0000) : col(0x7777,0x7777,0x7777);
+        fill(target, {0,26,W,H-26}, bg);
+        text(target, 28, 62, "P2P Streaming", dark);
+        text(target, 28, 84, "Open a magnet or .torrent, choose a video, then Play.", dark);
+        fill(target, p2pMagnetRect, col(0xffff,0xffff,0xffff));
+        outline(target, p2pMagnetRect, border);
+        text(target, p2pMagnetRect.x+8, p2pMagnetRect.y-7, "Magnet link", dark);
+        const int textMax = std::max(24, p2pMagnetRect.w-18);
+        std::string visible = p2pMagnet.empty() ? "" : tail_to_width(p2pMagnet, textMax);
+        XRectangle clip{(short)(p2pMagnetRect.x+5),(short)(p2pMagnetRect.y+2),(unsigned short)std::max(1,p2pMagnetRect.w-10),(unsigned short)std::max(1,p2pMagnetRect.h-4)};
+        XSetClipRectangles(d, gc, 0, 0, &clip, 1, Unsorted);
+        if (visible.empty() && !p2pMagnetFocused) text(target,p2pMagnetRect.x+8,p2pMagnetRect.y+18,"paste magnet here",col(0x5555,0x5555,0x5555));
+        else if (p2pMagnetSelectAll && !visible.empty()) {
+            int selectedW=std::min(text_width(visible)+4,std::max(1,p2pMagnetRect.w-12));
+            fill(target,{p2pMagnetRect.x+6,p2pMagnetRect.y+4,selectedW,p2pMagnetRect.h-8},col(0x3333,0x6666,0xaaaa));
+            text(target,p2pMagnetRect.x+8,p2pMagnetRect.y+18,visible,col(0xffff,0xffff,0xffff));
+        } else text(target,p2pMagnetRect.x+8,p2pMagnetRect.y+18,visible,dark);
+        if (p2pMagnetFocused && !p2pMagnetSelectAll) {
+            int cx=p2pMagnetRect.x+8+text_width(visible);
+            cx=std::min(cx,p2pMagnetRect.x+p2pMagnetRect.w-8);
+            line(target,cx,p2pMagnetRect.y+5,cx,p2pMagnetRect.y+23,dark);
+        }
+        XSetClipMask(d,gc,None);
+        fill(target,p2pOutputRect,col(0xffff,0xffff,0xffff));
+        outline(target,p2pOutputRect,col(0x7777,0x7777,0x7777));
+        text(target,p2pOutputRect.x+8,p2pOutputRect.y+18,tail_to_width("Download folder: "+p2pOutputFolder,p2pOutputRect.w-16),dark);
+        button_on(target,p2pLoadMagnetBtn,"Load Magnet");
+        button_on(target,p2pOpenTorrentBtn,"Open .torrent");
+        button_on(target,p2pPlayBtn,"Play");
+
+        auto_select_single_video();
+        P2PStatus st=p2p.status();
+        int y=254;
+        text(target,28,y,"Status: "+p2pUiStatus,dark); y+=20;
+        if (st.active) {
+            int pct=std::max(0,std::min(100,(int)(st.progress*100.0f)));
+            text(target,28,y,"Torrent: "+(st.name.empty()?std::string("loading metadata"):st.name),dark); y+=20;
+            text(target,28,y,"State: "+st.state+"   Progress: "+std::to_string(pct)+"%   Downloaded: "+format_bytes(st.downloaded),dark); y+=20;
+            text(target,28,y,"Down: "+format_bytes(st.download_rate)+"/s   Up: "+format_bytes(st.upload_rate)+"/s   Peers: "+std::to_string(st.peers)+"   Seeds: "+std::to_string(st.seeds),dark); y+=22;
+            if (!st.error.empty()) { text(target,28,y,"P2P: "+st.error,col(0x9900,0,0)); y+=20; }
+        }
+        p2pFileRows.clear();
+        std::vector<P2PFileInfo> fs=p2p.files();
+        Rect fileBox={28,y,std::max(240,W-56),std::max(80,H-y-24)};
+        fill(target,fileBox,col(0xf7f7,0xf7f7,0xf7f7)); outline(target,fileBox,col(0x7777,0x7777,0x7777));
+        text(target,fileBox.x+8,fileBox.y+19,"Torrent files",dark);
+        int rowY=fileBox.y+30;
+        const int selected=p2p.selected_file();
+        for (const P2PFileInfo& f:fs) {
+            if (rowY+24>fileBox.y+fileBox.h) break;
+            Rect row={fileBox.x+6,rowY,fileBox.w-12,24};
+            if (f.index==selected) fill(target,row,col(0xdddd,0xeeee,0xffff));
+            outline(target,row,col(0xcccc,0xcccc,0xcccc));
+            std::string label=(f.video?"[video] ":"[file] ")+f.path+"  ("+format_bytes((std::int64_t)f.size)+")";
+            text(target,row.x+6,row.y+17,tail_to_width(label,row.w-12),dark);
+            p2pFileRows.push_back(row);
+            rowY+=26;
+        }
+        if (fs.empty()) text(target,fileBox.x+8,fileBox.y+46,st.active?"Waiting for torrent metadata...":"Load a magnet or .torrent file.",col(0x5555,0x5555,0x5555));
+    }
+
+    void start_p2p_magnet() {
+        std::string error;
+        if (p2p.start_magnet(p2pMagnet,p2pOutputFolder,error)) p2pUiStatus="Magnet added. Getting metadata...";
+        else p2pUiStatus=error;
+        p2pMagnetFocused=false; p2pMagnetSelectAll=false; redraw();
+    }
+    void open_p2p_torrent() {
+        std::string path=choose_torrent_file_dialog();
+        if (path.empty()) return;
+        std::string error;
+        if (p2p.start_torrent_file(path,p2pOutputFolder,error)) p2pUiStatus="Torrent loaded.";
+        else p2pUiStatus=error;
+        redraw();
+    }
+    void play_selected_p2p() {
+        auto_select_single_video();
+        if (p2p.selected_file()<0) { p2pUiStatus="Select a video file first."; redraw(); return; }
+        std::string error;
+        p2p.prioritize_range(0,std::min<std::uint64_t>(16ULL*1024ULL*1024ULL,p2p.selected_file_size()));
+        if (!p2pStream.start(error)) { p2pUiStatus=error; redraw(); return; }
+        p2pUiStatus="Streaming. ReddMedia will prioritize pieces around playback and seeks.";
+        switch_view(ViewMode::VideoPlayer);
+        if (!open_p2p_stream_location(p2pStream.url())) {
+            p2pStream.stop();
+            p2pUiStatus="VLC could not open the local P2P stream.";
+            switch_view(ViewMode::P2P);
+        }
+    }
+
     void redraw() {
         if (fullscreen) {
             draw_video_message();
@@ -1026,6 +1225,7 @@ public:
         fill(buffer, {0,0,W,H}, col(0xdede,0xdede,0xdede));
         draw_controls(buffer);
         if (currentView == ViewMode::YtDlp) draw_yt_dlp_screen(buffer);
+        if (currentView == ViewMode::P2P) draw_p2p_screen(buffer);
         XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
         XFreePixmap(d, buffer);
         if (currentView == ViewMode::VideoPlayer) draw_video_message();
@@ -1175,6 +1375,31 @@ public:
         } else ytdlpStatus = "Clipboard is empty.";
         redraw();
     }
+    std::string clipboard_value() {
+        if (clipboardAtom != None && XGetSelectionOwner(d, clipboardAtom) == win && !ownedClipboardText.empty()) return ownedClipboardText;
+        std::string clip=read_clipboard_text();
+        if (clip.empty()) clip=read_clipboard_x11();
+        clip.erase(std::remove(clip.begin(),clip.end(),'\r'),clip.end());
+        while (!clip.empty() && (clip.back()=='\n'||clip.back()=='\t'||clip.back()==' ')) clip.pop_back();
+        while (!clip.empty() && (clip.front()=='\n'||clip.front()=='\t'||clip.front()==' ')) clip.erase(clip.begin());
+        return clip;
+    }
+    void copy_p2p_url_selection() {
+        if (!p2pMagnetSelectAll || p2pMagnet.empty()) return;
+        own_clipboard_text(p2pMagnet); p2pUiStatus="Magnet copied."; redraw();
+    }
+    void cut_p2p_url_selection() {
+        if (!p2pMagnetSelectAll || p2pMagnet.empty()) return;
+        own_clipboard_text(p2pMagnet); p2pMagnet.clear(); p2pMagnetSelectAll=false; p2pUiStatus="Magnet cut."; redraw();
+    }
+    void paste_into_p2p_url() {
+        p2pMagnetFocused=true; XSetInputFocus(d,win,RevertToParent,CurrentTime);
+        std::string clip=clipboard_value();
+        if (!clip.empty()) { if (p2pMagnetSelectAll) p2pMagnet.clear(); p2pMagnet+=clip; p2pMagnetSelectAll=false; p2pUiStatus="Magnet pasted."; }
+        else p2pUiStatus="Clipboard is empty.";
+        redraw();
+    }
+
     void start_ytdlp_download() {
         if (ytdlpPid > 0) { ytdlpStatus = "Download already running."; redraw(); return; }
         if (ytdlpUrl.empty()) { ytdlpStatus = "Paste or type a URL first."; redraw(); return; }
@@ -1204,6 +1429,8 @@ public:
         currentView = v;
         urlFocused = false;
         urlSelectAll = false;
+        p2pMagnetFocused = false;
+        p2pMagnetSelectAll = false;
         close_context_menu();
         apply_video_layout();
         redraw();
@@ -1315,6 +1542,14 @@ public:
         items.push_back({"Paste", MenuAction::UrlPaste, 0});
         show_menu(win, x, y, items);
     }
+    void show_p2p_url_context_menu(int x, int y) {
+        std::vector<MenuItem> items;
+        bool hasSelection = p2pMagnetSelectAll && !p2pMagnet.empty();
+        items.push_back({"Cut", hasSelection ? MenuAction::P2pUrlCut : MenuAction::NoAction, 0});
+        items.push_back({"Copy", hasSelection ? MenuAction::P2pUrlCopy : MenuAction::NoAction, 0});
+        items.push_back({"Paste", MenuAction::P2pUrlPaste, 0});
+        show_menu(win, x, y, items);
+    }
     void show_context_menu(Window target, int x, int y) {
         std::vector<MenuItem> items;
         items.push_back({paused ? "Play" : "Pause", MenuAction::TogglePlay, 0});
@@ -1364,6 +1599,9 @@ public:
             case MenuAction::UrlCut: cut_url_selection(); break;
             case MenuAction::UrlCopy: copy_url_selection(); break;
             case MenuAction::UrlPaste: paste_into_url(); break;
+            case MenuAction::P2pUrlCut: cut_p2p_url_selection(); break;
+            case MenuAction::P2pUrlCopy: copy_p2p_url_selection(); break;
+            case MenuAction::P2pUrlPaste: paste_into_p2p_url(); break;
             case MenuAction::NoAction: break;
         }
     }
@@ -1395,6 +1633,11 @@ public:
             redraw();
             show_url_context_menu(x, y);
             return;
+        }
+        if (currentView == ViewMode::P2P && target == win && p2pMagnetRect.contains(x,y) && button == Button3) {
+            p2pMagnetFocused=true;
+            XSetInputFocus(d,win,RevertToParent,CurrentTime);
+            redraw(); show_p2p_url_context_menu(x,y); return;
         }
         if (target == video) {
             if (button == Button3) { show_context_menu(target, x, y); return; }
@@ -1433,6 +1676,35 @@ public:
             if (currentView != ViewMode::YtDlp) { switch_view(ViewMode::YtDlp); return; }
             show_ytdlp_menu(ytdlpTab.x, 26);
             return;
+        }
+        if (y < 26 && p2pTab.contains(x,y)) {
+            if (currentView != ViewMode::P2P) { switch_view(ViewMode::P2P); return; }
+            return;
+        }
+        if (currentView == ViewMode::P2P) {
+            if (p2pMagnetRect.contains(x,y)) {
+                p2pMagnetFocused=true; p2pMagnetSelectAll=false;
+                XSetInputFocus(d,win,RevertToParent,CurrentTime);
+                p2pUiStatus="Magnet field ready. Ctrl+A selects all. Right-click opens Cut / Copy / Paste.";
+                redraw(); return;
+            }
+            if (p2pOutputRect.contains(x,y)) {
+                p2pMagnetFocused=false; p2pMagnetSelectAll=false;
+                std::string folder=choose_p2p_folder_dialog();
+                if (!folder.empty()) { p2pOutputFolder=folder; p2pUiStatus="Download folder set."; }
+                redraw(); return;
+            }
+            if (p2pLoadMagnetBtn.contains(x,y)) { start_p2p_magnet(); return; }
+            if (p2pOpenTorrentBtn.contains(x,y)) { open_p2p_torrent(); return; }
+            if (p2pPlayBtn.contains(x,y)) { play_selected_p2p(); return; }
+            for (std::size_t i=0;i<p2pFileRows.size();++i) {
+                if (p2pFileRows[i].contains(x,y)) {
+                    std::vector<P2PFileInfo> fs=p2p.files();
+                    if (i<fs.size()) { std::string error; if (p2p.select_file(fs[i].index,error)) p2pUiStatus="Selected: "+fs[i].path; else p2pUiStatus=error; }
+                    redraw(); return;
+                }
+            }
+            p2pMagnetFocused=false; p2pMagnetSelectAll=false; redraw(); return;
         }
         if (currentView == ViewMode::YtDlp) {
             if (ytdlpUrlRect.contains(x,y)) {
@@ -1537,6 +1809,22 @@ public:
                                 buf[n]=0; ytdlpUrl += std::string(buf, n); redraw();
                             }
                         }
+                    } else if (currentView == ViewMode::P2P && p2pMagnetFocused) {
+                        if (ks == XK_Escape) { p2pMagnetFocused=false; p2pMagnetSelectAll=false; redraw(); }
+                        else if (ks == XK_Return || ks == XK_KP_Enter) { start_p2p_magnet(); }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_a || ks == XK_A)) { p2pMagnetSelectAll=!p2pMagnet.empty(); redraw(); }
+                        else if (ks == XK_BackSpace) {
+                            if (p2pMagnetSelectAll) { p2pMagnet.clear(); p2pMagnetSelectAll=false; }
+                            else if (!p2pMagnet.empty()) p2pMagnet.pop_back();
+                            redraw();
+                        }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_v || ks == XK_V)) paste_into_p2p_url();
+                        else if ((e.xkey.state & ShiftMask) && ks == XK_Insert) paste_into_p2p_url();
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_u || ks == XK_U)) { p2pMagnet.clear(); p2pMagnetSelectAll=false; redraw(); }
+                        else {
+                            char buf[32]; KeySym outks=0; int n=XLookupString(&e.xkey,buf,sizeof(buf)-1,&outks,nullptr);
+                            if (n>0) { if (p2pMagnetSelectAll) { p2pMagnet.clear(); p2pMagnetSelectAll=false; } buf[n]=0; p2pMagnet+=std::string(buf,n); redraw(); }
+                        }
                     } else {
                         if (ks == XK_Escape) exit_fullscreen();
                         else if (ks == XK_space) toggle_play();
@@ -1552,13 +1840,14 @@ public:
             run_pending_video_click();
             tick_resume_seek();
             poll_ytdlp_process();
+            if (!fullscreen && currentView == ViewMode::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
         }
     }
     void shutdown() {
-        stop_ytdlp_process(); close_context_menu(); save_session(); cleanup_player(); if (inst) api.release(inst); inst=nullptr;
+        stop_ytdlp_process(); close_context_menu(); save_session(); p2pStream.stop(); p2p.shutdown(); cleanup_player(); if (inst) api.release(inst); inst=nullptr;
         if (d) { XCloseDisplay(d); }
         d=nullptr;
     }
@@ -1566,7 +1855,13 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.9\n");
+        printf("ReddMedia v0.0.10\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
+        P2PEngine engine;
+        printf("%s\n", engine.libtorrent_version().c_str());
+        engine.shutdown();
         return 0;
     }
     App app;
