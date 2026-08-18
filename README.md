@@ -1,8 +1,14 @@
-# ReddMedia v0.0.14
+# ReddMedia v0.0.15
 
-ReddMedia is a standalone Linux desktop media player by Elderredd Softworks. It combines local video playback, YouTube downloading/playback powered by the bundled yt-dlp engine, and built-in P2P file transfer and streaming in one application.
+ReddMedia is an integrated Linux media player and media server by Elderredd Softworks. It combines native local playback, a hidden Jellyfin catalog foundation, YouTube downloading/playback powered by yt-dlp, and built-in P2P file transfer and streaming in one application package.
 
-## Current build: v0.0.14 Local Pause Stability & Red Tree Identity
+## Current build: v0.0.15 Native Library and Hidden Media Catalog Repair
+
+v0.0.15 adds the stable Jellyfin 10.11.11 service as hidden catalog machinery behind ReddMedia. Its web client is disabled, first-run setup is completed privately through the local API, and remote access is disabled. The native ReddMedia window now has a Library tab for adding media folders, scanning, selecting titles, and playing them. Library selections resolve to their real local file paths and enter the same embedded libVLC player used by Open File, P2P, and YouTube; they do not open a browser or an external player and do not pass local playback through Jellyfin transcoding.
+
+The installer extracts pinned Ubuntu 26.04 packages instead of rebuilding Jellyfin with Node and .NET. Jellyfin remains a separately licensed GPL process with matching source and licenses preserved inside the project.
+
+## Previous build: v0.0.14 Local Pause Stability & Red Tree Identity
 
 v0.0.14 hardens ordinary local-file pause/resume behavior so a long pause cannot strand the X11 event loop behind repeated libVLC polling. Paused playback uses cached time/length state, chapter metadata is discovered once per media item instead of being queried every few seconds, pause/resume uses explicit libVLC pause state, and final player teardown has a bounded close safeguard. The ReddMedia identity now uses the approved red-tree artwork across the launcher, dock/app switcher, raw executable, MIME icons, X11 window icon, and the small tree badge beside the top-right version label.
 
@@ -30,7 +36,7 @@ The v0.0.10 stabilization pass keeps the same feature version while repairing de
 - Stream sockets have bounded send/receive waits so abandoned seek connections cannot hang indefinitely.
 - The installer reapplies and verifies the ReddMedia red-triangle custom icon on the versioned executable.
 
-The versioned executable is `ReddMedia_v14`.
+The versioned executable is `ReddMedia_v15`.
 
 ### v0.0.13 YouTube seek and close stability repair
 
@@ -77,6 +83,8 @@ Owner testing proved P2P Stop/Resume but exposed two release defects before acce
 ## Main ReddMedia features
 
 - Native X11 desktop interface.
+- Native media Library with folder selection, local catalog scanning, title selection, and direct playback in the existing embedded player.
+- Hidden local Jellyfin 10.11.11 catalog service with no exposed Jellyfin setup/player web interface.
 - VLC/libVLC local video playback.
 - Open, Play/Pause, Stop, Rewind 10s, Fast Forward 10s, timeline seeking, volume, fullscreen, and resume support.
 - Keyboard and mouse playback controls.
@@ -98,19 +106,19 @@ ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpe
 From the ReddMedia project folder:
 
 ```bash
-./ReddMedia_v14
+./ReddMedia_v15
 ```
 
 Version check:
 
 ```bash
-./ReddMedia_v14 --version
+./ReddMedia_v15 --version
 ```
 
 Expected output:
 
 ```text
-ReddMedia v0.0.14
+ReddMedia v0.0.15
 ```
 
 # Release history

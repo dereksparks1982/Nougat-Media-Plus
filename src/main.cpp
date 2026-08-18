@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <vector>
 #include <thread>
 #include <chrono>
@@ -32,6 +33,8 @@
 #include "p2p_stream_server.hpp"
 #include "ytdlp_stream_server.hpp"
 #include "reddmedia_icon_data.hpp"
+#include "media_server/jellyfin_api_client.hpp"
+#include "media_server/media_server_manager.hpp"
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -273,6 +276,17 @@ static std::string choose_folder_dialog() {
     return run_command_capture(py);
 }
 
+static std::string choose_media_library_folder_dialog() {
+    std::string p;
+    p = run_command_capture("command -v zenity >/dev/null 2>&1 && zenity --file-selection --directory --title='Add Media Folder' 2>/dev/null");
+    if (!p.empty()) return p;
+    std::string py =
+        "python3 -c \"import tkinter as tk; from tkinter import filedialog; "
+        "root=tk.Tk(); root.withdraw(); "
+        "p=filedialog.askdirectory(title='Add Media Folder'); print(p if p else '')\" 2>/dev/null";
+    return run_command_capture(py);
+}
+
 static std::string choose_torrent_file_dialog() {
     std::string p = run_command_capture("command -v zenity >/dev/null 2>&1 && zenity --file-selection --title='Open P2P File' --file-filter='P2P files | *.torrent' 2>/dev/null");
     if (!p.empty()) return p;
@@ -338,7 +352,7 @@ enum class MenuAction {
     AudioTrack, PrevChapter, NextChapter, ChapterJump, YtDlpClearLog, UrlCut, UrlCopy, UrlPaste,
     P2pUrlCut, P2pUrlCopy, P2pUrlPaste
 };
-enum class ViewMode { VideoPlayer, YtDlp, P2P };
+enum class ViewMode { VideoPlayer, Library, YtDlp, P2P };
 enum class YtDlpJob { Idle, Download };
 struct MenuItem {
     std::string label;
@@ -346,6 +360,13 @@ struct MenuItem {
     int value = 0;
 };
 struct TrackChoice { int id = -1; std::string name; };
+struct LibraryUiState {
+    std::mutex mutex;
+    std::vector<reddmedia::LibraryVideo> videos;
+    std::string status = "Open Library to load your videos.";
+    bool busy = false;
+    bool updated = false;
+};
 class App {
 public:
     Display* d=nullptr; int screen=0; Window win=0, video=0; GC gc=0; XFontStruct* fontInfo=nullptr;
@@ -353,7 +374,8 @@ public:
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn;
-    Rect videoPlayerTab, ytdlpTab, p2pTab;
+    Rect videoPlayerTab, libraryTab, ytdlpTab, p2pTab;
+    Rect libraryAddFolderBtn, libraryRefreshBtn, libraryPlayBtn, libraryListBox;
     Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpPlayBtn, ytdlpClearBtn, ytdlpFolderBtn;
     Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn;
     VlcApi api; std::string vlcErr;
@@ -416,6 +438,14 @@ public:
     int controlsScrollX = 0;
     P2PEngine p2p;
     P2PStreamServer p2pStream{p2p};
+    reddmedia::MediaServerManager mediaServer;
+    std::shared_ptr<reddmedia::JellyfinApiClient> libraryClient =
+        std::make_shared<reddmedia::JellyfinApiClient>();
+    std::shared_ptr<LibraryUiState> libraryState = std::make_shared<LibraryUiState>();
+    std::thread libraryWorker;
+    std::vector<Rect> libraryRows;
+    int librarySelected = -1;
+    int libraryScroll = 0;
     bool p2pMagnetFocused=false;
     bool p2pMagnetSelectAll=false;
     std::string p2pMagnet;
@@ -565,12 +595,14 @@ public:
         std::string p2pRestoreError;
         if (p2p.restore_last(p2pRestoreError)) p2pUiStatus = "Previous P2P download restored.";
         else if (!p2pRestoreError.empty()) p2pUiStatus = p2pRestoreError;
+        mediaServer.start();
         return true;
     }
     void layout() {
         videoPlayerTab = {0,0,118,26};
-        ytdlpTab = {118,0,82,26};
-        p2pTab = {200,0,64,26};
+        libraryTab = {118,0,84,26};
+        ytdlpTab = {202,0,82,26};
+        p2pTab = {284,0,64,26};
         int bottomY = H - 36;
         int seekY = H - 72;
         const int gap = 8;
@@ -607,6 +639,10 @@ public:
         p2pOpenTorrentBtn = {178, 198, 138, 32};
         p2pPlayBtn = {328, 198, 100, 32};
         p2pStopResumeBtn = {440, 198, 160, 32};
+        libraryAddFolderBtn = {28, 92, 160, 32};
+        libraryRefreshBtn = {200, 92, 120, 32};
+        libraryPlayBtn = {332, 92, 140, 32};
+        libraryListBox = {28, 156, std::max(240, W-56), std::max(100, H-184)};
         update_video_prompt_layout();
     }
     void update_video_prompt_layout() {
@@ -615,7 +651,7 @@ public:
     }
     void apply_video_layout() {
         if (!video) return;
-        if (currentView == ViewMode::YtDlp || currentView == ViewMode::P2P) {
+        if (currentView == ViewMode::Library || currentView == ViewMode::YtDlp || currentView == ViewMode::P2P) {
             XUnmapWindow(d, video);
             return;
         }
@@ -1176,19 +1212,25 @@ public:
         unsigned long topText = col(0xffff,0xffff,0xffff);
         fill(target, {0,0,W,26}, companyRed);
         if (currentView == ViewMode::VideoPlayer) fill(target, videoPlayerTab, activeRed);
+        if (currentView == ViewMode::Library) fill(target, libraryTab, activeRed);
         if (currentView == ViewMode::YtDlp) fill(target, ytdlpTab, activeRed);
         if (currentView == ViewMode::P2P) fill(target, p2pTab, activeRed);
         outline(target, {0,24,W,1}, col(0x6600,0x0000,0x0000));
         line(target, videoPlayerTab.x + videoPlayerTab.w, 0, videoPlayerTab.x + videoPlayerTab.w, 25, col(0x6600,0x0000,0x0000));
+        line(target, libraryTab.x + libraryTab.w, 0, libraryTab.x + libraryTab.w, 25, col(0x6600,0x0000,0x0000));
         line(target, ytdlpTab.x + ytdlpTab.w, 0, ytdlpTab.x + ytdlpTab.w, 25, col(0x6600,0x0000,0x0000));
         line(target, p2pTab.x + p2pTab.w, 0, p2pTab.x + p2pTab.w, 25, col(0x6600,0x0000,0x0000));
         text(target, 10, 17, "Video Player", topText);
-        text(target, 132, 17, "YouTube", topText);
-        text(target, 216, 17, "P2P", topText);
-        const std::string versionLabel = "v0.0.14";
+        text(target, 130, 17, "Library", topText);
+        text(target, 216, 17, "YouTube", topText);
+        text(target, 300, 17, "P2P", topText);
+        const std::string versionLabel = "v0.0.15";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         const int treeX = versionX - reddmedia_icon::kTopBar14Size - 6;
+        const std::string serverLabel = mediaServer.status_label();
+        const int serverX = treeX - 12 - text_width(serverLabel);
+        text(target, serverX, 17, serverLabel, topText);
         draw_tree_badge(target, treeX, 5, 0xbb, 0x00, 0x00);
         text(target, versionX, 17, versionLabel, topText);
     }
@@ -1494,6 +1536,151 @@ public:
         if (fs.empty()) text(target,fileBox.x+8,fileBox.y+46,st.active?"Waiting for P2P metadata...":"Load a magnet or P2P metadata file.",col(0x5555,0x5555,0x5555));
     }
 
+    void start_library_task(int operation, const std::string& folder = {}) {
+        {
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            if (libraryState->busy) return;
+        }
+        if (libraryWorker.joinable()) libraryWorker.join();
+        {
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            libraryState->busy = true;
+            libraryState->updated = false;
+            if (operation == 1) libraryState->status = "Adding folder and scanning for videos...";
+            else if (operation == 2) libraryState->status = "Scanning media folders...";
+            else libraryState->status = "Loading media library...";
+        }
+        redraw();
+
+        const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
+        const std::shared_ptr<LibraryUiState> state = libraryState;
+        libraryWorker = std::thread([client, state, operation, folder]() {
+            std::string error;
+            bool ok = client->initialize(error);
+            if (ok && operation == 1) ok = client->add_media_folder(folder, error);
+            if (ok && operation == 2) ok = client->refresh_library(error);
+            std::vector<reddmedia::LibraryVideo> videos;
+            if (ok && operation == 1) {
+                ok = client->wait_for_video_in_folder(folder, videos, error, 300);
+            } else if (ok) {
+                ok = client->load_videos(videos, error);
+            }
+
+            std::lock_guard<std::mutex> lock(state->mutex);
+            if (ok) {
+                state->videos = std::move(videos);
+                if (state->videos.empty()) {
+                    state->status = "No videos found. Add a media folder or press Refresh after files are added.";
+                } else {
+                    state->status = std::to_string(state->videos.size()) +
+                        (state->videos.size() == 1U ? " video ready." : " videos ready.");
+                }
+            } else {
+                state->status = error;
+            }
+            state->busy = false;
+            state->updated = true;
+        });
+    }
+
+    void poll_library_worker() {
+        bool updated = false;
+        std::size_t count = 0;
+        {
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            updated = libraryState->updated;
+            if (updated) {
+                libraryState->updated = false;
+                count = libraryState->videos.size();
+            }
+        }
+        if (!updated) return;
+        if (libraryWorker.joinable()) libraryWorker.join();
+        if (count == 0U) librarySelected = -1;
+        else if (librarySelected < 0 || librarySelected >= static_cast<int>(count)) librarySelected = 0;
+        libraryScroll = std::max(0, std::min(libraryScroll, std::max(0, static_cast<int>(count) - 1)));
+        if (!fullscreen && currentView == ViewMode::Library) redraw();
+    }
+
+    void add_library_folder() {
+        const std::string folder = choose_media_library_folder_dialog();
+        if (!folder.empty()) start_library_task(1, folder);
+    }
+
+    void play_selected_library_video() {
+        reddmedia::LibraryVideo selected;
+        bool selection_valid = false;
+        {
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            if (librarySelected < 0 || librarySelected >= static_cast<int>(libraryState->videos.size())) {
+                libraryState->status = "Select a video first.";
+            } else {
+                selected = libraryState->videos[static_cast<std::size_t>(librarySelected)];
+                selection_valid = true;
+            }
+        }
+        if (!selection_valid) { redraw(); return; }
+        if (!exists_file(selected.path)) {
+            {
+                std::lock_guard<std::mutex> lock(libraryState->mutex);
+                libraryState->status = "That video file is no longer available. Press Refresh.";
+            }
+            redraw();
+            return;
+        }
+        switch_view(ViewMode::VideoPlayer);
+        open_media(selected.path, 0);
+    }
+
+    void draw_library_screen(Drawable target) {
+        const unsigned long bg = col(0xdede,0xdede,0xdede);
+        const unsigned long dark = col(0x1111,0x1111,0x1111);
+        const unsigned long border = col(0x7777,0x7777,0x7777);
+        fill(target, {0,26,W,H-26}, bg);
+        text(target, 28, 62, "Media Library", dark);
+        text(target, 28, 82, "Your folders are cataloged locally and played in ReddMedia's built-in player.", dark);
+        button_on(target, libraryAddFolderBtn, "Add Media Folder");
+        button_on(target, libraryRefreshBtn, "Refresh");
+        button_on(target, libraryPlayBtn, "Play Selected");
+
+        std::vector<reddmedia::LibraryVideo> videos;
+        std::string status;
+        bool busy = false;
+        {
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            videos = libraryState->videos;
+            status = libraryState->status;
+            busy = libraryState->busy;
+        }
+        text(target, 28, 145, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
+        fill(target, libraryListBox, col(0xf7f7,0xf7f7,0xf7f7));
+        outline(target, libraryListBox, border);
+        libraryRows.clear();
+        const int row_height = 46;
+        const int visible_rows = std::max(1, (libraryListBox.h - 12) / row_height);
+        const int max_scroll = std::max(0, static_cast<int>(videos.size()) - visible_rows);
+        libraryScroll = std::max(0, std::min(libraryScroll, max_scroll));
+        int y = libraryListBox.y + 6;
+        for (int row_index = 0; row_index < visible_rows; ++row_index) {
+            const int video_index = libraryScroll + row_index;
+            if (video_index >= static_cast<int>(videos.size())) break;
+            const reddmedia::LibraryVideo& item = videos[static_cast<std::size_t>(video_index)];
+            Rect row = {libraryListBox.x + 6, y, libraryListBox.w - 12, row_height - 4};
+            if (video_index == librarySelected) fill(target, row, col(0xdddd,0xeeee,0xffff));
+            outline(target, row, col(0xcccc,0xcccc,0xcccc));
+            std::string title = item.name;
+            if (item.production_year > 0) title += " (" + std::to_string(item.production_year) + ")";
+            text(target, row.x + 8, row.y + 17, tail_to_width(title, row.w - 16), dark);
+            text(target, row.x + 8, row.y + 35, tail_to_width(item.path, row.w - 16), col(0x5555,0x5555,0x5555));
+            libraryRows.push_back(row);
+            y += row_height;
+        }
+        if (videos.empty() && !busy) {
+            text(target, libraryListBox.x + 12, libraryListBox.y + 28,
+                 "No videos yet. Add a media folder to begin.", col(0x5555,0x5555,0x5555));
+        }
+    }
+
     void start_p2p_magnet() {
         std::string error;
         if (p2p.start_magnet(p2pMagnet,p2pOutputFolder,error)) p2pUiStatus="Magnet added. Getting metadata...";
@@ -1545,6 +1732,7 @@ public:
         Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
         fill(buffer, {0,0,W,H}, col(0xdede,0xdede,0xdede));
         draw_controls(buffer);
+        if (currentView == ViewMode::Library) draw_library_screen(buffer);
         if (currentView == ViewMode::YtDlp) draw_yt_dlp_screen(buffer);
         if (currentView == ViewMode::P2P) draw_p2p_screen(buffer);
         XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
@@ -1967,6 +2155,18 @@ public:
 
     bool handle_wheel(Window target, int x, int y, unsigned int button) {
         int delta = (button == Button4) ? -40 : 40;
+        if (currentView == ViewMode::Library && target == win && libraryListBox.contains(x,y)) {
+            std::size_t count = 0;
+            {
+                std::lock_guard<std::mutex> lock(libraryState->mutex);
+                count = libraryState->videos.size();
+            }
+            const int visible_rows = std::max(1, (libraryListBox.h - 12) / 46);
+            const int max_scroll = std::max(0, static_cast<int>(count) - visible_rows);
+            libraryScroll = std::max(0, std::min(max_scroll, libraryScroll + (button == Button4 ? -1 : 1)));
+            redraw();
+            return true;
+        }
         if (currentView == ViewMode::VideoPlayer && target == win && y >= H-42 && !volRect.contains(x,y)) {
             scroll_bottom_controls(delta);
             return true;
@@ -2026,6 +2226,13 @@ public:
             show_menu(win, 8, 26, items);
             return;
         }
+        if (y < 26 && libraryTab.contains(x,y)) {
+            if (currentView != ViewMode::Library) {
+                switch_view(ViewMode::Library);
+                start_library_task(0);
+            }
+            return;
+        }
         if (y < 26 && ytdlpTab.contains(x,y)) {
             if (currentView != ViewMode::YtDlp) { switch_view(ViewMode::YtDlp); return; }
             show_ytdlp_menu(ytdlpTab.x, 26);
@@ -2033,6 +2240,19 @@ public:
         }
         if (y < 26 && p2pTab.contains(x,y)) {
             if (currentView != ViewMode::P2P) { switch_view(ViewMode::P2P); return; }
+            return;
+        }
+        if (currentView == ViewMode::Library) {
+            if (libraryAddFolderBtn.contains(x,y)) { add_library_folder(); return; }
+            if (libraryRefreshBtn.contains(x,y)) { start_library_task(2); return; }
+            if (libraryPlayBtn.contains(x,y)) { play_selected_library_video(); return; }
+            for (std::size_t row = 0; row < libraryRows.size(); ++row) {
+                if (libraryRows[row].contains(x,y)) {
+                    librarySelected = libraryScroll + static_cast<int>(row);
+                    redraw();
+                    return;
+                }
+            }
             return;
         }
         if (currentView == ViewMode::P2P) {
@@ -2215,6 +2435,28 @@ public:
                             char buf[32]; KeySym outks=0; int n=XLookupString(&e.xkey,buf,sizeof(buf)-1,&outks,nullptr);
                             if (n>0) { if (p2pMagnetSelectAll) { p2pMagnet.clear(); p2pMagnetSelectAll=false; } buf[n]=0; p2pMagnet+=std::string(buf,n); redraw(); }
                         }
+                    } else if (currentView == ViewMode::Library) {
+                        std::size_t count = 0;
+                        {
+                            std::lock_guard<std::mutex> lock(libraryState->mutex);
+                            count = libraryState->videos.size();
+                        }
+                        if (ks == XK_Return || ks == XK_KP_Enter || ks == XK_space) {
+                            play_selected_library_video();
+                        } else if (ks == XK_Up && count > 0U) {
+                            librarySelected = std::max(0, librarySelected - 1);
+                            if (librarySelected < libraryScroll) libraryScroll = librarySelected;
+                            redraw();
+                        } else if (ks == XK_Down && count > 0U) {
+                            librarySelected = std::min(static_cast<int>(count) - 1, librarySelected + 1);
+                            const int visible_rows = std::max(1, (libraryListBox.h - 12) / 46);
+                            if (librarySelected >= libraryScroll + visible_rows) libraryScroll = librarySelected - visible_rows + 1;
+                            redraw();
+                        } else if (ks == XK_r || ks == XK_R) {
+                            start_library_task(2);
+                        } else if (ks == XK_a || ks == XK_A) {
+                            add_library_folder();
+                        }
                     } else {
                         if (ks == XK_Escape) exit_fullscreen();
                         else if (ks == XK_space) toggle_play();
@@ -2230,6 +2472,8 @@ public:
             run_pending_video_click();
             tick_resume_seek();
             poll_ytdlp_process();
+            poll_library_worker();
+            if (mediaServer.poll() && !fullscreen) redraw();
             if (currentMediaIsYtDlpStream && mp) playback_length_ms();
             if (!fullscreen && currentView == ViewMode::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
@@ -2239,6 +2483,15 @@ public:
     }
     void shutdown() {
         shuttingDown = true;
+        if (libraryWorker.joinable()) {
+            bool busy = false;
+            {
+                std::lock_guard<std::mutex> lock(libraryState->mutex);
+                busy = libraryState->busy;
+            }
+            if (busy) libraryWorker.detach();
+            else libraryWorker.join();
+        }
         stop_ytdlp_process();
         close_context_menu();
         save_session();
@@ -2258,13 +2511,39 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.14\n");
+        printf("ReddMedia v0.0.15\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
         P2PEngine engine;
         printf("%s\n", engine.libtorrent_version().c_str());
         engine.shutdown();
+        return 0;
+    }
+    if (argc > 2 && std::string(argv[1]) == "--media-library-api-test") {
+        reddmedia::JellyfinApiClient client;
+        std::string error;
+        if (!client.initialize(error) || !client.add_media_folder(argv[2], error)) {
+            fprintf(stderr, "ReddMedia native library API FAIL: %s\n", error.c_str());
+            return 1;
+        }
+        std::vector<reddmedia::LibraryVideo> videos;
+        if (!client.wait_for_video_in_folder(argv[2], videos, error, 180)) {
+            fprintf(stderr, "ReddMedia native library API FAIL: %s\n", error.c_str());
+            return 1;
+        }
+        bool found = false;
+        for (const reddmedia::LibraryVideo& video : videos) {
+            if (video.path.find(argv[2]) == 0U) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            fprintf(stderr, "ReddMedia native library API FAIL: indexed test video not found.\n");
+            return 1;
+        }
+        printf("ReddMedia native library API PASS: %zu video(s) cataloged for direct playback.\n", videos.size());
         return 0;
     }
     App app;

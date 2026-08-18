@@ -1,6 +1,15 @@
 # ReddMedia Roadmap
 
-## Current: v0.0.14 Local Pause Stability & Red Tree Identity
+## Current: v0.0.15 Native Library and Hidden Media Catalog
+
+- Bundle the stable Jellyfin 10.11.11 server and web runtime from pinned Ubuntu 26.04 packages.
+- Start and supervise the server as a hidden ReddMedia catalog component with its web client disabled.
+- Add media folders, scan titles, browse the native Library, and play cataloged local paths through ReddMedia's existing embedded player.
+- Preserve one ReddMedia application identity, setup path, data layout, status surface, and player.
+- Keep proven open-source components while they provide useful working machinery.
+- Prepare TVHeadend as the future Live TV and DVR component behind the same ReddMedia experience.
+
+## Accepted v0.0.14 Local Pause Stability & Red Tree Identity
 
 - Keep local-file playback responsive after a multi-minute pause.
 - Use explicit libVLC pause/resume state and cached paused playback timing.
