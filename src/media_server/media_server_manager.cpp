@@ -9,7 +9,9 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <string>
+#include <sys/prctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -56,6 +58,10 @@ std::string parent_directory(const std::string& path) {
 
 MediaServerManager::MediaServerManager() {
     resolve_paths();
+}
+
+MediaServerManager::~MediaServerManager() {
+    stop();
 }
 
 void MediaServerManager::resolve_paths() {
@@ -138,6 +144,10 @@ bool MediaServerManager::launch_runtime() {
         return false;
     }
     if (child == 0) {
+        const pid_t parent_pid = getppid();
+        if (prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 || getppid() != parent_pid) {
+            _exit(126);
+        }
         setsid();
         const std::string log_file = log_path_ + "/jellyfin.log";
         const int log_fd = open(log_file.c_str(), O_CREAT | O_WRONLY | O_APPEND, 0644);
@@ -166,6 +176,7 @@ bool MediaServerManager::launch_runtime() {
 }
 
 void MediaServerManager::start() {
+    shutdown_requested_ = false;
     if (health_ready()) {
         state_ = MediaServerState::Ready;
         return;
@@ -173,7 +184,33 @@ void MediaServerManager::start() {
     launch_runtime();
 }
 
+void MediaServerManager::stop() {
+    shutdown_requested_ = true;
+    state_ = MediaServerState::Stopped;
+    next_restart_ms_ = 0;
+
+    const pid_t pid = owned_pid_;
+    owned_pid_ = -1;
+    if (pid <= 0) return;
+
+    kill(-pid, SIGTERM);
+    kill(pid, SIGTERM);
+
+    int status = 0;
+    for (int attempt = 0; attempt < 60; ++attempt) {
+        const pid_t result = waitpid(pid, &status, WNOHANG);
+        if (result == pid || (result < 0 && errno == ECHILD)) return;
+        usleep(50000);
+    }
+
+    kill(-pid, SIGKILL);
+    kill(pid, SIGKILL);
+    while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
+    }
+}
+
 bool MediaServerManager::poll() {
+    if (shutdown_requested_) return false;
     const long long now = monotonic_ms();
     if (now - last_poll_ms_ < 2000) return false;
     last_poll_ms_ = now;

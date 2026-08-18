@@ -16,8 +16,10 @@ enum class MediaServerState {
 class MediaServerManager {
 public:
     MediaServerManager();
+    ~MediaServerManager();
 
     void start();
+    void stop();
     bool poll();
     std::string status_label() const;
     MediaServerState state() const;
@@ -35,6 +37,7 @@ private:
     std::string log_path_;
     pid_t owned_pid_ = -1;
     MediaServerState state_ = MediaServerState::Stopped;
+    bool shutdown_requested_ = false;
     long long last_poll_ms_ = 0;
     long long next_restart_ms_ = 0;
 };

@@ -1,5 +1,22 @@
 # ReddMedia Changelog
 
+## v0.0.16 - Native Library and Discover AI
+
+- Same-version installer repair 2: corrected the failed-candidate rollback so all tracked files are restored atomically, the untracked patch manifest is removed separately, the accepted Jellyfin runtime is preserved, and rollback errors cannot be reported as passes. The installer recognizes and backs up the exact hash-verified leftovers from the rejected original candidate before recovering the baseline automatically.
+- Same-version owner-test repair: restricted the pinned llama.cpp build to the required shared-library target, preventing the unrelated `llama-app` missing-header failure.
+- The integrated Jellyfin process is now owned for the exact ReddMedia process lifetime. Normal close performs a bounded graceful stop, forced close triggers a Linux parent-death signal, and shutdown reaps the owned server.
+- Added executable validation proving both normal ReddMedia shutdown and forced parent death release the hidden server and port 8096.
+- Replaced the flat episode/file list with a native poster grid and explicit Movies and TV libraries.
+- Added metadata-driven movie box sets and TV series -> season -> episode navigation; episodes do not appear at the TV root.
+- Added typed multi-folder linking and unlinking for Movies and TV. Unlinking changes the catalog only and never deletes media files.
+- Added catalog-only migration when an existing v0.0.15 untyped folder is reselected under Movies or TV, so the same files do not need to be moved or re-added from scratch.
+- Preserved direct local-path playback through ReddMedia's existing embedded libVLC player.
+- Added the top-level Discover tab with Usual and Random modes and exactly four actions in each mode: Local Movie, Local TV, External Movie, and External TV.
+- Added one-result-at-a-time recommendations, private SQLite viewing history, local llama.cpp inference, and the pinned Nomic Embed Text v1.5 Q4_K_M model.
+- Added optional TMDb external catalog discovery, owner-only token storage, owned-title filtering, explicit service-failure status, and no invented fallback titles.
+- Added deterministic validation for all eight Discover paths, Random without history, SQLite persistence, TMDb failure, source/type separation, hierarchy, multi-folder behavior, non-destructive unlinking, embedded playback routing, and red-tree/version identity.
+- Advanced the active executable and desktop entry to `ReddMedia_v16` from committed v0.0.15 base `d67cf6e5e0e3ce3036adae5d9695147a7aa771e8`.
+
 ## v0.0.15 - Native Library and Hidden Media Catalog Repair
 
 - Repaired the real Jellyfin 10.11.11 scan-completion race without advancing the version. Jellyfin's `204` scan response means the scan was queued, so ReddMedia now polls catalog results until a video from the requested folder is actually indexed or a bounded verification timeout is reached.

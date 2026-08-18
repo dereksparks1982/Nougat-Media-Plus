@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <atomic>
 #include <memory>
+#include <map>
 #include <mutex>
 #include <vector>
 #include <thread>
@@ -34,7 +35,9 @@
 #include "ytdlp_stream_server.hpp"
 #include "reddmedia_icon_data.hpp"
 #include "media_server/jellyfin_api_client.hpp"
+#include "media_server/library_poster.hpp"
 #include "media_server/media_server_manager.hpp"
+#include "recommendations/recommendation_engine.hpp"
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -287,6 +290,20 @@ static std::string choose_media_library_folder_dialog() {
     return run_command_capture(py);
 }
 
+static std::string choose_tmdb_token_dialog() {
+    std::string token = run_command_capture(
+        "command -v zenity >/dev/null 2>&1 && "
+        "zenity --entry --hide-text --title='ReddMedia External Recommendations' "
+        "--text='Enter your TMDb read-access token' 2>/dev/null");
+    if (!token.empty()) return token;
+    const std::string py =
+        "python3 -c \"import tkinter as tk; from tkinter import simpledialog; "
+        "root=tk.Tk(); root.withdraw(); "
+        "v=simpledialog.askstring('ReddMedia External Recommendations',"
+        "'Enter your TMDb read-access token',show='*'); print(v if v else '')\" 2>/dev/null";
+    return run_command_capture(py);
+}
+
 static std::string choose_torrent_file_dialog() {
     std::string p = run_command_capture("command -v zenity >/dev/null 2>&1 && zenity --file-selection --title='Open P2P File' --file-filter='P2P files | *.torrent' 2>/dev/null");
     if (!p.empty()) return p;
@@ -352,7 +369,7 @@ enum class MenuAction {
     AudioTrack, PrevChapter, NextChapter, ChapterJump, YtDlpClearLog, UrlCut, UrlCopy, UrlPaste,
     P2pUrlCut, P2pUrlCopy, P2pUrlPaste
 };
-enum class ViewMode { VideoPlayer, Library, YtDlp, P2P };
+enum class ViewMode { VideoPlayer, Library, Discover, YtDlp, P2P };
 enum class YtDlpJob { Idle, Download };
 struct MenuItem {
     std::string label;
@@ -362,8 +379,17 @@ struct MenuItem {
 struct TrackChoice { int id = -1; std::string name; };
 struct LibraryUiState {
     std::mutex mutex;
-    std::vector<reddmedia::LibraryVideo> videos;
-    std::string status = "Open Library to load your videos.";
+    std::vector<reddmedia::MediaFolder> folders;
+    std::vector<reddmedia::LibraryNode> nodes;
+    std::string status = "Choose Movies or TV.";
+    bool busy = false;
+    bool updated = false;
+};
+struct DiscoverUiState {
+    std::mutex mutex;
+    reddmedia::RecommendationResult result;
+    std::string status = "Choose one recommendation option.";
+    bool hasResult = false;
     bool busy = false;
     bool updated = false;
 };
@@ -374,8 +400,12 @@ public:
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn;
-    Rect videoPlayerTab, libraryTab, ytdlpTab, p2pTab;
-    Rect libraryAddFolderBtn, libraryRefreshBtn, libraryPlayBtn, libraryListBox;
+    Rect videoPlayerTab, libraryTab, discoverTab, ytdlpTab, p2pTab;
+    Rect libraryMoviesBtn, libraryTvBtn, libraryAddFolderBtn, libraryUnlinkFolderBtn;
+    Rect libraryRefreshBtn, libraryBackBtn, libraryListBox;
+    Rect discoverUsualTab, discoverRandomTab;
+    Rect discoverLocalMovieBtn, discoverLocalTvBtn, discoverExternalMovieBtn, discoverExternalTvBtn;
+    Rect discoverResultBox, discoverOpenBtn;
     Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpPlayBtn, ytdlpClearBtn, ytdlpFolderBtn;
     Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn;
     VlcApi api; std::string vlcErr;
@@ -446,6 +476,16 @@ public:
     std::vector<Rect> libraryRows;
     int librarySelected = -1;
     int libraryScroll = 0;
+    bool libraryTypeChosen = false;
+    reddmedia::LibraryMediaType libraryMediaType = reddmedia::LibraryMediaType::Movies;
+    std::vector<reddmedia::LibraryNode> libraryParents;
+    std::map<std::string, reddmedia::LibraryPoster> libraryPosterCache;
+    std::shared_ptr<reddmedia::RecommendationEngine> recommendationEngine =
+        std::make_shared<reddmedia::RecommendationEngine>(
+            exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf");
+    std::shared_ptr<DiscoverUiState> discoverState = std::make_shared<DiscoverUiState>();
+    std::thread discoverWorker;
+    reddmedia::RecommendationMode discoverMode = reddmedia::RecommendationMode::Usual;
     bool p2pMagnetFocused=false;
     bool p2pMagnetSelectAll=false;
     std::string p2pMagnet;
@@ -601,8 +641,9 @@ public:
     void layout() {
         videoPlayerTab = {0,0,118,26};
         libraryTab = {118,0,84,26};
-        ytdlpTab = {202,0,82,26};
-        p2pTab = {284,0,64,26};
+        discoverTab = {202,0,92,26};
+        ytdlpTab = {294,0,82,26};
+        p2pTab = {376,0,64,26};
         int bottomY = H - 36;
         int seekY = H - 72;
         const int gap = 8;
@@ -639,10 +680,21 @@ public:
         p2pOpenTorrentBtn = {178, 198, 138, 32};
         p2pPlayBtn = {328, 198, 100, 32};
         p2pStopResumeBtn = {440, 198, 160, 32};
-        libraryAddFolderBtn = {28, 92, 160, 32};
-        libraryRefreshBtn = {200, 92, 120, 32};
-        libraryPlayBtn = {332, 92, 140, 32};
-        libraryListBox = {28, 156, std::max(240, W-56), std::max(100, H-184)};
+        libraryMoviesBtn = {28, 76, 112, 32};
+        libraryTvBtn = {152, 76, 112, 32};
+        libraryAddFolderBtn = {28, 118, 132, 32};
+        libraryUnlinkFolderBtn = {172, 118, 142, 32};
+        libraryRefreshBtn = {326, 118, 104, 32};
+        libraryBackBtn = {442, 118, 90, 32};
+        libraryListBox = {28, 178, std::max(240, W-56), std::max(100, H-206)};
+        discoverUsualTab = {28, 76, 112, 32};
+        discoverRandomTab = {152, 76, 112, 32};
+        discoverLocalMovieBtn = {28, 136, 140, 34};
+        discoverLocalTvBtn = {180, 136, 140, 34};
+        discoverExternalMovieBtn = {332, 136, 152, 34};
+        discoverExternalTvBtn = {496, 136, 152, 34};
+        discoverResultBox = {28, 196, std::max(240, W-56), std::max(150, H-254)};
+        discoverOpenBtn = {28, H-48, 188, 32};
         update_video_prompt_layout();
     }
     void update_video_prompt_layout() {
@@ -651,7 +703,8 @@ public:
     }
     void apply_video_layout() {
         if (!video) return;
-        if (currentView == ViewMode::Library || currentView == ViewMode::YtDlp || currentView == ViewMode::P2P) {
+        if (currentView == ViewMode::Library || currentView == ViewMode::Discover ||
+            currentView == ViewMode::YtDlp || currentView == ViewMode::P2P) {
             XUnmapWindow(d, video);
             return;
         }
@@ -1213,18 +1266,21 @@ public:
         fill(target, {0,0,W,26}, companyRed);
         if (currentView == ViewMode::VideoPlayer) fill(target, videoPlayerTab, activeRed);
         if (currentView == ViewMode::Library) fill(target, libraryTab, activeRed);
+        if (currentView == ViewMode::Discover) fill(target, discoverTab, activeRed);
         if (currentView == ViewMode::YtDlp) fill(target, ytdlpTab, activeRed);
         if (currentView == ViewMode::P2P) fill(target, p2pTab, activeRed);
         outline(target, {0,24,W,1}, col(0x6600,0x0000,0x0000));
         line(target, videoPlayerTab.x + videoPlayerTab.w, 0, videoPlayerTab.x + videoPlayerTab.w, 25, col(0x6600,0x0000,0x0000));
         line(target, libraryTab.x + libraryTab.w, 0, libraryTab.x + libraryTab.w, 25, col(0x6600,0x0000,0x0000));
+        line(target, discoverTab.x + discoverTab.w, 0, discoverTab.x + discoverTab.w, 25, col(0x6600,0x0000,0x0000));
         line(target, ytdlpTab.x + ytdlpTab.w, 0, ytdlpTab.x + ytdlpTab.w, 25, col(0x6600,0x0000,0x0000));
         line(target, p2pTab.x + p2pTab.w, 0, p2pTab.x + p2pTab.w, 25, col(0x6600,0x0000,0x0000));
         text(target, 10, 17, "Video Player", topText);
         text(target, 130, 17, "Library", topText);
-        text(target, 216, 17, "YouTube", topText);
-        text(target, 300, 17, "P2P", topText);
-        const std::string versionLabel = "v0.0.15";
+        text(target, 214, 17, "Discover", topText);
+        text(target, 306, 17, "YouTube", topText);
+        text(target, 392, 17, "P2P", topText);
+        const std::string versionLabel = "v0.0.16";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         const int treeX = versionX - reddmedia_icon::kTopBar14Size - 6;
@@ -1536,7 +1592,9 @@ public:
         if (fs.empty()) text(target,fileBox.x+8,fileBox.y+46,st.active?"Waiting for P2P metadata...":"Load a magnet or P2P metadata file.",col(0x5555,0x5555,0x5555));
     }
 
-    void start_library_task(int operation, const std::string& folder = {}) {
+    void start_library_task(int operation,
+                            const std::string& folder = {},
+                            const reddmedia::LibraryNode& parent = {}) {
         {
             std::lock_guard<std::mutex> lock(libraryState->mutex);
             if (libraryState->busy) return;
@@ -1546,34 +1604,45 @@ public:
             std::lock_guard<std::mutex> lock(libraryState->mutex);
             libraryState->busy = true;
             libraryState->updated = false;
-            if (operation == 1) libraryState->status = "Adding folder and scanning for videos...";
-            else if (operation == 2) libraryState->status = "Scanning media folders...";
-            else libraryState->status = "Loading media library...";
+            if (operation == 1) libraryState->status = "Linking folder and scanning metadata...";
+            else if (operation == 2) libraryState->status = "Refreshing this library...";
+            else if (operation == 3) libraryState->status = "Unlinking folder...";
+            else libraryState->status = "Loading real library metadata...";
         }
         redraw();
 
         const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
         const std::shared_ptr<LibraryUiState> state = libraryState;
-        libraryWorker = std::thread([client, state, operation, folder]() {
+        const reddmedia::LibraryMediaType media_type = libraryMediaType;
+        const bool type_chosen = libraryTypeChosen;
+        libraryWorker = std::thread([client, state, operation, folder, parent,
+                                     media_type, type_chosen]() {
             std::string error;
             bool ok = client->initialize(error);
-            if (ok && operation == 1) ok = client->add_media_folder(folder, error);
+            if (ok && operation == 1) ok = client->add_media_folder(folder, media_type, error);
             if (ok && operation == 2) ok = client->refresh_library(error);
-            std::vector<reddmedia::LibraryVideo> videos;
-            if (ok && operation == 1) {
-                ok = client->wait_for_video_in_folder(folder, videos, error, 300);
-            } else if (ok) {
-                ok = client->load_videos(videos, error);
+            if (ok && operation == 3) ok = client->unlink_media_folder(folder, media_type, error);
+            std::vector<reddmedia::MediaFolder> folders;
+            if (ok) ok = client->load_media_folders(folders, error);
+            std::vector<reddmedia::LibraryNode> nodes;
+            if (ok && operation == 5) ok = client->load_library_children(parent, nodes, error);
+            else if (ok && type_chosen && operation != 0) {
+                ok = client->load_library_roots(media_type, nodes, error);
             }
 
             std::lock_guard<std::mutex> lock(state->mutex);
             if (ok) {
-                state->videos = std::move(videos);
-                if (state->videos.empty()) {
-                    state->status = "No videos found. Add a media folder or press Refresh after files are added.";
+                state->folders = std::move(folders);
+                state->nodes = std::move(nodes);
+                if (!type_chosen) {
+                    state->status = "Choose Movies or TV.";
+                } else if (state->nodes.empty()) {
+                    state->status = operation == 5
+                        ? "No real items were found inside this title."
+                        : "No titles found. Link a folder or press Refresh after adding media.";
                 } else {
-                    state->status = std::to_string(state->videos.size()) +
-                        (state->videos.size() == 1U ? " video ready." : " videos ready.");
+                    state->status = std::to_string(state->nodes.size()) +
+                        (state->nodes.size() == 1U ? " title ready." : " titles ready.");
                 }
             } else {
                 state->status = error;
@@ -1591,7 +1660,7 @@ public:
             updated = libraryState->updated;
             if (updated) {
                 libraryState->updated = false;
-                count = libraryState->videos.size();
+                count = libraryState->nodes.size();
             }
         }
         if (!updated) return;
@@ -1602,34 +1671,185 @@ public:
         if (!fullscreen && currentView == ViewMode::Library) redraw();
     }
 
-    void add_library_folder() {
-        const std::string folder = choose_media_library_folder_dialog();
-        if (!folder.empty()) start_library_task(1, folder);
+    bool has_library_folder(reddmedia::LibraryMediaType media_type) {
+        std::lock_guard<std::mutex> lock(libraryState->mutex);
+        for (const reddmedia::MediaFolder& folder : libraryState->folders) {
+            if (folder.media_type == media_type) return true;
+        }
+        return false;
     }
 
-    void play_selected_library_video() {
-        reddmedia::LibraryVideo selected;
-        bool selection_valid = false;
+    void select_library_type(reddmedia::LibraryMediaType media_type) {
         {
             std::lock_guard<std::mutex> lock(libraryState->mutex);
-            if (librarySelected < 0 || librarySelected >= static_cast<int>(libraryState->videos.size())) {
-                libraryState->status = "Select a video first.";
-            } else {
-                selected = libraryState->videos[static_cast<std::size_t>(librarySelected)];
-                selection_valid = true;
-            }
+            if (libraryState->busy) return;
         }
-        if (!selection_valid) { redraw(); return; }
-        if (!exists_file(selected.path)) {
+        libraryMediaType = media_type;
+        libraryTypeChosen = true;
+        libraryParents.clear();
+        librarySelected = -1;
+        libraryScroll = 0;
+        if (!has_library_folder(media_type)) {
+            const std::string folder = choose_media_library_folder_dialog();
+            if (!folder.empty()) start_library_task(1, folder);
+            else {
+                {
+                    std::lock_guard<std::mutex> lock(libraryState->mutex);
+                    libraryState->nodes.clear();
+                    libraryState->status = std::string("No ") +
+                        (media_type == reddmedia::LibraryMediaType::Movies ? "Movies" : "TV") +
+                        " folder is linked. Choose the button again when you are ready to link one.";
+                }
+                redraw();
+            }
+            return;
+        }
+        start_library_task(4);
+    }
+
+    void add_library_folder() {
+        if (!libraryTypeChosen) {
             {
                 std::lock_guard<std::mutex> lock(libraryState->mutex);
-                libraryState->status = "That video file is no longer available. Press Refresh.";
+                libraryState->status = "Choose Movies or TV before linking a folder.";
             }
             redraw();
             return;
         }
+        const std::string folder = choose_media_library_folder_dialog();
+        if (!folder.empty()) start_library_task(1, folder);
+    }
+
+    void unlink_library_folder() {
+        if (!libraryTypeChosen) {
+            {
+                std::lock_guard<std::mutex> lock(libraryState->mutex);
+                libraryState->status = "Choose Movies or TV before unlinking a folder.";
+            }
+            redraw();
+            return;
+        }
+        const std::string folder = choose_media_library_folder_dialog();
+        if (!folder.empty()) start_library_task(3, folder);
+    }
+
+    reddmedia::MediaDescriptor descriptor_for_node(const reddmedia::LibraryNode& node) {
+        reddmedia::MediaDescriptor item;
+        item.id = node.id;
+        item.title = node.name;
+        item.overview = node.overview;
+        item.genres = node.genres;
+        item.local_path = node.path;
+        item.tmdb_id = node.tmdb_id;
+        item.year = node.production_year;
+        item.media_type = (node.kind == reddmedia::LibraryNodeKind::Series ||
+                           node.kind == reddmedia::LibraryNodeKind::Season ||
+                           node.kind == reddmedia::LibraryNodeKind::Episode)
+            ? reddmedia::RecommendationMediaType::Television
+            : reddmedia::RecommendationMediaType::Movie;
+        return item;
+    }
+
+    void open_library_node(const reddmedia::LibraryNode& selected) {
+        if (selected.kind == reddmedia::LibraryNodeKind::MovieCollection ||
+            selected.kind == reddmedia::LibraryNodeKind::Series ||
+            selected.kind == reddmedia::LibraryNodeKind::Season) {
+            libraryParents.push_back(selected);
+            librarySelected = -1;
+            libraryScroll = 0;
+            start_library_task(5, {}, selected);
+            return;
+        }
+        if (!exists_file(selected.path)) {
+            {
+                std::lock_guard<std::mutex> lock(libraryState->mutex);
+                libraryState->status = "That media file is unavailable. Press Refresh.";
+            }
+            redraw();
+            return;
+        }
+        std::string history_error;
+        recommendationEngine->record_started(descriptor_for_node(selected), history_error);
         switch_view(ViewMode::VideoPlayer);
         open_media(selected.path, 0);
+    }
+
+    void open_selected_library_item() {
+        reddmedia::LibraryNode selected;
+        {
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            if (librarySelected < 0 || librarySelected >= static_cast<int>(libraryState->nodes.size())) return;
+            selected = libraryState->nodes[static_cast<std::size_t>(librarySelected)];
+        }
+        open_library_node(selected);
+    }
+
+    void library_back() {
+        if (libraryParents.empty()) return;
+        libraryParents.pop_back();
+        librarySelected = -1;
+        libraryScroll = 0;
+        if (libraryParents.empty()) start_library_task(4);
+        else start_library_task(5, {}, libraryParents.back());
+    }
+
+    void draw_library_poster(Drawable target,
+                             const Rect& area,
+                             const reddmedia::LibraryNode& node) {
+        const unsigned long black = col(0x0808,0x0808,0x0808);
+        fill(target, area, black);
+        if (node.primary_image_tag.empty()) {
+            text(target, area.x + 12, area.y + area.h / 2, "NO POSTER",
+                 col(0x9999,0x9999,0x9999));
+            return;
+        }
+        const std::string key = node.id + ":" + node.primary_image_tag;
+        auto found = libraryPosterCache.find(key);
+        if (found == libraryPosterCache.end()) {
+            std::string bytes;
+            std::string error;
+            reddmedia::LibraryPoster poster;
+            if (libraryClient->load_primary_image_bmp(node.id, area.w, area.h, bytes, error) &&
+                reddmedia::decode_library_poster_bmp(bytes, poster, error)) {
+                found = libraryPosterCache.emplace(key, std::move(poster)).first;
+            } else {
+                text(target, area.x + 12, area.y + area.h / 2, "NO POSTER",
+                     col(0x9999,0x9999,0x9999));
+                return;
+            }
+        }
+        const reddmedia::LibraryPoster& poster = found->second;
+        const int depth = DefaultDepth(d, screen);
+        const int bytes_per_pixel = 4;
+        char* image_data = static_cast<char*>(std::calloc(
+            static_cast<std::size_t>(area.w) * static_cast<std::size_t>(area.h),
+            static_cast<std::size_t>(bytes_per_pixel)));
+        if (!image_data) return;
+        for (int y = 0; y < area.h; ++y) {
+            const int source_y = y * poster.height / area.h;
+            for (int x = 0; x < area.w; ++x) {
+                const int source_x = x * poster.width / area.w;
+                const std::size_t source =
+                    (static_cast<std::size_t>(source_y) * static_cast<std::size_t>(poster.width) +
+                     static_cast<std::size_t>(source_x)) * 3U;
+                const unsigned long pixel =
+                    component_to_visual_mask(poster.rgb[source], DefaultVisual(d, screen)->red_mask) |
+                    component_to_visual_mask(poster.rgb[source + 1U], DefaultVisual(d, screen)->green_mask) |
+                    component_to_visual_mask(poster.rgb[source + 2U], DefaultVisual(d, screen)->blue_mask);
+                std::memcpy(image_data +
+                    (static_cast<std::size_t>(y) * static_cast<std::size_t>(area.w) +
+                     static_cast<std::size_t>(x)) * static_cast<std::size_t>(bytes_per_pixel),
+                    &pixel, static_cast<std::size_t>(bytes_per_pixel));
+            }
+        }
+        XImage* image = XCreateImage(d, DefaultVisual(d, screen), depth, ZPixmap, 0,
+                                     image_data, area.w, area.h, 32, 0);
+        if (!image) {
+            std::free(image_data);
+            return;
+        }
+        XPutImage(d, target, gc, image, 0, 0, area.x, area.y, area.w, area.h);
+        XDestroyImage(image);
     }
 
     void draw_library_screen(Drawable target) {
@@ -1637,47 +1857,258 @@ public:
         const unsigned long dark = col(0x1111,0x1111,0x1111);
         const unsigned long border = col(0x7777,0x7777,0x7777);
         fill(target, {0,26,W,H-26}, bg);
-        text(target, 28, 62, "Media Library", dark);
-        text(target, 28, 82, "Your folders are cataloged locally and played in ReddMedia's built-in player.", dark);
-        button_on(target, libraryAddFolderBtn, "Add Media Folder");
+        text(target, 28, 58, libraryParents.empty() ? "MEDIA LIBRARY" : libraryParents.back().name, dark);
+        button_on(target, libraryMoviesBtn, "Movies");
+        button_on(target, libraryTvBtn, "TV");
+        button_on(target, libraryAddFolderBtn, "Link Folder");
+        button_on(target, libraryUnlinkFolderBtn, "Unlink Folder");
         button_on(target, libraryRefreshBtn, "Refresh");
-        button_on(target, libraryPlayBtn, "Play Selected");
+        button_on(target, libraryBackBtn, "Back");
 
-        std::vector<reddmedia::LibraryVideo> videos;
+        std::vector<reddmedia::LibraryNode> nodes;
         std::string status;
         bool busy = false;
         {
             std::lock_guard<std::mutex> lock(libraryState->mutex);
-            videos = libraryState->videos;
+            nodes = libraryState->nodes;
             status = libraryState->status;
             busy = libraryState->busy;
         }
-        text(target, 28, 145, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
+        text(target, 28, 170, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
         fill(target, libraryListBox, col(0xf7f7,0xf7f7,0xf7f7));
         outline(target, libraryListBox, border);
         libraryRows.clear();
-        const int row_height = 46;
-        const int visible_rows = std::max(1, (libraryListBox.h - 12) / row_height);
-        const int max_scroll = std::max(0, static_cast<int>(videos.size()) - visible_rows);
+        const int tile_width = 140;
+        const int tile_height = 198;
+        const int gap = 12;
+        const int columns = std::max(1, (libraryListBox.w - 12 + gap) / (tile_width + gap));
+        const int rows = std::max(1, (libraryListBox.h - 12 + gap) / (tile_height + gap));
+        const int visible_items = columns * rows;
+        const int max_scroll = std::max(0, static_cast<int>(nodes.size()) - visible_items);
         libraryScroll = std::max(0, std::min(libraryScroll, max_scroll));
-        int y = libraryListBox.y + 6;
-        for (int row_index = 0; row_index < visible_rows; ++row_index) {
-            const int video_index = libraryScroll + row_index;
-            if (video_index >= static_cast<int>(videos.size())) break;
-            const reddmedia::LibraryVideo& item = videos[static_cast<std::size_t>(video_index)];
-            Rect row = {libraryListBox.x + 6, y, libraryListBox.w - 12, row_height - 4};
-            if (video_index == librarySelected) fill(target, row, col(0xdddd,0xeeee,0xffff));
-            outline(target, row, col(0xcccc,0xcccc,0xcccc));
+        for (int visible_index = 0; visible_index < visible_items; ++visible_index) {
+            const int node_index = libraryScroll + visible_index;
+            if (node_index >= static_cast<int>(nodes.size())) break;
+            const reddmedia::LibraryNode& item = nodes[static_cast<std::size_t>(node_index)];
+            const int column = visible_index % columns;
+            const int row_number = visible_index / columns;
+            Rect row = {libraryListBox.x + 6 + column * (tile_width + gap),
+                        libraryListBox.y + 6 + row_number * (tile_height + gap),
+                        tile_width, tile_height};
+            if (node_index == librarySelected) fill(target, row, col(0xdddd,0xeeee,0xffff));
+            outline(target, row, col(0x9999,0x9999,0x9999));
+            draw_library_poster(target, {row.x + 4, row.y + 4, row.w - 8, 158}, item);
             std::string title = item.name;
             if (item.production_year > 0) title += " (" + std::to_string(item.production_year) + ")";
-            text(target, row.x + 8, row.y + 17, tail_to_width(title, row.w - 16), dark);
-            text(target, row.x + 8, row.y + 35, tail_to_width(item.path, row.w - 16), col(0x5555,0x5555,0x5555));
+            text(target, row.x + 6, row.y + 180, tail_to_width(title, row.w - 12), dark);
+            const bool container = item.kind == reddmedia::LibraryNodeKind::MovieCollection ||
+                item.kind == reddmedia::LibraryNodeKind::Series ||
+                item.kind == reddmedia::LibraryNodeKind::Season;
+            text(target, row.x + 6, row.y + 194, container ? "Open" : "Play",
+                 col(0x6666,0x0000,0x0000));
             libraryRows.push_back(row);
-            y += row_height;
         }
-        if (videos.empty() && !busy) {
+        if (nodes.empty() && !busy) {
             text(target, libraryListBox.x + 12, libraryListBox.y + 28,
-                 "No videos yet. Add a media folder to begin.", col(0x5555,0x5555,0x5555));
+                 libraryTypeChosen ? "No real titles to show." : "Choose Movies or TV.",
+                 col(0x5555,0x5555,0x5555));
+        }
+    }
+
+    void start_discover_task(reddmedia::RecommendationSource source,
+                             reddmedia::RecommendationMediaType media_type) {
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            if (discoverState->busy) return;
+        }
+        if (source == reddmedia::RecommendationSource::External &&
+            !recommendationEngine->external_token_available()) {
+            const std::string token = choose_tmdb_token_dialog();
+            if (token.empty()) {
+                {
+                    std::lock_guard<std::mutex> lock(discoverState->mutex);
+                    discoverState->status = "External recommendations need a TMDb read-access token.";
+                    discoverState->hasResult = false;
+                }
+                redraw();
+                return;
+            }
+            std::string error;
+            if (!recommendationEngine->save_external_token(token, error)) {
+                {
+                    std::lock_guard<std::mutex> lock(discoverState->mutex);
+                    discoverState->status = error;
+                    discoverState->hasResult = false;
+                }
+                redraw();
+                return;
+            }
+        }
+        if (discoverWorker.joinable()) discoverWorker.join();
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            discoverState->busy = true;
+            discoverState->updated = false;
+            discoverState->hasResult = false;
+            discoverState->status = "Finding one real recommendation...";
+        }
+        redraw();
+        const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
+        const std::shared_ptr<reddmedia::RecommendationEngine> engine = recommendationEngine;
+        const std::shared_ptr<DiscoverUiState> state = discoverState;
+        const reddmedia::RecommendationMode mode = discoverMode;
+        discoverWorker = std::thread([client, engine, state, source, media_type, mode]() {
+            std::string error;
+            std::vector<reddmedia::LibraryNode> nodes;
+            bool ok = client->load_all_recommendation_items(nodes, error);
+            std::vector<reddmedia::MediaDescriptor> local_items;
+            if (ok) {
+                for (const reddmedia::LibraryNode& node : nodes) {
+                    reddmedia::MediaDescriptor item;
+                    item.id = node.id;
+                    item.title = node.name;
+                    item.overview = node.overview;
+                    item.genres = node.genres;
+                    item.local_path = node.path;
+                    item.tmdb_id = node.tmdb_id;
+                    item.year = node.production_year;
+                    item.media_type = node.kind == reddmedia::LibraryNodeKind::Series
+                        ? reddmedia::RecommendationMediaType::Television
+                        : reddmedia::RecommendationMediaType::Movie;
+                    local_items.push_back(std::move(item));
+                }
+            }
+            reddmedia::RecommendationResult result;
+            if (ok) {
+                reddmedia::RecommendationRequest request;
+                request.source = source;
+                request.media_type = media_type;
+                request.mode = mode;
+                ok = engine->recommend(request, local_items, result, error);
+            }
+            std::lock_guard<std::mutex> lock(state->mutex);
+            if (ok) {
+                state->result = std::move(result);
+                state->hasResult = true;
+                state->status = "One recommendation ready.";
+            } else {
+                state->hasResult = false;
+                state->status = error;
+            }
+            state->busy = false;
+            state->updated = true;
+        });
+    }
+
+    void poll_discover_worker() {
+        bool updated = false;
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            updated = discoverState->updated;
+            if (updated) discoverState->updated = false;
+        }
+        if (!updated) return;
+        if (discoverWorker.joinable()) discoverWorker.join();
+        if (!fullscreen && currentView == ViewMode::Discover) redraw();
+    }
+
+    void open_discover_result() {
+        reddmedia::RecommendationResult result;
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            if (!discoverState->hasResult) return;
+            result = discoverState->result;
+        }
+        if (result.item.local_path.empty()) {
+            if (result.item.media_type == reddmedia::RecommendationMediaType::Television &&
+                result.item.id.find("tmdb:") != 0U) {
+                libraryMediaType = reddmedia::LibraryMediaType::Television;
+                libraryTypeChosen = true;
+                libraryParents.clear();
+                reddmedia::LibraryNode series;
+                series.id = result.item.id;
+                series.name = result.item.title;
+                series.kind = reddmedia::LibraryNodeKind::Series;
+                libraryParents.push_back(series);
+                switch_view(ViewMode::Library);
+                start_library_task(5, {}, series);
+                return;
+            }
+            {
+                std::lock_guard<std::mutex> lock(discoverState->mutex);
+                discoverState->status = "This is an External recommendation and is not on your server.";
+            }
+            redraw();
+            return;
+        }
+        if (!exists_file(result.item.local_path)) {
+            {
+                std::lock_guard<std::mutex> lock(discoverState->mutex);
+                discoverState->status = "That Local media file is unavailable. Refresh the Library.";
+            }
+            redraw();
+            return;
+        }
+        std::string history_error;
+        recommendationEngine->record_started(result.item, history_error);
+        switch_view(ViewMode::VideoPlayer);
+        open_media(result.item.local_path, 0);
+    }
+
+    void draw_discover_screen(Drawable target) {
+        const unsigned long bg = col(0xdede,0xdede,0xdede);
+        const unsigned long dark = col(0x1111,0x1111,0x1111);
+        const unsigned long border = col(0x7777,0x7777,0x7777);
+        fill(target, {0,26,W,H-26}, bg);
+        text(target, 28, 58,
+             discoverMode == reddmedia::RecommendationMode::Usual
+                 ? "DISCOVER USUAL" : "DISCOVER RANDOM",
+             dark);
+        button_on(target, discoverUsualTab, "Usual");
+        button_on(target, discoverRandomTab, "Random");
+        button_on(target, discoverLocalMovieBtn, "Local Movie");
+        button_on(target, discoverLocalTvBtn, "Local TV");
+        button_on(target, discoverExternalMovieBtn, "External Movie");
+        button_on(target, discoverExternalTvBtn, "External TV");
+
+        reddmedia::RecommendationResult result;
+        std::string status;
+        bool has_result = false;
+        bool busy = false;
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            result = discoverState->result;
+            status = discoverState->status;
+            has_result = discoverState->hasResult;
+            busy = discoverState->busy;
+        }
+        text(target, 28, 188, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
+        fill(target, discoverResultBox, col(0xf7f7,0xf7f7,0xf7f7));
+        outline(target, discoverResultBox, border);
+        text(target, 236, H - 27,
+             "This product uses the TMDB API but is not endorsed or certified by TMDB.",
+             col(0x5555,0x5555,0x5555));
+        if (!has_result) {
+            text(target, discoverResultBox.x + 14, discoverResultBox.y + 30,
+                 "No recommendation selected.", col(0x5555,0x5555,0x5555));
+            return;
+        }
+        std::string title = result.item.title;
+        if (result.item.year > 0) title += " (" + std::to_string(result.item.year) + ")";
+        text(target, discoverResultBox.x + 16, discoverResultBox.y + 32,
+             tail_to_width(title, discoverResultBox.w - 32), dark);
+        text(target, discoverResultBox.x + 16, discoverResultBox.y + 58,
+             result.item.local_path.empty() ? "External" : "Local", col(0x6666,0,0));
+        text(target, discoverResultBox.x + 16, discoverResultBox.y + 84,
+             tail_to_width(result.reason, discoverResultBox.w - 32), dark);
+        if (!result.item.overview.empty()) {
+            text(target, discoverResultBox.x + 16, discoverResultBox.y + 112,
+                 tail_to_width(result.item.overview, discoverResultBox.w - 32),
+                 col(0x4444,0x4444,0x4444));
+        }
+        if (result.item.id.find("tmdb:") != 0U) {
+            button_on(target, discoverOpenBtn,
+                      result.item.local_path.empty() ? "Open in Library" : "Play in ReddMedia");
         }
     }
 
@@ -1733,6 +2164,7 @@ public:
         fill(buffer, {0,0,W,H}, col(0xdede,0xdede,0xdede));
         draw_controls(buffer);
         if (currentView == ViewMode::Library) draw_library_screen(buffer);
+        if (currentView == ViewMode::Discover) draw_discover_screen(buffer);
         if (currentView == ViewMode::YtDlp) draw_yt_dlp_screen(buffer);
         if (currentView == ViewMode::P2P) draw_p2p_screen(buffer);
         XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
@@ -2159,11 +2591,13 @@ public:
             std::size_t count = 0;
             {
                 std::lock_guard<std::mutex> lock(libraryState->mutex);
-                count = libraryState->videos.size();
+                count = libraryState->nodes.size();
             }
-            const int visible_rows = std::max(1, (libraryListBox.h - 12) / 46);
-            const int max_scroll = std::max(0, static_cast<int>(count) - visible_rows);
-            libraryScroll = std::max(0, std::min(max_scroll, libraryScroll + (button == Button4 ? -1 : 1)));
+            const int columns = std::max(1, (libraryListBox.w) / 152);
+            const int rows = std::max(1, libraryListBox.h / 210);
+            const int max_scroll = std::max(0, static_cast<int>(count) - columns * rows);
+            libraryScroll = std::max(0, std::min(max_scroll,
+                libraryScroll + (button == Button4 ? -columns : columns)));
             redraw();
             return true;
         }
@@ -2233,6 +2667,10 @@ public:
             }
             return;
         }
+        if (y < 26 && discoverTab.contains(x,y)) {
+            if (currentView != ViewMode::Discover) switch_view(ViewMode::Discover);
+            return;
+        }
         if (y < 26 && ytdlpTab.contains(x,y)) {
             if (currentView != ViewMode::YtDlp) { switch_view(ViewMode::YtDlp); return; }
             show_ytdlp_menu(ytdlpTab.x, 26);
@@ -2243,16 +2681,63 @@ public:
             return;
         }
         if (currentView == ViewMode::Library) {
+            if (libraryMoviesBtn.contains(x,y)) {
+                select_library_type(reddmedia::LibraryMediaType::Movies);
+                return;
+            }
+            if (libraryTvBtn.contains(x,y)) {
+                select_library_type(reddmedia::LibraryMediaType::Television);
+                return;
+            }
             if (libraryAddFolderBtn.contains(x,y)) { add_library_folder(); return; }
-            if (libraryRefreshBtn.contains(x,y)) { start_library_task(2); return; }
-            if (libraryPlayBtn.contains(x,y)) { play_selected_library_video(); return; }
+            if (libraryUnlinkFolderBtn.contains(x,y)) { unlink_library_folder(); return; }
+            if (libraryRefreshBtn.contains(x,y)) {
+                if (libraryTypeChosen) start_library_task(2);
+                return;
+            }
+            if (libraryBackBtn.contains(x,y)) { library_back(); return; }
             for (std::size_t row = 0; row < libraryRows.size(); ++row) {
                 if (libraryRows[row].contains(x,y)) {
                     librarySelected = libraryScroll + static_cast<int>(row);
                     redraw();
+                    open_selected_library_item();
                     return;
                 }
             }
+            return;
+        }
+        if (currentView == ViewMode::Discover) {
+            if (discoverUsualTab.contains(x,y)) {
+                discoverMode = reddmedia::RecommendationMode::Usual;
+                redraw();
+                return;
+            }
+            if (discoverRandomTab.contains(x,y)) {
+                discoverMode = reddmedia::RecommendationMode::Random;
+                redraw();
+                return;
+            }
+            if (discoverLocalMovieBtn.contains(x,y)) {
+                start_discover_task(reddmedia::RecommendationSource::Local,
+                                    reddmedia::RecommendationMediaType::Movie);
+                return;
+            }
+            if (discoverLocalTvBtn.contains(x,y)) {
+                start_discover_task(reddmedia::RecommendationSource::Local,
+                                    reddmedia::RecommendationMediaType::Television);
+                return;
+            }
+            if (discoverExternalMovieBtn.contains(x,y)) {
+                start_discover_task(reddmedia::RecommendationSource::External,
+                                    reddmedia::RecommendationMediaType::Movie);
+                return;
+            }
+            if (discoverExternalTvBtn.contains(x,y)) {
+                start_discover_task(reddmedia::RecommendationSource::External,
+                                    reddmedia::RecommendationMediaType::Television);
+                return;
+            }
+            if (discoverOpenBtn.contains(x,y)) { open_discover_result(); return; }
             return;
         }
         if (currentView == ViewMode::P2P) {
@@ -2439,21 +2924,24 @@ public:
                         std::size_t count = 0;
                         {
                             std::lock_guard<std::mutex> lock(libraryState->mutex);
-                            count = libraryState->videos.size();
+                            count = libraryState->nodes.size();
                         }
                         if (ks == XK_Return || ks == XK_KP_Enter || ks == XK_space) {
-                            play_selected_library_video();
+                            open_selected_library_item();
                         } else if (ks == XK_Up && count > 0U) {
                             librarySelected = std::max(0, librarySelected - 1);
                             if (librarySelected < libraryScroll) libraryScroll = librarySelected;
                             redraw();
                         } else if (ks == XK_Down && count > 0U) {
                             librarySelected = std::min(static_cast<int>(count) - 1, librarySelected + 1);
-                            const int visible_rows = std::max(1, (libraryListBox.h - 12) / 46);
-                            if (librarySelected >= libraryScroll + visible_rows) libraryScroll = librarySelected - visible_rows + 1;
+                            const int visible_items = std::max(1,
+                                (libraryListBox.w / 152) * (libraryListBox.h / 210));
+                            if (librarySelected >= libraryScroll + visible_items) {
+                                libraryScroll = librarySelected - visible_items + 1;
+                            }
                             redraw();
                         } else if (ks == XK_r || ks == XK_R) {
-                            start_library_task(2);
+                            if (libraryTypeChosen) start_library_task(2);
                         } else if (ks == XK_a || ks == XK_A) {
                             add_library_folder();
                         }
@@ -2473,6 +2961,7 @@ public:
             tick_resume_seek();
             poll_ytdlp_process();
             poll_library_worker();
+            poll_discover_worker();
             if (mediaServer.poll() && !fullscreen) redraw();
             if (currentMediaIsYtDlpStream && mp) playback_length_ms();
             if (!fullscreen && currentView == ViewMode::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
@@ -2492,6 +2981,16 @@ public:
             if (busy) libraryWorker.detach();
             else libraryWorker.join();
         }
+        if (discoverWorker.joinable()) {
+            bool busy = false;
+            {
+                std::lock_guard<std::mutex> lock(discoverState->mutex);
+                busy = discoverState->busy;
+            }
+            if (busy) discoverWorker.detach();
+            else discoverWorker.join();
+        }
+        mediaServer.stop();
         stop_ytdlp_process();
         close_context_menu();
         save_session();
@@ -2511,7 +3010,108 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.15\n");
+        printf("ReddMedia v0.0.16\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {
+        reddmedia::EmbeddingEngine engine(
+            exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf");
+        std::vector<float> embedding;
+        std::string error;
+        if (!engine.embed_document("ReddMedia offline embedding validation", embedding, error) ||
+            embedding.empty()) {
+            std::fprintf(stderr, "ReddMedia embedding model FAIL: %s\n", error.c_str());
+            return 1;
+        }
+        std::printf("ReddMedia embedding model PASS: %zu dimensions%s.\n",
+                    embedding.size(), engine.using_real_model() ? " (llama.cpp)" : " (test stub)");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--discover-ai-self-test") {
+        const std::string history_path = "/tmp/reddmedia-v16-discover-" +
+            std::to_string(static_cast<long long>(getpid())) + ".sqlite3";
+        unlink(history_path.c_str());
+        reddmedia::RecommendationEngine engine(
+            exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf",
+            history_path);
+        reddmedia::MediaDescriptor watched_movie;
+        watched_movie.id = "watched-movie";
+        watched_movie.title = "A Space Voyage";
+        watched_movie.overview = "Explorers travel through deep space.";
+        watched_movie.media_type = reddmedia::RecommendationMediaType::Movie;
+        reddmedia::MediaDescriptor watched_tv = watched_movie;
+        watched_tv.id = "watched-tv";
+        watched_tv.title = "Space Station Crew";
+        watched_tv.media_type = reddmedia::RecommendationMediaType::Television;
+        std::string error;
+        if (!engine.record_started(watched_movie, error) ||
+            !engine.record_started(watched_tv, error)) {
+            std::fprintf(stderr, "ReddMedia Discover AI FAIL: %s\n", error.c_str());
+            unlink(history_path.c_str());
+            return 1;
+        }
+        std::vector<reddmedia::MediaDescriptor> local_items;
+        reddmedia::MediaDescriptor movie = watched_movie;
+        movie.id = "local-movie";
+        movie.title = "Galaxy Travelers";
+        movie.local_path = "/validation/local-movie.mkv";
+        local_items.push_back(movie);
+        reddmedia::MediaDescriptor television = watched_tv;
+        television.id = "local-tv";
+        television.title = "Orbital Crew";
+        local_items.push_back(television);
+        for (const reddmedia::RecommendationMode mode : {
+                 reddmedia::RecommendationMode::Usual,
+                 reddmedia::RecommendationMode::Random}) {
+            for (const reddmedia::RecommendationMediaType type : {
+                     reddmedia::RecommendationMediaType::Movie,
+                     reddmedia::RecommendationMediaType::Television}) {
+                reddmedia::RecommendationRequest request;
+                request.source = reddmedia::RecommendationSource::Local;
+                request.media_type = type;
+                request.mode = mode;
+                reddmedia::RecommendationResult result;
+                if (!engine.recommend(request, local_items, result, error) || result.item.id.empty()) {
+                    std::fprintf(stderr, "ReddMedia Discover AI FAIL: %s\n", error.c_str());
+                    unlink(history_path.c_str());
+                    return 1;
+                }
+            }
+        }
+        unlink(history_path.c_str());
+        std::printf("ReddMedia Discover AI PASS: Local Usual/Random Movie/TV.\n");
+        return 0;
+    }
+    if (argc > 1 &&
+        (std::string(argv[1]) == "--media-server-lifecycle-test" ||
+         std::string(argv[1]) == "--media-server-parent-death-hold")) {
+        reddmedia::MediaServerManager server;
+        server.start();
+        bool ready = false;
+        for (int attempt = 0; attempt < 600; ++attempt) {
+            server.poll();
+            if (server.state() == reddmedia::MediaServerState::Ready) {
+                ready = true;
+                break;
+            }
+            usleep(200000);
+        }
+        if (!ready) {
+            std::fprintf(stderr, "ReddMedia integrated server lifecycle FAIL: startup timeout.\n");
+            server.stop();
+            return 1;
+        }
+        if (std::string(argv[1]) == "--media-server-parent-death-hold") {
+            std::printf("ReddMedia integrated server parent-death test READY.\n");
+            std::fflush(stdout);
+            while (true) pause();
+        }
+        server.stop();
+        if (server.state() != reddmedia::MediaServerState::Stopped) {
+            std::fprintf(stderr, "ReddMedia integrated server lifecycle FAIL: stop state.\n");
+            return 1;
+        }
+        std::printf("ReddMedia integrated server graceful shutdown PASS.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {

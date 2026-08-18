@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=ReddMedia
-Comment=ReddMedia native player, media library, and hidden server
-Exec=/home/dereksparks1982/DKLab/Projects/ReddMedia/ReddMedia_v15
-Icon=reddmedia
-StartupWMClass=ReddMedia
-Terminal=false
-Categories=AudioVideo;Player;

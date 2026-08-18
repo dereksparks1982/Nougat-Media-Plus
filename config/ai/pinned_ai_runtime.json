@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "runtime": {
+    "name": "llama.cpp",
+    "repository": "https://github.com/ggml-org/llama.cpp",
+    "commit": "9731ad3f29da96f588711a0d1eb08cf210721e16",
+    "archive": "components/ai/source/llama.cpp-pinned-source.zip",
+    "sha256": "8dc808f9e0166c7fe9f5ec73884392d528c1198fd2ce89f0d60971d7d55ae998",
+    "license": "MIT"
+  },
+  "embedding_model": {
+    "name": "nomic-embed-text-v1.5",
+    "format": "GGUF",
+    "quantization": "Q4_K_M",
+    "repository": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF",
+    "revision": "0188c9bf409793f810680a5a431e7b899c46104c",
+    "file": "components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf",
+    "bytes": 84106624,
+    "sha256": "d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac",
+    "license": "Apache-2.0",
+    "task_prefix": "search_document: ",
+    "inference": "local CPU only"
+  },
+  "external_catalog": {
+    "name": "TMDb",
+    "base_url": "https://api.themoviedb.org",
+    "credential": "user-supplied read-access token",
+    "credential_file": "~/.config/reddmedia/ai/tmdb.token",
+    "credential_mode": "0600"
+  }
+}

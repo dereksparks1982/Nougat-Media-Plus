@@ -1,5 +1,6 @@
 #include "jellyfin_api_client.hpp"
 
+#include <algorithm>
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cctype>
@@ -23,7 +24,10 @@ namespace {
 
 constexpr const char* kClientHeader =
     "MediaBrowser Client=\"ReddMedia\", DeviceId=\"reddmedia-local\", "
-    "Device=\"ReddMedia\", Version=\"0.0.15\"";
+    "Device=\"ReddMedia\", Version=\"0.0.16\"";
+
+constexpr const char* kMovieLibraryName = "ReddMedia Movies";
+constexpr const char* kTelevisionLibraryName = "ReddMedia TV";
 
 std::string lower_copy(std::string value) {
     for (char& character : value) {
@@ -178,6 +182,65 @@ std::vector<std::string> json_array_objects(const std::string& text, const std::
     return objects;
 }
 
+std::vector<std::string> json_root_array_objects(const std::string& text) {
+    std::vector<std::string> objects;
+    std::size_t position = text.find('[');
+    if (position == std::string::npos) return objects;
+    bool in_string = false;
+    bool escaped = false;
+    int object_depth = 0;
+    std::size_t object_start = std::string::npos;
+    for (++position; position < text.size(); ++position) {
+        const char character = text[position];
+        if (in_string) {
+            if (escaped) escaped = false;
+            else if (character == '\\') escaped = true;
+            else if (character == '"') in_string = false;
+            continue;
+        }
+        if (character == '"') in_string = true;
+        else if (character == '{') {
+            if (object_depth == 0) object_start = position;
+            ++object_depth;
+        } else if (character == '}' && object_depth > 0) {
+            --object_depth;
+            if (object_depth == 0 && object_start != std::string::npos) {
+                objects.push_back(text.substr(object_start, position - object_start + 1U));
+                object_start = std::string::npos;
+            }
+        } else if (character == ']' && object_depth == 0) break;
+    }
+    return objects;
+}
+
+std::vector<std::string> json_string_array(const std::string& text, const std::string& key) {
+    std::vector<std::string> values;
+    const std::string marker = "\"" + key + "\"";
+    std::size_t position = text.find(marker);
+    if (position == std::string::npos) return values;
+    position = text.find('[', position + marker.size());
+    if (position == std::string::npos) return values;
+    const std::size_t end = text.find(']', position + 1U);
+    if (end == std::string::npos) return values;
+    while (position < end) {
+        const std::size_t quote = text.find('"', position + 1U);
+        if (quote == std::string::npos || quote >= end) break;
+        const std::string tail = text.substr(quote);
+        const std::string value = json_string_value("{\"value\":" + tail + "}", "value");
+        if (!value.empty()) values.push_back(value);
+        std::size_t next = quote + 1U;
+        bool escaped = false;
+        while (next < end) {
+            if (!escaped && text[next] == '"') { ++next; break; }
+            if (!escaped && text[next] == '\\') escaped = true;
+            else escaped = false;
+            ++next;
+        }
+        position = next;
+    }
+    return values;
+}
+
 std::string url_encode(const std::string& value) {
     static const char* digits = "0123456789ABCDEF";
     std::string result;
@@ -243,16 +306,49 @@ std::string decode_chunked(const std::string& body) {
     return result;
 }
 
-std::string media_folder_name(const std::string& path) {
-    unsigned long long hash = 1469598103934665603ULL;
-    for (const unsigned char character : path) {
-        hash ^= character;
-        hash *= 1099511628211ULL;
+const char* library_name(LibraryMediaType media_type) {
+    return media_type == LibraryMediaType::Movies ? kMovieLibraryName : kTelevisionLibraryName;
+}
+
+const char* collection_type(LibraryMediaType media_type) {
+    return media_type == LibraryMediaType::Movies ? "movies" : "tvshows";
+}
+
+LibraryNodeKind node_kind(const std::string& type) {
+    if (type == "BoxSet") return LibraryNodeKind::MovieCollection;
+    if (type == "Series") return LibraryNodeKind::Series;
+    if (type == "Season") return LibraryNodeKind::Season;
+    if (type == "Episode") return LibraryNodeKind::Episode;
+    return LibraryNodeKind::Movie;
+}
+
+LibraryNode parse_library_node(const std::string& object) {
+    LibraryNode node;
+    node.id = json_string_value(object, "Id");
+    node.parent_id = json_string_value(object, "ParentId");
+    node.series_id = json_string_value(object, "SeriesId");
+    node.season_id = json_string_value(object, "SeasonId");
+    node.name = json_string_value(object, "Name");
+    node.path = json_string_value(object, "Path");
+    node.overview = json_string_value(object, "Overview");
+    node.genres = json_string_array(object, "Genres");
+    node.production_year = json_int_value(object, "ProductionYear");
+    node.child_count = json_int_value(object, "ChildCount");
+    node.kind = node_kind(json_string_value(object, "Type"));
+    const std::size_t image_tags = object.find("\"ImageTags\"");
+    if (image_tags != std::string::npos) {
+        node.primary_image_tag = json_string_value(object.substr(image_tags), "Primary");
     }
-    std::ostringstream value;
-    value << "ReddMedia " << std::hex << std::setw(8) << std::setfill('0')
-          << static_cast<unsigned>(hash & 0xffffffffULL);
-    return value.str();
+    const std::size_t provider_ids = object.find("\"ProviderIds\"");
+    if (provider_ids != std::string::npos) {
+        node.tmdb_id = json_string_value(object.substr(provider_ids), "Tmdb");
+    }
+    return node;
+}
+
+std::string common_item_fields() {
+    return "Path%2CProductionYear%2COverview%2CGenres%2CProviderIds%2CParentId%2C"
+           "SeriesId%2CSeasonId%2CChildCount";
 }
 
 } // namespace
@@ -487,6 +583,35 @@ bool JellyfinApiClient::initialize(std::string& error) {
 }
 
 bool JellyfinApiClient::add_media_folder(const std::string& path, std::string& error) {
+    return add_media_folder(path, LibraryMediaType::Movies, error);
+}
+
+bool JellyfinApiClient::load_media_folders(std::vector<MediaFolder>& folders,
+                                           std::string& error) {
+    if (!initialize(error)) return false;
+    const HttpResponse response = request("GET", "/Library/VirtualFolders", "", true);
+    if (response.status != 200) {
+        error = "ReddMedia could not read its linked media folders.";
+        return false;
+    }
+    std::vector<MediaFolder> loaded;
+    for (const std::string& object : json_root_array_objects(response.body)) {
+        const std::string name = json_string_value(object, "Name");
+        const std::string type = json_string_value(object, "CollectionType");
+        if (name != kMovieLibraryName && name != kTelevisionLibraryName) continue;
+        const LibraryMediaType media_type = type == "tvshows"
+            ? LibraryMediaType::Television : LibraryMediaType::Movies;
+        for (const std::string& path : json_string_array(object, "Locations")) {
+            loaded.push_back({name, path, media_type});
+        }
+    }
+    folders = std::move(loaded);
+    return true;
+}
+
+bool JellyfinApiClient::add_media_folder(const std::string& path,
+                                         LibraryMediaType media_type,
+                                         std::string& error) {
     if (path.empty()) {
         error = "Choose a media folder first.";
         return false;
@@ -498,24 +623,198 @@ bool JellyfinApiClient::add_media_folder(const std::string& path, std::string& e
     }
     if (!initialize(error)) return false;
 
-    const HttpResponse folders = request("GET", "/Library/VirtualFolders", "", true);
-    if (folders.status != 200) {
-        error = "ReddMedia could not read its media folders.";
+    // v0.0.15 created one untyped, hash-named catalog library per selected
+    // path. When the owner chooses that same path under Movies or TV, migrate
+    // only the catalog link into the typed v0.0.16 library. Media files are
+    // never touched.
+    const HttpResponse legacy_response = request("GET", "/Library/VirtualFolders", "", true);
+    if (legacy_response.status != 200) {
+        error = "ReddMedia could not inspect its existing media-folder links.";
         return false;
     }
-    if (folders.body.find("\"" + json_escape(path) + "\"") == std::string::npos) {
-        const std::string target = "/Library/VirtualFolders?name=" +
-            url_encode(media_folder_name(path)) + "&paths=" + url_encode(path) +
-            "&refreshLibrary=false";
-        const std::string body =
-            "{\"LibraryOptions\":{\"Enabled\":true,\"EnableRealtimeMonitor\":true}}";
-        const HttpResponse added = request("POST", target, body, true, 30);
-        if (added.status != 204) {
-            error = "ReddMedia could not add that media folder.";
+    for (const std::string& object : json_root_array_objects(legacy_response.body)) {
+        const std::string name = json_string_value(object, "Name");
+        const std::vector<std::string> locations = json_string_array(object, "Locations");
+        if (name == kMovieLibraryName || name == kTelevisionLibraryName ||
+            std::find(locations.begin(), locations.end(), path) == locations.end()) {
+            continue;
+        }
+        const std::string target = locations.size() == 1U
+            ? "/Library/VirtualFolders?name=" + url_encode(name) + "&refreshLibrary=false"
+            : "/Library/VirtualFolders/Paths?name=" + url_encode(name) +
+              "&path=" + url_encode(path) + "&refreshLibrary=false";
+        if (request("DELETE", target, "", true, 30).status != 204) {
+            error = "ReddMedia could not migrate the existing v0.0.15 folder link.";
             return false;
         }
     }
+
+    std::vector<MediaFolder> folders;
+    if (!load_media_folders(folders, error)) return false;
+    for (const MediaFolder& folder : folders) {
+        if (folder.path == path && folder.media_type == media_type) return refresh_library(error);
+        if (folder.path == path && folder.media_type != media_type) {
+            error = "That folder is already linked to the other ReddMedia library.";
+            return false;
+        }
+    }
+    bool library_exists = false;
+    for (const MediaFolder& folder : folders) {
+        if (folder.media_type == media_type) library_exists = true;
+    }
+    HttpResponse added;
+    if (library_exists) {
+        const std::string body = "{\"Name\":\"" +
+            json_escape(library_name(media_type)) + "\",\"Path\":\"" +
+            json_escape(path) + "\"}";
+        added = request("POST", "/Library/VirtualFolders/Paths?refreshLibrary=false",
+                        body, true, 30);
+    } else {
+        const std::string target = "/Library/VirtualFolders?name=" +
+            url_encode(library_name(media_type)) + "&collectionType=" +
+            collection_type(media_type) + "&paths=" + url_encode(path) +
+            "&refreshLibrary=false";
+        const std::string auto_collections = media_type == LibraryMediaType::Movies
+            ? ",\"AutomaticallyAddToCollection\":true" : "";
+        const std::string body = "{\"LibraryOptions\":{\"Enabled\":true,"
+            "\"EnableRealtimeMonitor\":true" + auto_collections + "}}";
+        added = request("POST", target, body, true, 30);
+    }
+    if (added.status != 204) {
+        error = "ReddMedia could not link that media folder.";
+        return false;
+    }
     return refresh_library(error);
+}
+
+bool JellyfinApiClient::unlink_media_folder(const std::string& path,
+                                            LibraryMediaType media_type,
+                                            std::string& error) {
+    if (!initialize(error)) return false;
+    std::vector<MediaFolder> folders;
+    if (!load_media_folders(folders, error)) return false;
+    int matching_type = 0;
+    bool found = false;
+    for (const MediaFolder& folder : folders) {
+        if (folder.media_type == media_type) ++matching_type;
+        if (folder.media_type == media_type && folder.path == path) found = true;
+    }
+    if (!found) {
+        error = "That folder is not linked to this ReddMedia library.";
+        return false;
+    }
+    const std::string target = matching_type <= 1
+        ? "/Library/VirtualFolders?name=" + url_encode(library_name(media_type)) +
+          "&refreshLibrary=false"
+        : "/Library/VirtualFolders/Paths?name=" + url_encode(library_name(media_type)) +
+          "&path=" + url_encode(path) + "&refreshLibrary=false";
+    const HttpResponse response = request("DELETE", target, "", true, 30);
+    if (response.status != 204) {
+        error = "ReddMedia could not unlink that media folder.";
+        return false;
+    }
+    return refresh_library(error);
+}
+
+bool JellyfinApiClient::load_library_roots(LibraryMediaType media_type,
+                                           std::vector<LibraryNode>& nodes,
+                                           std::string& error) {
+    if (!initialize(error)) return false;
+    const std::string item_types = media_type == LibraryMediaType::Movies
+        ? "BoxSet%2CMovie" : "Series";
+    const std::string collapse = media_type == LibraryMediaType::Movies
+        ? "&collapseBoxSetItems=true" : "";
+    const std::string target = "/Items?userId=" + url_encode(user_id_) +
+        "&recursive=true&includeItemTypes=" + item_types +
+        "&fields=" + common_item_fields() +
+        "&sortBy=SortName&sortOrder=Ascending&enableImages=true" + collapse;
+    const HttpResponse response = request("GET", target, "", true, 60);
+    if (response.status != 200) {
+        error = "ReddMedia could not read this media library.";
+        return false;
+    }
+    std::vector<LibraryNode> loaded;
+    for (const std::string& object : json_array_objects(response.body, "Items")) {
+        LibraryNode node = parse_library_node(object);
+        if (!node.id.empty() && !node.name.empty()) loaded.push_back(std::move(node));
+    }
+    nodes = std::move(loaded);
+    return true;
+}
+
+bool JellyfinApiClient::load_library_children(const LibraryNode& parent,
+                                              std::vector<LibraryNode>& nodes,
+                                              std::string& error) {
+    if (!initialize(error)) return false;
+    std::string item_types;
+    if (parent.kind == LibraryNodeKind::MovieCollection) item_types = "Movie";
+    else if (parent.kind == LibraryNodeKind::Series) item_types = "Season";
+    else if (parent.kind == LibraryNodeKind::Season) item_types = "Episode";
+    else {
+        error = "That library item does not contain another level.";
+        return false;
+    }
+    const std::string target = "/Items?userId=" + url_encode(user_id_) +
+        "&parentId=" + url_encode(parent.id) + "&recursive=false&includeItemTypes=" +
+        item_types + "&fields=" + common_item_fields() +
+        "&sortBy=SortName&sortOrder=Ascending&enableImages=true";
+    const HttpResponse response = request("GET", target, "", true, 60);
+    if (response.status != 200) {
+        error = "ReddMedia could not open that library level.";
+        return false;
+    }
+    std::vector<LibraryNode> loaded;
+    for (const std::string& object : json_array_objects(response.body, "Items")) {
+        LibraryNode node = parse_library_node(object);
+        if (!node.id.empty() && !node.name.empty()) loaded.push_back(std::move(node));
+    }
+    nodes = std::move(loaded);
+    return true;
+}
+
+bool JellyfinApiClient::load_all_recommendation_items(std::vector<LibraryNode>& nodes,
+                                                      std::string& error) {
+    if (!initialize(error)) return false;
+    const std::string target = "/Items?userId=" + url_encode(user_id_) +
+        "&recursive=true&includeItemTypes=Movie%2CSeries&fields=" +
+        common_item_fields() +
+        "&sortBy=SortName&sortOrder=Ascending&enableImages=true";
+    const HttpResponse response = request("GET", target, "", true, 60);
+    if (response.status != 200) {
+        error = "ReddMedia could not read local recommendation metadata.";
+        return false;
+    }
+    std::vector<LibraryNode> loaded;
+    for (const std::string& object : json_array_objects(response.body, "Items")) {
+        LibraryNode node = parse_library_node(object);
+        if (!node.id.empty() && !node.name.empty()) loaded.push_back(std::move(node));
+    }
+    nodes = std::move(loaded);
+    return true;
+}
+
+bool JellyfinApiClient::load_primary_image_bmp(const std::string& item_id,
+                                               int width,
+                                               int height,
+                                               std::string& bytes,
+                                               std::string& error) {
+    if (!initialize(error)) return false;
+    if (item_id.empty()) {
+        error = "A library item is required before loading its poster.";
+        return false;
+    }
+    width = std::max(32, std::min(1024, width));
+    height = std::max(32, std::min(1536, height));
+    const std::string target = "/Items/" + url_encode(item_id) +
+        "/Images/Primary?format=Bmp&maxWidth=" + std::to_string(width) +
+        "&maxHeight=" + std::to_string(height) + "&quality=90";
+    const HttpResponse response = request("GET", target, "", true, 30);
+    if (response.status != 200 || response.body.empty()) {
+        error = "No poster is available for this library item.";
+        return false;
+    }
+    bytes = response.body;
+    return true;
 }
 
 bool JellyfinApiClient::refresh_library(std::string& error) {

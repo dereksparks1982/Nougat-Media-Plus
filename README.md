@@ -1,8 +1,18 @@
-# ReddMedia v0.0.15
+# ReddMedia v0.0.16
 
-ReddMedia is an integrated Linux media player and media server by Elderredd Softworks. It combines native local playback, a hidden Jellyfin catalog foundation, YouTube downloading/playback powered by yt-dlp, and built-in P2P file transfer and streaming in one application package.
+ReddMedia is an integrated Linux media player and media server by Elderredd Softworks. It combines native local playback, a hidden Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, YouTube downloading/playback powered by yt-dlp, and built-in P2P file transfer and streaming in one application package.
 
-## Current build: v0.0.15 Native Library and Hidden Media Catalog Repair
+## Current build: v0.0.16 Native Library and Discover AI
+
+v0.0.16 replaces the temporary flat Library file list with a native poster grid and two explicit entry points: **Movies** and **TV**. Movies show real cataloged movie titles and metadata-created box sets. TV shows series first, then seasons, then episodes. No sample or invented titles are inserted. Each media type supports more than one linked folder, unlinking removes only the catalog link, and playable items continue through ReddMedia's existing embedded player using their real local file paths.
+
+The new top-level **Discover** tab contains the two approved modes, **Usual** and **Random**. Its heading changes between **DISCOVER USUAL** and **DISCOVER RANDOM**, and each mode exposes exactly **Local Movie**, **Local TV**, **External Movie**, and **External TV**. Every request returns one recommendation. Usual uses private SQLite viewing history and local Nomic embeddings; Random does not read the viewing profile. External results come from TMDb, exclude titles already identified in the local catalog, and require a user-supplied TMDb read-access token stored with mode `0600`.
+
+Embeddings run locally on the CPU with pinned llama.cpp source and the bundled `nomic-embed-text-v1.5` Q4_K_M GGUF model. Metadata sent to TMDb is limited to catalog requests; viewing history and embeddings remain local.
+
+The v0.0.16 owner-test repair builds only llama.cpp's required shared libraries. The hidden catalog server now lives for exactly the ReddMedia process lifetime: closing ReddMedia stops and reaps its owned Jellyfin process, and a parent-death safeguard stops it if ReddMedia is forcibly terminated. Repair 2 also corrects the failed-candidate rollback so tracked files return atomically to the committed v0.0.15 baseline while the accepted untracked Jellyfin runtime is preserved. It can recognize, back up, and recover the exact hash-verified leftovers produced by the rejected original v0.0.16 candidate; it will not overwrite any different dirty state.
+
+## Previous build: v0.0.15 Native Library and Hidden Media Catalog Repair
 
 v0.0.15 adds the stable Jellyfin 10.11.11 service as hidden catalog machinery behind ReddMedia. Its web client is disabled, first-run setup is completed privately through the local API, and remote access is disabled. The native ReddMedia window now has a Library tab for adding media folders, scanning, selecting titles, and playing them. Library selections resolve to their real local file paths and enter the same embedded libVLC player used by Open File, P2P, and YouTube; they do not open a browser or an external player and do not pass local playback through Jellyfin transcoding.
 
@@ -36,7 +46,7 @@ The v0.0.10 stabilization pass keeps the same feature version while repairing de
 - Stream sockets have bounded send/receive waits so abandoned seek connections cannot hang indefinitely.
 - The installer reapplies and verifies the ReddMedia red-triangle custom icon on the versioned executable.
 
-The versioned executable is `ReddMedia_v15`.
+The versioned executable is `ReddMedia_v16`.
 
 ### v0.0.13 YouTube seek and close stability repair
 
@@ -84,6 +94,9 @@ Owner testing proved P2P Stop/Resume but exposed two release defects before acce
 
 - Native X11 desktop interface.
 - Native media Library with folder selection, local catalog scanning, title selection, and direct playback in the existing embedded player.
+- Native Movies/TV hierarchy with real poster metadata, movie box sets, series, seasons, and episodes.
+- Discover Usual/Random recommendations across Local Movie, Local TV, External Movie, and External TV.
+- Local SQLite history and offline llama.cpp/Nomic metadata embeddings.
 - Hidden local Jellyfin 10.11.11 catalog service with no exposed Jellyfin setup/player web interface.
 - VLC/libVLC local video playback.
 - Open, Play/Pause, Stop, Rewind 10s, Fast Forward 10s, timeline seeking, volume, fullscreen, and resume support.
@@ -106,19 +119,19 @@ ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpe
 From the ReddMedia project folder:
 
 ```bash
-./ReddMedia_v15
+./ReddMedia_v16
 ```
 
 Version check:
 
 ```bash
-./ReddMedia_v15 --version
+./ReddMedia_v16 --version
 ```
 
 Expected output:
 
 ```text
-ReddMedia v0.0.15
+ReddMedia v0.0.16
 ```
 
 # Release history

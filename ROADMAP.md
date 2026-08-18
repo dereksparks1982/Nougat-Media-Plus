@@ -1,6 +1,17 @@
 # ReddMedia Roadmap
 
-## Current: v0.0.15 Native Library and Hidden Media Catalog
+## Current: v0.0.16 Native Library and Discover AI
+
+- Present Movies and TV as native title grids rather than a flat file list.
+- Navigate TV by series, season, and episode; navigate metadata-created movie box sets before individual films.
+- Link and unlink multiple typed folders without modifying the owner's media files.
+- Add Discover Usual and Discover Random with Local Movie, Local TV, External Movie, and External TV.
+- Keep viewing history and embedding inference local with SQLite, llama.cpp, and Nomic Embed Text.
+- Use TMDb only for optional External results, remove locally owned titles, and never substitute invented data.
+- Preserve direct playback in the existing ReddMedia player and the red-tree identity.
+- Keep the hidden catalog process tied to the ReddMedia process lifetime so normal or forced application close releases port 8096.
+
+## Completed foundation: v0.0.15 Native Library and Hidden Media Catalog
 
 - Bundle the stable Jellyfin 10.11.11 server and web runtime from pinned Ubuntu 26.04 packages.
 - Start and supervise the server as a hidden ReddMedia catalog component with its web client disabled.

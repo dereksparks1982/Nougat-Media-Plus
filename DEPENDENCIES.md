@@ -1,5 +1,13 @@
 # ReddMedia Dependencies
 
+## v0.0.16 integrated Library and Discover requirements
+
+ReddMedia v0.0.16 bundles pinned llama.cpp source and the Nomic Embed Text v1.5 Q4_K_M GGUF model. The patch installer builds a portable CPU-only shared llama.cpp runtime under `components/ai/runtime/`; no remote inference service or Python AI framework is used. SQLite is loaded from the normal Linux `libsqlite3` runtime for private viewing history. External recommendations use the installed `curl` command for HTTPS requests to TMDb.
+
+The installer disables llama.cpp's optional application, tools, examples, tests, server, and common-utility targets and builds the required `llama` shared-library target directly.
+
+The exact AI source/model revisions and SHA-256 hashes are recorded in `config/ai/pinned_ai_runtime.json`.
+
 ## v0.0.15 integrated server requirements
 
 ReddMedia bundles the official stable Jellyfin 10.11.11 server and web packages for Ubuntu 26.04 amd64. Installation uses `dpkg-deb` to extract their runtime files into the ReddMedia component tree; it does not install a system Jellyfin service and does not require Node, npm, or the .NET SDK. The web package is retained for exact upstream source/package preservation, but the running catalog uses `--nowebclient` and ReddMedia supplies the only user interface and player.
@@ -10,13 +18,15 @@ ReddMedia is currently developed and validated on Ubuntu Linux.
 
 ## Runtime dependencies
 
-A normal user running ReddMedia v0.0.15 needs:
+A normal user running ReddMedia v0.0.16 needs:
 
 ```bash
 sudo apt install -y \
   vlc \
   ffmpeg \
   zenity \
+  curl \
+  libsqlite3-0 \
   libx11-6 \
   libfontconfig1 \
   libicu78 \
@@ -29,6 +39,8 @@ sudo apt install -y \
 - `vlc` provides VLC/libVLC, ReddMedia's playback engine.
 - `ffmpeg` provides FFmpeg/FFprobe for yt-dlp merging and media post-processing.
 - `zenity` provides the current Linux file and folder dialogs.
+- `curl` provides authenticated HTTPS access to the optional TMDb external catalog.
+- `libsqlite3-0` provides the local viewing-history database engine.
 - `libx11-6` provides the X11 runtime used by ReddMedia's native desktop interface.
 - `libfontconfig1`, `libicu78`, and `libjemalloc2` satisfy the upstream Jellyfin Ubuntu 26.04 runtime package requirements.
 - `libtorrent-rasterbar2.0t64` provides the P2P runtime engine.

@@ -1,0 +1,230 @@
+{
+  "format": "REDDMEDIA_CHANGED_FILES_PATCH",
+  "format_version": 1,
+  "package_name": "ReddMedia_v0_0_16_NATIVE_LIBRARY_AND_DISCOVER_AI_REPAIR_2_CHANGED_FILES_ONLY.zip",
+  "target_version": "0.0.16",
+  "required_base_version": "0.0.15",
+  "required_base_commit": "d67cf6e5e0e3ce3036adae5d9695147a7aa771e8",
+  "required_base_snapshot": {
+    "path": "$HOME/DKLab/Archives/ReddMedia Archive/ReddMedia_v0_0_15_TECHNICALLY_WORKING_20260818_133901",
+    "executable_sha256": "aab6981418c8fc8da0640a30be74267d4fbe98b4d2d7ecbd42fbe45330706e6d"
+  },
+  "direct_project_root_payload": true,
+  "changed_files_only": true,
+  "added_paths": [
+    "components/ai/source/llama.cpp-pinned-source.zip",
+    "components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf",
+    "config/ai/pinned_ai_runtime.json",
+    "REDDMEDIA_PATCH_MANIFEST.json",
+    "docs/builds/REDDMEDIA_v0_0_16_NATIVE_LIBRARY_AND_DISCOVER_AI_VALIDATION.md",
+    "docs/builds/REDDMEDIA_v0_0_16_NATIVE_LIBRARY_AND_DISCOVER_AI_HANDSHAKE.md",
+    "docs/builds/REDDMEDIA_v0_0_16_NATIVE_LIBRARY_AND_DISCOVER_AI_REPAIR.md",
+    "docs/builds/REDDMEDIA_v0_0_16_NATIVE_LIBRARY_AND_DISCOVER_AI_REPAIR_2.md",
+    "licenses/ai/LLAMA_CPP_MIT_LICENSE.txt",
+    "licenses/ai/NOMIC_EMBED_TEXT_APACHE_2_LICENSE.txt",
+    "ReddMedia_v16.desktop",
+    "src/media_server/library_poster.cpp",
+    "src/media_server/library_poster.hpp",
+    "src/recommendations/recommendation_types.hpp",
+    "src/recommendations/viewing_history.cpp",
+    "src/recommendations/viewing_history.hpp",
+    "src/recommendations/recommendation_engine.cpp",
+    "src/recommendations/recommendation_engine.hpp",
+    "src/recommendations/embedding_engine.cpp",
+    "src/recommendations/embedding_engine.hpp",
+    "src/recommendations/tmdb_client.cpp",
+    "src/recommendations/tmdb_client.hpp",
+    "tools/test_reddmedia_discover_v16.py",
+    "tools/test_media_server_lifecycle_v16.py",
+    "tools/test_installer_rollback_v16.py",
+    "INSTALL_REDDMEDIA_v0_0_16.sh"
+  ],
+  "modified_paths": [
+    "CHANGELOG.md",
+    "CMakeLists.txt",
+    "DEPENDENCIES.md",
+    "KNOWN_BUGS.md",
+    "README.md",
+    "ROADMAP.md",
+    "ReddMedia.desktop",
+    "THIRD_PARTY_NOTICES.md",
+    "src/main.cpp",
+    "src/media_server/jellyfin_api_client.cpp",
+    "src/media_server/jellyfin_api_client.hpp",
+    "src/media_server/media_server_manager.cpp",
+    "src/media_server/media_server_manager.hpp"
+  ],
+  "deletions": [
+    "ReddMedia_v15",
+    "ReddMedia_v15.desktop"
+  ],
+  "generated_untracked_paths": [
+    "components/ai/runtime/"
+  ],
+  "preserved_untracked_paths": [
+    "components/jellyfin/runtime/"
+  ],
+  "pinned_inputs": {
+    "llama_cpp_commit": "9731ad3f29da96f588711a0d1eb08cf210721e16",
+    "llama_cpp_archive_sha256": "8dc808f9e0166c7fe9f5ec73884392d528c1198fd2ce89f0d60971d7d55ae998",
+    "nomic_revision": "0188c9bf409793f810680a5a431e7b899c46104c",
+    "nomic_model_sha256": "d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac"
+  },
+  "control_files": [
+    "REDDMEDIA_PATCH_MANIFEST.json"
+  ],
+  "files": {
+    "components/ai/source/llama.cpp-pinned-source.zip": {
+      "bytes": 38805576,
+      "sha256": "8dc808f9e0166c7fe9f5ec73884392d528c1198fd2ce89f0d60971d7d55ae998"
+    },
+    "components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf": {
+      "bytes": 84106624,
+      "sha256": "d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac"
+    },
+    "config/ai/pinned_ai_runtime.json": {
+      "bytes": 1131,
+      "sha256": "8234fd3084c01c13768c51f4b2d68088bf91f4db3e102bd39a35ba73311fdca0"
+    },
+    "docs/builds/REDDMEDIA_v0_0_16_NATIVE_LIBRARY_AND_DISCOVER_AI_VALIDATION.md": {
+      "bytes": 3584,
+      "sha256": "898d3b0683a4ed2f382184d64e92d8e54b766ed2a0b4c74306b920986a1229f8"
+    },
+    "docs/builds/REDDMEDIA_v0_0_16_NATIVE_LIBRARY_AND_DISCOVER_AI_HANDSHAKE.md": {
+      "bytes": 2343,
+      "sha256": "e9cfa456b6cc6056b3d41ed17670079238beae006fd2731799d518fc5afb0e31"
+    },
+    "docs/builds/REDDMEDIA_v0_0_16_NATIVE_LIBRARY_AND_DISCOVER_AI_REPAIR.md": {
+      "bytes": 2124,
+      "sha256": "ed580de9121b0cb96d8ef9ef8d32af944b09bcee993fe43d79c283b64c55853f"
+    },
+    "docs/builds/REDDMEDIA_v0_0_16_NATIVE_LIBRARY_AND_DISCOVER_AI_REPAIR_2.md": {
+      "bytes": 2026,
+      "sha256": "7f022ba7e8ae129a0e22d4a2c009342a9d2e4e1b4bda6595cc8bb32ef7b6b5a9"
+    },
+    "licenses/ai/LLAMA_CPP_MIT_LICENSE.txt": {
+      "bytes": 1078,
+      "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+    },
+    "licenses/ai/NOMIC_EMBED_TEXT_APACHE_2_LICENSE.txt": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "ReddMedia_v16.desktop": {
+      "bytes": 285,
+      "sha256": "8cfd319289397a632da19d5b331c653f103108810d9925492d4c34897d29c6bb"
+    },
+    "src/media_server/library_poster.cpp": {
+      "bytes": 3455,
+      "sha256": "f7cab43ecb26f635427a62c8b8545d1c8c656287acc77fec16484e2f73e82b05"
+    },
+    "src/media_server/library_poster.hpp": {
+      "bytes": 383,
+      "sha256": "4a00db766586c76b29dc207cf6cb53d33d9982660f36e808b93ff1efa94210c5"
+    },
+    "src/recommendations/recommendation_types.hpp": {
+      "bytes": 1018,
+      "sha256": "d5deec872831db76e601f12e513cdd2bc118a0e709bbb9d8bb7d1ec140d8af39"
+    },
+    "src/recommendations/viewing_history.cpp": {
+      "bytes": 11694,
+      "sha256": "8a0ad81406294ed25a1f164d1bdcce7e374a19bfd399e8cb2350231bf17485f0"
+    },
+    "src/recommendations/viewing_history.hpp": {
+      "bytes": 946,
+      "sha256": "2faa5607a21c9c8b5102a63f12b9e26f478a7cd84677ad31fa45ac4574b6553b"
+    },
+    "src/recommendations/recommendation_engine.cpp": {
+      "bytes": 8268,
+      "sha256": "15f7539d7e24d567baff3a5a90b40e15bbbb214a54359a05f76279bdc34f54f6"
+    },
+    "src/recommendations/recommendation_engine.hpp": {
+      "bytes": 1459,
+      "sha256": "f1719b5520396951e3ed9355030d5621b129eabadcbe20f352a029ea46a83d18"
+    },
+    "src/recommendations/embedding_engine.cpp": {
+      "bytes": 6589,
+      "sha256": "7d10dd0a44545e84f6d6c69829e5c871dca17db53bcd63d9fbdb9bbb0f96fa94"
+    },
+    "src/recommendations/embedding_engine.hpp": {
+      "bytes": 824,
+      "sha256": "acde664f7fdf17add87d5679259e4081a95c6b3da02379a4ea218f17f54dae61"
+    },
+    "src/recommendations/tmdb_client.cpp": {
+      "bytes": 12490,
+      "sha256": "aedfeae4e5675d3f4550fc64850c5d9616e48841b7212d058263d98a77f315c6"
+    },
+    "src/recommendations/tmdb_client.hpp": {
+      "bytes": 738,
+      "sha256": "7b4c8d683b66555e81f9e16e3430b5d9c4b80387cda3cf904a6ce08552007794"
+    },
+    "tools/test_reddmedia_discover_v16.py": {
+      "bytes": 16942,
+      "sha256": "32c33832b48558cec3d4be3c1855d22a37265b6f913c5d015c6690b4aa2abcf8"
+    },
+    "tools/test_media_server_lifecycle_v16.py": {
+      "bytes": 5597,
+      "sha256": "30c86a5aeadce193df384348c85219578c76b730454821769f079dbb51d1c686"
+    },
+    "tools/test_installer_rollback_v16.py": {
+      "bytes": 4200,
+      "sha256": "28146a1467ecee2b86677a7b8685428b16135168dec2f2e91f8709ea61ffa837"
+    },
+    "INSTALL_REDDMEDIA_v0_0_16.sh": {
+      "bytes": 19684,
+      "sha256": "bc98685983d84137dd9c13e5c786388163c4331b3b4f009e091c77f426d84d48"
+    },
+    "CHANGELOG.md": {
+      "bytes": 13225,
+      "sha256": "f1eab618c302ab1dd47812cb5c908ff7b24adfd49e30c1ba0f51c8a29f57d3b9"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2162,
+      "sha256": "a90a945bb3eb91f8ffd0f219a3f6a770f5aa91bf43f801ff5f8575748e2a45bc"
+    },
+    "DEPENDENCIES.md": {
+      "bytes": 4571,
+      "sha256": "3a9c21803eedc76d3c161a6ab6faa5a39e2ed395440ff65e644efacaa2380ef3"
+    },
+    "KNOWN_BUGS.md": {
+      "bytes": 3345,
+      "sha256": "b72f10ae59a1c796e335e72a4536cf480c9dfe3cafccf1cd43ab1d7aac618db1"
+    },
+    "README.md": {
+      "bytes": 25407,
+      "sha256": "572da0c48699accc543dde0a82a222abbb99853174c05c988d7c3f52e2c463a3"
+    },
+    "ROADMAP.md": {
+      "bytes": 6001,
+      "sha256": "029a20b668e3a50a9bff7f6f7306301070fe81349e8f7612e2974404344cb9ce"
+    },
+    "ReddMedia.desktop": {
+      "bytes": 285,
+      "sha256": "8cfd319289397a632da19d5b331c653f103108810d9925492d4c34897d29c6bb"
+    },
+    "THIRD_PARTY_NOTICES.md": {
+      "bytes": 1850,
+      "sha256": "fc2aafc31c3a886d70567b2e722c044ac0db8f71f62b59c45c7be31b64ee4b60"
+    },
+    "src/main.cpp": {
+      "bytes": 152243,
+      "sha256": "ffe0b57d6a831a9e72563985069b612aa4e0fc9198c6521c39c743df383a18fd"
+    },
+    "src/media_server/jellyfin_api_client.cpp": {
+      "bytes": 36362,
+      "sha256": "d00831237081683d70bd9210370d48ed6c15d91be42e2e72ea5604201a0b0756"
+    },
+    "src/media_server/jellyfin_api_client.hpp": {
+      "bytes": 3307,
+      "sha256": "557cf0fc82d6e905742b98af8af98b56adb0949787b779aeccfde5499216f80a"
+    },
+    "src/media_server/media_server_manager.cpp": {
+      "bytes": 8319,
+      "sha256": "9d3e0b476bbbec6f9960a7429d765f14667fed070615d59d74cb16df8895cf92"
+    },
+    "src/media_server/media_server_manager.hpp": {
+      "bytes": 890,
+      "sha256": "3cace5336a5fa2e1e637432eaceaa2d58055e770150e231e146458c8948c89a8"
+    }
+  }
+}

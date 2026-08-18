@@ -5,6 +5,31 @@
 
 namespace reddmedia {
 
+enum class LibraryMediaType { Movies, Television };
+enum class LibraryNodeKind { Movie, MovieCollection, Series, Season, Episode };
+
+struct MediaFolder {
+    std::string library_name;
+    std::string path;
+    LibraryMediaType media_type = LibraryMediaType::Movies;
+};
+
+struct LibraryNode {
+    std::string id;
+    std::string parent_id;
+    std::string series_id;
+    std::string season_id;
+    std::string name;
+    std::string path;
+    std::string overview;
+    std::vector<std::string> genres;
+    std::string primary_image_tag;
+    std::string tmdb_id;
+    LibraryNodeKind kind = LibraryNodeKind::Movie;
+    int production_year = 0;
+    int child_count = 0;
+};
+
 struct LibraryVideo {
     std::string id;
     std::string name;
@@ -19,6 +44,26 @@ public:
 
     bool initialize(std::string& error);
     bool add_media_folder(const std::string& path, std::string& error);
+    bool add_media_folder(const std::string& path,
+                          LibraryMediaType media_type,
+                          std::string& error);
+    bool unlink_media_folder(const std::string& path,
+                             LibraryMediaType media_type,
+                             std::string& error);
+    bool load_media_folders(std::vector<MediaFolder>& folders, std::string& error);
+    bool load_library_roots(LibraryMediaType media_type,
+                            std::vector<LibraryNode>& nodes,
+                            std::string& error);
+    bool load_library_children(const LibraryNode& parent,
+                               std::vector<LibraryNode>& nodes,
+                               std::string& error);
+    bool load_all_recommendation_items(std::vector<LibraryNode>& nodes,
+                                       std::string& error);
+    bool load_primary_image_bmp(const std::string& item_id,
+                                int width,
+                                int height,
+                                std::string& bytes,
+                                std::string& error);
     bool refresh_library(std::string& error);
     bool load_videos(std::vector<LibraryVideo>& videos, std::string& error);
     bool wait_for_video_in_folder(const std::string& folder,

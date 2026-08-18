@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ReddMedia
+Comment=ReddMedia native player, hierarchical library, Discover AI, and hidden server
+Exec=/home/dereksparks1982/DKLab/Projects/ReddMedia/ReddMedia_v16
+Icon=reddmedia
+StartupWMClass=ReddMedia
+Terminal=false
+Categories=AudioVideo;Player;

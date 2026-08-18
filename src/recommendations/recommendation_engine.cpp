@@ -1,0 +1,207 @@
+#include "recommendation_engine.hpp"
+
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <limits>
+#include <random>
+#include <set>
+#include <sstream>
+
+namespace reddmedia {
+namespace {
+
+std::string normalized_title(const MediaDescriptor& item) {
+    std::string result;
+    for (const unsigned char character : item.title) {
+        if (std::isalnum(character) != 0) {
+            result.push_back(static_cast<char>(std::tolower(character)));
+        }
+    }
+    if (item.year > 0) result += ":" + std::to_string(item.year);
+    return result;
+}
+
+std::string metadata_text(const MediaDescriptor& item) {
+    std::ostringstream text;
+    text << media_type_name(item.media_type) << ". Title: " << item.title;
+    if (item.year > 0) text << ". Year: " << item.year;
+    if (!item.genres.empty()) {
+        text << ". Genres: ";
+        for (std::size_t index = 0; index < item.genres.size(); ++index) {
+            if (index > 0U) text << ", ";
+            text << item.genres[index];
+        }
+    }
+    if (!item.overview.empty()) text << ". Overview: " << item.overview;
+    return text.str();
+}
+
+std::vector<MediaDescriptor> matching_local_items(
+    RecommendationMediaType type,
+    const std::vector<MediaDescriptor>& local_items) {
+    std::vector<MediaDescriptor> result;
+    for (const MediaDescriptor& item : local_items) {
+        if (item.media_type == type && !item.id.empty()) result.push_back(item);
+    }
+    return result;
+}
+
+void filter_owned(std::vector<MediaDescriptor>& candidates,
+                  const std::vector<MediaDescriptor>& local_items) {
+    std::set<std::string> tmdb_ids;
+    std::set<std::string> titles;
+    for (const MediaDescriptor& item : local_items) {
+        const std::string prefix = item.media_type == RecommendationMediaType::Movie
+            ? "movie:" : "tv:";
+        if (!item.tmdb_id.empty()) tmdb_ids.insert(prefix + item.tmdb_id);
+        titles.insert(prefix + normalized_title(item));
+    }
+    candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
+        [&tmdb_ids, &titles](const MediaDescriptor& item) {
+            const std::string prefix = item.media_type == RecommendationMediaType::Movie
+                ? "movie:" : "tv:";
+            return (!item.tmdb_id.empty() && tmdb_ids.count(prefix + item.tmdb_id) > 0U) ||
+                   titles.count(prefix + normalized_title(item)) > 0U;
+        }), candidates.end());
+}
+
+} // namespace
+
+RecommendationEngine::RecommendationEngine(std::string model_path,
+                                           std::string history_path,
+                                           std::string tmdb_token_path)
+    : history_(std::move(history_path)),
+      embeddings_(std::move(model_path)),
+      tmdb_(std::move(tmdb_token_path)) {}
+
+bool RecommendationEngine::record_started(const MediaDescriptor& item, std::string& error) {
+    return history_.record_started(item, error);
+}
+
+bool RecommendationEngine::external_token_available() const {
+    return tmdb_.has_token();
+}
+
+bool RecommendationEngine::save_external_token(const std::string& token,
+                                                std::string& error) {
+    return tmdb_.save_token(token, error);
+}
+
+bool RecommendationEngine::external_candidates(
+    const RecommendationRequest& request,
+    const std::vector<MediaDescriptor>& local_items,
+    std::vector<MediaDescriptor>& candidates,
+    std::string& error) {
+    std::random_device device;
+    std::mt19937 generator(device());
+    int total_pages = 1;
+    std::vector<MediaDescriptor> loaded;
+    if (!tmdb_.discover(request.media_type, 1, loaded, total_pages, error)) return false;
+    candidates.insert(candidates.end(), loaded.begin(), loaded.end());
+    if (request.mode == RecommendationMode::Random) {
+        std::uniform_int_distribution<int> page_distribution(1, std::max(1, total_pages));
+        const int page = page_distribution(generator);
+        if (page != 1) {
+            loaded.clear();
+            if (!tmdb_.discover(request.media_type, page, loaded, total_pages, error)) return false;
+            candidates = std::move(loaded);
+        }
+    } else {
+        for (int page = 2; page <= std::min(3, total_pages); ++page) {
+            loaded.clear();
+            if (!tmdb_.discover(request.media_type, page, loaded, total_pages, error)) return false;
+            candidates.insert(candidates.end(), loaded.begin(), loaded.end());
+        }
+    }
+    filter_owned(candidates, local_items);
+    if (candidates.empty()) {
+        error = "No unowned External title matched this request.";
+        return false;
+    }
+    return true;
+}
+
+bool RecommendationEngine::usual_recommendation(
+    const RecommendationRequest& request,
+    const std::vector<MediaDescriptor>& candidates,
+    RecommendationResult& result,
+    std::string& error) {
+    std::vector<ViewingRecord> history;
+    if (!history_.recent(request.media_type, history, error, 25)) return false;
+    if (history.empty()) {
+        error = std::string("Watch a ") + media_type_name(request.media_type) +
+            " in ReddMedia before asking for a Usual recommendation.";
+        return false;
+    }
+    std::vector<float> profile;
+    double total_weight = 0.0;
+    for (std::size_t index = 0; index < history.size(); ++index) {
+        std::vector<float> embedding;
+        if (!embeddings_.embed_document(metadata_text(history[index].item), embedding, error)) {
+            return false;
+        }
+        if (profile.empty()) profile.assign(embedding.size(), 0.0F);
+        if (profile.size() != embedding.size()) continue;
+        const double recency = 1.0 / (1.0 + static_cast<double>(index) * 0.12);
+        const double repeats = 1.0 + std::log1p(std::max(0, history[index].play_count - 1)) * 0.2;
+        const double weight = recency * repeats;
+        for (std::size_t dimension = 0; dimension < profile.size(); ++dimension) {
+            profile[dimension] += embedding[dimension] * static_cast<float>(weight);
+        }
+        total_weight += weight;
+    }
+    if (profile.empty() || total_weight <= 0.0) {
+        error = "ReddMedia could not build a viewing profile from history.";
+        return false;
+    }
+    for (float& value : profile) value /= static_cast<float>(total_weight);
+
+    float best_score = -std::numeric_limits<float>::infinity();
+    const MediaDescriptor* best = nullptr;
+    for (const MediaDescriptor& candidate : candidates) {
+        std::vector<float> embedding;
+        if (!embeddings_.embed_document(metadata_text(candidate), embedding, error)) return false;
+        const float score = EmbeddingEngine::cosine_similarity(profile, embedding);
+        if (!best || score > best_score) {
+            best = &candidate;
+            best_score = score;
+        }
+    }
+    if (!best) {
+        error = "No real title was available for this recommendation.";
+        return false;
+    }
+    result.item = *best;
+    result.reason = "Chosen from your ReddMedia viewing history and real title metadata.";
+    return true;
+}
+
+bool RecommendationEngine::recommend(const RecommendationRequest& request,
+                                     const std::vector<MediaDescriptor>& local_items,
+                                     RecommendationResult& result,
+                                     std::string& error) {
+    std::vector<MediaDescriptor> candidates;
+    if (request.source == RecommendationSource::Local) {
+        candidates = matching_local_items(request.media_type, local_items);
+        if (candidates.empty()) {
+            error = std::string("No Local ") + media_type_name(request.media_type) +
+                " titles are linked to ReddMedia.";
+            return false;
+        }
+    } else if (!external_candidates(request, local_items, candidates, error)) {
+        return false;
+    }
+
+    if (request.mode == RecommendationMode::Random) {
+        std::random_device device;
+        std::mt19937 generator(device());
+        std::uniform_int_distribution<std::size_t> distribution(0U, candidates.size() - 1U);
+        result.item = candidates[distribution(generator)];
+        result.reason = "Random choice; viewing history was not used.";
+        return true;
+    }
+    return usual_recommendation(request, candidates, result, error);
+}
+
+} // namespace reddmedia
