@@ -1,17 +1,28 @@
 # Nougat Media Suite Original Code License
 
-Nougat Media Suite original source code, including the integrated decentralized Search/Nougat engine code, is made available under the **PolyForm Noncommercial License 1.0.0**:
+Copyright (c) 2026 Elderred Softworks LLC.
 
-https://polyformproject.org/licenses/noncommercial/1.0.0
+Except for Third-Party Materials, the original source code, documentation, artwork, tests, scripts, and other project material owned by Elderred Softworks LLC and distributed as part of Nougat Media Suite (the **Original Materials**) are made available under the **PolyForm Noncommercial License 1.0.0**.
 
-Required Notice: Copyright 2026 Elderedd Softworks. All rights reserved except as expressly licensed under the PolyForm Noncommercial License 1.0.0.
+Controlling license terms:
+https://polyformproject.org/licenses/noncommercial/1.0.0/
 
-This license applies only to original Nougat Media Suite code and project material for which Elderedd Softworks owns the copyright. It does not replace or restrict the licenses of separately licensed third-party components shipped with or used by ReddMedia. See `THIRD_PARTY_NOTICES.md` and the `licenses/` directory.
+Required project notice:
 
-## Project commercial-use policy
+> Nougat Media Suite Original Materials. Copyright (c) 2026 Elderred Softworks LLC. All rights reserved except as expressly granted under the PolyForm Noncommercial License 1.0.0.
 
-Recipients receive only the noncommercial rights granted by the PolyForm Noncommercial License 1.0.0. No recipient is authorized to sell Nougat Media Suite original code, charge for access to it, operate an advertising-supported or paid deployment, sell API access, provide commercial hosting based on the original code, sell commercial forks, or incorporate the original Nougat Media Suite code into a commercial product or service without separate written permission from the copyright owner.
+## What this license covers
 
-The copyright owner retains all rights not granted by the PolyForm license, including the right to use, monetize, or separately license the owner's own original work. Third-party components remain governed solely by their upstream licenses.
+This license applies only to Original Materials for which Elderred Softworks LLC owns the copyright or has authority to license. It includes original Nougat Media Suite material from the project's earlier ReddMedia lineage when that material is owned by the same copyright holder.
 
-The PolyForm terms at the URL above are the controlling license terms for recipients of the original Nougat Media Suite code.
+It does **not** replace, narrow, expand, or relicense third-party software, models, artwork, data, APIs, or other separately licensed material. Those items remain governed by their own upstream licenses and terms. See `THIRD_PARTY_NOTICES.md`, `licenses/`, and `docs/LICENSING_POLICY.md`.
+
+## Commercial rights
+
+Recipients receive only the rights granted by the PolyForm Noncommercial License 1.0.0. Commercial use of the Original Materials requires separate written permission or a separate commercial license from the copyright holder.
+
+Elderred Softworks LLC retains every right not granted to recipients, including the right to use, monetize, distribute, dual-license, sublicense, or relicense its own Original Materials commercially. Applying the PolyForm Noncommercial License to recipients does not restrict the copyright holder's use of its own work.
+
+## Plain-English summary
+
+You may study, use, modify, and share the Original Materials for purposes allowed by the PolyForm Noncommercial License. You may not rely on this summary instead of the controlling PolyForm terms. If this summary and the PolyForm text ever differ, the PolyForm Noncommercial License 1.0.0 controls.
