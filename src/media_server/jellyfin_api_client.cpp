@@ -1,4 +1,5 @@
 #include "jellyfin_api_client.hpp"
+#include "library_poster.hpp"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -24,7 +25,7 @@ namespace {
 
 constexpr const char* kClientHeader =
     "MediaBrowser Client=\"ReddMedia\", DeviceId=\"reddmedia-local\", "
-    "Device=\"ReddMedia\", Version=\"0.0.16\"";
+    "Device=\"ReddMedia\", Version=\"0.0.18\"";
 
 constexpr const char* kMovieLibraryName = "ReddMedia Movies";
 constexpr const char* kTelevisionLibraryName = "ReddMedia TV";
@@ -283,6 +284,38 @@ bool ensure_directory(const std::string& path) {
     return true;
 }
 
+std::string safe_cache_component(const std::string& value) {
+    std::string result;
+    for (const unsigned char character : value) {
+        result.push_back(std::isalnum(character) != 0 ? static_cast<char>(character) : '_');
+        if (result.size() >= 120U) break;
+    }
+    return result.empty() ? "poster" : result;
+}
+
+bool read_binary_file(const std::string& path, std::string& bytes) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return false;
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    bytes = contents.str();
+    return !bytes.empty();
+}
+
+bool write_private_file(const std::string& path, const std::string& bytes) {
+    const int file = open(path.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    if (file < 0) return false;
+    std::size_t written = 0;
+    while (written < bytes.size()) {
+        const ssize_t amount = write(file, bytes.data() + written, bytes.size() - written);
+        if (amount <= 0) break;
+        written += static_cast<std::size_t>(amount);
+    }
+    const bool closed = close(file) == 0;
+    chmod(path.c_str(), 0600);
+    return written == bytes.size() && closed;
+}
+
 std::string decode_chunked(const std::string& body) {
     std::string result;
     std::size_t position = 0;
@@ -322,6 +355,57 @@ LibraryNodeKind node_kind(const std::string& type) {
     return LibraryNodeKind::Movie;
 }
 
+std::string uppercase_copy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char character) {
+        return static_cast<char>(std::toupper(character));
+    });
+    return value;
+}
+
+bool looks_like_technical_episode_name(const std::string& name) {
+    if (name.empty()) return true;
+    const std::string upper = uppercase_copy(name);
+    const bool technical = upper.find("1080P") != std::string::npos ||
+        upper.find("720P") != std::string::npos || upper.find("2160P") != std::string::npos ||
+        upper.find("HDTV") != std::string::npos || upper.find("WEB-DL") != std::string::npos ||
+        upper.find("WEBRIP") != std::string::npos || upper.find("BLURAY") != std::string::npos ||
+        upper.find("H265") != std::string::npos || upper.find("H.265") != std::string::npos ||
+        upper.find("HEVC") != std::string::npos || upper.find("X264") != std::string::npos ||
+        upper.find("AAC") != std::string::npos;
+    return technical && (name.front() == '[' || name.find(' ') == std::string::npos ||
+                         name.find(']') != std::string::npos);
+}
+
+std::string display_codec(std::string codec) {
+    const std::string lower = codec;
+    if (lower == "hevc" || lower == "h265") return "H.265";
+    if (lower == "h264" || lower == "avc") return "H.264";
+    return uppercase_copy(std::move(codec));
+}
+
+std::string media_stream_details(const std::string& object) {
+    std::string resolution;
+    std::string video_codec;
+    std::string audio_codec;
+    for (const std::string& stream : json_array_objects(object, "MediaStreams")) {
+        const std::string type = json_string_value(stream, "Type");
+        if (type == "Video" && video_codec.empty()) {
+            video_codec = display_codec(json_string_value(stream, "Codec"));
+            const int height = json_int_value(stream, "Height");
+            if (height > 0) resolution = std::to_string(height) + "p";
+        } else if (type == "Audio" && audio_codec.empty()) {
+            audio_codec = display_codec(json_string_value(stream, "Codec"));
+        }
+    }
+    std::string result;
+    for (const std::string& part : {resolution, video_codec, audio_codec}) {
+        if (part.empty()) continue;
+        if (!result.empty()) result += "  ";
+        result += part;
+    }
+    return result;
+}
+
 LibraryNode parse_library_node(const std::string& object) {
     LibraryNode node;
     node.id = json_string_value(object, "Id");
@@ -331,13 +415,32 @@ LibraryNode parse_library_node(const std::string& object) {
     node.name = json_string_value(object, "Name");
     node.path = json_string_value(object, "Path");
     node.overview = json_string_value(object, "Overview");
+    node.series_name = json_string_value(object, "SeriesName");
     node.genres = json_string_array(object, "Genres");
     node.production_year = json_int_value(object, "ProductionYear");
     node.child_count = json_int_value(object, "ChildCount");
+    node.episode_number = json_int_value(object, "IndexNumber");
+    node.season_number = json_int_value(object, "ParentIndexNumber");
     node.kind = node_kind(json_string_value(object, "Type"));
+    if (node.kind == LibraryNodeKind::Season) {
+        node.season_number = json_int_value(object, "IndexNumber");
+        node.episode_number = 0;
+    } else if (node.kind == LibraryNodeKind::Episode &&
+               !looks_like_technical_episode_name(node.name)) {
+        node.episode_title = node.name;
+    }
+    node.technical_details = media_stream_details(object);
+    if (node.kind == LibraryNodeKind::Episode && node.technical_details.empty() &&
+        looks_like_technical_episode_name(node.name)) {
+        node.technical_details = node.name;
+    }
     const std::size_t image_tags = object.find("\"ImageTags\"");
     if (image_tags != std::string::npos) {
         node.primary_image_tag = json_string_value(object.substr(image_tags), "Primary");
+        if (!node.primary_image_tag.empty()) {
+            node.poster_item_id = node.id;
+            node.poster_image_tag = node.primary_image_tag;
+        }
     }
     const std::size_t provider_ids = object.find("\"ProviderIds\"");
     if (provider_ids != std::string::npos) {
@@ -348,7 +451,8 @@ LibraryNode parse_library_node(const std::string& object) {
 
 std::string common_item_fields() {
     return "Path%2CProductionYear%2COverview%2CGenres%2CProviderIds%2CParentId%2C"
-           "SeriesId%2CSeasonId%2CChildCount";
+           "SeriesId%2CSeasonId%2CSeriesName%2CIndexNumber%2CParentIndexNumber%2C"
+           "ChildCount%2CMediaStreams";
 }
 
 } // namespace
@@ -625,7 +729,7 @@ bool JellyfinApiClient::add_media_folder(const std::string& path,
 
     // v0.0.15 created one untyped, hash-named catalog library per selected
     // path. When the owner chooses that same path under Movies or TV, migrate
-    // only the catalog link into the typed v0.0.16 library. Media files are
+    // only the catalog link into the typed library introduced in v0.0.16. Media files are
     // never touched.
     const HttpResponse legacy_response = request("GET", "/Library/VirtualFolders", "", true);
     if (legacy_response.status != 200) {
@@ -736,6 +840,7 @@ bool JellyfinApiClient::load_library_roots(LibraryMediaType media_type,
     std::vector<LibraryNode> loaded;
     for (const std::string& object : json_array_objects(response.body, "Items")) {
         LibraryNode node = parse_library_node(object);
+        if (node.kind == LibraryNodeKind::Series) node.series_tmdb_id = node.tmdb_id;
         if (!node.id.empty() && !node.name.empty()) loaded.push_back(std::move(node));
     }
     nodes = std::move(loaded);
@@ -766,6 +871,23 @@ bool JellyfinApiClient::load_library_children(const LibraryNode& parent,
     std::vector<LibraryNode> loaded;
     for (const std::string& object : json_array_objects(response.body, "Items")) {
         LibraryNode node = parse_library_node(object);
+        if (node.poster_item_id.empty() && !parent.poster_item_id.empty()) {
+            node.poster_item_id = parent.poster_item_id;
+            node.poster_image_tag = parent.poster_image_tag;
+        }
+        if (node.series_name.empty()) {
+            node.series_name = parent.kind == LibraryNodeKind::Series
+                ? parent.name : parent.series_name;
+        }
+        node.series_tmdb_id = parent.kind == LibraryNodeKind::Series
+            ? parent.tmdb_id : parent.series_tmdb_id;
+        if (node.kind == LibraryNodeKind::Season && node.season_number <= 0) {
+            node.season_number = node.episode_number;
+            node.episode_number = 0;
+        }
+        if (node.kind == LibraryNodeKind::Episode && node.season_number <= 0) {
+            node.season_number = parent.season_number;
+        }
         if (!node.id.empty() && !node.name.empty()) loaded.push_back(std::move(node));
     }
     nodes = std::move(loaded);
@@ -794,6 +916,7 @@ bool JellyfinApiClient::load_all_recommendation_items(std::vector<LibraryNode>& 
 }
 
 bool JellyfinApiClient::load_primary_image_bmp(const std::string& item_id,
+                                               const std::string& image_tag,
                                                int width,
                                                int height,
                                                std::string& bytes,
@@ -805,15 +928,26 @@ bool JellyfinApiClient::load_primary_image_bmp(const std::string& item_id,
     }
     width = std::max(32, std::min(1024, width));
     height = std::max(32, std::min(1536, height));
+    const char* home = std::getenv("HOME");
+    const std::string cache_directory = std::string(home ? home : ".") +
+        "/.cache/reddmedia/posters/jellyfin";
+    const std::string cache_path = cache_directory + "/" + safe_cache_component(item_id) +
+        "_" + safe_cache_component(image_tag) + "_" + std::to_string(width) + "x" +
+        std::to_string(height) + ".bmp";
+    if (read_binary_file(cache_path, bytes) && bytes.size() >= 2U &&
+        bytes[0] == 'B' && bytes[1] == 'M') {
+        return true;
+    }
     const std::string target = "/Items/" + url_encode(item_id) +
-        "/Images/Primary?format=Bmp&maxWidth=" + std::to_string(width) +
+        "/Images/Primary?format=Jpg&maxWidth=" + std::to_string(width) +
         "&maxHeight=" + std::to_string(height) + "&quality=90";
     const HttpResponse response = request("GET", target, "", true, 30);
     if (response.status != 200 || response.body.empty()) {
         error = "No poster is available for this library item.";
         return false;
     }
-    bytes = response.body;
+    if (!normalize_library_poster_bmp(response.body, bytes, error)) return false;
+    if (ensure_directory(cache_directory)) write_private_file(cache_path, bytes);
     return true;
 }
 

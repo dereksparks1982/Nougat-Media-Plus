@@ -1,5 +1,17 @@
 # ReddMedia Dependencies
 
+## v0.0.18 metadata, diagnostics, and watch-availability requirements
+
+v0.0.18 adds no new linked library. It continues to use `curl` for authenticated TMDb HTTPS requests and uses the TMDb watch-provider endpoints, whose provider data is supplied by JustWatch. `xdg-open` opens only the official watch-options URL returned by TMDb and the local Jellyfin log folder; provider authentication and playback remain in the provider-supported application or website.
+
+The existing X11, Threads, `dl`, libVLC, FFmpeg, llama.cpp, Nomic model, libtorrent, Jellyfin runtime, Python 3, CMake, C++17 compiler, `gio`, and Files/Nautilus requirements remain unchanged. My Services preferences are a small owner-only local file under `~/.config/reddmedia/discover/`; diagnostic reports do not include the TMDb credential.
+
+## v0.0.17 Library and Discover reliability requirements
+
+v0.0.17 adds no new system package. FFmpeg, already required for media and YouTube processing, now also normalizes real Jellyfin and TMDb poster responses into the uncompressed BMP representation used by ReddMedia's native X11 renderer. `curl` continues to provide TMDb HTTPS access and now supports either a validated API key or read access token without printing the credential.
+
+Generated `components/ai/runtime/` and `components/jellyfin/runtime/` trees are installation products and are intentionally excluded from Git.
+
 ## v0.0.16 integrated Library and Discover requirements
 
 ReddMedia v0.0.16 bundles pinned llama.cpp source and the Nomic Embed Text v1.5 Q4_K_M GGUF model. The patch installer builds a portable CPU-only shared llama.cpp runtime under `components/ai/runtime/`; no remote inference service or Python AI framework is used. SQLite is loaded from the normal Linux `libsqlite3` runtime for private viewing history. External recommendations use the installed `curl` command for HTTPS requests to TMDb.
@@ -18,7 +30,7 @@ ReddMedia is currently developed and validated on Ubuntu Linux.
 
 ## Runtime dependencies
 
-A normal user running ReddMedia v0.0.16 needs:
+A normal user running ReddMedia v0.0.17 needs:
 
 ```bash
 sudo apt install -y \
@@ -72,10 +84,34 @@ sudo apt install -y \
   unzip
 ```
 
-`libtorrent-rasterbar-dev` pulls the appropriate libtorrent runtime and its required Boost/OpenSSL development dependencies on Ubuntu. `libglib2.0-bin` supplies `gio`, which the development patch installer uses to assign and verify the red-star custom icon on the raw versioned executable in GNOME Files.
+`libtorrent-rasterbar-dev` pulls the appropriate libtorrent runtime and its required Boost/OpenSSL development dependencies on Ubuntu. `libglib2.0-bin` supplies `gio`, which the development patch installer uses to assign and verify the approved red-tree custom icon on the raw versioned executable in GNOME Files.
 
 `dpkg` supplies `dpkg-deb`, which extracts the bundled Jellyfin packages without registering a system service. ReddMedia patch installers check these requirements before changing the project tree.
 
 ## Distribution direction
 
 The roadmap calls for a future self-contained Linux distribution, such as an AppImage-style single-file release, that carries appropriate runtime components with ReddMedia so end users do not have to assemble the dependency stack manually. Development-only tools and headers will remain build-time requirements rather than user-facing runtime baggage.
+
+## Nougat integrated search - v0.0.19
+
+- **Python 3**: runs the headless integrated Nougat indexing/crawler/peer engine. No Tkinter dependency is used by ReddMedia.
+- **SQLite FTS5**: accessed through Python's standard `sqlite3` module for local full-text indexing. The installer verifies FTS5 before applying the candidate.
+- **curl**: used only for the Nougat Tor crawler path through `127.0.0.1:9050` when a local Tor service is available.
+- **Tor Browser / Tor**: optional external runtime for `.onion` browsing and crawling. No Tor binary is bundled by v0.0.19.
+- Nougat's Python engine otherwise uses Python standard-library modules only and requires no pip packages.
+- Active Nougat data: `~/.local/share/reddmedia/nougat/`. The archived standalone Nougat prototype is not an installation dependency.
+
+## v0.0.19 installer UI-smoke prerequisites
+
+The v0.0.19 development installer requires `xvfb-run` and `xwininfo` for its bounded native X11 window smoke test. On Ubuntu these are provided by:
+
+```bash
+sudo apt install -y xvfb x11-utils
+```
+
+The installer checks for the commands first and installs only the missing package(s) through APT. These are validation/development dependencies, not permanent ReddMedia runtime requirements.
+
+
+### v0.0.19 repair-carried pinned embedding model
+
+The v0.0.19 AI-runtime-layout repair package carries the already-pinned `nomic-embed-text-v1.5-Q4_K_M.gguf` runtime asset because the deployed v0.0.18 changed-file baseline did not contain the model. The installer verifies the exact 84,106,624-byte file and SHA-256 `d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac` before using it. The model remains under its upstream Apache-2.0 license.

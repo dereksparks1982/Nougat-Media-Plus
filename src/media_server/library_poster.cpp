@@ -1,9 +1,16 @@
 #include "library_poster.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <fcntl.h>
+#include <fstream>
 #include <limits>
+#include <sstream>
+#include <sys/wait.h>
+#include <unistd.h>
 
 namespace reddmedia {
 namespace {
@@ -21,6 +28,90 @@ std::uint32_t read_u32(const std::string& bytes, std::size_t offset) {
 }
 
 } // namespace
+
+bool normalize_library_poster_bmp(const std::string& source_bytes,
+                                  std::string& bmp_bytes,
+                                  std::string& error) {
+    if (source_bytes.size() >= 2U && source_bytes[0] == 'B' && source_bytes[1] == 'M') {
+        bmp_bytes = source_bytes;
+        return true;
+    }
+    if (source_bytes.empty()) {
+        error = "The poster image is empty.";
+        return false;
+    }
+
+    char input_template[] = "/tmp/reddmedia-poster-input.XXXXXX";
+    char output_template[] = "/tmp/reddmedia-poster-output.XXXXXX";
+    const int input_fd = mkstemp(input_template);
+    if (input_fd < 0) {
+        error = "ReddMedia could not create a temporary poster input.";
+        return false;
+    }
+    const int output_fd = mkstemp(output_template);
+    if (output_fd < 0) {
+        close(input_fd);
+        unlink(input_template);
+        error = "ReddMedia could not create a temporary poster output.";
+        return false;
+    }
+    close(output_fd);
+
+    std::size_t written = 0;
+    while (written < source_bytes.size()) {
+        const ssize_t amount = write(input_fd, source_bytes.data() + written,
+                                     source_bytes.size() - written);
+        if (amount <= 0) break;
+        written += static_cast<std::size_t>(amount);
+    }
+    const bool input_ok = written == source_bytes.size() && close(input_fd) == 0;
+    if (!input_ok) {
+        unlink(input_template);
+        unlink(output_template);
+        error = "ReddMedia could not prepare the poster image.";
+        return false;
+    }
+
+    const pid_t child = fork();
+    if (child < 0) {
+        unlink(input_template);
+        unlink(output_template);
+        error = "ReddMedia could not start the poster decoder.";
+        return false;
+    }
+    if (child == 0) {
+        const int null_fd = open("/dev/null", O_WRONLY);
+        if (null_fd >= 0) {
+            dup2(null_fd, STDOUT_FILENO);
+            dup2(null_fd, STDERR_FILENO);
+        }
+        execlp("ffmpeg", "ffmpeg", "-v", "error", "-y", "-i", input_template,
+               "-frames:v", "1", "-f", "image2", "-vcodec", "bmp",
+               output_template, static_cast<char*>(nullptr));
+        _exit(127);
+    }
+    int status = 0;
+    while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
+    }
+    unlink(input_template);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        unlink(output_template);
+        error = "ReddMedia could not decode this poster image with FFmpeg.";
+        return false;
+    }
+
+    std::ifstream input(output_template, std::ios::binary);
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    unlink(output_template);
+    bmp_bytes = contents.str();
+    if (bmp_bytes.size() < 2U || bmp_bytes[0] != 'B' || bmp_bytes[1] != 'M') {
+        error = "The poster decoder did not return a usable image.";
+        bmp_bytes.clear();
+        return false;
+    }
+    return true;
+}
 
 bool decode_library_poster_bmp(const std::string& bytes,
                                LibraryPoster& poster,

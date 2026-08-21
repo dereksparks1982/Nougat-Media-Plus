@@ -209,6 +209,28 @@ void MediaServerManager::stop() {
     }
 }
 
+void MediaServerManager::refresh() {
+    const MediaServerState previous = state_;
+    if (health_ready()) {
+        state_ = MediaServerState::Ready;
+        return;
+    }
+    if (owned_pid_ > 0) {
+        int status = 0;
+        const pid_t result = waitpid(owned_pid_, &status, WNOHANG);
+        if (result == 0) {
+            state_ = MediaServerState::Starting;
+            return;
+        }
+        owned_pid_ = -1;
+        state_ = MediaServerState::Fault;
+        return;
+    }
+    if (!regular_executable(runtime_path_)) state_ = MediaServerState::RuntimeMissing;
+    else if (previous != MediaServerState::Stopped) state_ = MediaServerState::Fault;
+    else state_ = MediaServerState::Stopped;
+}
+
 bool MediaServerManager::poll() {
     if (shutdown_requested_) return false;
     const long long now = monotonic_ms();
@@ -251,6 +273,34 @@ std::string MediaServerManager::status_label() const {
 
 MediaServerState MediaServerManager::state() const {
     return state_;
+}
+
+bool MediaServerManager::owns_server() const {
+    return owned_pid_ > 0;
+}
+
+bool MediaServerManager::probe_health() const {
+    return health_ready();
+}
+
+const std::string& MediaServerManager::runtime_path() const {
+    return runtime_path_;
+}
+
+const std::string& MediaServerManager::data_path() const {
+    return data_path_;
+}
+
+const std::string& MediaServerManager::config_path() const {
+    return config_path_;
+}
+
+const std::string& MediaServerManager::cache_path() const {
+    return cache_path_;
+}
+
+const std::string& MediaServerManager::log_path() const {
+    return log_path_;
 }
 
 } // namespace reddmedia

@@ -1,8 +1,42 @@
-# ReddMedia v0.0.16
+# ReddMedia v0.0.19
 
 ReddMedia is an integrated Linux media player and media server by Elderredd Softworks. It combines native local playback, a hidden Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, YouTube downloading/playback powered by yt-dlp, and built-in P2P file transfer and streaming in one application package.
 
-## Current build: v0.0.16 Native Library and Discover AI
+## Current candidate: v0.0.19 Nougat Search Integration
+
+v0.0.19 adds **Nougat** as a native top-level ReddMedia tab while preserving the existing Video Player, Library, Discover, YouTube, P2P, Debug, Jellyfin catalog, playback, recommendation, and transfer behavior. The exact top-level order is **Video Player | Library | Discover | Nougat | YouTube | P2P | Debug**.
+
+Nougat provides a local SQLite FTS5 index, a recursive HTML crawler, Ranked and RAW search views, direct peer search, and a Tor retrieval/open path for `.onion` results. The active Nougat data lives under `~/.local/share/reddmedia/nougat/`; it does not depend on the archived standalone Nougat prototype. RAW changes ordering to index order and does not add a SafeSearch/content-suppression layer.
+
+The Nougat content surface preserves the approved candy-bar palette: dark cocoa, chocolate, nougat tan, caramel, cream, and light nougat. Crawler output is read-only but selectable: mouse selection, Ctrl+C, Ctrl+A, right-click **Copy**, and right-click **Select All** are supported. Crawler seeds such as `google.com`, `www.google.com`, and full HTTP(S) URLs normalize as URLs; a bare search word such as `google` is rejected as a crawler seed instead of being silently converted into `https://google/`.
+
+The integrated Nougat engine is headless Python standard-library code called through a native C++ bridge. ReddMedia remains the application and owns the active Nougat implementation. The final versioned executable for this candidate is `ReddMedia_v19`.
+
+ReddMedia/Nougat original code in v0.0.19 is source-available to recipients for noncommercial use under the PolyForm Noncommercial License 1.0.0; the copyright owner retains all ungranted rights, including commercial use/licensing of the owner's own original work. Separately licensed third-party components retain their upstream licenses. This candidate is not accepted or tagged until owner testing and explicit acceptance. The v0.0.19 replacement candidate also standardizes compact controls and wheel-scrollable button rows app-wide, separates seek/volume/player controls with a live volume percentage, adds TV next-episode autoplay with preserved Library navigation, and gives each major tab its approved interior color identity.
+
+## Previous candidate: v0.0.18 Intelligent Debug, Metadata, Watch Availability, and Responsive Library
+
+v0.0.18 makes the native Library and Discover screens explain more and guess less. Episode tiles show verified `SxxExx - title` identity with technical format on a secondary line. Artwork resolves through the item's Jellyfin image, parent/series artwork, and then exact TMDb movie/series/season artwork. Missing titles or posters remain explicitly unavailable when no verified match exists.
+
+The new **Debug** tab runs evidence-based checks against the integrated server, port 8096, generated runtimes, local paths, the current Library level, artwork failures, TMDb configuration, and background work. Results use green, yellow, or red health with a concrete next action. **Run Checks**, **Retry**, **Refresh Metadata**, **Test TMDb**, **Refresh Server**, **Open Logs**, and **Copy Report** invoke real actions; copied reports omit credentials.
+
+Discover now preserves and wraps the beginning of long descriptions. External results show exact United States subscription, free, ad-supported, rental, and purchase listings returned by JustWatch through TMDb, with a refresh time and explicit no-listing state. **My Services** privately marks providers the owner uses; it does not sign into a provider. **Open Watch Options** opens only the official link supplied by TMDb.
+
+The top bar has one `Server:` light: green when ready, yellow during a transition, and red when unavailable. The duplicate Library status was removed. The Library grid now derives drawing, wheel scrolling, and arrow movement from the same responsive layout and shows at least two rows at the normal 1000-by-650 non-fullscreen size.
+
+The final versioned executable is `ReddMedia_v18`. Its installer writes the executable first, assigns the approved red-tree custom-icon metadata directly to that raw executable, reads the assignment back, and refreshes Files/Nautilus before owner visual confirmation. This candidate is not accepted or tagged.
+
+## Previous candidate: v0.0.17 Library, Discover, and Server Reliability
+
+v0.0.17 is one reliability build over the technically working v0.0.16 checkpoint. Movie and TV recommendation requests now pass a final strict type gate, including repeated Random selections. Jellyfin poster responses use a supported source format, are normalized through FFmpeg for the native X11 renderer, and are cached locally; external TMDb results use and cache their real TMDb poster paths. A full-width red loading bar reports Library, poster, Discover, credential, and server work.
+
+Discover now accepts either a TMDb 32-character API key or a TMDb read access token. The screen exposes **Test TMDb**, **Save / Replace**, and **Clear TMDb**. A replacement is validated before it can overwrite a working credential, the saved file remains owner-only, and a rejected credential produces a clear 401 message without exposing the value.
+
+The Library screen now exposes **Start Server**, **Stop Server**, and **Refresh Server**. Closing ReddMedia still stops only the integrated Jellyfin process ReddMedia launched; an independently started Jellyfin process is preserved. Generated Jellyfin and AI runtime trees are excluded from Git. The repository root also contains the one canonical ReddMedia-only `COMPANY_BIBLE.md`.
+
+The final versioned executable was `ReddMedia_v17`. Its installer wrote the executable first, assigned the approved red-tree custom-icon metadata directly to that raw executable, read the assignment back, and refreshed Files/Nautilus before owner visual confirmation.
+
+## Previous build: v0.0.16 Native Library and Discover AI
 
 v0.0.16 replaces the temporary flat Library file list with a native poster grid and two explicit entry points: **Movies** and **TV**. Movies show real cataloged movie titles and metadata-created box sets. TV shows series first, then seasons, then episodes. No sample or invented titles are inserted. Each media type supports more than one linked folder, unlinking removes only the catalog link, and playable items continue through ReddMedia's existing embedded player using their real local file paths.
 
@@ -46,7 +80,7 @@ The v0.0.10 stabilization pass keeps the same feature version while repairing de
 - Stream sockets have bounded send/receive waits so abandoned seek connections cannot hang indefinitely.
 - The installer reapplies and verifies the ReddMedia red-triangle custom icon on the versioned executable.
 
-The versioned executable is `ReddMedia_v16`.
+The v0.0.16 versioned executable was `ReddMedia_v16`.
 
 ### v0.0.13 YouTube seek and close stability repair
 
@@ -95,7 +129,10 @@ Owner testing proved P2P Stop/Resume but exposed two release defects before acce
 - Native X11 desktop interface.
 - Native media Library with folder selection, local catalog scanning, title selection, and direct playback in the existing embedded player.
 - Native Movies/TV hierarchy with real poster metadata, movie box sets, series, seasons, and episodes.
+- Responsive multi-row Library tiles with verified episode numbers/titles and separate technical format.
 - Discover Usual/Random recommendations across Local Movie, Local TV, External Movie, and External TV.
+- United States JustWatch availability through TMDb, private My Services markings, and official watch-option links.
+- Evidence-based Debug and system-health checks with actionable green/yellow/red findings.
 - Local SQLite history and offline llama.cpp/Nomic metadata embeddings.
 - Hidden local Jellyfin 10.11.11 catalog service with no exposed Jellyfin setup/player web interface.
 - VLC/libVLC local video playback.
@@ -119,19 +156,19 @@ ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpe
 From the ReddMedia project folder:
 
 ```bash
-./ReddMedia_v16
+./ReddMedia_v18
 ```
 
 Version check:
 
 ```bash
-./ReddMedia_v16 --version
+./ReddMedia_v18 --version
 ```
 
 Expected output:
 
 ```text
-ReddMedia v0.0.16
+ReddMedia v0.0.18
 ```
 
 # Release history
@@ -427,3 +464,6 @@ See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and the license files und
 ## Roadmap
 
 See [`ROADMAP.md`](ROADMAP.md) for the next planned ReddMedia milestones.
+
+### Viewing-history completion repair
+This replacement v0.0.19 candidate includes the recommendation/viewing-history source changes required by TV natural-end autoplay. Existing SQLite history databases are migrated in place by adding a `completed` column when needed.

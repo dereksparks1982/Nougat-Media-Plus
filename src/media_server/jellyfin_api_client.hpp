@@ -22,12 +22,21 @@ struct LibraryNode {
     std::string name;
     std::string path;
     std::string overview;
+    std::string series_name;
+    std::string episode_title;
+    std::string technical_details;
     std::vector<std::string> genres;
     std::string primary_image_tag;
+    std::string poster_item_id;
+    std::string poster_image_tag;
+    std::string tmdb_poster_path;
     std::string tmdb_id;
+    std::string series_tmdb_id;
     LibraryNodeKind kind = LibraryNodeKind::Movie;
     int production_year = 0;
     int child_count = 0;
+    int season_number = 0;
+    int episode_number = 0;
 };
 
 struct LibraryVideo {
@@ -60,6 +69,7 @@ public:
     bool load_all_recommendation_items(std::vector<LibraryNode>& nodes,
                                        std::string& error);
     bool load_primary_image_bmp(const std::string& item_id,
+                                const std::string& image_tag,
                                 int width,
                                 int height,
                                 std::string& bytes,

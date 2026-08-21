@@ -79,13 +79,75 @@ bool RecommendationEngine::record_started(const MediaDescriptor& item, std::stri
     return history_.record_started(item, error);
 }
 
-bool RecommendationEngine::external_token_available() const {
-    return tmdb_.has_token();
+bool RecommendationEngine::record_completed(const MediaDescriptor& item, std::string& error) {
+    return history_.record_completed(item, error);
 }
 
-bool RecommendationEngine::save_external_token(const std::string& token,
-                                                std::string& error) {
-    return tmdb_.save_token(token, error);
+bool RecommendationEngine::external_credential_available() const {
+    return tmdb_.has_credential();
+}
+
+std::string RecommendationEngine::external_credential_label() const {
+    return tmdb_.credential_label();
+}
+
+bool RecommendationEngine::test_external_credential(std::string& error) const {
+    return tmdb_.test_saved_credential(error);
+}
+
+bool RecommendationEngine::save_external_credential(const std::string& credential,
+                                                     std::string& error) {
+    return tmdb_.save_credential(credential, error);
+}
+
+bool RecommendationEngine::clear_external_credential(std::string& error) {
+    return tmdb_.clear_credential(error);
+}
+
+bool RecommendationEngine::load_external_poster_bmp(const std::string& poster_path,
+                                                     int width,
+                                                     int height,
+                                                     std::string& bytes,
+                                                     std::string& error) const {
+    return tmdb_.load_poster_bmp(poster_path, width, height, bytes, error);
+}
+
+bool RecommendationEngine::load_watch_availability(RecommendationMediaType type,
+                                                    const std::string& tmdb_id,
+                                                    const std::string& region,
+                                                    WatchAvailability& availability,
+                                                    std::string& error) const {
+    return tmdb_.watch_availability(type, tmdb_id, region, availability, error);
+}
+
+bool RecommendationEngine::load_watch_provider_catalog(
+    const std::string& region,
+    std::vector<WatchProvider>& providers,
+    std::string& error) const {
+    return tmdb_.watch_provider_catalog(region, providers, error);
+}
+
+bool RecommendationEngine::load_tv_episode_details(const std::string& series_tmdb_id,
+                                                    int season_number,
+                                                    int episode_number,
+                                                    std::string& title,
+                                                    std::string& overview,
+                                                    std::string& error) const {
+    return tmdb_.tv_episode_details(series_tmdb_id, season_number, episode_number,
+                                    title, overview, error);
+}
+
+bool RecommendationEngine::load_tv_poster_path(const std::string& series_tmdb_id,
+                                                int season_number,
+                                                std::string& poster_path,
+                                                std::string& error) const {
+    return tmdb_.tv_poster_path(series_tmdb_id, season_number, poster_path, error);
+}
+
+bool RecommendationEngine::load_movie_poster_path(const std::string& tmdb_id,
+                                                   std::string& poster_path,
+                                                   std::string& error) const {
+    return tmdb_.movie_poster_path(tmdb_id, poster_path, error);
 }
 
 bool RecommendationEngine::external_candidates(
@@ -115,6 +177,10 @@ bool RecommendationEngine::external_candidates(
         }
     }
     filter_owned(candidates, local_items);
+    candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
+        [&request](const MediaDescriptor& item) {
+            return item.media_type != request.media_type;
+        }), candidates.end());
     if (candidates.empty()) {
         error = "No unowned External title matched this request.";
         return false;
@@ -193,15 +259,34 @@ bool RecommendationEngine::recommend(const RecommendationRequest& request,
         return false;
     }
 
+    candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
+        [&request](const MediaDescriptor& item) {
+            return item.media_type != request.media_type;
+        }), candidates.end());
+    if (candidates.empty()) {
+        error = std::string("No ") + media_type_name(request.media_type) +
+            " title matched this request.";
+        return false;
+    }
+
     if (request.mode == RecommendationMode::Random) {
         std::random_device device;
         std::mt19937 generator(device());
         std::uniform_int_distribution<std::size_t> distribution(0U, candidates.size() - 1U);
         result.item = candidates[distribution(generator)];
         result.reason = "Random choice; viewing history was not used.";
+        if (result.item.media_type != request.media_type) {
+            error = "ReddMedia blocked a mismatched recommendation type.";
+            return false;
+        }
         return true;
     }
-    return usual_recommendation(request, candidates, result, error);
+    if (!usual_recommendation(request, candidates, result, error)) return false;
+    if (result.item.media_type != request.media_type) {
+        error = "ReddMedia blocked a mismatched recommendation type.";
+        return false;
+    }
+    return true;
 }
 
 } // namespace reddmedia

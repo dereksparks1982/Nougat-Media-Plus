@@ -1,5 +1,49 @@
 # ReddMedia Changelog
 
+## v0.0.19 - Nougat Search Integration
+
+- Repaired the rejected first v0.0.19 candidate under the same version: the installer now installs the missing Ubuntu X11 smoke-test packages (`xvfb` and `x11-utils`) when required before rerunning validation.
+- Standardized normal action buttons across ReddMedia to the compact top-bar footprint and placed button rows directly adjacent; overflowing top navigation and action rows scroll horizontally with the mouse wheel instead of wrapping or hiding controls.
+- Reworked the Video Player footer into separate seek, volume, and compact-button rows so Fullscreen cannot be covered by the volume bar at narrow/half-screen widths.
+- Added a live numeric volume percentage that updates for slider changes, mouse-wheel volume changes, and keyboard volume changes.
+- Added TV episode autoplay across the current series, including season boundaries, while preserving the Library series/season navigation state when playback switches to the Video Player. Natural episode completion updates viewing history; manual Stop cancels autoplay.
+- Added distinct interior themes while preserving the red ReddMedia top bar: Video Player red, Library forest green, Discover plum, Nougat cocoa/tan/caramel, YouTube red, P2P deep blue, and Debug amber/yellow.
+- Added Nougat as a native top-level ReddMedia tab in the exact order **Video Player | Library | Discover | Nougat | YouTube | P2P | Debug** while preserving Discover and existing ReddMedia subsystems.
+- Integrated a headless Nougat engine under `components/nougat/` with SQLite FTS5 local indexing, Ranked and RAW search, recursive HTML crawling, direct peer querying, persisted node identity/peer configuration, and Tor/onion retrieval support through the local Tor service when available.
+- Added a native C++ Nougat bridge so ReddMedia owns the UI and does not embed the standalone Tk prototype. The active integrated data directory is `~/.local/share/reddmedia/nougat/`; no standalone Nougat project folder is required.
+- Preserved the approved Nougat candy-bar palette inside the Nougat tab without recoloring the rest of ReddMedia.
+- Added selectable/copyable crawler output with mouse selection, Ctrl+C, Ctrl+A, right-click Copy, and right-click Select All while keeping the output read-only.
+- Rejected bare crawler words such as `google` with a clear domain/URL prompt while accepting and normalizing real domains and HTTP(S) URLs.
+- Added deterministic Nougat local/RAW/ranked/peer/persistence tests and retained the full v0.0.18 metadata, provider, diagnostic, and recommendation regression lane under v0.0.19.
+- Advanced the root executable to `ReddMedia_v19` and retained the approved red-tree ReddMedia executable/launcher identity.
+- Applied PolyForm Noncommercial 1.0.0 to owner-created ReddMedia/Nougat material for recipients; third-party components retain upstream licenses, and the copyright owner retains all ungranted rights including commercial use/licensing of the owner's own work.
+
+## v0.0.18 - Intelligent Debug, Metadata, Watch Availability, and Responsive Library
+
+- Added verified season/episode identity and a separate technical-format line to episode tiles, with explicit unavailable labels rather than filename guesses.
+- Added ordered artwork fallback from the item's Jellyfin image to parent/series artwork and then exact TMDb movie/series/season artwork.
+- Added exact TMDb episode-title and overview fallback when Jellyfin is incomplete and a verified series ID is available.
+- Added an evidence-based Debug tab with green/yellow/red health, filesystem and port evidence, metadata counts, credential-redacted reports, and real retry/refresh/test/log actions.
+- Replaced duplicate Library server text with one top-bar `Server:` light: green ready, yellow transitioning, red unavailable.
+- Reworked the native Library grid to show multiple rows at normal non-fullscreen size and share its responsive geometry across drawing, scrolling, and arrow navigation.
+- Reworked Discover details to preserve and wrap the beginning of the synopsis and to scroll when content exceeds the available area.
+- Added complete United States watch-provider categories from JustWatch via TMDb, local private My Services selections, refresh timestamps, explicit no-listing messages, mandatory attribution, and TMDb-supplied official watch-options links.
+- Advanced the executable and launcher identity to `ReddMedia_v18`; the installer reapplies and reads back the approved red-tree metadata after the executable's final write.
+- Added deterministic v0.0.18 tests for provider categories, service preferences, credential safety, Movie/TV separation, episode identity, artwork fallback, and diagnostic truth.
+
+## v0.0.17 - Library, Discover, and Server Reliability
+
+- Added the canonical ReddMedia-only project `COMPANY_BIBLE.md` and removed unrelated project material from that record.
+- Added strict Movie/TV filtering immediately before selection and a final result-type assertion for Local and External Usual/Random recommendations.
+- Added TMDb API-key and read-access-token recognition, validation-before-replacement, Test, Save/Replace, Clear, owner-only persistence, and explicit 401 guidance.
+- Repaired local posters by requesting a supported Jellyfin source format, normalizing it for the native renderer through FFmpeg, and caching successful images by item/image tag.
+- Added real TMDb poster retrieval and local caching for External recommendation results.
+- Moved Library poster retrieval off the X11 draw path and added a full-width red progress bar for Library, poster, Discover, TMDb, and server work.
+- Added visible Start Server, Stop Server, and Refresh Server controls while preserving the rule that ReddMedia stops only the Jellyfin process it owns.
+- Added Git exclusions for generated Jellyfin/AI runtimes, build trees, and Python caches.
+- Advanced the executable and launcher identity to `ReddMedia_v17`; final installer validation reapplies and reads back the approved red-tree icon metadata on the raw executable after its last write.
+- Added deterministic v0.0.17 regression coverage for repeated type separation, both TMDb credential forms, failed replacement preservation, 401 handling, Clear, local/external posters, caches, progress/UI controls, and the project Bible.
+
 ## v0.0.16 - Native Library and Discover AI
 
 - Same-version installer repair 2: corrected the failed-candidate rollback so all tracked files are restored atomically, the untracked patch manifest is removed separately, the accepted Jellyfin runtime is preserved, and rollback errors cannot be reported as passes. The installer recognizes and backs up the exact hash-verified leftovers from the rejected original candidate before recovering the baseline automatically.
@@ -153,3 +197,22 @@ Known limitations:
 - Replaced active ReddMedia icon assets with the approved red-tree artwork.
 - The tree identity is used for the launcher, dock/app switcher, raw executable, MIME icons, X11 window icon, and top-right version badge.
 - The window title is `ReddMedia`; the in-app top-right identity is a small red tree followed by `v0.0.14`.
+
+## v0.0.19 Viewing-history completion repair
+
+- Added the missing `RecommendationEngine::record_completed` and `ViewingHistory::record_completed` API to the changed-files payload so the native build receives the same completion support used by TV autoplay.
+- Viewing history now persists a `completed` flag with a non-destructive SQLite migration for existing history databases.
+- Starting playback records `completed=0`; natural episode completion records `completed=1`. Manual Stop does not call the completion path.
+- Deterministic validation now compiles the real recommendation/history sources and verifies an ordinary started movie remains incomplete while a completed TV episode persists as complete.
+- Same target remains v0.0.19 because the preceding candidate failed compilation and rolled back to v0.0.18.
+
+
+## v0.0.19 Pinned AI model/runtime-layout repair
+
+- Corrected the full native Discover AI gate after the prior candidate compiled successfully but failed its AI self-test.
+- Verified the owner-supplied component archive contains the pinned `nomic-embed-text-v1.5-Q4_K_M.gguf` model at exactly 84,106,624 bytes with SHA-256 `d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac`.
+- Bundles that exact model in the repair package because the deployed v0.0.18 changed-file baseline does not contain the model file.
+- The installer preserves an already-correct model, safely replaces a non-matching model with rollback backup, or installs the verified model when absent.
+- Corrected the real-AI build gate so the temporary `/tmp` build executable receives a project-equivalent `components/ai/models` path before `--discover-ai-self-test`; the previous gate incorrectly searched relative to the temporary build executable.
+- Added a second real Discover AI self-test after the final `ReddMedia_v19` executable is copied to the project root, so FINAL PASS proves the installed root executable can actually load and use the pinned model.
+- Same target remains v0.0.19 because the previous candidate failed and rolled back to v0.0.18.

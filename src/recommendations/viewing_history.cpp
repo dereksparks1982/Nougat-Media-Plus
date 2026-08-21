@@ -184,6 +184,7 @@ bool ViewingHistory::open_database(std::string& error) {
         "local_path TEXT NOT NULL DEFAULT '', tmdb_id TEXT NOT NULL DEFAULT '',"
         "year INTEGER NOT NULL DEFAULT 0, last_watched INTEGER NOT NULL,"
         "play_count INTEGER NOT NULL DEFAULT 1,"
+        "completed INTEGER NOT NULL DEFAULT 0,"
         "PRIMARY KEY(item_id, media_type));"
         "CREATE INDEX IF NOT EXISTS viewing_history_recent "
         "ON viewing_history(media_type, last_watched DESC);";
@@ -193,6 +194,17 @@ bool ViewingHistory::open_database(std::string& error) {
         if (message) api().free_memory(message);
         close_database();
         return false;
+    }
+    message = nullptr;
+    if (api().exec(database, "ALTER TABLE viewing_history ADD COLUMN completed INTEGER NOT NULL DEFAULT 0;",
+                   nullptr, nullptr, &message) != kSqliteOk) {
+        const std::string migration_message = message ? message : "";
+        if (message) api().free_memory(message);
+        if (migration_message.find("duplicate column") == std::string::npos) {
+            error = migration_message.empty() ? "ReddMedia could not upgrade viewing history." : migration_message;
+            close_database();
+            return false;
+        }
     }
     return true;
 }
@@ -213,11 +225,11 @@ bool ViewingHistory::record_started(const MediaDescriptor& item, std::string& er
     if (!open_database(error)) return false;
     const char* sql =
         "INSERT INTO viewing_history(item_id,media_type,title,overview,genres,local_path,"
-        "tmdb_id,year,last_watched,play_count) VALUES(?,?,?,?,?,?,?,?,strftime('%s','now'),1) "
+        "tmdb_id,year,last_watched,play_count,completed) VALUES(?,?,?,?,?,?,?,?,strftime('%s','now'),1,0) "
         "ON CONFLICT(item_id,media_type) DO UPDATE SET title=excluded.title,"
         "overview=excluded.overview,genres=excluded.genres,local_path=excluded.local_path,"
         "tmdb_id=excluded.tmdb_id,year=excluded.year,last_watched=excluded.last_watched,"
-        "play_count=viewing_history.play_count+1";
+        "play_count=viewing_history.play_count+1,completed=0";
     sqlite3_stmt* statement = nullptr;
     sqlite3* database = static_cast<sqlite3*>(database_);
     if (api().prepare_v2(database, sql, -1, &statement, nullptr) != kSqliteOk) {
@@ -242,6 +254,41 @@ bool ViewingHistory::record_started(const MediaDescriptor& item, std::string& er
     return ok;
 }
 
+bool ViewingHistory::record_completed(const MediaDescriptor& item, std::string& error) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (item.id.empty() || item.title.empty()) {
+        error = "A playable library item is required before marking history complete.";
+        return false;
+    }
+    if (!open_database(error)) return false;
+    const char* sql =
+        "INSERT INTO viewing_history(item_id,media_type,title,overview,genres,local_path,"
+        "tmdb_id,year,last_watched,play_count,completed) VALUES(?,?,?,?,?,?,?,?,strftime('%s','now'),1,1) "
+        "ON CONFLICT(item_id,media_type) DO UPDATE SET title=excluded.title,"
+        "overview=excluded.overview,genres=excluded.genres,local_path=excluded.local_path,"
+        "tmdb_id=excluded.tmdb_id,year=excluded.year,last_watched=excluded.last_watched,completed=1";
+    sqlite3_stmt* statement = nullptr;
+    sqlite3* database = static_cast<sqlite3*>(database_);
+    if (api().prepare_v2(database, sql, -1, &statement, nullptr) != kSqliteOk) {
+        error = api().errmsg(database);
+        return false;
+    }
+    const std::string genres = joined_genres(item.genres);
+    const auto bind = [statement](int index, const std::string& value) {
+        return api().bind_text(statement, index, value.c_str(), -1,
+                               reinterpret_cast<void (*)(void*)>(-1));
+    };
+    const bool ok = bind(1, item.id) == kSqliteOk &&
+        api().bind_int(statement, 2, item.media_type == RecommendationMediaType::Movie ? 0 : 1) == kSqliteOk &&
+        bind(3, item.title) == kSqliteOk && bind(4, item.overview) == kSqliteOk &&
+        bind(5, genres) == kSqliteOk && bind(6, item.local_path) == kSqliteOk &&
+        bind(7, item.tmdb_id) == kSqliteOk && api().bind_int(statement, 8, item.year) == kSqliteOk &&
+        api().step(statement) == kSqliteDone;
+    if (!ok) error = api().errmsg(database);
+    api().finalize(statement);
+    return ok;
+}
+
 bool ViewingHistory::recent(RecommendationMediaType type,
                             std::vector<ViewingRecord>& records,
                             std::string& error,
@@ -249,7 +296,7 @@ bool ViewingHistory::recent(RecommendationMediaType type,
     std::lock_guard<std::mutex> lock(mutex_);
     if (!open_database(error)) return false;
     const char* sql =
-        "SELECT item_id,title,overview,genres,local_path,tmdb_id,year,last_watched,play_count "
+        "SELECT item_id,title,overview,genres,local_path,tmdb_id,year,last_watched,play_count,completed "
         "FROM viewing_history WHERE media_type=? ORDER BY last_watched DESC LIMIT ?";
     sqlite3_stmt* statement = nullptr;
     sqlite3* database = static_cast<sqlite3*>(database_);
@@ -273,6 +320,7 @@ bool ViewingHistory::recent(RecommendationMediaType type,
         record.item.media_type = type;
         record.last_watched = api().column_int64(statement, 7);
         record.play_count = api().column_int(statement, 8);
+        record.completed = api().column_int(statement, 9) != 0;
         loaded.push_back(std::move(record));
     }
     const bool ok = status == kSqliteDone;

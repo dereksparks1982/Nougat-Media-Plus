@@ -13,12 +13,15 @@
 #include <string>
 #include <sstream>
 #include <fstream>
+#include <iomanip>
 #include <algorithm>
 #include <atomic>
 #include <memory>
 #include <map>
 #include <mutex>
+#include <set>
 #include <vector>
+#include <utility>
 #include <thread>
 #include <chrono>
 #include <cerrno>
@@ -37,7 +40,10 @@
 #include "media_server/jellyfin_api_client.hpp"
 #include "media_server/library_poster.hpp"
 #include "media_server/media_server_manager.hpp"
+#include "diagnostics/diagnostic_engine.hpp"
 #include "recommendations/recommendation_engine.hpp"
+#include "recommendations/watch_provider_preferences.hpp"
+#include "nougat/nougat_bridge.hpp"
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -60,6 +66,7 @@ typedef void (*fn_libvlc_media_player_set_time)(libvlc_media_player_t*, long lon
 typedef long long (*fn_libvlc_media_player_get_length)(libvlc_media_player_t*);
 typedef int (*fn_libvlc_audio_get_volume)(libvlc_media_player_t*);
 typedef int (*fn_libvlc_audio_set_volume)(libvlc_media_player_t*, int);
+typedef int (*fn_libvlc_media_player_get_state)(libvlc_media_player_t*);
 
 struct libvlc_track_description_t {
     int i_id;
@@ -108,6 +115,7 @@ struct VlcApi {
     fn_libvlc_media_player_get_length get_length = nullptr;
     fn_libvlc_audio_get_volume get_volume = nullptr;
     fn_libvlc_audio_set_volume set_volume = nullptr;
+    fn_libvlc_media_player_get_state get_state = nullptr;
     fn_libvlc_audio_get_track_description audio_get_track_description = nullptr;
     fn_libvlc_audio_get_track audio_get_track = nullptr;
     fn_libvlc_audio_set_track audio_set_track = nullptr;
@@ -152,6 +160,7 @@ struct VlcApi {
         LOAD_SYM(set_volume, "libvlc_audio_set_volume");
 #undef LOAD_SYM
 #define LOAD_OPTIONAL(field, name) do { field = (decltype(field))dlsym(handle, name); } while(0)
+        LOAD_OPTIONAL(get_state, "libvlc_media_player_get_state");
         LOAD_OPTIONAL(audio_get_track_description, "libvlc_audio_get_track_description");
         LOAD_OPTIONAL(audio_get_track, "libvlc_audio_get_track");
         LOAD_OPTIONAL(audio_set_track, "libvlc_audio_set_track");
@@ -174,6 +183,15 @@ struct VlcApi {
 };
 
 struct Rect { int x=0,y=0,w=0,h=0; bool contains(int px,int py) const { return px>=x && py>=y && px<x+w && py<y+h; } };
+struct LibraryGridMetrics {
+    int columns = 1;
+    int rows = 1;
+    int tileWidth = 140;
+    int tileHeight = 190;
+    int posterHeight = 140;
+    int gap = 8;
+    int visibleItems = 1;
+};
 
 static std::string home_dir() {
     const char* h = getenv("HOME"); return h ? std::string(h) : std::string(".");
@@ -290,17 +308,17 @@ static std::string choose_media_library_folder_dialog() {
     return run_command_capture(py);
 }
 
-static std::string choose_tmdb_token_dialog() {
-    std::string token = run_command_capture(
+static std::string choose_tmdb_credential_dialog() {
+    std::string credential = run_command_capture(
         "command -v zenity >/dev/null 2>&1 && "
         "zenity --entry --hide-text --title='ReddMedia External Recommendations' "
-        "--text='Enter your TMDb read-access token' 2>/dev/null");
-    if (!token.empty()) return token;
+        "--text='Enter a TMDb API key or read access token' 2>/dev/null");
+    if (!credential.empty()) return credential;
     const std::string py =
         "python3 -c \"import tkinter as tk; from tkinter import simpledialog; "
         "root=tk.Tk(); root.withdraw(); "
         "v=simpledialog.askstring('ReddMedia External Recommendations',"
-        "'Enter your TMDb read-access token',show='*'); print(v if v else '')\" 2>/dev/null";
+        "'Enter a TMDb API key or read access token',show='*'); print(v if v else '')\" 2>/dev/null";
     return run_command_capture(py);
 }
 
@@ -367,9 +385,12 @@ enum class MenuAction {
     NoAction, OpenFile, ExitApp, TogglePlay, ToggleFullscreen, Rewind10, Forward10,
     SubtitleToggle, SubtitleLoadFile, SubtitleLoadFolder, SubtitleDelayPlus, SubtitleDelayMinus, SubtitleDelayReset, SubtitleTrack,
     AudioTrack, PrevChapter, NextChapter, ChapterJump, YtDlpClearLog, UrlCut, UrlCopy, UrlPaste,
-    P2pUrlCut, P2pUrlCopy, P2pUrlPaste
+    P2pUrlCut, P2pUrlCopy, P2pUrlPaste,
+    NougatCopySelection, NougatSelectAll
 };
-enum class ViewMode { VideoPlayer, Library, Discover, YtDlp, P2P };
+enum class ViewMode { VideoPlayer, Library, Discover, Nougat, YtDlp, P2P, Debug };
+enum class NougatPanel { Search, Crawler, Peers, About };
+enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
 enum class YtDlpJob { Idle, Download };
 struct MenuItem {
     std::string label;
@@ -384,6 +405,7 @@ struct LibraryUiState {
     std::string status = "Choose Movies or TV.";
     bool busy = false;
     bool updated = false;
+    double progress = 0.0;
 };
 struct DiscoverUiState {
     std::mutex mutex;
@@ -392,6 +414,59 @@ struct DiscoverUiState {
     bool hasResult = false;
     bool busy = false;
     bool updated = false;
+    double progress = 0.0;
+    reddmedia::LibraryPoster poster;
+    bool hasPoster = false;
+    reddmedia::WatchAvailability availability;
+    bool hasAvailability = false;
+    std::string availabilityStatus;
+    std::vector<reddmedia::WatchProvider> providerCatalog;
+    bool providerCatalogLoaded = false;
+};
+struct PosterUiState {
+    std::mutex mutex;
+    std::map<std::string, reddmedia::LibraryPoster> cache;
+    std::set<std::string> failed;
+    bool busy = false;
+    bool updated = false;
+    double progress = 0.0;
+};
+struct ServerUiState {
+    std::mutex mutex;
+    std::string status = "Server controls ready.";
+    reddmedia::MediaServerState state = reddmedia::MediaServerState::Stopped;
+    bool owned = false;
+    bool busy = false;
+    bool updated = false;
+    double progress = 0.0;
+};
+struct DebugUiState {
+    std::mutex mutex;
+    reddmedia::DiagnosticInput input;
+    reddmedia::DiagnosticReport report;
+    std::string status = "Run Checks to inspect ReddMedia.";
+    bool busy = false;
+    bool updated = false;
+    bool hasReport = false;
+    double progress = 0.0;
+};
+struct NougatUiState {
+    std::mutex mutex;
+    reddmedia::NougatSearchResponse search;
+    std::vector<std::string> crawl_log;
+    std::vector<std::string> peers;
+    std::string status = "Ready. Crawl a site or add a peer, then search.";
+    std::string node_id;
+    bool search_busy = false;
+    bool crawl_busy = false;
+    bool updated = false;
+};
+struct NougatResultHitboxes {
+    Rect card;
+    Rect open;
+    Rect open_tor;
+    Rect copy_url;
+    int index = -1;
 };
 class App {
 public:
@@ -400,14 +475,23 @@ public:
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn;
-    Rect videoPlayerTab, libraryTab, discoverTab, ytdlpTab, p2pTab;
+    Rect videoPlayerTab, libraryTab, discoverTab, nougatTab, ytdlpTab, p2pTab, debugTab;
     Rect libraryMoviesBtn, libraryTvBtn, libraryAddFolderBtn, libraryUnlinkFolderBtn;
     Rect libraryRefreshBtn, libraryBackBtn, libraryListBox;
+    Rect serverStartBtn, serverStopBtn, serverRefreshBtn;
     Rect discoverUsualTab, discoverRandomTab;
     Rect discoverLocalMovieBtn, discoverLocalTvBtn, discoverExternalMovieBtn, discoverExternalTvBtn;
-    Rect discoverResultBox, discoverOpenBtn;
+    Rect discoverTmdbTestBtn, discoverTmdbReplaceBtn, discoverTmdbClearBtn;
+    Rect discoverResultBox, discoverOpenBtn, discoverWatchBtn, discoverMyServicesBtn;
+    Rect discoverServicesBackBtn;
+    Rect debugRunBtn, debugRetryBtn, debugMetadataBtn, debugTmdbBtn;
+    Rect debugServerBtn, debugLogsBtn, debugCopyBtn, debugListBox;
     Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpPlayBtn, ytdlpClearBtn, ytdlpFolderBtn;
     Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn;
+    Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatPeersPanelTab, nougatAboutPanelTab;
+    Rect nougatSearchRect, nougatSearchBtn, nougatRawBtn, nougatPeersToggleBtn, nougatResultsBox;
+    Rect nougatCrawlSeedRect, nougatCrawlMinusBtn, nougatCrawlPlusBtn, nougatSameDomainBtn, nougatStartCrawlBtn, nougatCrawlLogBox;
+    Rect nougatPeerEntryRect, nougatAddPeerBtn, nougatRemovePeerBtn, nougatNodeBtn, nougatPeerListBox;
     VlcApi api; std::string vlcErr;
     libvlc_instance_t* inst=nullptr; libvlc_media_player_t* mp=nullptr;
     bool running=true, paused=false, fullscreen=false, hasMedia=false, needResumePrompt=false;
@@ -466,6 +550,21 @@ public:
     long long ytdlpSeekTargetMs = 0;
     long long ytdlpSeekStartedAtMs = 0;
     int controlsScrollX = 0;
+    int topNavScrollX = 0;
+    int topNavViewportW = 0;
+    int libraryButtonsScrollX = 0;
+    int discoverButtonsScrollX = 0;
+    int ytdlpButtonsScrollX = 0;
+    int p2pButtonsScrollX = 0;
+    int debugButtonsScrollX = 0;
+    int volumePercent = 80;
+    bool volumeDragging = false;
+    bool tvAutoplayArmed = false;
+    bool playbackEndHandled = false;
+    std::vector<reddmedia::LibraryNode> tvAutoplayQueue;
+    int tvAutoplayIndex = -1;
+    reddmedia::LibraryNode activeLibraryItem;
+    bool activeLibraryItemValid = false;
     P2PEngine p2p;
     P2PStreamServer p2pStream{p2p};
     reddmedia::MediaServerManager mediaServer;
@@ -479,13 +578,27 @@ public:
     bool libraryTypeChosen = false;
     reddmedia::LibraryMediaType libraryMediaType = reddmedia::LibraryMediaType::Movies;
     std::vector<reddmedia::LibraryNode> libraryParents;
-    std::map<std::string, reddmedia::LibraryPoster> libraryPosterCache;
+    std::shared_ptr<PosterUiState> posterState = std::make_shared<PosterUiState>();
+    std::thread posterWorker;
+    bool posterQueued = false;
     std::shared_ptr<reddmedia::RecommendationEngine> recommendationEngine =
         std::make_shared<reddmedia::RecommendationEngine>(
             exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf");
+    reddmedia::WatchProviderPreferences watchPreferences;
     std::shared_ptr<DiscoverUiState> discoverState = std::make_shared<DiscoverUiState>();
     std::thread discoverWorker;
+    std::shared_ptr<ServerUiState> serverState = std::make_shared<ServerUiState>();
+    std::thread serverWorker;
+    reddmedia::DiagnosticEngine diagnosticEngine;
+    std::shared_ptr<DebugUiState> debugState = std::make_shared<DebugUiState>();
+    std::thread debugWorker;
     reddmedia::RecommendationMode discoverMode = reddmedia::RecommendationMode::Usual;
+    bool discoverServiceSettings = false;
+    int discoverDetailsScroll = 0;
+    int discoverServicesScroll = 0;
+    int debugScroll = 0;
+    std::vector<std::pair<Rect, int>> discoverProviderRows;
+    std::vector<Rect> debugIssueRows;
     bool p2pMagnetFocused=false;
     bool p2pMagnetSelectAll=false;
     std::string p2pMagnet;
@@ -493,6 +606,31 @@ public:
     std::string p2pUiStatus = "Ready.";
     std::vector<Rect> p2pFileRows;
     long long lastP2PRedrawMs=0;
+    long long lastLoadingRedrawMs=0;
+    reddmedia::NougatBridge nougat{exe_dir() + "/components/nougat/nougat_engine.py"};
+    std::shared_ptr<NougatUiState> nougatState = std::make_shared<NougatUiState>();
+    std::thread nougatSearchWorker;
+    std::thread nougatCrawlWorker;
+    NougatPanel nougatPanel = NougatPanel::Search;
+    NougatInputFocus nougatInputFocus = NougatInputFocus::NoFocus;
+    bool nougatInputSelectAll = false;
+    std::string nougatSearchQuery;
+    std::string nougatCrawlSeed = "https://example.com/";
+    std::string nougatPeerEntry;
+    bool nougatRaw = false;
+    bool nougatSearchPeers = true;
+    bool nougatSameDomain = true;
+    int nougatMaxPages = 25;
+    int nougatSearchOffset = 0;
+    int nougatResultScroll = 0;
+    int nougatPeerSelected = -1;
+    int nougatPeerScroll = 0;
+    int nougatCrawlScroll = 0;
+    bool nougatOutputFocused = false;
+    bool nougatOutputSelecting = false;
+    int nougatOutputSelectionStart = -1;
+    int nougatOutputSelectionEnd = -1;
+    std::vector<NougatResultHitboxes> nougatResultHitboxes;
 
     unsigned long col(unsigned short r, unsigned short g, unsigned short b) {
         XColor color; color.red=r; color.green=g; color.blue=b; color.flags=DoRed|DoGreen|DoBlue;
@@ -513,21 +651,96 @@ public:
         while (!out.empty() && text_width(out) > maxPixels) out.erase(out.begin());
         return out;
     }
+    std::string head_to_width(const std::string& value, int maxPixels) {
+        if (maxPixels <= 0) return "";
+        if (text_width(value) <= maxPixels) return value;
+        const std::string ellipsis = "...";
+        std::string output = value;
+        while (!output.empty() && text_width(output + ellipsis) > maxPixels) output.pop_back();
+        return output + ellipsis;
+    }
+    std::vector<std::string> wrap_text(const std::string& value, int maxPixels) {
+        std::vector<std::string> lines;
+        if (maxPixels <= 0) return lines;
+        std::istringstream paragraphs(value);
+        std::string paragraph;
+        while (std::getline(paragraphs, paragraph)) {
+            std::istringstream words(paragraph);
+            std::string word;
+            std::string current;
+            while (words >> word) {
+                if (text_width(word) > maxPixels) {
+                    if (!current.empty()) { lines.push_back(current); current.clear(); }
+                    while (!word.empty()) {
+                        std::string part;
+                        while (!word.empty() && text_width(part + word.front()) <= maxPixels) {
+                            part.push_back(word.front());
+                            word.erase(word.begin());
+                        }
+                        if (part.empty()) { part.push_back(word.front()); word.erase(word.begin()); }
+                        lines.push_back(part);
+                    }
+                    continue;
+                }
+                const std::string candidate = current.empty() ? word : current + " " + word;
+                if (!current.empty() && text_width(candidate) > maxPixels) {
+                    lines.push_back(current);
+                    current = word;
+                } else current = candidate;
+            }
+            if (!current.empty()) lines.push_back(current);
+            if (paragraph.empty()) lines.emplace_back();
+        }
+        return lines;
+    }
+    std::string local_time_text(long long timestamp) {
+        if (timestamp <= 0) return "Never";
+        const std::time_t value = static_cast<std::time_t>(timestamp);
+        std::tm local {};
+        localtime_r(&value, &local);
+        std::ostringstream output;
+        output << std::put_time(&local, "%Y-%m-%d %H:%M:%S");
+        return output.str();
+    }
     void fill(Drawable target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XFillRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
+    void fill_circle(Drawable target, int x, int y, int diameter, unsigned long c) {
+        XSetForeground(d, gc, c);
+        const double radius = static_cast<double>(diameter) / 2.0;
+        const double center_x = static_cast<double>(x) + radius;
+        const double center_y = static_cast<double>(y) + radius;
+        for (int offset_y = 0; offset_y < diameter; ++offset_y) {
+            const double relative_y = static_cast<double>(y + offset_y) + 0.5 - center_y;
+            const int half_width = static_cast<int>(
+                std::sqrt(std::max(0.0, radius * radius - relative_y * relative_y)));
+            XDrawLine(d, target, gc,
+                      static_cast<int>(center_x) - half_width, y + offset_y,
+                      static_cast<int>(center_x) + half_width, y + offset_y);
+        }
+    }
     void outline(Drawable target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XDrawRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
     void line(Drawable target, int x1, int y1, int x2, int y2, unsigned long c) { XSetForeground(d,gc,c); XDrawLine(d,target,gc,x1,y1,x2,y2); }
     void button(const Rect& r, const std::string& label) {
         button_on(win, r, label);
     }
     void button_on(Drawable target, const Rect& r, const std::string& label) {
-        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
-        unsigned long darkRed = col(0x6600,0x0000,0x0000);
-        unsigned long lightRed = col(0xffff,0x2222,0x2222);
-        unsigned long white = col(0xffff,0xffff,0xffff);
-        fill(target, r, companyRed);
-        outline(target, r, darkRed);
-        line(target, r.x + 1, r.y + 1, r.x + (int)r.w - 2, r.y + 1, lightRed);
-        text(target, r.x+10, r.y+20, label, white);
+        unsigned long base = col(0xbbbb,0x0000,0x0000);
+        unsigned long dark = col(0x6600,0x0000,0x0000);
+        unsigned long light = col(0xffff,0x2222,0x2222);
+        unsigned long ink = col(0xffff,0xffff,0xffff);
+        if (currentView == ViewMode::Library) {
+            base = col(0x2f2f,0x6b6b,0x3a3a); dark = col(0x1717,0x4040,0x2020); light = col(0x5959,0x9a9a,0x6464);
+        } else if (currentView == ViewMode::Discover) {
+            base = col(0x6c6c,0x3b3b,0x7474); dark = col(0x3d3d,0x1f1f,0x4444); light = col(0x9292,0x6161,0x9a9a);
+        } else if (currentView == ViewMode::P2P) {
+            base = col(0x2a2a,0x5d5d,0x8787); dark = col(0x1717,0x3a3a,0x5959); light = col(0x4a4a,0x8282,0xacac);
+        } else if (currentView == ViewMode::Debug) {
+            base = col(0xb8b8,0x7a7a,0x0000); dark = col(0x6d6d,0x4949,0x0000); light = col(0xe0e0,0xa8a8,0x2828); ink = col(0x1111,0x1111,0x1111);
+        }
+        fill(target, r, base);
+        outline(target, r, dark);
+        line(target, r.x + 1, r.y + 1, r.x + (int)r.w - 2, r.y + 1, light);
+        const int label_x = r.x + std::max(5, (r.w - text_width(label)) / 2);
+        text(target, label_x, r.y + 18, head_to_width(label, r.w - 10), ink);
     }
 
     static unsigned long component_to_visual_mask(unsigned char value, unsigned long mask) {
@@ -612,7 +825,7 @@ public:
         utf8Atom = XInternAtom(d, "UTF8_STRING", False);
         targetsAtom = XInternAtom(d, "TARGETS", False);
         textAtom = XInternAtom(d, "TEXT", False);
-        XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|KeyPressMask|PointerMotionMask);
+        XSelectInput(d, win, ExposureMask|StructureNotifyMask|ButtonPressMask|ButtonReleaseMask|KeyPressMask|PointerMotionMask);
         Atom wmDelete = XInternAtom(d, "WM_DELETE_WINDOW", False);
         XSetWMProtocols(d, win, &wmDelete, 1);
         gc = XCreateGC(d, win, 0, nullptr);
@@ -635,76 +848,136 @@ public:
         std::string p2pRestoreError;
         if (p2p.restore_last(p2pRestoreError)) p2pUiStatus = "Previous P2P download restored.";
         else if (!p2pRestoreError.empty()) p2pUiStatus = p2pRestoreError;
+        {
+            std::string nougat_error;
+            nougatState->node_id = nougat.node_id(nougat_error);
+            nougatState->peers = nougat.peers(nougat_error);
+            if (!nougat_error.empty()) nougatState->status = nougat_error;
+        }
         mediaServer.start();
+        {
+            std::lock_guard<std::mutex> lock(serverState->mutex);
+            serverState->status = server_control_label();
+            serverState->state = mediaServer.state();
+            serverState->owned = mediaServer.owns_server();
+        }
         return true;
     }
+    static constexpr int kCompactButtonW = 116;
+    static constexpr int kCompactButtonH = 26;
+
+    int clamp_button_scroll(int value, int button_count, int viewport_width) const {
+        const int total = std::max(0, button_count) * kCompactButtonW;
+        const int maximum = std::max(0, total - std::max(kCompactButtonW, viewport_width));
+        return std::max(0, std::min(value, maximum));
+    }
+
+    void layout_button_row(std::initializer_list<Rect*> buttons, int y, int& scroll) {
+        const int viewport = std::max(kCompactButtonW, W - 56);
+        scroll = clamp_button_scroll(scroll, static_cast<int>(buttons.size()), viewport);
+        int x = 28 - scroll;
+        for (Rect* rect : buttons) {
+            *rect = {x, y, kCompactButtonW, kCompactButtonH};
+            x += kCompactButtonW;
+        }
+    }
+
     void layout() {
-        videoPlayerTab = {0,0,118,26};
-        libraryTab = {118,0,84,26};
-        discoverTab = {202,0,92,26};
-        ytdlpTab = {294,0,82,26};
-        p2pTab = {376,0,64,26};
-        int bottomY = H - 36;
-        int seekY = H - 72;
-        const int gap = 8;
-        int totalButtonsW = 78 + gap + 116 + gap + 104 + gap + 70 + gap + 148 + gap + 104;
-        int availableButtonW = std::max(160, W - 200);
-        int maxScroll = std::max(0, totalButtonsW - availableButtonW);
-        controlsScrollX = std::max(0, std::min(controlsScrollX, maxScroll));
+        const int topStatusReserve = 178;
+        topNavViewportW = std::max(kCompactButtonW, W - topStatusReserve);
+        topNavScrollX = clamp_button_scroll(topNavScrollX, 7, topNavViewportW);
+        int topX = -topNavScrollX;
+        videoPlayerTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
+        libraryTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
+        discoverTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
+        nougatTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
+        ytdlpTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
+        p2pTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
+        debugTab = {topX,0,kCompactButtonW,26};
+
+        const int bottomY = H - 32;
+        const int volumeY = H - 64;
+        const int seekY = H - 96;
+        controlsScrollX = clamp_button_scroll(controlsScrollX, 6, std::max(kCompactButtonW, W - 20));
         int x = 10 - controlsScrollX;
-        openBtn = {x, bottomY, 78, 28}; x += openBtn.w + gap;
-        rewindBtn = {x, bottomY, 116, 28}; x += rewindBtn.w + gap;
-        playBtn = {x, bottomY, 104, 28}; x += playBtn.w + gap;
-        stopBtn = {x, bottomY, 70, 28}; x += stopBtn.w + gap;
-        forwardBtn = {x, bottomY, 148, 28}; x += forwardBtn.w + gap;
-        fsBtn = {x, bottomY, 104, 28};
+        openBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
+        rewindBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
+        playBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
+        stopBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
+        forwardBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
+        fsBtn = {x, bottomY, kCompactButtonW, kCompactButtonH};
 
-        int currentTimeWidth = 64;
-        int totalTimeWidth = 74;
-        int seekX = 10 + currentTimeWidth + 10;
-        int seekRightPad = totalTimeWidth + 20;
+        const int currentTimeWidth = 64;
+        const int totalTimeWidth = 74;
+        const int seekX = 10 + currentTimeWidth + 10;
+        const int seekRightPad = totalTimeWidth + 20;
         seekRect = {seekX, seekY, std::max(220, W-seekX-seekRightPad), 18};
+        volRect = {110, volumeY, std::max(120, W-130), 18};
 
-        volRect = {std::max(10, W-170), bottomY+5, 150, 18};
-        resumeBtn = {W/2-155, H/2+40, 130, 34};
-        loadBtn = {W/2+25, H/2+40, 170, 34};
-        ytdlpUrlRect = {28, 118, std::max(240, W-56), 28};
-        ytdlpOutputRect = {28, 158, std::max(240, W-56), 28};
-        ytdlpDownloadBtn = {28, 204, 130, 32};
-        ytdlpPlayBtn = {170, 204, 110, 32};
-        ytdlpFolderBtn = {0, 0, 0, 0};
-        ytdlpClearBtn = {292, 204, 130, 32};
-        p2pMagnetRect = {28, 112, std::max(240, W-56), 28};
-        p2pOutputRect = {28, 152, std::max(240, W-56), 28};
-        p2pLoadMagnetBtn = {28, 198, 138, 32};
-        p2pOpenTorrentBtn = {178, 198, 138, 32};
-        p2pPlayBtn = {328, 198, 100, 32};
-        p2pStopResumeBtn = {440, 198, 160, 32};
-        libraryMoviesBtn = {28, 76, 112, 32};
-        libraryTvBtn = {152, 76, 112, 32};
-        libraryAddFolderBtn = {28, 118, 132, 32};
-        libraryUnlinkFolderBtn = {172, 118, 142, 32};
-        libraryRefreshBtn = {326, 118, 104, 32};
-        libraryBackBtn = {442, 118, 90, 32};
-        libraryListBox = {28, 178, std::max(240, W-56), std::max(100, H-206)};
-        discoverUsualTab = {28, 76, 112, 32};
-        discoverRandomTab = {152, 76, 112, 32};
-        discoverLocalMovieBtn = {28, 136, 140, 34};
-        discoverLocalTvBtn = {180, 136, 140, 34};
-        discoverExternalMovieBtn = {332, 136, 152, 34};
-        discoverExternalTvBtn = {496, 136, 152, 34};
-        discoverResultBox = {28, 196, std::max(240, W-56), std::max(150, H-254)};
-        discoverOpenBtn = {28, H-48, 188, 32};
+        const int promptX = std::max(20, W/2-kCompactButtonW);
+        resumeBtn = {promptX, H/2+40, kCompactButtonW, kCompactButtonH};
+        loadBtn = {promptX+kCompactButtonW, H/2+40, kCompactButtonW, kCompactButtonH};
+
+        ytdlpUrlRect = {28, 108, std::max(240, W-56), 28};
+        ytdlpOutputRect = {28, 148, std::max(240, W-56), 28};
+        layout_button_row({&ytdlpDownloadBtn,&ytdlpPlayBtn,&ytdlpClearBtn}, 190, ytdlpButtonsScrollX);
+        ytdlpFolderBtn = {0,0,0,0};
+
+        p2pMagnetRect = {28, 102, std::max(240, W-56), 28};
+        p2pOutputRect = {28, 142, std::max(240, W-56), 28};
+        layout_button_row({&p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn}, 184, p2pButtonsScrollX);
+
+        nougatSearchPanelTab = {28,54,kCompactButtonW,kCompactButtonH};
+        nougatCrawlerPanelTab = {28+kCompactButtonW,54,kCompactButtonW,kCompactButtonH};
+        nougatPeersPanelTab = {28+kCompactButtonW*2,54,kCompactButtonW,kCompactButtonH};
+        nougatAboutPanelTab = {28+kCompactButtonW*3,54,kCompactButtonW,kCompactButtonH};
+        nougatSearchRect = {28, 104, std::max(220, W-400), 30};
+        nougatRawBtn = {std::max(260, W-360),104,kCompactButtonW,kCompactButtonH};
+        nougatPeersToggleBtn = {std::max(380, W-240),104,kCompactButtonW,kCompactButtonH};
+        nougatSearchBtn = {std::max(500, W-120),104,kCompactButtonW,kCompactButtonH};
+        nougatResultsBox = {28, 166, std::max(240, W-56), std::max(120, H-194)};
+        nougatCrawlSeedRect = {28, 104, std::max(240, W-300), 30};
+        nougatCrawlMinusBtn = {std::max(320, W-260),104,36,26};
+        nougatCrawlPlusBtn = {std::max(364, W-216),104,36,26};
+        nougatSameDomainBtn = {28, 146, kCompactButtonW, kCompactButtonH};
+        nougatStartCrawlBtn = {28+kCompactButtonW, 146, kCompactButtonW, kCompactButtonH};
+        nougatCrawlLogBox = {28, 190, std::max(240, W-56), std::max(120, H-218)};
+        nougatPeerEntryRect = {28, 104, std::max(220, W-400), 30};
+        nougatAddPeerBtn = {std::max(300, W-360),104,kCompactButtonW,kCompactButtonH};
+        nougatRemovePeerBtn = {std::max(420, W-240),104,kCompactButtonW,kCompactButtonH};
+        nougatNodeBtn = {std::max(540, W-120),104,kCompactButtonW,kCompactButtonH};
+        nougatPeerListBox = {28, 154, std::max(240, W-56), std::max(120, H-182)};
+
+        layout_button_row({&libraryMoviesBtn,&libraryTvBtn,&libraryAddFolderBtn,&libraryUnlinkFolderBtn,
+                           &libraryRefreshBtn,&libraryBackBtn,&serverStartBtn,&serverStopBtn,&serverRefreshBtn},
+                          76, libraryButtonsScrollX);
+        libraryListBox = {28, 134, std::max(240, W-56), std::max(100, H-162)};
+
+        layout_button_row({&discoverUsualTab,&discoverRandomTab,&discoverLocalMovieBtn,&discoverLocalTvBtn,
+                           &discoverExternalMovieBtn,&discoverExternalTvBtn,&discoverTmdbTestBtn,
+                           &discoverTmdbReplaceBtn,&discoverTmdbClearBtn,&discoverMyServicesBtn},
+                          76, discoverButtonsScrollX);
+        discoverResultBox = {28, 134, std::max(240, W-56), std::max(150, H-212)};
+        discoverOpenBtn = {28, H-66, kCompactButtonW, kCompactButtonH};
+        discoverWatchBtn = {28+kCompactButtonW, H-66, kCompactButtonW, kCompactButtonH};
+        discoverServicesBackBtn = {28,76,kCompactButtonW,kCompactButtonH};
+
+        layout_button_row({&debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugServerBtn,&debugLogsBtn,&debugCopyBtn},
+                          76, debugButtonsScrollX);
+        debugListBox = {28, 126, std::max(240, W-56), std::max(150, H-154)};
         update_video_prompt_layout();
     }
     void update_video_prompt_layout() {
-        videoResumeBtn = {std::max(20, videoW/2-165), std::max(88, videoH/2+36), 130, 34};
-        videoLoadBtn = {std::max(20, videoW/2+15), std::max(88, videoH/2+36), 170, 34};
+        const int promptX = std::max(20, videoW/2-kCompactButtonW);
+        const int promptY = std::max(88, videoH/2+36);
+        videoResumeBtn = {promptX, promptY, kCompactButtonW, kCompactButtonH};
+        videoLoadBtn = {promptX+kCompactButtonW, promptY, kCompactButtonW, kCompactButtonH};
     }
     void apply_video_layout() {
         if (!video) return;
         if (currentView == ViewMode::Library || currentView == ViewMode::Discover ||
-            currentView == ViewMode::YtDlp || currentView == ViewMode::P2P) {
+            currentView == ViewMode::Nougat || currentView == ViewMode::YtDlp || currentView == ViewMode::P2P ||
+            currentView == ViewMode::Debug) {
             XUnmapWindow(d, video);
             return;
         }
@@ -715,7 +988,7 @@ public:
             XMoveResizeWindow(d, video, 0, 0, videoW, videoH);
         } else {
             videoW = std::max(100, W-20);
-            videoH = std::max(100, H-156);
+            videoH = std::max(100, H-170);
             XMoveResizeWindow(d, video, 10, 42, videoW, videoH);
         }
         update_video_prompt_layout();
@@ -725,6 +998,7 @@ public:
         int vol = api.get_volume(mp);
         if (vol < 0) vol = 80;
         vol = std::max(0, std::min(100, vol + delta));
+        volumePercent = vol;
         api.set_volume(mp, vol);
         if (!fullscreen) draw_volume_only();
     }
@@ -979,7 +1253,8 @@ public:
         api.media_release(media);
         if (!mp) return;
         api.set_xwindow(mp, (unsigned int)video);
-        api.set_volume(mp, 80);
+        api.set_volume(mp, volumePercent);
+        playbackEndHandled = false;
         currentPath = path; currentMediaIsP2P=false; currentMediaIsNetwork=false; hasMedia=true; paused=false; needResumePrompt=false;
         subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
         chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; chapterScanComplete=false;
@@ -994,6 +1269,7 @@ public:
         redraw();
     }
     bool open_p2p_stream_location(const std::string& url) {
+        cancel_tv_autoplay();
         if (!inst || !api.media_new_location || url.empty()) return false;
         cleanup_player();
         libvlc_media_t* media = api.media_new_location(inst, url.c_str());
@@ -1002,7 +1278,8 @@ public:
         api.media_release(media);
         if (!mp) return false;
         api.set_xwindow(mp, (unsigned int)video);
-        api.set_volume(mp, 80);
+        api.set_volume(mp, volumePercent);
+        playbackEndHandled = false;
         currentPath.clear(); currentMediaIsP2P=true; currentMediaIsNetwork=true; hasMedia=true; paused=false; needResumePrompt=false;
         subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
         chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; chapterScanComplete=false;
@@ -1021,7 +1298,8 @@ public:
         api.media_release(media);
         if (!mp) return false;
         api.set_xwindow(mp, (unsigned int)video);
-        api.set_volume(mp, 80);
+        api.set_volume(mp, volumePercent);
+        playbackEndHandled = false;
         ytdlpStreamBaseMs = std::max<long long>(0, baseMs);
         currentPath.clear(); currentMediaIsP2P=false; currentMediaIsNetwork=true; currentMediaIsYtDlpStream=true; hasMedia=true; paused=false; needResumePrompt=false;
         subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
@@ -1040,9 +1318,16 @@ public:
         redraw();
         return true;
     }
+    void cancel_tv_autoplay() {
+        tvAutoplayArmed=false;
+        tvAutoplayQueue.clear();
+        tvAutoplayIndex=-1;
+        activeLibraryItemValid=false;
+        playbackEndHandled=false;
+    }
     void do_open() {
         std::string p = choose_file_dialog();
-        if (!p.empty()) open_media(p, 0);
+        if (!p.empty()) { cancel_tv_autoplay(); open_media(p, 0); }
     }
     void toggle_play() {
         if (!mp) return;
@@ -1060,6 +1345,7 @@ public:
         redraw();
     }
     void stop_media() {
+        cancel_tv_autoplay();
         if (currentMediaIsYtDlpStream) {
             cleanup_player();
             currentMediaIsNetwork=false;
@@ -1260,33 +1546,50 @@ public:
         }
     }
     void draw_top_bar(Drawable target) {
-        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
-        unsigned long activeRed = col(0x9900,0x0000,0x0000);
-        unsigned long topText = col(0xffff,0xffff,0xffff);
+        const unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
+        const unsigned long activeRed = col(0x9900,0x0000,0x0000);
+        const unsigned long topText = col(0xffff,0xffff,0xffff);
+        const unsigned long divider = col(0x6600,0x0000,0x0000);
         fill(target, {0,0,W,26}, companyRed);
-        if (currentView == ViewMode::VideoPlayer) fill(target, videoPlayerTab, activeRed);
-        if (currentView == ViewMode::Library) fill(target, libraryTab, activeRed);
-        if (currentView == ViewMode::Discover) fill(target, discoverTab, activeRed);
-        if (currentView == ViewMode::YtDlp) fill(target, ytdlpTab, activeRed);
-        if (currentView == ViewMode::P2P) fill(target, p2pTab, activeRed);
-        outline(target, {0,24,W,1}, col(0x6600,0x0000,0x0000));
-        line(target, videoPlayerTab.x + videoPlayerTab.w, 0, videoPlayerTab.x + videoPlayerTab.w, 25, col(0x6600,0x0000,0x0000));
-        line(target, libraryTab.x + libraryTab.w, 0, libraryTab.x + libraryTab.w, 25, col(0x6600,0x0000,0x0000));
-        line(target, discoverTab.x + discoverTab.w, 0, discoverTab.x + discoverTab.w, 25, col(0x6600,0x0000,0x0000));
-        line(target, ytdlpTab.x + ytdlpTab.w, 0, ytdlpTab.x + ytdlpTab.w, 25, col(0x6600,0x0000,0x0000));
-        line(target, p2pTab.x + p2pTab.w, 0, p2pTab.x + p2pTab.w, 25, col(0x6600,0x0000,0x0000));
-        text(target, 10, 17, "Video Player", topText);
-        text(target, 130, 17, "Library", topText);
-        text(target, 214, 17, "Discover", topText);
-        text(target, 306, 17, "YouTube", topText);
-        text(target, 392, 17, "P2P", topText);
-        const std::string versionLabel = "v0.0.16";
+
+        XRectangle navClip{0,0,(unsigned short)std::max(1,topNavViewportW),26};
+        XSetClipRectangles(d, gc, 0, 0, &navClip, 1, Unsorted);
+        const auto draw_tab = [&](const Rect& tab, const char* label, bool active) {
+            if (active) fill(target, tab, activeRed);
+            line(target, tab.x + tab.w - 1, 0, tab.x + tab.w - 1, 25, divider);
+            text(target, tab.x + std::max(5,(tab.w-text_width(label))/2), 17, label, topText);
+        };
+        draw_tab(videoPlayerTab,"Video Player",currentView==ViewMode::VideoPlayer);
+        draw_tab(libraryTab,"Library",currentView==ViewMode::Library);
+        draw_tab(discoverTab,"Discover",currentView==ViewMode::Discover);
+        draw_tab(nougatTab,"Nougat",currentView==ViewMode::Nougat);
+        draw_tab(ytdlpTab,"YouTube",currentView==ViewMode::YtDlp);
+        draw_tab(p2pTab,"P2P",currentView==ViewMode::P2P);
+        draw_tab(debugTab,"Debug",currentView==ViewMode::Debug);
+        XSetClipMask(d, gc, None);
+
+        fill(target, {topNavViewportW,0,std::max(0,W-topNavViewportW),26}, companyRed);
+        outline(target, {0,24,W,1}, divider);
+        const std::string versionLabel = "v0.0.19";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         const int treeX = versionX - reddmedia_icon::kTopBar14Size - 6;
-        const std::string serverLabel = mediaServer.status_label();
-        const int serverX = treeX - 12 - text_width(serverLabel);
-        text(target, serverX, 17, serverLabel, topText);
+        bool serverBusy = false;
+        reddmedia::MediaServerState serverStateValue = reddmedia::MediaServerState::Stopped;
+        {
+            std::lock_guard<std::mutex> lock(serverState->mutex);
+            serverBusy = serverState->busy;
+            serverStateValue = serverState->state;
+        }
+        unsigned long light = col(0xffff, 0x2222, 0x2222);
+        if (serverStateValue == reddmedia::MediaServerState::Ready && !serverBusy) light = col(0x1111,0xdddd,0x2222);
+        else if (serverStateValue == reddmedia::MediaServerState::Starting || serverBusy) light = col(0xffff,0xdddd,0x1111);
+        const std::string serverLabel = "Server:";
+        const int serverX = treeX - 34 - text_width(serverLabel);
+        if (serverX >= topNavViewportW) {
+            text(target, serverX, 17, serverLabel, topText);
+            fill_circle(target, serverX + text_width(serverLabel) + 7, 8, 10, light);
+        }
         draw_tree_badge(target, treeX, 5, 0xbb, 0x00, 0x00);
         text(target, versionX, 17, versionLabel, topText);
     }
@@ -1395,13 +1698,15 @@ public:
         unsigned long dark = col(0x1111,0x1111,0x1111);
         unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
         unsigned long bg = col(0xdede,0xdede,0xdede);
-        fill(target, {std::max(0, volRect.x-62), std::max(0, volRect.y-6), volRect.w+72, volRect.h+16}, bg);
+        fill(target, {0, std::max(0, volRect.y-6), W, volRect.h+16}, bg);
         fill(target, volRect, col(0xeeee,0xeeee,0xeeee));
         outline(target, volRect, col(0x8888,0x8888,0x8888));
-        int vol = mp ? api.get_volume(mp) : 80;
+        int vol = mp ? api.get_volume(mp) : volumePercent;
+        if (vol < 0) vol = volumePercent;
         vol = std::max(0,std::min(100,vol));
+        volumePercent = vol;
         fill(target, {volRect.x, volRect.y, volRect.w*vol/100, volRect.h}, companyRed);
-        text(target, volRect.x-56, volRect.y+14, "Volume", dark);
+        text(target, 10, volRect.y+14, "Volume " + std::to_string(vol) + "%", dark);
     }
 
     void draw_controls(Drawable target) {
@@ -1415,6 +1720,61 @@ public:
         button_on(target, fsBtn, "Fullscreen");
         draw_seek_time_row(target);
         draw_volume_bar(target);
+    }
+
+    bool loading_state(double& progress) {
+        {
+            std::lock_guard<std::mutex> lock(serverState->mutex);
+            if (serverState->busy) { progress = serverState->progress; return true; }
+        }
+        if (currentView == ViewMode::Library) {
+            {
+                std::lock_guard<std::mutex> lock(libraryState->mutex);
+                if (libraryState->busy) { progress = libraryState->progress; return true; }
+            }
+            {
+                std::lock_guard<std::mutex> lock(posterState->mutex);
+                if (posterState->busy) { progress = posterState->progress; return true; }
+            }
+        }
+        if (currentView == ViewMode::Discover) {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            if (discoverState->busy) { progress = discoverState->progress; return true; }
+        }
+        if (currentView == ViewMode::Debug) {
+            {
+                std::lock_guard<std::mutex> lock(debugState->mutex);
+                if (debugState->busy) { progress = debugState->progress; return true; }
+            }
+            {
+                std::lock_guard<std::mutex> lock(libraryState->mutex);
+                if (libraryState->busy) { progress = libraryState->progress; return true; }
+            }
+            {
+                std::lock_guard<std::mutex> lock(posterState->mutex);
+                if (posterState->busy) { progress = posterState->progress; return true; }
+            }
+            {
+                std::lock_guard<std::mutex> lock(discoverState->mutex);
+                if (discoverState->busy) { progress = discoverState->progress; return true; }
+            }
+        }
+        return false;
+    }
+
+    void draw_loading_bar(Drawable target) {
+        double progress = 0.0;
+        if (!loading_state(progress)) return;
+        const Rect track = {0, 26, W, 6};
+        fill(target, track, col(0x8888,0x8888,0x8888));
+        if (progress > 0.0) {
+            const int loaded = std::max(2, std::min(W, static_cast<int>(progress * W)));
+            fill(target, {0, 26, loaded, 6}, col(0xbbbb,0x0000,0x0000));
+        } else {
+            const int chunk = std::max(80, W / 5);
+            const int position = static_cast<int>((now_ms() / 8) % (W + chunk)) - chunk;
+            fill(target, {position, 26, chunk, 6}, col(0xbbbb,0x0000,0x0000));
+        }
     }
 
     void draw_seek_time_only() {
@@ -1444,7 +1804,7 @@ public:
     }
 
     void draw_yt_dlp_screen(Drawable target) {
-        unsigned long bg = col(0xdede,0xdede,0xdede);
+        unsigned long bg = col(0xeeee,0xe4e4,0xe4e4);
         unsigned long dark = col(0x1111,0x1111,0x1111);
         unsigned long border = urlFocused ? col(0xbbbb,0x0000,0x0000) : col(0x7777,0x7777,0x7777);
         fill(target, {0,26,W,H-26}, bg);
@@ -1486,8 +1846,8 @@ public:
         button_on(target, ytdlpDownloadBtn, "Download");
         button_on(target, ytdlpPlayBtn, "Play");
         button_on(target, ytdlpClearBtn, "Clear Log");
-        text(target, 28, 258, "Status: " + ytdlpStatus, dark);
-        Rect logBox = {28, 280, std::max(240, W-56), std::max(100, H-305)};
+        text(target, 28, 234, "Status: " + ytdlpStatus, dark);
+        Rect logBox = {28, 252, std::max(240, W-56), std::max(100, H-277)};
         fill(target, logBox, col(0xf7f7,0xf7f7,0xf7f7));
         outline(target, logBox, col(0x7777,0x7777,0x7777));
         text(target, logBox.x+8, logBox.y+20, "YouTube activity log", dark);
@@ -1528,8 +1888,8 @@ public:
         }
     }
     void draw_p2p_screen(Drawable target) {
-        unsigned long bg = col(0xdede,0xdede,0xdede);
-        unsigned long dark = col(0x1111,0x1111,0x1111);
+        unsigned long bg = col(0xe3e3,0xeaea,0xf2f2);
+        unsigned long dark = col(0x1111,0x1a1a,0x2424);
         unsigned long border = p2pMagnetFocused ? col(0xbbbb,0x0000,0x0000) : col(0x7777,0x7777,0x7777);
         fill(target, {0,26,W,H-26}, bg);
         text(target, 28, 62, "P2P Streaming", dark);
@@ -1563,7 +1923,7 @@ public:
 
         auto_select_single_video();
         P2PStatus st=p2p.status();
-        int y=254;
+        int y=230;
         text(target,28,y,"Status: "+p2pUiStatus,dark); y+=20;
         if (st.active) {
             int pct=std::max(0,std::min(100,(int)(st.progress*100.0f)));
@@ -1592,6 +1952,76 @@ public:
         if (fs.empty()) text(target,fileBox.x+8,fileBox.y+46,st.active?"Waiting for P2P metadata...":"Load a magnet or P2P metadata file.",col(0x5555,0x5555,0x5555));
     }
 
+    std::string server_control_label() const {
+        if (mediaServer.state() == reddmedia::MediaServerState::Ready && !mediaServer.owns_server()) {
+            return "Server: Ready (independent; Stop preserves it)";
+        }
+        return mediaServer.status_label();
+    }
+
+    void start_server_task(int operation) {
+        {
+            std::lock_guard<std::mutex> lock(serverState->mutex);
+            if (serverState->busy) return;
+        }
+        if (serverWorker.joinable()) serverWorker.join();
+        {
+            std::lock_guard<std::mutex> lock(serverState->mutex);
+            serverState->busy = true;
+            serverState->updated = false;
+            serverState->progress = 0.05;
+            serverState->state = reddmedia::MediaServerState::Starting;
+            if (operation == 1) serverState->status = "Starting integrated server...";
+            else if (operation == 2) serverState->status = "Stopping owned integrated server...";
+            else serverState->status = "Refreshing server status...";
+        }
+        redraw();
+        const std::shared_ptr<ServerUiState> state = serverState;
+        serverWorker = std::thread([this, state, operation]() {
+            if (operation == 1) {
+                mediaServer.start();
+                for (int attempt = 0; attempt < 100; ++attempt) {
+                    mediaServer.refresh();
+                    {
+                        std::lock_guard<std::mutex> lock(state->mutex);
+                        state->progress = 0.08 + static_cast<double>(attempt) * 0.0085;
+                    }
+                    if (mediaServer.state() == reddmedia::MediaServerState::Ready ||
+                        mediaServer.state() == reddmedia::MediaServerState::Fault ||
+                        mediaServer.state() == reddmedia::MediaServerState::RuntimeMissing) break;
+                    usleep(100000);
+                }
+            } else if (operation == 2) {
+                {
+                    std::lock_guard<std::mutex> lock(state->mutex);
+                    state->progress = 0.35;
+                }
+                mediaServer.stop();
+            } else {
+                mediaServer.refresh();
+            }
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->status = server_control_label();
+            state->state = mediaServer.state();
+            state->owned = mediaServer.owns_server();
+            state->busy = false;
+            state->updated = true;
+            state->progress = 1.0;
+        });
+    }
+
+    void poll_server_worker() {
+        bool updated = false;
+        {
+            std::lock_guard<std::mutex> lock(serverState->mutex);
+            updated = serverState->updated;
+            if (updated) serverState->updated = false;
+        }
+        if (!updated) return;
+        if (serverWorker.joinable()) serverWorker.join();
+        if (!fullscreen) redraw();
+    }
+
     void start_library_task(int operation,
                             const std::string& folder = {},
                             const reddmedia::LibraryNode& parent = {}) {
@@ -1604,31 +2034,80 @@ public:
             std::lock_guard<std::mutex> lock(libraryState->mutex);
             libraryState->busy = true;
             libraryState->updated = false;
+            libraryState->progress = 0.05;
             if (operation == 1) libraryState->status = "Linking folder and scanning metadata...";
             else if (operation == 2) libraryState->status = "Refreshing this library...";
             else if (operation == 3) libraryState->status = "Unlinking folder...";
             else libraryState->status = "Loading real library metadata...";
         }
+        if (operation == 2) {
+            std::lock_guard<std::mutex> lock(posterState->mutex);
+            posterState->failed.clear();
+        }
         redraw();
 
         const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
+        const std::shared_ptr<reddmedia::RecommendationEngine> engine = recommendationEngine;
         const std::shared_ptr<LibraryUiState> state = libraryState;
         const reddmedia::LibraryMediaType media_type = libraryMediaType;
         const bool type_chosen = libraryTypeChosen;
-        libraryWorker = std::thread([client, state, operation, folder, parent,
+        libraryWorker = std::thread([client, engine, state, operation, folder, parent,
                                      media_type, type_chosen]() {
+            const auto set_progress = [state](double progress) {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->progress = progress;
+            };
             std::string error;
             bool ok = client->initialize(error);
+            set_progress(0.18);
             if (ok && operation == 1) ok = client->add_media_folder(folder, media_type, error);
             if (ok && operation == 2) ok = client->refresh_library(error);
             if (ok && operation == 3) ok = client->unlink_media_folder(folder, media_type, error);
+            set_progress(0.48);
             std::vector<reddmedia::MediaFolder> folders;
             if (ok) ok = client->load_media_folders(folders, error);
+            set_progress(0.62);
             std::vector<reddmedia::LibraryNode> nodes;
             if (ok && operation == 5) ok = client->load_library_children(parent, nodes, error);
             else if (ok && type_chosen && operation != 0) {
                 ok = client->load_library_roots(media_type, nodes, error);
             }
+            if (ok && engine->external_credential_available()) {
+                for (std::size_t index = 0; index < nodes.size(); ++index) {
+                    reddmedia::LibraryNode& node = nodes[index];
+                    std::string fallback_error;
+                    if (node.kind == reddmedia::LibraryNodeKind::Episode &&
+                        !node.series_tmdb_id.empty() && node.season_number >= 0 &&
+                        node.episode_number > 0 &&
+                        (node.episode_title.empty() || node.overview.empty())) {
+                        std::string title;
+                        std::string overview;
+                        if (engine->load_tv_episode_details(node.series_tmdb_id,
+                                                            node.season_number,
+                                                            node.episode_number,
+                                                            title, overview,
+                                                            fallback_error)) {
+                            if (node.episode_title.empty()) node.episode_title = title;
+                            if (node.overview.empty()) node.overview = overview;
+                        }
+                    }
+                    if (node.poster_item_id.empty() && node.tmdb_poster_path.empty() &&
+                        !node.series_tmdb_id.empty()) {
+                        engine->load_tv_poster_path(node.series_tmdb_id,
+                            node.kind == reddmedia::LibraryNodeKind::Series ? 0 : node.season_number,
+                            node.tmdb_poster_path, fallback_error);
+                    } else if (node.kind == reddmedia::LibraryNodeKind::Movie &&
+                               node.poster_item_id.empty() && node.tmdb_poster_path.empty() &&
+                               !node.tmdb_id.empty()) {
+                        engine->load_movie_poster_path(node.tmdb_id,
+                                                      node.tmdb_poster_path,
+                                                      fallback_error);
+                    }
+                    set_progress(0.62 + 0.27 * static_cast<double>(index + 1U) /
+                        static_cast<double>(std::max<std::size_t>(1U, nodes.size())));
+                }
+            }
+            set_progress(0.90);
 
             std::lock_guard<std::mutex> lock(state->mutex);
             if (ok) {
@@ -1649,6 +2128,7 @@ public:
             }
             state->busy = false;
             state->updated = true;
+            state->progress = 1.0;
         });
     }
 
@@ -1668,6 +2148,7 @@ public:
         if (count == 0U) librarySelected = -1;
         else if (librarySelected < 0 || librarySelected >= static_cast<int>(count)) librarySelected = 0;
         libraryScroll = std::max(0, std::min(libraryScroll, std::max(0, static_cast<int>(count) - 1)));
+        queue_library_posters();
         if (!fullscreen && currentView == ViewMode::Library) redraw();
     }
 
@@ -1750,6 +2231,103 @@ public:
         return item;
     }
 
+    bool prepare_tv_autoplay(const reddmedia::LibraryNode& selected) {
+        tvAutoplayQueue.clear();
+        tvAutoplayIndex = -1;
+        tvAutoplayArmed = false;
+        activeLibraryItemValid = false;
+        playbackEndHandled = false;
+        if (selected.kind != reddmedia::LibraryNodeKind::Episode) return false;
+        reddmedia::LibraryNode series;
+        bool have_series = false;
+        for (const auto& parent : libraryParents) {
+            if (parent.kind == reddmedia::LibraryNodeKind::Series) { series = parent; have_series = true; break; }
+        }
+        std::string error;
+        if (have_series && libraryClient->initialize(error)) {
+            std::vector<reddmedia::LibraryNode> seasons;
+            if (libraryClient->load_library_children(series, seasons, error)) {
+                std::sort(seasons.begin(), seasons.end(), [](const auto& a, const auto& b) {
+                    if (a.season_number != b.season_number) return a.season_number < b.season_number;
+                    return a.name < b.name;
+                });
+                for (const auto& season : seasons) {
+                    if (season.kind != reddmedia::LibraryNodeKind::Season) continue;
+                    std::vector<reddmedia::LibraryNode> episodes;
+                    std::string child_error;
+                    if (!libraryClient->load_library_children(season, episodes, child_error)) continue;
+                    std::sort(episodes.begin(), episodes.end(), [](const auto& a, const auto& b) {
+                        if (a.season_number != b.season_number) return a.season_number < b.season_number;
+                        if (a.episode_number != b.episode_number) return a.episode_number < b.episode_number;
+                        return a.name < b.name;
+                    });
+                    for (const auto& episode : episodes) {
+                        if (episode.kind == reddmedia::LibraryNodeKind::Episode && exists_file(episode.path)) {
+                            tvAutoplayQueue.push_back(episode);
+                        }
+                    }
+                }
+            }
+        }
+        if (tvAutoplayQueue.empty()) {
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            for (const auto& episode : libraryState->nodes) {
+                if (episode.kind == reddmedia::LibraryNodeKind::Episode && exists_file(episode.path)) {
+                    tvAutoplayQueue.push_back(episode);
+                }
+            }
+        }
+        for (std::size_t i=0; i<tvAutoplayQueue.size(); ++i) {
+            if ((!selected.id.empty() && tvAutoplayQueue[i].id == selected.id) ||
+                (!selected.path.empty() && tvAutoplayQueue[i].path == selected.path)) {
+                tvAutoplayIndex = static_cast<int>(i);
+                break;
+            }
+        }
+        if (tvAutoplayIndex < 0) return false;
+        activeLibraryItem = selected;
+        activeLibraryItemValid = true;
+        tvAutoplayArmed = true;
+        return true;
+    }
+
+    void mark_active_episode_completed() {
+        if (!activeLibraryItemValid) return;
+        std::string error;
+        recommendationEngine->record_completed(descriptor_for_node(activeLibraryItem), error);
+    }
+
+    bool play_next_tv_episode() {
+        if (!tvAutoplayArmed || tvAutoplayIndex < 0) return false;
+        const int next = tvAutoplayIndex + 1;
+        if (next >= static_cast<int>(tvAutoplayQueue.size())) {
+            tvAutoplayArmed = false;
+            return false;
+        }
+        tvAutoplayIndex = next;
+        activeLibraryItem = tvAutoplayQueue[static_cast<std::size_t>(next)];
+        activeLibraryItemValid = true;
+        std::string history_error;
+        recommendationEngine->record_started(descriptor_for_node(activeLibraryItem), history_error);
+        open_media(activeLibraryItem.path, 0);
+        return true;
+    }
+
+    void poll_natural_playback_end() {
+        if (!mp || paused || playbackEndHandled || currentMediaIsNetwork || currentMediaIsP2P || currentMediaIsYtDlpStream) return;
+        bool ended = false;
+        if (api.get_state) ended = api.get_state(mp) == 6;
+        if (!ended) {
+            const long long length = playback_length_ms();
+            const long long position = playback_time_ms();
+            ended = length > 0 && position >= std::max<long long>(0, length - 350);
+        }
+        if (!ended) return;
+        playbackEndHandled = true;
+        mark_active_episode_completed();
+        if (!play_next_tv_episode() && !fullscreen) redraw();
+    }
+
     void open_library_node(const reddmedia::LibraryNode& selected) {
         if (selected.kind == reddmedia::LibraryNodeKind::MovieCollection ||
             selected.kind == reddmedia::LibraryNodeKind::Series ||
@@ -1768,6 +2346,8 @@ public:
             redraw();
             return;
         }
+        if (selected.kind == reddmedia::LibraryNodeKind::Episode) prepare_tv_autoplay(selected);
+        else cancel_tv_autoplay();
         std::string history_error;
         recommendationEngine->record_started(descriptor_for_node(selected), history_error);
         switch_view(ViewMode::VideoPlayer);
@@ -1793,32 +2373,101 @@ public:
         else start_library_task(5, {}, libraryParents.back());
     }
 
-    void draw_library_poster(Drawable target,
-                             const Rect& area,
-                             const reddmedia::LibraryNode& node) {
-        const unsigned long black = col(0x0808,0x0808,0x0808);
-        fill(target, area, black);
-        if (node.primary_image_tag.empty()) {
-            text(target, area.x + 12, area.y + area.h / 2, "NO POSTER",
-                 col(0x9999,0x9999,0x9999));
-            return;
+    std::string library_poster_key(const reddmedia::LibraryNode& node) const {
+        if (!node.poster_item_id.empty()) {
+            return "jellyfin:" + node.poster_item_id + ":" + node.poster_image_tag;
         }
-        const std::string key = node.id + ":" + node.primary_image_tag;
-        auto found = libraryPosterCache.find(key);
-        if (found == libraryPosterCache.end()) {
-            std::string bytes;
-            std::string error;
-            reddmedia::LibraryPoster poster;
-            if (libraryClient->load_primary_image_bmp(node.id, area.w, area.h, bytes, error) &&
-                reddmedia::decode_library_poster_bmp(bytes, poster, error)) {
-                found = libraryPosterCache.emplace(key, std::move(poster)).first;
-            } else {
-                text(target, area.x + 12, area.y + area.h / 2, "NO POSTER",
-                     col(0x9999,0x9999,0x9999));
+        if (!node.tmdb_poster_path.empty()) return "tmdb:" + node.tmdb_poster_path;
+        return "";
+    }
+
+    void queue_library_posters() {
+        {
+            std::lock_guard<std::mutex> lock(posterState->mutex);
+            if (posterState->busy) {
+                posterQueued = true;
                 return;
             }
         }
-        const reddmedia::LibraryPoster& poster = found->second;
+        if (posterWorker.joinable()) posterWorker.join();
+        std::vector<reddmedia::LibraryNode> nodes;
+        {
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            nodes = libraryState->nodes;
+        }
+        {
+            std::lock_guard<std::mutex> lock(posterState->mutex);
+            posterState->busy = true;
+            posterState->updated = false;
+            posterState->progress = 0.0;
+        }
+        const std::shared_ptr<PosterUiState> posters = posterState;
+        const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
+        const std::shared_ptr<reddmedia::RecommendationEngine> engine = recommendationEngine;
+        posterWorker = std::thread([posters, client, engine, nodes]() {
+            std::size_t total = 0;
+            for (const auto& node : nodes) {
+                if (!node.poster_item_id.empty() || !node.tmdb_poster_path.empty()) ++total;
+            }
+            std::size_t completed = 0;
+            for (const auto& node : nodes) {
+                std::string key;
+                if (!node.poster_item_id.empty()) {
+                    key = "jellyfin:" + node.poster_item_id + ":" + node.poster_image_tag;
+                } else if (!node.tmdb_poster_path.empty()) {
+                    key = "tmdb:" + node.tmdb_poster_path;
+                }
+                if (key.empty()) continue;
+                bool needed = true;
+                {
+                    std::lock_guard<std::mutex> lock(posters->mutex);
+                    needed = posters->cache.count(key) == 0U && posters->failed.count(key) == 0U;
+                }
+                if (needed) {
+                    std::string bytes;
+                    std::string error;
+                    reddmedia::LibraryPoster poster;
+                    const bool source_loaded = !node.poster_item_id.empty()
+                        ? client->load_primary_image_bmp(node.poster_item_id,
+                            node.poster_image_tag, 132, 158, bytes, error)
+                        : engine->load_external_poster_bmp(node.tmdb_poster_path,
+                            132, 158, bytes, error);
+                    const bool loaded = source_loaded &&
+                        reddmedia::decode_library_poster_bmp(bytes, poster, error);
+                    std::lock_guard<std::mutex> lock(posters->mutex);
+                    if (loaded) posters->cache[key] = std::move(poster);
+                    else posters->failed.insert(key);
+                }
+                ++completed;
+                std::lock_guard<std::mutex> lock(posters->mutex);
+                posters->progress = total == 0U ? 1.0 :
+                    static_cast<double>(completed) / static_cast<double>(total);
+            }
+            std::lock_guard<std::mutex> lock(posters->mutex);
+            posters->busy = false;
+            posters->updated = true;
+            posters->progress = 1.0;
+        });
+    }
+
+    void poll_poster_worker() {
+        bool updated = false;
+        {
+            std::lock_guard<std::mutex> lock(posterState->mutex);
+            updated = posterState->updated;
+            if (updated) posterState->updated = false;
+        }
+        if (!updated) return;
+        if (posterWorker.joinable()) posterWorker.join();
+        const bool queued = posterQueued;
+        posterQueued = false;
+        if (queued) queue_library_posters();
+        if (!fullscreen && currentView == ViewMode::Library) redraw();
+    }
+
+    void draw_poster_pixels(Drawable target,
+                            const Rect& area,
+                            const reddmedia::LibraryPoster& poster) {
         const int depth = DefaultDepth(d, screen);
         const int bytes_per_pixel = 4;
         char* image_data = static_cast<char*>(std::calloc(
@@ -1852,18 +2501,84 @@ public:
         XDestroyImage(image);
     }
 
+    void draw_library_poster(Drawable target,
+                             const Rect& area,
+                             const reddmedia::LibraryNode& node) {
+        fill(target, area, col(0x0808,0x0808,0x0808));
+        const std::string key = library_poster_key(node);
+        if (key.empty()) {
+            text(target, area.x + 12, area.y + area.h / 2, "NO POSTER",
+                 col(0x9999,0x9999,0x9999));
+            return;
+        }
+        reddmedia::LibraryPoster poster;
+        bool available = false;
+        bool loading = false;
+        {
+            std::lock_guard<std::mutex> lock(posterState->mutex);
+            const auto found = posterState->cache.find(key);
+            if (found != posterState->cache.end()) {
+                poster = found->second;
+                available = true;
+            }
+            loading = posterState->busy;
+        }
+        if (available) draw_poster_pixels(target, area, poster);
+        else text(target, area.x + 12, area.y + area.h / 2,
+                  loading ? "LOADING..." : "NO POSTER",
+                  col(0x9999,0x9999,0x9999));
+    }
+
+    LibraryGridMetrics library_grid_metrics() const {
+        LibraryGridMetrics metrics;
+        const int inner_width = std::max(1, libraryListBox.w - 12);
+        const int inner_height = std::max(1, libraryListBox.h - 12);
+        metrics.gap = 8;
+        metrics.columns = std::max(1, (inner_width + metrics.gap) / (140 + metrics.gap));
+        metrics.rows = std::max(1, (inner_height + metrics.gap) / (180 + metrics.gap));
+        metrics.tileWidth = std::max(108,
+            (inner_width - (metrics.columns - 1) * metrics.gap) / metrics.columns);
+        metrics.tileHeight = std::max(170,
+            (inner_height - (metrics.rows - 1) * metrics.gap) / metrics.rows);
+        metrics.posterHeight = std::max(118, metrics.tileHeight - 50);
+        metrics.visibleItems = metrics.columns * metrics.rows;
+        return metrics;
+    }
+
+    std::string library_display_title(const reddmedia::LibraryNode& item) const {
+        if (item.kind != reddmedia::LibraryNodeKind::Episode) {
+            std::string title = item.name;
+            if (item.production_year > 0) {
+                title += " (" + std::to_string(item.production_year) + ")";
+            }
+            return title;
+        }
+        std::ostringstream title;
+        if (item.season_number > 0 && item.episode_number > 0) {
+            title << 'S' << std::setfill('0') << std::setw(2) << item.season_number
+                  << 'E' << std::setw(2) << item.episode_number;
+        } else if (item.episode_number > 0) {
+            title << "Episode " << item.episode_number;
+        } else title << "Episode number unavailable";
+        title << " - " << (item.episode_title.empty() ? "Title unavailable" : item.episode_title);
+        return title.str();
+    }
+
     void draw_library_screen(Drawable target) {
-        const unsigned long bg = col(0xdede,0xdede,0xdede);
-        const unsigned long dark = col(0x1111,0x1111,0x1111);
-        const unsigned long border = col(0x7777,0x7777,0x7777);
+        const unsigned long bg = col(0xe4e4,0xeeeE,0xe6e6);
+        const unsigned long dark = col(0x1111,0x2211,0x1515);
+        const unsigned long border = col(0x6688,0x8877,0x6688);
         fill(target, {0,26,W,H-26}, bg);
         text(target, 28, 58, libraryParents.empty() ? "MEDIA LIBRARY" : libraryParents.back().name, dark);
         button_on(target, libraryMoviesBtn, "Movies");
         button_on(target, libraryTvBtn, "TV");
         button_on(target, libraryAddFolderBtn, "Link Folder");
         button_on(target, libraryUnlinkFolderBtn, "Unlink Folder");
-        button_on(target, libraryRefreshBtn, "Refresh");
+        button_on(target, libraryRefreshBtn, "Refresh Library");
         button_on(target, libraryBackBtn, "Back");
+        button_on(target, serverStartBtn, "Start Server");
+        button_on(target, serverStopBtn, "Stop Server");
+        button_on(target, serverRefreshBtn, "Refresh Server");
 
         std::vector<reddmedia::LibraryNode> nodes;
         std::string status;
@@ -1874,37 +2589,37 @@ public:
             status = libraryState->status;
             busy = libraryState->busy;
         }
-        text(target, 28, 170, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
+        text(target, 28, 122, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
         fill(target, libraryListBox, col(0xf7f7,0xf7f7,0xf7f7));
         outline(target, libraryListBox, border);
         libraryRows.clear();
-        const int tile_width = 140;
-        const int tile_height = 198;
-        const int gap = 12;
-        const int columns = std::max(1, (libraryListBox.w - 12 + gap) / (tile_width + gap));
-        const int rows = std::max(1, (libraryListBox.h - 12 + gap) / (tile_height + gap));
-        const int visible_items = columns * rows;
-        const int max_scroll = std::max(0, static_cast<int>(nodes.size()) - visible_items);
+        const LibraryGridMetrics grid = library_grid_metrics();
+        const int max_scroll = std::max(0, static_cast<int>(nodes.size()) - grid.visibleItems);
         libraryScroll = std::max(0, std::min(libraryScroll, max_scroll));
-        for (int visible_index = 0; visible_index < visible_items; ++visible_index) {
+        for (int visible_index = 0; visible_index < grid.visibleItems; ++visible_index) {
             const int node_index = libraryScroll + visible_index;
             if (node_index >= static_cast<int>(nodes.size())) break;
             const reddmedia::LibraryNode& item = nodes[static_cast<std::size_t>(node_index)];
-            const int column = visible_index % columns;
-            const int row_number = visible_index / columns;
-            Rect row = {libraryListBox.x + 6 + column * (tile_width + gap),
-                        libraryListBox.y + 6 + row_number * (tile_height + gap),
-                        tile_width, tile_height};
+            const int column = visible_index % grid.columns;
+            const int row_number = visible_index / grid.columns;
+            Rect row = {libraryListBox.x + 6 + column * (grid.tileWidth + grid.gap),
+                        libraryListBox.y + 6 + row_number * (grid.tileHeight + grid.gap),
+                        grid.tileWidth, grid.tileHeight};
             if (node_index == librarySelected) fill(target, row, col(0xdddd,0xeeee,0xffff));
             outline(target, row, col(0x9999,0x9999,0x9999));
-            draw_library_poster(target, {row.x + 4, row.y + 4, row.w - 8, 158}, item);
-            std::string title = item.name;
-            if (item.production_year > 0) title += " (" + std::to_string(item.production_year) + ")";
-            text(target, row.x + 6, row.y + 180, tail_to_width(title, row.w - 12), dark);
+            draw_library_poster(target, {row.x + 4, row.y + 4, row.w - 8, grid.posterHeight}, item);
+            const int title_y = row.y + grid.posterHeight + 18;
+            text(target, row.x + 6, title_y,
+                 head_to_width(library_display_title(item), row.w - 12), dark);
+            if (!item.technical_details.empty()) {
+                text(target, row.x + 6, title_y + 14,
+                     head_to_width(item.technical_details, row.w - 12),
+                     col(0x4444,0x4444,0x4444));
+            }
             const bool container = item.kind == reddmedia::LibraryNodeKind::MovieCollection ||
                 item.kind == reddmedia::LibraryNodeKind::Series ||
                 item.kind == reddmedia::LibraryNodeKind::Season;
-            text(target, row.x + 6, row.y + 194, container ? "Open" : "Play",
+            text(target, row.x + 6, row.y + row.h - 5, container ? "Open" : "Play",
                  col(0x6666,0x0000,0x0000));
             libraryRows.push_back(row);
         }
@@ -1922,34 +2637,30 @@ public:
             if (discoverState->busy) return;
         }
         if (source == reddmedia::RecommendationSource::External &&
-            !recommendationEngine->external_token_available()) {
-            const std::string token = choose_tmdb_token_dialog();
-            if (token.empty()) {
-                {
-                    std::lock_guard<std::mutex> lock(discoverState->mutex);
-                    discoverState->status = "External recommendations need a TMDb read-access token.";
-                    discoverState->hasResult = false;
-                }
-                redraw();
-                return;
+            !recommendationEngine->external_credential_available()) {
+            {
+                std::lock_guard<std::mutex> lock(discoverState->mutex);
+                discoverState->status =
+                    "External recommendations need a validated TMDb credential. Use Save / Replace.";
+                discoverState->hasResult = false;
+                discoverState->hasPoster = false;
+                discoverState->hasAvailability = false;
             }
-            std::string error;
-            if (!recommendationEngine->save_external_token(token, error)) {
-                {
-                    std::lock_guard<std::mutex> lock(discoverState->mutex);
-                    discoverState->status = error;
-                    discoverState->hasResult = false;
-                }
-                redraw();
-                return;
-            }
+            redraw();
+            return;
         }
         if (discoverWorker.joinable()) discoverWorker.join();
+        discoverDetailsScroll = 0;
+        discoverServiceSettings = false;
         {
             std::lock_guard<std::mutex> lock(discoverState->mutex);
             discoverState->busy = true;
             discoverState->updated = false;
             discoverState->hasResult = false;
+            discoverState->hasPoster = false;
+            discoverState->hasAvailability = false;
+            discoverState->availabilityStatus.clear();
+            discoverState->progress = 0.05;
             discoverState->status = "Finding one real recommendation...";
         }
         redraw();
@@ -1957,10 +2668,17 @@ public:
         const std::shared_ptr<reddmedia::RecommendationEngine> engine = recommendationEngine;
         const std::shared_ptr<DiscoverUiState> state = discoverState;
         const reddmedia::RecommendationMode mode = discoverMode;
-        discoverWorker = std::thread([client, engine, state, source, media_type, mode]() {
+        const std::string watch_region = watchPreferences.region();
+        discoverWorker = std::thread([client, engine, state, source, media_type, mode,
+                                      watch_region]() {
+            const auto set_progress = [state](double progress) {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->progress = progress;
+            };
             std::string error;
             std::vector<reddmedia::LibraryNode> nodes;
             bool ok = client->load_all_recommendation_items(nodes, error);
+            set_progress(0.28);
             std::vector<reddmedia::MediaDescriptor> local_items;
             if (ok) {
                 for (const reddmedia::LibraryNode& node : nodes) {
@@ -1971,8 +2689,11 @@ public:
                     item.genres = node.genres;
                     item.local_path = node.path;
                     item.tmdb_id = node.tmdb_id;
+                    item.poster_path = node.primary_image_tag;
                     item.year = node.production_year;
-                    item.media_type = node.kind == reddmedia::LibraryNodeKind::Series
+                    item.media_type = (node.kind == reddmedia::LibraryNodeKind::Series ||
+                                       node.kind == reddmedia::LibraryNodeKind::Season ||
+                                       node.kind == reddmedia::LibraryNodeKind::Episode)
                         ? reddmedia::RecommendationMediaType::Television
                         : reddmedia::RecommendationMediaType::Movie;
                     local_items.push_back(std::move(item));
@@ -1986,9 +2707,43 @@ public:
                 request.mode = mode;
                 ok = engine->recommend(request, local_items, result, error);
             }
+            set_progress(0.78);
+            reddmedia::LibraryPoster poster;
+            bool has_poster = false;
+            if (ok && !result.item.poster_path.empty()) {
+                std::string bytes;
+                std::string poster_error;
+                const bool loaded = source == reddmedia::RecommendationSource::External
+                    ? engine->load_external_poster_bmp(
+                        result.item.poster_path, 180, 260, bytes, poster_error)
+                    : client->load_primary_image_bmp(
+                        result.item.id, result.item.poster_path, 180, 260, bytes, poster_error);
+                has_poster = loaded &&
+                    reddmedia::decode_library_poster_bmp(bytes, poster, poster_error);
+            }
+            set_progress(0.88);
+            reddmedia::WatchAvailability availability;
+            bool has_availability = false;
+            std::string availability_status;
+            if (ok && source == reddmedia::RecommendationSource::External &&
+                !result.item.tmdb_id.empty()) {
+                std::string availability_error;
+                has_availability = engine->load_watch_availability(
+                    media_type, result.item.tmdb_id, watch_region,
+                    availability, availability_error);
+                if (!has_availability) {
+                    availability_status = "Watch availability failed: " + availability_error;
+                }
+            }
+            set_progress(0.95);
             std::lock_guard<std::mutex> lock(state->mutex);
             if (ok) {
                 state->result = std::move(result);
+                state->poster = std::move(poster);
+                state->hasPoster = has_poster;
+                state->availability = std::move(availability);
+                state->hasAvailability = has_availability;
+                state->availabilityStatus = std::move(availability_status);
                 state->hasResult = true;
                 state->status = "One recommendation ready.";
             } else {
@@ -1997,6 +2752,106 @@ public:
             }
             state->busy = false;
             state->updated = true;
+            state->progress = 1.0;
+        });
+    }
+
+    void start_tmdb_credential_task(int operation, const std::string& credential = {}) {
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            if (discoverState->busy) return;
+        }
+        if (discoverWorker.joinable()) discoverWorker.join();
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            discoverState->busy = true;
+            discoverState->updated = false;
+            discoverState->progress = 0.05;
+            if (operation == 1) discoverState->status = "Testing the saved TMDb credential...";
+            else if (operation == 2) discoverState->status =
+                "Validating the replacement before saving it...";
+            else discoverState->status = "Clearing the saved TMDb credential...";
+        }
+        redraw();
+        const std::shared_ptr<reddmedia::RecommendationEngine> engine = recommendationEngine;
+        const std::shared_ptr<DiscoverUiState> state = discoverState;
+        discoverWorker = std::thread([engine, state, operation, credential]() {
+            std::string error;
+            bool ok = false;
+            {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->progress = operation == 3 ? 0.50 : 0.25;
+            }
+            if (operation == 1) ok = engine->test_external_credential(error);
+            else if (operation == 2) ok = engine->save_external_credential(credential, error);
+            else ok = engine->clear_external_credential(error);
+            std::lock_guard<std::mutex> lock(state->mutex);
+            if (ok) {
+                if (operation == 1) state->status = "TMDb credential test passed.";
+                else if (operation == 2) state->status =
+                    "Validated and saved: " + engine->external_credential_label() + ".";
+                else {
+                    state->status = "Saved TMDb credential cleared.";
+                    state->hasResult = false;
+                    state->hasPoster = false;
+                    state->hasAvailability = false;
+                    state->providerCatalog.clear();
+                    state->providerCatalogLoaded = false;
+                }
+            } else state->status = error;
+            state->busy = false;
+            state->updated = true;
+            state->progress = 1.0;
+        });
+    }
+
+    void start_provider_catalog_task() {
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            if (discoverState->busy) return;
+            if (discoverState->providerCatalogLoaded) {
+                discoverServiceSettings = true;
+                discoverServicesScroll = 0;
+                redraw();
+                return;
+            }
+        }
+        if (!recommendationEngine->external_credential_available()) {
+            {
+                std::lock_guard<std::mutex> lock(discoverState->mutex);
+                discoverState->status = "My Services needs a validated TMDb credential.";
+            }
+            redraw();
+            return;
+        }
+        if (discoverWorker.joinable()) discoverWorker.join();
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            discoverState->busy = true;
+            discoverState->updated = false;
+            discoverState->progress = 0.10;
+            discoverState->status = "Loading United States watch services...";
+        }
+        const std::shared_ptr<reddmedia::RecommendationEngine> engine = recommendationEngine;
+        const std::shared_ptr<DiscoverUiState> state = discoverState;
+        const std::string region = watchPreferences.region();
+        discoverWorker = std::thread([engine, state, region]() {
+            std::vector<reddmedia::WatchProvider> providers;
+            std::string error;
+            {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->progress = 0.45;
+            }
+            const bool ok = engine->load_watch_provider_catalog(region, providers, error);
+            std::lock_guard<std::mutex> lock(state->mutex);
+            if (ok) {
+                state->providerCatalog = std::move(providers);
+                state->providerCatalogLoaded = true;
+                state->status = "My Services ready.";
+            } else state->status = error;
+            state->busy = false;
+            state->updated = true;
+            state->progress = 1.0;
         });
     }
 
@@ -2009,7 +2864,657 @@ public:
         }
         if (!updated) return;
         if (discoverWorker.joinable()) discoverWorker.join();
-        if (!fullscreen && currentView == ViewMode::Discover) redraw();
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            if (discoverState->providerCatalogLoaded &&
+                discoverState->status == "My Services ready.") {
+                discoverServiceSettings = true;
+            }
+        }
+        if (!fullscreen && (currentView == ViewMode::Discover || currentView == ViewMode::Debug)) {
+            redraw();
+        }
+    }
+
+    reddmedia::DiagnosticInput diagnostic_input() {
+        reddmedia::DiagnosticInput input;
+        input.runtime_path = mediaServer.runtime_path();
+        input.data_path = mediaServer.data_path();
+        input.config_path = mediaServer.config_path();
+        input.cache_path = mediaServer.cache_path();
+        input.log_path = mediaServer.log_path();
+        {
+            std::lock_guard<std::mutex> lock(serverState->mutex);
+            input.server_state = serverState->state;
+            input.server_owned = serverState->owned;
+            input.server_api_ready = input.server_state == reddmedia::MediaServerState::Ready;
+            input.server_busy = serverState->busy;
+            if (serverState->busy) input.active_operation = serverState->status;
+        }
+        {
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            input.library_nodes = libraryState->nodes;
+            input.library_status = libraryState->status;
+            if (libraryState->busy) input.active_operation = libraryState->status;
+        }
+        {
+            std::lock_guard<std::mutex> lock(posterState->mutex);
+            input.poster_failures = posterState->failed.size();
+            if (posterState->busy) input.active_operation = "Loading library artwork.";
+        }
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            input.tmdb_status = discoverState->status;
+            if (discoverState->busy) input.active_operation = discoverState->status;
+        }
+        input.tmdb_configured = recommendationEngine->external_credential_available();
+        input.ai_model_path = exe_dir() +
+            "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf";
+        input.ai_runtime_path = exe_dir() + "/components/ai/runtime";
+        return input;
+    }
+
+    void start_debug_task() {
+        {
+            std::lock_guard<std::mutex> lock(debugState->mutex);
+            if (debugState->busy) return;
+        }
+        if (debugWorker.joinable()) debugWorker.join();
+        const reddmedia::DiagnosticInput input = diagnostic_input();
+        {
+            std::lock_guard<std::mutex> lock(debugState->mutex);
+            debugState->busy = true;
+            debugState->updated = false;
+            debugState->progress = 0.10;
+            debugState->status = "Running evidence-based health checks...";
+        }
+        redraw();
+        const std::shared_ptr<DebugUiState> state = debugState;
+        const reddmedia::DiagnosticEngine engine = diagnosticEngine;
+        debugWorker = std::thread([state, engine, input]() {
+            {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->progress = 0.45;
+            }
+            reddmedia::DiagnosticReport report = engine.evaluate(input);
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->input = input;
+            state->report = std::move(report);
+            state->hasReport = true;
+            state->busy = false;
+            state->updated = true;
+            state->progress = 1.0;
+            state->status = "Checks complete. Only evidence-backed findings are shown.";
+        });
+    }
+
+    void poll_debug_worker() {
+        bool updated = false;
+        {
+            std::lock_guard<std::mutex> lock(debugState->mutex);
+            updated = debugState->updated;
+            if (updated) debugState->updated = false;
+        }
+        if (!updated) return;
+        if (debugWorker.joinable()) debugWorker.join();
+        debugScroll = 0;
+        if (!fullscreen && currentView == ViewMode::Debug) redraw();
+    }
+
+    void launch_external_target(const std::string& target) {
+        if (target.empty()) return;
+        const pid_t child = fork();
+        if (child != 0) return;
+        const int null_descriptor = open("/dev/null", O_RDWR);
+        if (null_descriptor >= 0) {
+            dup2(null_descriptor, STDIN_FILENO);
+            dup2(null_descriptor, STDOUT_FILENO);
+            dup2(null_descriptor, STDERR_FILENO);
+        }
+        execlp("xdg-open", "xdg-open", target.c_str(), static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
+    void open_watch_options() {
+        std::string link;
+        {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            if (!discoverState->hasAvailability) return;
+            link = discoverState->availability.link;
+        }
+        if (link.rfind("https://www.themoviedb.org/", 0U) != 0U) {
+            {
+                std::lock_guard<std::mutex> lock(discoverState->mutex);
+                discoverState->availabilityStatus =
+                    "TMDb did not provide a safe official watch-options link.";
+            }
+            redraw();
+            return;
+        }
+        launch_external_target(link);
+    }
+
+    void open_debug_logs() {
+        launch_external_target(mediaServer.log_path());
+    }
+
+    void copy_debug_report() {
+        reddmedia::DiagnosticReport report;
+        reddmedia::DiagnosticInput input;
+        {
+            std::lock_guard<std::mutex> lock(debugState->mutex);
+            if (!debugState->hasReport) return;
+            report = debugState->report;
+            input = debugState->input;
+            debugState->status = "Diagnostic report copied with credentials redacted.";
+        }
+        own_clipboard_text(reddmedia::DiagnosticEngine::report_text(report, input));
+        redraw();
+    }
+
+    unsigned long nougat_cocoa() { return col(0x2424,0x1818,0x1212); }
+    unsigned long nougat_chocolate() { return col(0x4949,0x3030,0x2525); }
+    unsigned long nougat_tan() { return col(0xd2d2,0xa5a5,0x6d6d); }
+    unsigned long nougat_caramel() { return col(0xb9b9,0x6f6f,0x3636); }
+    unsigned long nougat_cream() { return col(0xf3f3,0xe5e5,0xcccc); }
+    unsigned long nougat_light() { return col(0xcdcd,0xb9b9,0x9e9e); }
+    unsigned long nougat_dark() { return col(0x1a1a,0x1212,0x0e0e); }
+
+    void nougat_button(Drawable target, const Rect& r, const std::string& label, bool selected=false) {
+        fill(target, r, selected ? nougat_tan() : nougat_caramel());
+        outline(target, r, nougat_chocolate());
+        text(target, r.x + 9, r.y + 20, label, selected ? nougat_dark() : nougat_cream());
+    }
+
+    void draw_nougat_input(Drawable target, const Rect& r, const std::string& value, NougatInputFocus field) {
+        fill(target, r, nougat_cream());
+        outline(target, r, field == nougatInputFocus ? nougat_caramel() : nougat_tan());
+        const std::string shown = tail_to_width(value, std::max(20, (int)r.w - 16));
+        if (nougatInputFocus == field && nougatInputSelectAll && !value.empty()) {
+            fill(target, {r.x+5, r.y+5, std::min((int)r.w-10, text_width(shown)+6), (int)r.h-10}, nougat_tan());
+        }
+        text(target, r.x+8, r.y+20, shown, nougat_dark());
+    }
+
+    std::string& focused_nougat_text() {
+        if (nougatInputFocus == NougatInputFocus::CrawlSeed) return nougatCrawlSeed;
+        if (nougatInputFocus == NougatInputFocus::Peer) return nougatPeerEntry;
+        return nougatSearchQuery;
+    }
+
+    void focus_nougat_input(NougatInputFocus focus) {
+        nougatInputFocus = focus;
+        nougatInputSelectAll = false;
+        nougatOutputFocused = false;
+        XSetInputFocus(d, win, RevertToParent, CurrentTime);
+        redraw();
+    }
+
+    void start_nougat_search() {
+        if (nougatSearchQuery.empty()) return;
+        if (nougatSearchWorker.joinable()) {
+            bool busy = false; { std::lock_guard<std::mutex> lock(nougatState->mutex); busy = nougatState->search_busy; }
+            if (busy) return;
+            nougatSearchWorker.join();
+        }
+        {
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            nougatState->search_busy = true;
+            nougatState->status = "Searching Nougat...";
+            nougatState->updated = true;
+        }
+        const std::string query = nougatSearchQuery;
+        const bool raw = nougatRaw;
+        const bool include_peers = nougatSearchPeers;
+        const int offset = nougatSearchOffset;
+        const auto state = nougatState;
+        nougatSearchWorker = std::thread([this, state, query, raw, include_peers, offset]() {
+            reddmedia::NougatSearchResponse response = nougat.search(query, raw, include_peers, 100, offset);
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->search = response;
+            state->search_busy = false;
+            if (!response.error.empty()) state->status = "Search error: " + response.error;
+            else {
+                std::ostringstream status;
+                status << (raw ? "RAW" : "RANKED") << ": " << response.total << " matching record(s) reported";
+                if (!response.results.empty()) status << " • showing " << (offset + 1) << "-" << (offset + (int)response.results.size());
+                state->status = status.str();
+            }
+            state->updated = true;
+        });
+    }
+
+    void append_nougat_crawl_log(const std::string& value) {
+        std::lock_guard<std::mutex> lock(nougatState->mutex);
+        nougatState->crawl_log.push_back(value);
+        if (nougatState->crawl_log.size() > 5000U) nougatState->crawl_log.erase(nougatState->crawl_log.begin(), nougatState->crawl_log.begin()+1000);
+        nougatState->updated = true;
+    }
+
+    void start_nougat_crawl() {
+        if (nougatCrawlWorker.joinable()) {
+            bool busy = false; { std::lock_guard<std::mutex> lock(nougatState->mutex); busy = nougatState->crawl_busy; }
+            if (busy) return;
+            nougatCrawlWorker.join();
+        }
+        {
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            nougatState->crawl_log.clear();
+            nougatState->crawl_busy = true;
+            nougatState->status = "Crawler running...";
+            nougatState->updated = true;
+        }
+        nougatCrawlScroll = 0;
+        nougatOutputSelectionStart = nougatOutputSelectionEnd = -1;
+        const std::string seed = nougatCrawlSeed;
+        const int max_pages = nougatMaxPages;
+        const bool same_domain = nougatSameDomain;
+        const auto state = nougatState;
+        nougatCrawlWorker = std::thread([this, state, seed, max_pages, same_domain]() {
+            std::string summary, error;
+            const bool ok = nougat.crawl(seed, max_pages, same_domain,
+                [this](const std::string& line) { append_nougat_crawl_log(line); }, summary, error);
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->crawl_busy = false;
+            state->status = ok ? summary : (error.empty() ? "Crawler failed." : "Crawler failed: " + error);
+            state->updated = true;
+        });
+    }
+
+    void refresh_nougat_peers() {
+        std::string error;
+        std::vector<std::string> values = nougat.peers(error);
+        std::lock_guard<std::mutex> lock(nougatState->mutex);
+        if (!error.empty()) nougatState->status = error;
+        else nougatState->peers = std::move(values);
+        nougatState->updated = true;
+    }
+
+    void add_nougat_peer() {
+        std::string error;
+        if (nougat.add_peer(nougatPeerEntry, error)) {
+            nougatPeerEntry.clear();
+            refresh_nougat_peers();
+        } else {
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            nougatState->status = error;
+            nougatState->updated = true;
+        }
+    }
+
+    void remove_selected_nougat_peer() {
+        std::string peer;
+        {
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            if (nougatPeerSelected < 0 || nougatPeerSelected >= (int)nougatState->peers.size()) return;
+            peer = nougatState->peers[(size_t)nougatPeerSelected];
+        }
+        std::string error;
+        if (nougat.remove_peer(peer, error)) {
+            nougatPeerSelected = -1;
+            refresh_nougat_peers();
+        } else {
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            nougatState->status = error;
+            nougatState->updated = true;
+        }
+    }
+
+    void toggle_nougat_node() {
+        if (nougat.node_running()) {
+            nougat.stop_node();
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            nougatState->status = "Nougat node stopped.";
+            nougatState->updated = true;
+            return;
+        }
+        std::string error;
+        if (nougat.start_node(48731, error)) {
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            nougatState->status = "Nougat node listening on port 48731.";
+            nougatState->updated = true;
+        } else {
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            nougatState->status = error;
+            nougatState->updated = true;
+        }
+    }
+
+    int nougat_log_line_at(int y) const {
+        if (!nougatCrawlLogBox.contains(nougatCrawlLogBox.x+2, y)) return -1;
+        const int local = (y - nougatCrawlLogBox.y - 8) / 18;
+        if (local < 0) return -1;
+        return nougatCrawlScroll + local;
+    }
+
+    void select_all_nougat_output() {
+        std::size_t count = 0;
+        { std::lock_guard<std::mutex> lock(nougatState->mutex); count = nougatState->crawl_log.size(); }
+        if (count == 0U) return;
+        nougatOutputFocused = true;
+        nougatOutputSelectionStart = 0;
+        nougatOutputSelectionEnd = static_cast<int>(count) - 1;
+        redraw();
+    }
+
+    std::string selected_nougat_output_text() {
+        std::lock_guard<std::mutex> lock(nougatState->mutex);
+        if (nougatOutputSelectionStart < 0 || nougatOutputSelectionEnd < 0 || nougatState->crawl_log.empty()) return {};
+        int a = std::min(nougatOutputSelectionStart, nougatOutputSelectionEnd);
+        int b = std::max(nougatOutputSelectionStart, nougatOutputSelectionEnd);
+        a = std::max(0, a); b = std::min((int)nougatState->crawl_log.size()-1, b);
+        std::ostringstream out;
+        for (int i=a; i<=b; ++i) { if (i>a) out << '\n'; out << nougatState->crawl_log[(size_t)i]; }
+        return out.str();
+    }
+
+    void copy_nougat_output_selection() {
+        const std::string value = selected_nougat_output_text();
+        if (value.empty()) return;
+        own_clipboard_text(value);
+        std::lock_guard<std::mutex> lock(nougatState->mutex);
+        nougatState->status = "Crawler output copied.";
+        nougatState->updated = true;
+    }
+
+    void show_nougat_output_context_menu(int x, int y) {
+        const bool has_selection = !selected_nougat_output_text().empty();
+        std::vector<MenuItem> items;
+        items.push_back({"Copy", has_selection ? MenuAction::NougatCopySelection : MenuAction::NoAction, 0});
+        items.push_back({"Select All", MenuAction::NougatSelectAll, 0});
+        show_menu(win, x, y, items);
+    }
+
+    void handle_nougat_motion(const XMotionEvent& event) {
+        if (currentView != ViewMode::Nougat || nougatPanel != NougatPanel::Crawler || !nougatOutputSelecting || event.window != win) return;
+        int line_index = nougat_log_line_at(event.y);
+        std::size_t count = 0;
+        { std::lock_guard<std::mutex> lock(nougatState->mutex); count = nougatState->crawl_log.size(); }
+        if (line_index >= 0 && line_index < (int)count && line_index != nougatOutputSelectionEnd) {
+            nougatOutputSelectionEnd = line_index;
+            redraw();
+        }
+    }
+
+    void paste_into_nougat_input() {
+        if (nougatInputFocus == NougatInputFocus::NoFocus) return;
+        std::string clip = clipboard_value();
+        clip.erase(std::remove(clip.begin(), clip.end(), '\r'), clip.end());
+        while (!clip.empty() && (clip.back()=='\n' || clip.back()=='\t')) clip.pop_back();
+        if (clip.empty()) return;
+        std::string& target = focused_nougat_text();
+        if (nougatInputSelectAll) target.clear();
+        target += clip;
+        nougatInputSelectAll = false;
+        redraw();
+    }
+
+    void handle_nougat_key(XKeyEvent& event, KeySym ks) {
+        if (nougatOutputFocused && nougatPanel == NougatPanel::Crawler) {
+            if ((event.state & ControlMask) && (ks == XK_a || ks == XK_A)) { select_all_nougat_output(); return; }
+            if ((event.state & ControlMask) && (ks == XK_c || ks == XK_C)) { copy_nougat_output_selection(); return; }
+            if (ks == XK_Escape) { nougatOutputFocused=false; nougatOutputSelectionStart=nougatOutputSelectionEnd=-1; redraw(); return; }
+        }
+        if (nougatInputFocus == NougatInputFocus::NoFocus) return;
+        if (ks == XK_Escape) { nougatInputFocus=NougatInputFocus::NoFocus; nougatInputSelectAll=false; redraw(); return; }
+        if ((event.state & ControlMask) && (ks == XK_a || ks == XK_A)) { nougatInputSelectAll=!focused_nougat_text().empty(); redraw(); return; }
+        if ((event.state & ControlMask) && (ks == XK_v || ks == XK_V)) { paste_into_nougat_input(); return; }
+        if ((event.state & ShiftMask) && ks == XK_Insert) { paste_into_nougat_input(); return; }
+        if ((event.state & ControlMask) && (ks == XK_c || ks == XK_C) && nougatInputSelectAll) { own_clipboard_text(focused_nougat_text()); return; }
+        if (ks == XK_BackSpace) {
+            std::string& target = focused_nougat_text();
+            if (nougatInputSelectAll) { target.clear(); nougatInputSelectAll=false; }
+            else if (!target.empty()) target.pop_back();
+            redraw(); return;
+        }
+        if (ks == XK_Return || ks == XK_KP_Enter) {
+            if (nougatInputFocus == NougatInputFocus::Search) { nougatSearchOffset=0; start_nougat_search(); }
+            else if (nougatInputFocus == NougatInputFocus::CrawlSeed) start_nougat_crawl();
+            else if (nougatInputFocus == NougatInputFocus::Peer) add_nougat_peer();
+            return;
+        }
+        char buf[64]; KeySym outks=0; int n=XLookupString(&event,buf,sizeof(buf)-1,&outks,nullptr);
+        if (n>0) {
+            std::string& target = focused_nougat_text();
+            if (nougatInputSelectAll) { target.clear(); nougatInputSelectAll=false; }
+            buf[n]=0; target.append(buf, static_cast<std::size_t>(n)); redraw();
+        }
+    }
+
+    void handle_nougat_click(int x, int y) {
+        if (nougatSearchPanelTab.contains(x,y)) { nougatPanel=NougatPanel::Search; nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; redraw(); return; }
+        if (nougatCrawlerPanelTab.contains(x,y)) { nougatPanel=NougatPanel::Crawler; nougatInputFocus=NougatInputFocus::NoFocus; redraw(); return; }
+        if (nougatPeersPanelTab.contains(x,y)) { nougatPanel=NougatPanel::Peers; nougatInputFocus=NougatInputFocus::NoFocus; refresh_nougat_peers(); redraw(); return; }
+        if (nougatAboutPanelTab.contains(x,y)) { nougatPanel=NougatPanel::About; nougatInputFocus=NougatInputFocus::NoFocus; redraw(); return; }
+        if (nougatPanel == NougatPanel::Search) {
+            if (nougatSearchRect.contains(x,y)) { focus_nougat_input(NougatInputFocus::Search); return; }
+            if (nougatRawBtn.contains(x,y)) { nougatRaw=!nougatRaw; nougatSearchOffset=0; redraw(); return; }
+            if (nougatPeersToggleBtn.contains(x,y)) { nougatSearchPeers=!nougatSearchPeers; nougatSearchOffset=0; redraw(); return; }
+            if (nougatSearchBtn.contains(x,y)) { nougatSearchOffset=0; start_nougat_search(); return; }
+            for (const auto& hit : nougatResultHitboxes) {
+                if (hit.index < 0) continue;
+                reddmedia::NougatSearchResult result;
+                { std::lock_guard<std::mutex> lock(nougatState->mutex); if (hit.index >= (int)nougatState->search.results.size()) continue; result=nougatState->search.results[(size_t)hit.index]; }
+                std::string error;
+                if (hit.open.contains(x,y)) { nougat.open_url(result.url,false,error); return; }
+                if (hit.open_tor.contains(x,y)) { nougat.open_url(result.url,true,error); return; }
+                if (hit.copy_url.contains(x,y)) { own_clipboard_text(result.url); return; }
+            }
+            return;
+        }
+        if (nougatPanel == NougatPanel::Crawler) {
+            if (nougatCrawlSeedRect.contains(x,y)) { focus_nougat_input(NougatInputFocus::CrawlSeed); return; }
+            if (nougatCrawlMinusBtn.contains(x,y)) { nougatMaxPages=std::max(1,nougatMaxPages-1); redraw(); return; }
+            if (nougatCrawlPlusBtn.contains(x,y)) { nougatMaxPages=std::min(10000,nougatMaxPages+1); redraw(); return; }
+            if (nougatSameDomainBtn.contains(x,y)) { nougatSameDomain=!nougatSameDomain; redraw(); return; }
+            if (nougatStartCrawlBtn.contains(x,y)) { start_nougat_crawl(); return; }
+            if (nougatCrawlLogBox.contains(x,y)) {
+                nougatOutputFocused=true; nougatInputFocus=NougatInputFocus::NoFocus;
+                int line_index=nougat_log_line_at(y);
+                std::size_t count=0; { std::lock_guard<std::mutex> lock(nougatState->mutex); count=nougatState->crawl_log.size(); }
+                if (line_index>=0 && line_index<(int)count) {
+                    nougatOutputSelectionStart=line_index; nougatOutputSelectionEnd=line_index; nougatOutputSelecting=true; redraw();
+                }
+                return;
+            }
+            return;
+        }
+        if (nougatPanel == NougatPanel::Peers) {
+            if (nougatPeerEntryRect.contains(x,y)) { focus_nougat_input(NougatInputFocus::Peer); return; }
+            if (nougatAddPeerBtn.contains(x,y)) { add_nougat_peer(); return; }
+            if (nougatRemovePeerBtn.contains(x,y)) { remove_selected_nougat_peer(); return; }
+            if (nougatNodeBtn.contains(x,y)) { toggle_nougat_node(); redraw(); return; }
+            if (nougatPeerListBox.contains(x,y)) {
+                const int local=(y-nougatPeerListBox.y-8)/22;
+                const int index=nougatPeerScroll+local;
+                std::size_t count=0; { std::lock_guard<std::mutex> lock(nougatState->mutex); count=nougatState->peers.size(); }
+                if (index>=0 && index<(int)count) { nougatPeerSelected=index; redraw(); }
+                return;
+            }
+        }
+    }
+
+    void draw_nougat_screen(Drawable target) {
+        fill(target, {0,26,W,H-26}, nougat_cocoa());
+        text(target, 28, 44, "NOUGAT", nougat_tan());
+        text(target, 104, 44, "Just Nougat it.", nougat_light());
+        std::string node;
+        std::string status;
+        bool search_busy=false, crawl_busy=false;
+        { std::lock_guard<std::mutex> lock(nougatState->mutex); node=nougatState->node_id; status=nougatState->status; search_busy=nougatState->search_busy; crawl_busy=nougatState->crawl_busy; }
+        if (!node.empty()) text(target, std::max(500,W-220), 44, "Node " + node, nougat_light());
+        nougat_button(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search);
+        nougat_button(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler);
+        nougat_button(target,nougatPeersPanelTab,"Peers",nougatPanel==NougatPanel::Peers);
+        nougat_button(target,nougatAboutPanelTab,"About",nougatPanel==NougatPanel::About);
+
+        if (nougatPanel == NougatPanel::Search) {
+            draw_nougat_input(target,nougatSearchRect,nougatSearchQuery,NougatInputFocus::Search);
+            nougat_button(target,nougatRawBtn,nougatRaw?"RAW ✓":"RAW",nougatRaw);
+            nougat_button(target,nougatPeersToggleBtn,nougatSearchPeers?"Peers ✓":"Peers",nougatSearchPeers);
+            nougat_button(target,nougatSearchBtn,search_busy?"SEARCHING":"SEARCH");
+            text(target,28,160,status,nougat_light());
+            fill(target,nougatResultsBox,nougat_chocolate()); outline(target,nougatResultsBox,nougat_tan());
+            nougatResultHitboxes.clear();
+            std::vector<reddmedia::NougatSearchResult> results;
+            { std::lock_guard<std::mutex> lock(nougatState->mutex); results=nougatState->search.results; }
+            const int card_h=98;
+            const int visible=std::max(1,((int)nougatResultsBox.h-12)/card_h);
+            nougatResultScroll=std::max(0,std::min(nougatResultScroll,std::max(0,(int)results.size()-visible)));
+            int y=nougatResultsBox.y+8;
+            for (int i=nougatResultScroll; i<(int)results.size() && i<nougatResultScroll+visible; ++i) {
+                const auto& r=results[(size_t)i];
+                Rect card={nougatResultsBox.x+8,y,(int)nougatResultsBox.w-16,card_h-6};
+                fill(target,card,col(0x3d3d,0x2828,0x2020)); outline(target,card,nougat_tan());
+                text(target,card.x+8,card.y+18,head_to_width(std::to_string(nougatSearchOffset+i+1)+". "+r.title,card.w-170),nougat_cream());
+                text(target,card.x+8,card.y+38,head_to_width(r.url,card.w-16),nougat_tan());
+                text(target,card.x+8,card.y+58,head_to_width(r.snippet,card.w-16),nougat_light());
+                text(target,card.x+8,card.y+78,head_to_width(r.source_network+" • Node "+r.source_node,card.w-300),nougat_light());
+                Rect copy={card.x+card.w-278,card.y+63,82,24};
+                Rect tor={card.x+card.w-190,card.y+63,94,24};
+                Rect open={card.x+card.w-90,card.y+63,82,24};
+                nougat_button(target,copy,"Copy URL"); nougat_button(target,tor,"Open Tor"); nougat_button(target,open,"Open");
+                nougatResultHitboxes.push_back({card,open,tor,copy,i});
+                y+=card_h;
+            }
+            return;
+        }
+        if (nougatPanel == NougatPanel::Crawler) {
+            text(target,28,102,"Seed URL",nougat_cream());
+            draw_nougat_input(target,nougatCrawlSeedRect,nougatCrawlSeed,NougatInputFocus::CrawlSeed);
+            nougat_button(target,nougatCrawlMinusBtn,"-"); nougat_button(target,nougatCrawlPlusBtn,"+");
+            text(target,nougatCrawlMinusBtn.x-96,130,"Max pages: "+std::to_string(nougatMaxPages),nougat_cream());
+            nougat_button(target,nougatSameDomainBtn,nougatSameDomain?"Stay on domain ✓":"Stay on domain",nougatSameDomain);
+            nougat_button(target,nougatStartCrawlBtn,crawl_busy?"CRAWLING":"START CRAWL");
+            fill(target,nougatCrawlLogBox,nougat_chocolate()); outline(target,nougatCrawlLogBox,nougat_tan());
+            std::vector<std::string> lines;
+            { std::lock_guard<std::mutex> lock(nougatState->mutex); lines=nougatState->crawl_log; }
+            const int visible=std::max(1,((int)nougatCrawlLogBox.h-16)/18);
+            const int max_scroll=std::max(0,(int)lines.size()-visible);
+            nougatCrawlScroll=std::max(0,std::min(nougatCrawlScroll,max_scroll));
+            if (crawl_busy && max_scroll>0) nougatCrawlScroll=max_scroll;
+            int y=nougatCrawlLogBox.y+20;
+            for (int i=nougatCrawlScroll; i<(int)lines.size() && i<nougatCrawlScroll+visible; ++i) {
+                const bool selected=nougatOutputSelectionStart>=0 && i>=std::min(nougatOutputSelectionStart,nougatOutputSelectionEnd) && i<=std::max(nougatOutputSelectionStart,nougatOutputSelectionEnd);
+                if (selected) fill(target,{nougatCrawlLogBox.x+5,y-14,(int)nougatCrawlLogBox.w-10,18},nougat_tan());
+                text(target,nougatCrawlLogBox.x+9,y,head_to_width(lines[(size_t)i],nougatCrawlLogBox.w-18),selected?nougat_dark():nougat_cream());
+                y+=18;
+            }
+            text(target,28,194,status,nougat_light());
+            return;
+        }
+        if (nougatPanel == NougatPanel::Peers) {
+            text(target,28,102,"Peer address",nougat_cream());
+            draw_nougat_input(target,nougatPeerEntryRect,nougatPeerEntry,NougatInputFocus::Peer);
+            nougat_button(target,nougatAddPeerBtn,"Add Peer");
+            nougat_button(target,nougatRemovePeerBtn,"Remove");
+            nougat_button(target,nougatNodeBtn,nougat.node_running()?"STOP NODE":"START NODE",nougat.node_running());
+            fill(target,nougatPeerListBox,nougat_chocolate()); outline(target,nougatPeerListBox,nougat_tan());
+            std::vector<std::string> peers;
+            { std::lock_guard<std::mutex> lock(nougatState->mutex); peers=nougatState->peers; }
+            const int visible=std::max(1,((int)nougatPeerListBox.h-16)/22);
+            nougatPeerScroll=std::max(0,std::min(nougatPeerScroll,std::max(0,(int)peers.size()-visible)));
+            int y=nougatPeerListBox.y+22;
+            for (int i=nougatPeerScroll; i<(int)peers.size() && i<nougatPeerScroll+visible; ++i) {
+                if (i==nougatPeerSelected) fill(target,{nougatPeerListBox.x+5,y-16,(int)nougatPeerListBox.w-10,21},nougat_tan());
+                text(target,nougatPeerListBox.x+9,y,peers[(size_t)i],i==nougatPeerSelected?nougat_dark():nougat_cream()); y+=22;
+            }
+            text(target,28,H-20,status,nougat_light());
+            return;
+        }
+        text(target,28,118,"Nougat is ReddMedia's decentralized search subsystem.",nougat_cream());
+        text(target,28,146,"Ranking changes order, not membership. RAW exposes every matching record the node can return.",nougat_light());
+        text(target,28,174,"No account, search-profile system, or SafeSearch layer is implemented.",nougat_light());
+        text(target,28,202,"Data: "+nougat.data_directory(),nougat_tan());
+        text(target,28,230,"Candy-bar palette: dark cocoa, chocolate, nougat tan, caramel, vanilla cream.",nougat_light());
+    }
+
+    void poll_nougat_workers() {
+        bool needs_redraw=false;
+        {
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            if (nougatState->updated) { nougatState->updated=false; needs_redraw=true; }
+        }
+        if (needs_redraw && !fullscreen && currentView==ViewMode::Nougat) redraw();
+    }
+
+    void draw_debug_screen(Drawable target) {
+        const unsigned long bg = col(0xf3f3,0xeaea,0xd0d0);
+        const unsigned long dark = col(0x2222,0x1a1a,0x0909);
+        const unsigned long border = col(0x8a8a,0x6a6a,0x2222);
+        fill(target, {0,26,W,H-26}, bg);
+        text(target, 28, 58, "DEBUG AND SYSTEM HEALTH", dark);
+        button_on(target, debugRunBtn, "Run Checks");
+        button_on(target, debugRetryBtn, "Retry");
+        button_on(target, debugMetadataBtn, "Refresh Metadata");
+        button_on(target, debugTmdbBtn, "Test TMDb");
+        button_on(target, debugServerBtn, "Refresh Server");
+        button_on(target, debugLogsBtn, "Open Logs");
+        button_on(target, debugCopyBtn, "Copy Report");
+
+        reddmedia::DiagnosticReport report;
+        std::string status;
+        bool has_report = false;
+        bool busy = false;
+        {
+            std::lock_guard<std::mutex> lock(debugState->mutex);
+            report = debugState->report;
+            status = debugState->status;
+            has_report = debugState->hasReport;
+            busy = debugState->busy;
+        }
+        text(target, 28, 116, head_to_width(
+            std::string("Status: ") + (busy ? "Working - " : "") + status, W - 56), dark);
+        fill(target, debugListBox, col(0xf7f7,0xf7f7,0xf7f7));
+        outline(target, debugListBox, border);
+        debugIssueRows.clear();
+        if (!has_report) {
+            text(target, debugListBox.x + 14, debugListBox.y + 30,
+                 "Run Checks to inspect the server, metadata, TMDb, AI runtime, and local paths.",
+                 col(0x5555,0x5555,0x5555));
+            return;
+        }
+        unsigned long health_color = col(0x1111,0xdddd,0x2222);
+        if (report.overall == reddmedia::DiagnosticSeverity::Warning) {
+            health_color = col(0xeeee,0xcccc,0x1111);
+        } else if (report.overall == reddmedia::DiagnosticSeverity::Critical) {
+            health_color = col(0xdddd,0x1111,0x1111);
+        }
+        fill_circle(target, debugListBox.x + 14, debugListBox.y + 12, 12, health_color);
+        text(target, debugListBox.x + 34, debugListBox.y + 23,
+             std::string("Overall: ") + reddmedia::DiagnosticEngine::severity_name(report.overall) +
+             "   Checked: " + local_time_text(report.checked_at) +
+             "   Port 8096: " + (report.port_8096_open ? "open" : "closed"), dark);
+        const int issue_height = 88;
+        const int visible = std::max(1, (debugListBox.h - 46) / issue_height);
+        const int max_scroll = std::max(0, static_cast<int>(report.issues.size()) - visible);
+        debugScroll = std::max(0, std::min(debugScroll, max_scroll));
+        int y = debugListBox.y + 38;
+        for (int visible_index = 0; visible_index < visible; ++visible_index) {
+            const int issue_index = debugScroll + visible_index;
+            if (issue_index >= static_cast<int>(report.issues.size())) break;
+            const reddmedia::DiagnosticIssue& issue = report.issues[static_cast<std::size_t>(issue_index)];
+            Rect row = {debugListBox.x + 8, y, debugListBox.w - 16, issue_height - 6};
+            outline(target, row, col(0xaaaa,0xaaaa,0xaaaa));
+            unsigned long issue_color = col(0x1166,0x7777,0x2222);
+            if (issue.severity == reddmedia::DiagnosticSeverity::Warning) {
+                issue_color = col(0x9999,0x7777,0x0000);
+            } else if (issue.severity == reddmedia::DiagnosticSeverity::Critical) {
+                issue_color = col(0xaaaa,0x0000,0x0000);
+            }
+            text(target, row.x + 8, row.y + 17,
+                 std::string("[") + reddmedia::DiagnosticEngine::severity_name(issue.severity) +
+                 "] " + head_to_width(issue.title, row.w - 90), issue_color);
+            text(target, row.x + 8, row.y + 37,
+                 head_to_width(issue.detail, row.w - 16), dark);
+            text(target, row.x + 8, row.y + 57,
+                 "Action: " + head_to_width(issue.action, row.w - 72),
+                 col(0x4444,0x4444,0x4444));
+            text(target, row.x + 8, row.y + 75, issue.code,
+                 col(0x7777,0x7777,0x7777));
+            debugIssueRows.push_back(row);
+            y += issue_height;
+        }
     }
 
     void open_discover_result() {
@@ -2051,15 +3556,66 @@ public:
         }
         std::string history_error;
         recommendationEngine->record_started(result.item, history_error);
+        cancel_tv_autoplay();
         switch_view(ViewMode::VideoPlayer);
         open_media(result.item.local_path, 0);
     }
 
     void draw_discover_screen(Drawable target) {
-        const unsigned long bg = col(0xdede,0xdede,0xdede);
-        const unsigned long dark = col(0x1111,0x1111,0x1111);
+        const unsigned long bg = col(0xeeeE,0xe8e8,0xf2f2);
+        const unsigned long dark = col(0x2211,0x1522,0x2424);
         const unsigned long border = col(0x7777,0x7777,0x7777);
         fill(target, {0,26,W,H-26}, bg);
+        if (discoverServiceSettings) {
+            text(target, 28, 58, "MY STREAMING SERVICES - UNITED STATES", dark);
+            button_on(target, discoverServicesBackBtn, "Back to Discover");
+            text(target, 224, 97,
+                 "Select services you use. Availability still shows every verified listing.",
+                 col(0x4444,0x4444,0x4444));
+            const Rect services_box = {28, 120, std::max(240, W - 56), std::max(150, H - 148)};
+            fill(target, services_box, col(0xf7f7,0xf7f7,0xf7f7));
+            outline(target, services_box, border);
+            std::vector<reddmedia::WatchProvider> providers;
+            std::string status;
+            bool busy = false;
+            {
+                std::lock_guard<std::mutex> lock(discoverState->mutex);
+                providers = discoverState->providerCatalog;
+                status = discoverState->status;
+                busy = discoverState->busy;
+            }
+            discoverProviderRows.clear();
+            if (providers.empty()) {
+                text(target, services_box.x + 12, services_box.y + 28,
+                     busy ? "Loading watch services..." : head_to_width(status, services_box.w - 24),
+                     col(0x5555,0x5555,0x5555));
+                return;
+            }
+            const int row_height = 28;
+            const int visible = std::max(1, (services_box.h - 12) / row_height);
+            const int max_scroll = std::max(0, static_cast<int>(providers.size()) - visible);
+            discoverServicesScroll = std::max(0, std::min(discoverServicesScroll, max_scroll));
+            int row_y = services_box.y + 6;
+            for (int visible_index = 0; visible_index < visible; ++visible_index) {
+                const int provider_index = discoverServicesScroll + visible_index;
+                if (provider_index >= static_cast<int>(providers.size())) break;
+                const reddmedia::WatchProvider& provider =
+                    providers[static_cast<std::size_t>(provider_index)];
+                const Rect row = {services_box.x + 6, row_y, services_box.w - 12, row_height - 2};
+                if (watchPreferences.is_selected(provider.id)) {
+                    fill(target, row, col(0xdddd,0xeeee,0xffff));
+                }
+                outline(target, row, col(0xcccc,0xcccc,0xcccc));
+                const std::string label =
+                    std::string(watchPreferences.is_selected(provider.id) ? "[x] " : "[ ] ") +
+                    provider.name;
+                text(target, row.x + 8, row.y + 18,
+                     head_to_width(label, row.w - 16), dark);
+                discoverProviderRows.push_back({row, provider.id});
+                row_y += row_height;
+            }
+            return;
+        }
         text(target, 28, 58,
              discoverMode == reddmedia::RecommendationMode::Usual
                  ? "DISCOVER USUAL" : "DISCOVER RANDOM",
@@ -2070,45 +3626,122 @@ public:
         button_on(target, discoverLocalTvBtn, "Local TV");
         button_on(target, discoverExternalMovieBtn, "External Movie");
         button_on(target, discoverExternalTvBtn, "External TV");
+        button_on(target, discoverTmdbTestBtn, "Test TMDb");
+        button_on(target, discoverTmdbReplaceBtn, "Save / Replace");
+        button_on(target, discoverTmdbClearBtn, "Clear TMDb");
+        button_on(target, discoverMyServicesBtn, "My Services");
+        text(target, 28, 122, head_to_width(recommendationEngine->external_credential_label(), W - 56), dark);
 
         reddmedia::RecommendationResult result;
         std::string status;
         bool has_result = false;
         bool busy = false;
+        bool has_poster = false;
+        reddmedia::LibraryPoster poster;
+        reddmedia::WatchAvailability availability;
+        bool has_availability = false;
+        std::string availability_status;
         {
             std::lock_guard<std::mutex> lock(discoverState->mutex);
             result = discoverState->result;
             status = discoverState->status;
             has_result = discoverState->hasResult;
             busy = discoverState->busy;
+            has_poster = discoverState->hasPoster;
+            poster = discoverState->poster;
+            availability = discoverState->availability;
+            has_availability = discoverState->hasAvailability;
+            availability_status = discoverState->availabilityStatus;
         }
-        text(target, 28, 188, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
+        text(target, 28, 218, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
         fill(target, discoverResultBox, col(0xf7f7,0xf7f7,0xf7f7));
         outline(target, discoverResultBox, border);
-        text(target, 236, H - 27,
-             "This product uses the TMDB API but is not endorsed or certified by TMDB.",
+        text(target, 28, H - 12,
+             "Watch availability by JustWatch via TMDb. This product uses the TMDB API but is not endorsed or certified by TMDB.",
              col(0x5555,0x5555,0x5555));
         if (!has_result) {
             text(target, discoverResultBox.x + 14, discoverResultBox.y + 30,
                  "No recommendation selected.", col(0x5555,0x5555,0x5555));
             return;
         }
+        const Rect poster_area = {discoverResultBox.x + 16, discoverResultBox.y + 16,
+                                  180, std::min(260, discoverResultBox.h - 32)};
+        fill(target, poster_area, col(0x0808,0x0808,0x0808));
+        if (has_poster) draw_poster_pixels(target, poster_area, poster);
+        else text(target, poster_area.x + 48, poster_area.y + poster_area.h / 2,
+                  "NO POSTER", col(0x9999,0x9999,0x9999));
+        const int details_x = poster_area.x + poster_area.w + 20;
+        const int details_width = discoverResultBox.x + discoverResultBox.w - details_x - 16;
         std::string title = result.item.title;
         if (result.item.year > 0) title += " (" + std::to_string(result.item.year) + ")";
-        text(target, discoverResultBox.x + 16, discoverResultBox.y + 32,
-             tail_to_width(title, discoverResultBox.w - 32), dark);
-        text(target, discoverResultBox.x + 16, discoverResultBox.y + 58,
+        text(target, details_x, discoverResultBox.y + 32,
+             head_to_width(title, details_width), dark);
+        text(target, details_x, discoverResultBox.y + 58,
              result.item.local_path.empty() ? "External" : "Local", col(0x6666,0,0));
-        text(target, discoverResultBox.x + 16, discoverResultBox.y + 84,
-             tail_to_width(result.reason, discoverResultBox.w - 32), dark);
-        if (!result.item.overview.empty()) {
-            text(target, discoverResultBox.x + 16, discoverResultBox.y + 112,
-                 tail_to_width(result.item.overview, discoverResultBox.w - 32),
-                 col(0x4444,0x4444,0x4444));
+        text(target, details_x, discoverResultBox.y + 84,
+             head_to_width(result.reason, details_width), dark);
+
+        std::vector<std::string> detail_lines;
+        detail_lines.push_back("Description");
+        const std::vector<std::string> overview_lines = wrap_text(
+            result.item.overview.empty() ? "Description unavailable." : result.item.overview,
+            details_width);
+        detail_lines.insert(detail_lines.end(), overview_lines.begin(), overview_lines.end());
+        if (result.item.local_path.empty()) {
+            detail_lines.push_back("");
+            detail_lines.push_back("Where to Watch - United States");
+            if (!availability_status.empty()) detail_lines.push_back(availability_status);
+            if (!has_availability || !availability.listing_found) {
+                detail_lines.push_back("No current United States provider listing was returned.");
+            } else if (availability.providers.empty()) {
+                detail_lines.push_back("A listing exists, but no streaming, free, rent, or buy providers were returned.");
+            } else {
+                reddmedia::WatchProviderCategory previous =
+                    static_cast<reddmedia::WatchProviderCategory>(-1);
+                for (const reddmedia::WatchProvider& provider : availability.providers) {
+                    if (provider.category != previous) {
+                        detail_lines.push_back(std::string("-- ") +
+                            reddmedia::watch_provider_category_name(provider.category) + " --");
+                        previous = provider.category;
+                    }
+                    detail_lines.push_back(
+                        std::string(watchPreferences.is_selected(provider.id) ? "[MY] " : "") +
+                        provider.name);
+                }
+            }
+            if (has_availability && availability.refreshed_at > 0) {
+                detail_lines.push_back("Availability refreshed: " +
+                                       local_time_text(availability.refreshed_at));
+            }
+            detail_lines.push_back("Provider data: JustWatch via TMDb.");
+        }
+        const int content_y = discoverResultBox.y + 108;
+        const int line_height = 18;
+        const int visible_lines = std::max(1,
+            (discoverResultBox.y + discoverResultBox.h - content_y - 10) / line_height);
+        const int max_scroll = std::max(0, static_cast<int>(detail_lines.size()) - visible_lines);
+        discoverDetailsScroll = std::max(0, std::min(discoverDetailsScroll, max_scroll));
+        int line_y = content_y;
+        for (int index = discoverDetailsScroll;
+             index < static_cast<int>(detail_lines.size()) &&
+             line_y < discoverResultBox.y + discoverResultBox.h - 8;
+             ++index) {
+            const std::string& detail = detail_lines[static_cast<std::size_t>(index)];
+            unsigned long color = col(0x4444,0x4444,0x4444);
+            if (detail == "Description" || detail == "Where to Watch - United States" ||
+                detail.rfind("-- ", 0U) == 0U || detail.rfind("[MY] ", 0U) == 0U) {
+                color = col(0x7777,0x0000,0x0000);
+            }
+            text(target, details_x, line_y, head_to_width(detail, details_width), color);
+            line_y += line_height;
         }
         if (result.item.id.find("tmdb:") != 0U) {
             button_on(target, discoverOpenBtn,
                       result.item.local_path.empty() ? "Open in Library" : "Play in ReddMedia");
+        }
+        if (result.item.local_path.empty() && has_availability &&
+            availability.link.rfind("https://www.themoviedb.org/", 0U) == 0U) {
+            button_on(target, discoverWatchBtn, "Open Watch Options");
         }
     }
 
@@ -2165,8 +3798,11 @@ public:
         draw_controls(buffer);
         if (currentView == ViewMode::Library) draw_library_screen(buffer);
         if (currentView == ViewMode::Discover) draw_discover_screen(buffer);
+        if (currentView == ViewMode::Nougat) draw_nougat_screen(buffer);
+        if (currentView == ViewMode::Debug) draw_debug_screen(buffer);
         if (currentView == ViewMode::YtDlp) draw_yt_dlp_screen(buffer);
         if (currentView == ViewMode::P2P) draw_p2p_screen(buffer);
+        draw_loading_bar(buffer);
         XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
         XFreePixmap(d, buffer);
         if (currentView == ViewMode::VideoPlayer) draw_video_message();
@@ -2385,6 +4021,7 @@ public:
         redraw();
     }
     void start_ytdlp_play() {
+        cancel_tv_autoplay();
         if (ytdlpPid > 0) { ytdlpStatus = "YouTube download is already running."; redraw(); return; }
         if (ytdlpUrl.empty()) { ytdlpStatus = "Paste or type a URL first."; redraw(); return; }
         std::string engine = ytdlp_engine_path();
@@ -2409,13 +4046,17 @@ public:
         apply_video_layout();
         redraw();
     }
-    void scroll_bottom_controls(int delta) {
-        int totalButtonsW = 78 + 8 + 116 + 8 + 104 + 8 + 70 + 8 + 148 + 8 + 104;
-        int availableButtonW = std::max(160, W - 200);
-        int maxScroll = std::max(0, totalButtonsW - availableButtonW);
-        controlsScrollX = std::max(0, std::min(maxScroll, controlsScrollX + delta));
+    void scroll_button_row(int& offset, int button_count, int delta, int viewport_width = -1) {
+        if (viewport_width < 0) viewport_width = std::max(kCompactButtonW, W - 56);
+        offset = clamp_button_scroll(offset + delta, button_count, viewport_width);
         layout();
         redraw();
+    }
+    void scroll_bottom_controls(int delta) {
+        scroll_button_row(controlsScrollX, 6, delta, std::max(kCompactButtonW, W - 20));
+    }
+    void scroll_top_navigation(int delta) {
+        scroll_button_row(topNavScrollX, 7, delta, topNavViewportW);
     }
 
     void close_context_menu() {
@@ -2576,6 +4217,8 @@ public:
             case MenuAction::P2pUrlCut: cut_p2p_url_selection(); break;
             case MenuAction::P2pUrlCopy: copy_p2p_url_selection(); break;
             case MenuAction::P2pUrlPaste: paste_into_p2p_url(); break;
+            case MenuAction::NougatCopySelection: copy_nougat_output_selection(); break;
+            case MenuAction::NougatSelectAll: select_all_nougat_output(); break;
             case MenuAction::NoAction: break;
         }
     }
@@ -2587,21 +4230,81 @@ public:
 
     bool handle_wheel(Window target, int x, int y, unsigned int button) {
         int delta = (button == Button4) ? -40 : 40;
+        if (target == win && y < 26) { scroll_top_navigation(delta); return true; }
+        if (target == win && y >= 70 && y < 110) {
+            if (currentView == ViewMode::Library) { scroll_button_row(libraryButtonsScrollX,9,delta); return true; }
+            if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,10,delta); return true; }
+            if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,7,delta); return true; }
+        }
+        if (target == win && currentView == ViewMode::YtDlp && y >= 184 && y < 222) { scroll_button_row(ytdlpButtonsScrollX,3,delta); return true; }
+        if (target == win && currentView == ViewMode::P2P && y >= 178 && y < 216) { scroll_button_row(p2pButtonsScrollX,4,delta); return true; }
         if (currentView == ViewMode::Library && target == win && libraryListBox.contains(x,y)) {
             std::size_t count = 0;
             {
                 std::lock_guard<std::mutex> lock(libraryState->mutex);
                 count = libraryState->nodes.size();
             }
-            const int columns = std::max(1, (libraryListBox.w) / 152);
-            const int rows = std::max(1, libraryListBox.h / 210);
-            const int max_scroll = std::max(0, static_cast<int>(count) - columns * rows);
+            const LibraryGridMetrics grid = library_grid_metrics();
+            const int max_scroll = std::max(0, static_cast<int>(count) - grid.visibleItems);
             libraryScroll = std::max(0, std::min(max_scroll,
-                libraryScroll + (button == Button4 ? -columns : columns)));
+                libraryScroll + (button == Button4 ? -grid.columns : grid.columns)));
             redraw();
             return true;
         }
-        if (currentView == ViewMode::VideoPlayer && target == win && y >= H-42 && !volRect.contains(x,y)) {
+        if (currentView == ViewMode::Discover && target == win) {
+            if (discoverServiceSettings) {
+                const Rect services_box = {28, 120, std::max(240, W - 56), std::max(150, H - 148)};
+                if (services_box.contains(x,y)) {
+                    std::size_t count = 0;
+                    {
+                        std::lock_guard<std::mutex> lock(discoverState->mutex);
+                        count = discoverState->providerCatalog.size();
+                    }
+                    const int visible = std::max(1, (services_box.h - 12) / 28);
+                    const int max_scroll = std::max(0, static_cast<int>(count) - visible);
+                    discoverServicesScroll = std::max(0, std::min(max_scroll,
+                        discoverServicesScroll + (button == Button4 ? -1 : 1)));
+                    redraw();
+                    return true;
+                }
+            } else if (discoverResultBox.contains(x,y)) {
+                discoverDetailsScroll = std::max(0,
+                    discoverDetailsScroll + (button == Button4 ? -1 : 1));
+                redraw();
+                return true;
+            }
+        }
+        if (currentView == ViewMode::Debug && target == win && debugListBox.contains(x,y)) {
+            debugScroll = std::max(0, debugScroll + (button == Button4 ? -1 : 1));
+            redraw();
+            return true;
+        }
+        if (currentView == ViewMode::Nougat && target == win) {
+            if (nougatPanel == NougatPanel::Search && nougatResultsBox.contains(x,y)) {
+                nougatResultScroll = std::max(0, nougatResultScroll + (button == Button4 ? -1 : 1));
+                redraw();
+                return true;
+            }
+            if (nougatPanel == NougatPanel::Crawler && nougatCrawlLogBox.contains(x,y)) {
+                std::size_t count = 0;
+                { std::lock_guard<std::mutex> lock(nougatState->mutex); count = nougatState->crawl_log.size(); }
+                const int visible = std::max(1, ((int)nougatCrawlLogBox.h - 16) / 18);
+                const int max_scroll = std::max(0, static_cast<int>(count) - visible);
+                nougatCrawlScroll = std::max(0, std::min(max_scroll, nougatCrawlScroll + (button == Button4 ? -3 : 3)));
+                redraw();
+                return true;
+            }
+            if (nougatPanel == NougatPanel::Peers && nougatPeerListBox.contains(x,y)) {
+                std::size_t count = 0;
+                { std::lock_guard<std::mutex> lock(nougatState->mutex); count = nougatState->peers.size(); }
+                const int visible = std::max(1, ((int)nougatPeerListBox.h - 16) / 22);
+                const int max_scroll = std::max(0, static_cast<int>(count) - visible);
+                nougatPeerScroll = std::max(0, std::min(max_scroll, nougatPeerScroll + (button == Button4 ? -2 : 2)));
+                redraw();
+                return true;
+            }
+        }
+        if (currentView == ViewMode::VideoPlayer && target == win && y >= H-40 && !volRect.contains(x,y)) {
             scroll_bottom_controls(delta);
             return true;
         }
@@ -2626,6 +4329,10 @@ public:
             p2pMagnetFocused=true;
             XSetInputFocus(d,win,RevertToParent,CurrentTime);
             redraw(); show_p2p_url_context_menu(x,y); return;
+        }
+        if (currentView == ViewMode::Nougat && target == win && nougatPanel == NougatPanel::Crawler && nougatCrawlLogBox.contains(x,y) && button == Button3) {
+            nougatOutputFocused=true; nougatInputFocus=NougatInputFocus::NoFocus;
+            redraw(); show_nougat_output_context_menu(x,y); return;
         }
         if (target == video) {
             if (button == Button3) { show_context_menu(target, x, y); return; }
@@ -2663,12 +4370,16 @@ public:
         if (y < 26 && libraryTab.contains(x,y)) {
             if (currentView != ViewMode::Library) {
                 switch_view(ViewMode::Library);
-                start_library_task(0);
+                if (!libraryTypeChosen) start_library_task(0);
             }
             return;
         }
         if (y < 26 && discoverTab.contains(x,y)) {
             if (currentView != ViewMode::Discover) switch_view(ViewMode::Discover);
+            return;
+        }
+        if (y < 26 && nougatTab.contains(x,y)) {
+            if (currentView != ViewMode::Nougat) switch_view(ViewMode::Nougat);
             return;
         }
         if (y < 26 && ytdlpTab.contains(x,y)) {
@@ -2678,6 +4389,14 @@ public:
         }
         if (y < 26 && p2pTab.contains(x,y)) {
             if (currentView != ViewMode::P2P) { switch_view(ViewMode::P2P); return; }
+            return;
+        }
+        if (y < 26 && debugTab.contains(x,y)) {
+            if (currentView != ViewMode::Debug) switch_view(ViewMode::Debug);
+            return;
+        }
+        if (currentView == ViewMode::Nougat) {
+            handle_nougat_click(x, y);
             return;
         }
         if (currentView == ViewMode::Library) {
@@ -2696,6 +4415,9 @@ public:
                 return;
             }
             if (libraryBackBtn.contains(x,y)) { library_back(); return; }
+            if (serverStartBtn.contains(x,y)) { start_server_task(1); return; }
+            if (serverStopBtn.contains(x,y)) { start_server_task(2); return; }
+            if (serverRefreshBtn.contains(x,y)) { start_server_task(3); return; }
             for (std::size_t row = 0; row < libraryRows.size(); ++row) {
                 if (libraryRows[row].contains(x,y)) {
                     librarySelected = libraryScroll + static_cast<int>(row);
@@ -2707,6 +4429,24 @@ public:
             return;
         }
         if (currentView == ViewMode::Discover) {
+            if (discoverServiceSettings) {
+                if (discoverServicesBackBtn.contains(x,y)) {
+                    discoverServiceSettings = false;
+                    redraw();
+                    return;
+                }
+                for (const auto& row : discoverProviderRows) {
+                    if (!row.first.contains(x,y)) continue;
+                    std::string error;
+                    if (!watchPreferences.toggle(row.second, error)) {
+                        std::lock_guard<std::mutex> lock(discoverState->mutex);
+                        discoverState->status = error;
+                    }
+                    redraw();
+                    return;
+                }
+                return;
+            }
             if (discoverUsualTab.contains(x,y)) {
                 discoverMode = reddmedia::RecommendationMode::Usual;
                 redraw();
@@ -2737,7 +4477,47 @@ public:
                                     reddmedia::RecommendationMediaType::Television);
                 return;
             }
+            if (discoverTmdbTestBtn.contains(x,y)) {
+                start_tmdb_credential_task(1);
+                return;
+            }
+            if (discoverTmdbReplaceBtn.contains(x,y)) {
+                const std::string credential = choose_tmdb_credential_dialog();
+                if (!credential.empty()) start_tmdb_credential_task(2, credential);
+                return;
+            }
+            if (discoverTmdbClearBtn.contains(x,y)) {
+                start_tmdb_credential_task(3);
+                return;
+            }
+            if (discoverMyServicesBtn.contains(x,y)) {
+                start_provider_catalog_task();
+                return;
+            }
             if (discoverOpenBtn.contains(x,y)) { open_discover_result(); return; }
+            if (discoverWatchBtn.contains(x,y)) { open_watch_options(); return; }
+            return;
+        }
+        if (currentView == ViewMode::Debug) {
+            if (debugRunBtn.contains(x,y) || debugRetryBtn.contains(x,y)) {
+                start_debug_task();
+                return;
+            }
+            if (debugMetadataBtn.contains(x,y)) {
+                if (libraryTypeChosen) start_library_task(2);
+                else {
+                    {
+                        std::lock_guard<std::mutex> lock(debugState->mutex);
+                        debugState->status = "Choose Movies or TV in Library before refreshing metadata.";
+                    }
+                    redraw();
+                }
+                return;
+            }
+            if (debugTmdbBtn.contains(x,y)) { start_tmdb_credential_task(1); return; }
+            if (debugServerBtn.contains(x,y)) { start_server_task(3); return; }
+            if (debugLogsBtn.contains(x,y)) { open_debug_logs(); return; }
+            if (debugCopyBtn.contains(x,y)) { copy_debug_report(); return; }
             return;
         }
         if (currentView == ViewMode::P2P) {
@@ -2806,7 +4586,7 @@ public:
             return;
         }
         if (volRect.contains(x,y) && mp) {
-            int v = std::max(0, std::min(100, (x-volRect.x)*100/volRect.w)); api.set_volume(mp, v); draw_volume_only(); return;
+            int v = std::max(0, std::min(100, (x-volRect.x)*100/volRect.w)); volumePercent=v; api.set_volume(mp, v); volumeDragging=true; draw_volume_only(); return;
         }
     }
     void run_pending_video_click() {
@@ -2878,14 +4658,25 @@ public:
                     if (e.xbutton.button == Button4 || e.xbutton.button == Button5) handle_wheel(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button);
                     else handle_button(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button, e.xbutton.time);
                 }
+                else if (e.type == ButtonRelease) {
+                    if (currentView == ViewMode::Nougat) nougatOutputSelecting = false;
+                    volumeDragging = false;
+                }
                 else if (e.type == SelectionRequest) handle_clipboard_selection_request(e.xselectionrequest);
                 else if (e.type == SelectionClear && e.xselectionclear.selection == clipboardAtom) ownedClipboardText.clear();
-                else if (e.type == MotionNotify) { lastMouse=time(nullptr); show_pointer(); }
+                else if (e.type == MotionNotify) {
+                    lastMouse=time(nullptr); show_pointer(); handle_nougat_motion(e.xmotion);
+                    if (volumeDragging && currentView==ViewMode::VideoPlayer && mp) {
+                        const int v=std::max(0,std::min(100,(e.xmotion.x-volRect.x)*100/std::max(1,volRect.w)));
+                        volumePercent=v; api.set_volume(mp,v); draw_volume_only();
+                    }
+                }
                 else if (e.type == EnterNotify && e.xcrossing.window == video) { pointerInVideo=true; lastMouse=time(nullptr); show_pointer(); }
                 else if (e.type == LeaveNotify && e.xcrossing.window == video) { pointerInVideo=false; show_pointer(); }
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
-                    if (currentView == ViewMode::YtDlp && urlFocused) {
+                    if (currentView == ViewMode::Nougat) { handle_nougat_key(e.xkey, ks); }
+                    else if (currentView == ViewMode::YtDlp && urlFocused) {
                         if (ks == XK_Escape) { urlFocused=false; urlSelectAll=false; redraw(); }
                         else if (ks == XK_Return || ks == XK_KP_Enter) { start_ytdlp_download(); }
                         else if ((e.xkey.state & ControlMask) && (ks == XK_a || ks == XK_A)) { urlSelectAll = !ytdlpUrl.empty(); redraw(); }
@@ -2928,16 +4719,19 @@ public:
                         }
                         if (ks == XK_Return || ks == XK_KP_Enter || ks == XK_space) {
                             open_selected_library_item();
-                        } else if (ks == XK_Up && count > 0U) {
-                            librarySelected = std::max(0, librarySelected - 1);
+                        } else if ((ks == XK_Up || ks == XK_Left) && count > 0U) {
+                            const LibraryGridMetrics grid = library_grid_metrics();
+                            const int amount = ks == XK_Up ? grid.columns : 1;
+                            librarySelected = std::max(0, librarySelected - amount);
                             if (librarySelected < libraryScroll) libraryScroll = librarySelected;
                             redraw();
-                        } else if (ks == XK_Down && count > 0U) {
-                            librarySelected = std::min(static_cast<int>(count) - 1, librarySelected + 1);
-                            const int visible_items = std::max(1,
-                                (libraryListBox.w / 152) * (libraryListBox.h / 210));
-                            if (librarySelected >= libraryScroll + visible_items) {
-                                libraryScroll = librarySelected - visible_items + 1;
+                        } else if ((ks == XK_Down || ks == XK_Right) && count > 0U) {
+                            const LibraryGridMetrics grid = library_grid_metrics();
+                            const int amount = ks == XK_Down ? grid.columns : 1;
+                            librarySelected = std::min(static_cast<int>(count) - 1,
+                                                       std::max(0, librarySelected) + amount);
+                            if (librarySelected >= libraryScroll + grid.visibleItems) {
+                                libraryScroll = librarySelected - grid.visibleItems + grid.columns;
                             }
                             redraw();
                         } else if (ks == XK_r || ks == XK_R) {
@@ -2945,6 +4739,23 @@ public:
                         } else if (ks == XK_a || ks == XK_A) {
                             add_library_folder();
                         }
+                    } else if (currentView == ViewMode::Discover) {
+                        if (ks == XK_Escape && discoverServiceSettings) {
+                            discoverServiceSettings = false;
+                            redraw();
+                        } else if (ks == XK_Up) {
+                            if (discoverServiceSettings) discoverServicesScroll = std::max(0, discoverServicesScroll - 1);
+                            else discoverDetailsScroll = std::max(0, discoverDetailsScroll - 1);
+                            redraw();
+                        } else if (ks == XK_Down) {
+                            if (discoverServiceSettings) ++discoverServicesScroll;
+                            else ++discoverDetailsScroll;
+                            redraw();
+                        }
+                    } else if (currentView == ViewMode::Debug) {
+                        if (ks == XK_Up) { debugScroll = std::max(0, debugScroll - 1); redraw(); }
+                        else if (ks == XK_Down) { ++debugScroll; redraw(); }
+                        else if (ks == XK_r || ks == XK_R) start_debug_task();
                     } else {
                         if (ks == XK_Escape) exit_fullscreen();
                         else if (ks == XK_space) toggle_play();
@@ -2959,10 +4770,34 @@ public:
             }
             run_pending_video_click();
             tick_resume_seek();
+            poll_natural_playback_end();
             poll_ytdlp_process();
+            poll_nougat_workers();
             poll_library_worker();
+            poll_poster_worker();
             poll_discover_worker();
-            if (mediaServer.poll() && !fullscreen) redraw();
+            poll_debug_worker();
+            poll_server_worker();
+            bool server_busy = false;
+            {
+                std::lock_guard<std::mutex> lock(serverState->mutex);
+                server_busy = serverState->busy;
+            }
+            if (!server_busy && mediaServer.poll()) {
+                {
+                    std::lock_guard<std::mutex> lock(serverState->mutex);
+                    serverState->status = server_control_label();
+                    serverState->state = mediaServer.state();
+                    serverState->owned = mediaServer.owns_server();
+                }
+                if (!fullscreen) redraw();
+            }
+            double loading_progress = 0.0;
+            if (!fullscreen && loading_state(loading_progress) &&
+                now_ms() - lastLoadingRedrawMs >= 80) {
+                lastLoadingRedrawMs = now_ms();
+                redraw();
+            }
             if (currentMediaIsYtDlpStream && mp) playback_length_ms();
             if (!fullscreen && currentView == ViewMode::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
@@ -2990,6 +4825,36 @@ public:
             if (busy) discoverWorker.detach();
             else discoverWorker.join();
         }
+        if (posterWorker.joinable()) {
+            bool busy = false;
+            {
+                std::lock_guard<std::mutex> lock(posterState->mutex);
+                busy = posterState->busy;
+            }
+            if (busy) posterWorker.detach();
+            else posterWorker.join();
+        }
+        if (serverWorker.joinable()) serverWorker.join();
+        if (debugWorker.joinable()) {
+            bool busy = false;
+            {
+                std::lock_guard<std::mutex> lock(debugState->mutex);
+                busy = debugState->busy;
+            }
+            if (busy) debugWorker.detach();
+            else debugWorker.join();
+        }
+        if (nougatSearchWorker.joinable()) {
+            bool busy = false;
+            { std::lock_guard<std::mutex> lock(nougatState->mutex); busy = nougatState->search_busy; }
+            if (busy) nougatSearchWorker.detach(); else nougatSearchWorker.join();
+        }
+        if (nougatCrawlWorker.joinable()) {
+            bool busy = false;
+            { std::lock_guard<std::mutex> lock(nougatState->mutex); busy = nougatState->crawl_busy; }
+            if (busy) nougatCrawlWorker.detach(); else nougatCrawlWorker.join();
+        }
+        nougat.stop_node();
         mediaServer.stop();
         stop_ytdlp_process();
         close_context_menu();
@@ -3010,7 +4875,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.16\n");
+        printf("ReddMedia v0.0.19\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {
@@ -3028,7 +4893,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--discover-ai-self-test") {
-        const std::string history_path = "/tmp/reddmedia-v16-discover-" +
+        const std::string history_path = "/tmp/reddmedia-v18-discover-" +
             std::to_string(static_cast<long long>(getpid())) + ".sqlite3";
         unlink(history_path.c_str());
         reddmedia::RecommendationEngine engine(

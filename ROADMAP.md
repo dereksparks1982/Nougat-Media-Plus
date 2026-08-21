@@ -1,6 +1,41 @@
 # ReddMedia Roadmap
 
-## Current: v0.0.16 Native Library and Discover AI
+## v0.0.19 candidate - Nougat Search Integration
+
+- Native Nougat tab between Discover and YouTube.
+- Local SQLite FTS5 index with Ranked and RAW result views.
+- Recursive clearnet/Tor-aware crawler and persisted provenance.
+- Direct peer search with local node identity and peer configuration.
+- Read-only crawler output that remains selectable and copyable.
+- Candy-bar Nougat palette isolated to the Nougat content area.
+- App-wide compact adjacent action buttons with horizontal mouse-wheel scrolling when button rows overflow.
+- Video Player footer separated into seek/time, volume with live percentage, and compact player-control rows.
+- TV next-episode autoplay across season boundaries while preserving Library series/season navigation context; manual Stop cancels autoplay.
+- Interior color identities: Video Player red, Library forest green, Discover plum, Nougat candy-bar, YouTube red, P2P deep blue, Debug amber/yellow.
+- Future Nougat work may add automatic peer discovery, distributed routing/sharding, larger public corpora, search-engine comparison research, and media-aware result actions only through separately approved builds.
+
+## Previous candidate: v0.0.18 Intelligent Debug, Metadata, Watch Availability, and Responsive Library
+
+- Show `SxxExx - verified title` on episode tiles, with technical format on a secondary line and honest unavailable states.
+- Resolve artwork through item, parent/series, then exact TMDb fallback without inventing matches.
+- Add an evidence-based Debug tab with green/yellow/red health, actionable findings, retry/refresh/test/log/report controls, and credential redaction.
+- Keep one top-bar `Server:` indicator: green when ready, yellow while transitioning, and red when unavailable.
+- Keep at least two Library rows visible at the normal non-fullscreen window size and use consistent wheel/arrow navigation.
+- Preserve the beginning of long Discover descriptions and provide wrapped, scrollable details.
+- Show exact United States subscription, free, ad-supported, rent, and buy listings from JustWatch via TMDb; support private local My Services selections and open only TMDb's supplied official watch-options page.
+- Maintain progress reporting, server ownership, Movie/TV separation, private credentials, generated-runtime exclusions, and the canonical project Bible.
+- Reapply and verify the red-tree identity on the final raw `ReddMedia_v18` executable after its last write.
+
+## Completed candidate foundation: v0.0.17 Library, Discover, and Server Reliability
+
+- Enforce Movie/TV separation at every recommendation boundary.
+- Show and cache real Jellyfin and TMDb posters without blocking the X11 draw path.
+- Support validated TMDb API keys and read access tokens with Test, Save/Replace, and Clear controls.
+- Show full-width red progress for catalog, poster, recommendation, credential, and server work.
+- Provide Start Server, Stop Server, and Refresh Server controls while keeping owned-process shutdown safe.
+- Keep generated runtimes out of Git and maintain one ReddMedia-only project Bible.
+
+## Completed foundation: v0.0.16 Native Library and Discover AI
 
 - Present Movies and TV as native title grids rather than a flat file list.
 - Navigate TV by series, season, and episode; navigate metadata-created movie box sets before individual films.
@@ -47,9 +82,9 @@ Initial targets:
 
 The Archive design should be source-neutral so additional legitimate archives can be added later.
 
-## Online Video
+## Stream
 
-Create one **Online Video** area that can host multiple legitimate video services without turning the top bar into a row of service-specific tabs.
+Replace the current YouTube-only top-level area in a future release with one **Stream** area for online video platforms. This is roadmap-only and is not part of v0.0.19.
 
 Planned service investigations:
 
@@ -60,6 +95,19 @@ Planned service investigations:
 - **OK.ru / Odnoklassniki**
 
 ReddMedia should search/browse and play inside its own experience where a service officially permits that integration. Authentication, ads, DRM, and service rules remain with the service.
+
+## Plex integration
+
+Add Plex as a high-priority post-v0.0.19 library/server integration:
+
+- Link a Plex account through the official PIN/device flow.
+- Discover the user's linked Plex server or servers automatically.
+- Browse Plex Movies, TV, and Music inside ReddMedia.
+- Route playable Plex media through ReddMedia's native player where supported.
+- Support multiple Plex servers where practical.
+- Test direct play, transcoding, remote access, and Plex Pass-related capabilities where Plex exposes them through supported APIs.
+
+This is roadmap-only and is not part of v0.0.19.
 
 ## Live TV
 

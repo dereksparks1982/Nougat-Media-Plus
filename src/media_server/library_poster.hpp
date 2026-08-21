@@ -16,4 +16,8 @@ bool decode_library_poster_bmp(const std::string& bytes,
                                LibraryPoster& poster,
                                std::string& error);
 
+bool normalize_library_poster_bmp(const std::string& source_bytes,
+                                  std::string& bmp_bytes,
+                                  std::string& error);
+
 } // namespace reddmedia

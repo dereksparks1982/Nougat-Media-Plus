@@ -1,21 +1,17 @@
-MIT License
+# ReddMedia Original Code License
 
-Copyright (c) 2026 Elderedd Softworks
+ReddMedia original source code, including the integrated Nougat code, is made available under the **PolyForm Noncommercial License 1.0.0**:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+https://polyformproject.org/licenses/noncommercial/1.0.0
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Required Notice: Copyright 2026 Elderedd Softworks. All rights reserved except as expressly licensed under the PolyForm Noncommercial License 1.0.0.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This license applies only to original ReddMedia/Nougat code and project material for which Elderedd Softworks owns the copyright. It does not replace or restrict the licenses of separately licensed third-party components shipped with or used by ReddMedia. See `THIRD_PARTY_NOTICES.md` and the `licenses/` directory.
+
+## Project commercial-use policy
+
+Recipients receive only the noncommercial rights granted by the PolyForm Noncommercial License 1.0.0. No recipient is authorized to sell ReddMedia/Nougat original code, charge for access to it, operate an advertising-supported or paid deployment, sell API access, provide commercial hosting based on the original code, sell commercial forks, or incorporate the original ReddMedia/Nougat code into a commercial product or service without separate written permission from the copyright owner.
+
+The copyright owner retains all rights not granted by the PolyForm license, including the right to use, monetize, or separately license the owner's own original work. Third-party components remain governed solely by their upstream licenses.
+
+The PolyForm terms at the URL above are the controlling license terms for recipients of the original ReddMedia/Nougat code.

@@ -20,9 +20,17 @@ public:
 
     void start();
     void stop();
+    void refresh();
     bool poll();
     std::string status_label() const;
     MediaServerState state() const;
+    bool owns_server() const;
+    bool probe_health() const;
+    const std::string& runtime_path() const;
+    const std::string& data_path() const;
+    const std::string& config_path() const;
+    const std::string& cache_path() const;
+    const std::string& log_path() const;
 
 private:
     bool health_ready() const;

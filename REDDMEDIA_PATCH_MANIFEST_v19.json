@@ -1,0 +1,194 @@
+{
+  "base_expected": {
+    "CHANGELOG.md": {
+      "bytes": 16534,
+      "sha256": "039a48fa60b0595d76b74e26c94b80462400c9d27cb8a7d41194b1203ebdd464"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2259,
+      "sha256": "803d4cfc66e03618e741eb15792fe1dc0d80af4831033d1827eaba43b979c338"
+    },
+    "COMPANY_BIBLE.md": {
+      "bytes": 11733,
+      "sha256": "fa91e8547fa45a60d1e5bc0b199b2e41d01d114adfab0b048e718ea8de344837"
+    },
+    "DEPENDENCIES.md": {
+      "bytes": 5972,
+      "sha256": "e25a657a9db0230a50f00dadf28eb553de0f503cafc0519bd38779ba369b7beb"
+    },
+    "LICENSE": {
+      "bytes": 1075,
+      "sha256": "42d1ae152db8196cf6e997ba88fe67ecb9c1d81e727353328077471e48aca44f"
+    },
+    "README.md": {
+      "bytes": 29317,
+      "sha256": "1a94f14f1211ecf9a32170b9463f7498ccd38bf0d8028b25e87fe5de47954ae4"
+    },
+    "ROADMAP.md": {
+      "bytes": 7927,
+      "sha256": "f1fee59d5d4e5fab9dde72cbcea784fb192d5a3f3170a65c6e68956effe614f8"
+    },
+    "ReddMedia.desktop": {
+      "bytes": 284,
+      "sha256": "48585c49547527f20308dd23011ad401d96e59105adecbd06257f48b88ea26fe"
+    },
+    "THIRD_PARTY_NOTICES.md": {
+      "bytes": 2773,
+      "sha256": "5b9178cf41fb5bba849b2cd759f74d262a4bfa31e2e50e1e2ae97cc4b4bd0880"
+    },
+    "src/main.cpp": {
+      "bytes": 205828,
+      "sha256": "2788de1d09681b4cd7c07a88d5f63325b644470bdfac4902c66dd2e6a2f083da"
+    },
+    "src/recommendations/recommendation_engine.cpp": {
+      "bytes": 12080,
+      "sha256": "adfb5dc1af051a7907d000b5227ace93d58fdb4d4ea92227814352758e051811"
+    },
+    "src/recommendations/recommendation_engine.hpp": {
+      "bytes": 3170,
+      "sha256": "9f36e8dba1ca2050ebea9fcea1ec5295d8e7515f0acbd5dce588bf6a2e7f36df"
+    },
+    "src/recommendations/viewing_history.cpp": {
+      "bytes": 11694,
+      "sha256": "8a0ad81406294ed25a1f164d1bdcce7e374a19bfd399e8cb2350231bf17485f0"
+    },
+    "src/recommendations/viewing_history.hpp": {
+      "bytes": 946,
+      "sha256": "2faa5607a21c9c8b5102a63f12b9e26f478a7cd84677ad31fa45ac4574b6553b"
+    }
+  },
+  "base_version": "0.0.18",
+  "manifest_note": "The manifest is the package hash root and therefore does not hash itself. Runtime assets are verified separately from changed source payload.",
+  "package": "ReddMedia_v0_0_19_PINNED_AI_MODEL_RUNTIME_LAYOUT_REPAIR_CHANGED_FILES_ONLY.zip",
+  "payload": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 344,
+      "sha256": "cc4dffcb75e36175cf810d8b76af8a37c0a1cf32aab1fb7d918dd8792b2636a4"
+    },
+    "CHANGELOG.md": {
+      "bytes": 21583,
+      "sha256": "0d9e32156f0b2f174ab43e3ba96d2499c53d23bf23b55bbc660460cc4aa1406f"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2292,
+      "sha256": "8249cc014714081b9ecd8bcb3e6e7e4df614e11dc601ae16440cfe091b464f19"
+    },
+    "COMPANY_BIBLE.md": {
+      "bytes": 13827,
+      "sha256": "21b4316a7a3d5244c8eebf56c31920cbbe0418b8e18bed1947fb2b16484b9c90"
+    },
+    "DEPENDENCIES.md": {
+      "bytes": 7675,
+      "sha256": "438afa52b256b09eca3a309e4d79a9a3919fc6de301c1c2ee2258c69498ea488"
+    },
+    "INSTALL_REDDMEDIA_v0_0_19.sh": {
+      "bytes": 22409,
+      "sha256": "a875445bd8d17d4192a7b92074bc0fb43619d0c3aebafbc70fe2ff0e9d7944f9"
+    },
+    "LICENSE": {
+      "bytes": 1593,
+      "sha256": "6e9d6c864791ea2f8f0e713c935973587479df33cd965dd5c4d2d4e0cfa21572"
+    },
+    "README.md": {
+      "bytes": 31852,
+      "sha256": "a53c1ca6ae1ad64d528a44638a6892760dbc54321c27ca31eb2eff6568fa8c91"
+    },
+    "ROADMAP.md": {
+      "bytes": 9676,
+      "sha256": "1bf79d0f05ba558c6806f6c7bfcf0dd07fccfe1b6ab9f1cdaddd130cfcd56327"
+    },
+    "ReddMedia.desktop": {
+      "bytes": 299,
+      "sha256": "c1dddcd0b2bcd65bba2e7e02b3d03899fc33da1357bca92a39a503962622a60b"
+    },
+    "ReddMedia_v19.desktop": {
+      "bytes": 299,
+      "sha256": "c1dddcd0b2bcd65bba2e7e02b3d03899fc33da1357bca92a39a503962622a60b"
+    },
+    "THIRD_PARTY_NOTICES.md": {
+      "bytes": 3300,
+      "sha256": "e5f2af6c33f2bb8b2fb8bd634dacc399a6ed8cb109baf902e75c6f34bc4dbc2a"
+    },
+    "components/nougat/nougat_engine.py": {
+      "bytes": 19302,
+      "sha256": "ea40f22f77561c3c18ccd58dd01a69f6741cd3b02f6a56a522730c2918240993"
+    },
+    "docs/NOUGAT_INTEGRATION_POLICY.md": {
+      "bytes": 1557,
+      "sha256": "dd697e9f0e5c79ca988e1f9252617a1becf4721c42ff383ad2bda18841620f28"
+    },
+    "docs/builds/REDDMEDIA_v0_0_19_NOUGAT_SEARCH_INTEGRATION_HANDSHAKE.md": {
+      "bytes": 5560,
+      "sha256": "561aedcf2098a15134cb9f7f941afd85fb90c15cb9587c9a9ea2186384e3c9df"
+    },
+    "docs/builds/REDDMEDIA_v0_0_19_NOUGAT_SEARCH_INTEGRATION_VALIDATION.md": {
+      "bytes": 5981,
+      "sha256": "4de659ff985fc147fcdae7ca9453aba1ad81c0b8a075d28445e314b5505ee9e0"
+    },
+    "src/main.cpp": {
+      "bytes": 246522,
+      "sha256": "093c536796c3e01fec30fe5b38e65a6fed135925da6981e649b9f9e9836bc824"
+    },
+    "src/nougat/nougat_bridge.cpp": {
+      "bytes": 13398,
+      "sha256": "15bc81a969986d8bcbeef8e8e452f04c5c6e06a0b9824f2b9e3e05fd9c57b944"
+    },
+    "src/nougat/nougat_bridge.hpp": {
+      "bytes": 2132,
+      "sha256": "46a7c446fc3c8fc02bbbe9c012a589d5ee4e79d6e9641b820a949d9529c2842e"
+    },
+    "src/recommendations/recommendation_engine.cpp": {
+      "bytes": 12229,
+      "sha256": "dae0ced7075640528ec7426dc748610391daeb9cdbf5911ff0747090575eeb9f"
+    },
+    "src/recommendations/recommendation_engine.hpp": {
+      "bytes": 3246,
+      "sha256": "d1298475353aacaf61efbfc1dfe05aa237215d620746b053618123532a1364e2"
+    },
+    "src/recommendations/viewing_history.cpp": {
+      "bytes": 14354,
+      "sha256": "898e4f6220e2e557777f054395a5613463fa3571dbd00416205581d706ba8a04"
+    },
+    "src/recommendations/viewing_history.hpp": {
+      "bytes": 1050,
+      "sha256": "c4e8ff4478552d1c190afa025e83d5bb1b86c42a369b04b942e51477b4adeb27"
+    },
+    "tools/__pycache__/test_installer_rollback_v19.cpython-313.pyc": {
+      "bytes": 8602,
+      "sha256": "5d678f5c8caa918f02178e27da2d4184fb6d9b2a5244c6f3eca349ef33ff4dcd"
+    },
+    "tools/test_installer_rollback_v19.py": {
+      "bytes": 5869,
+      "sha256": "6ba1807a99a6bf5d573f250674ef11a22664d3bea8cbe8822618036c60e2cf32"
+    },
+    "tools/test_nougat_bridge_v19.py": {
+      "bytes": 2110,
+      "sha256": "1e90b41096339e75da5ba07b0d794c7427ea575d40cf80ac5529ff3132e74892"
+    },
+    "tools/test_nougat_v19.py": {
+      "bytes": 4457,
+      "sha256": "1f9dcf292bd77d50db419fe5c2f1b426a13ccefb9100ef8d3579bcaab48dd433"
+    },
+    "tools/test_reddmedia_ui_smoke_v19.py": {
+      "bytes": 1967,
+      "sha256": "5fb118ceefd5f9f10000b0f814f25c990b84dda667a39b26327a9ad67bbaf3f3"
+    },
+    "tools/test_reddmedia_v19.py": {
+      "bytes": 20630,
+      "sha256": "350e5500f742154505ed48dadec5b45906dd7001f3f1c1050fa9f275086f48f0"
+    }
+  },
+  "project": "ReddMedia",
+  "runtime_assets": {
+    "components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf": {
+      "bytes": 84106624,
+      "sha256": "d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac"
+    },
+    "licenses/ai/NOMIC_EMBED_TEXT_APACHE_2_LICENSE.txt": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    }
+  },
+  "schema": 1,
+  "target_version": "0.0.19"
+}

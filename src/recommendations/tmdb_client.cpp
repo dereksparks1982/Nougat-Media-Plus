@@ -1,12 +1,15 @@
 #include "tmdb_client.hpp"
 
+#include "../media_server/library_poster.hpp"
+
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
+#include <ctime>
 #include <cstdlib>
-#include <cstring>
 #include <fcntl.h>
 #include <fstream>
+#include <set>
 #include <sstream>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -15,6 +18,12 @@
 
 namespace reddmedia {
 namespace {
+
+struct CurlResult {
+    int http_status = 0;
+    int process_status = -1;
+    std::string body;
+};
 
 std::string parent_directory(const std::string& path) {
     const std::size_t slash = path.find_last_of('/');
@@ -34,11 +43,119 @@ bool ensure_directory(const std::string& path) {
             if (current.size() > 1U && current.back() != '/') current.push_back('/');
             current += part;
             if (mkdir(current.c_str(), 0700) != 0 && errno != EEXIST) return false;
+            chmod(current.c_str(), 0700);
         }
         if (slash == std::string::npos) break;
         start = slash + 1U;
     }
     return true;
+}
+
+std::string trim_copy(std::string value) {
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())) != 0) {
+        value.erase(value.begin());
+    }
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())) != 0) {
+        value.pop_back();
+    }
+    return value;
+}
+
+TmdbCredentialType detect_credential_type(const std::string& credential) {
+    if (credential.empty()) return TmdbCredentialType::NotConfigured;
+    const bool safe = std::all_of(credential.begin(), credential.end(), [](unsigned char character) {
+        return std::isalnum(character) != 0 || character == '.' || character == '_' || character == '-';
+    });
+    if (!safe) return TmdbCredentialType::Invalid;
+    if (credential.size() == 32U &&
+        std::all_of(credential.begin(), credential.end(), [](unsigned char character) {
+            return std::isxdigit(character) != 0;
+        })) {
+        return TmdbCredentialType::ApiKey;
+    }
+    if (credential.size() >= 80U && credential.rfind("eyJ", 0U) == 0U &&
+        credential.find('.') != std::string::npos) {
+        return TmdbCredentialType::ReadAccessToken;
+    }
+    return TmdbCredentialType::Invalid;
+}
+
+std::string config_quote(const std::string& value) {
+    std::string escaped;
+    escaped.reserve(value.size());
+    for (const char character : value) {
+        if (character == '\\' || character == '"') escaped.push_back('\\');
+        escaped.push_back(character);
+    }
+    return escaped;
+}
+
+bool write_all(int descriptor, const std::string& text) {
+    std::size_t written = 0;
+    while (written < text.size()) {
+        const ssize_t amount = write(descriptor, text.data() + written, text.size() - written);
+        if (amount <= 0) return false;
+        written += static_cast<std::size_t>(amount);
+    }
+    return true;
+}
+
+CurlResult run_curl(const std::string& url, const std::string& authorization = {}) {
+    CurlResult result;
+    int input_pipe[2] = {-1, -1};
+    int output_pipe[2] = {-1, -1};
+    if (pipe(input_pipe) != 0 || pipe(output_pipe) != 0) {
+        if (input_pipe[0] >= 0) { close(input_pipe[0]); close(input_pipe[1]); }
+        if (output_pipe[0] >= 0) { close(output_pipe[0]); close(output_pipe[1]); }
+        return result;
+    }
+    const pid_t child = fork();
+    if (child < 0) {
+        close(input_pipe[0]); close(input_pipe[1]);
+        close(output_pipe[0]); close(output_pipe[1]);
+        return result;
+    }
+    if (child == 0) {
+        dup2(input_pipe[0], STDIN_FILENO);
+        dup2(output_pipe[1], STDOUT_FILENO);
+        dup2(output_pipe[1], STDERR_FILENO);
+        close(input_pipe[0]); close(input_pipe[1]);
+        close(output_pipe[0]); close(output_pipe[1]);
+        execlp("curl", "curl", "--config", "-", static_cast<char*>(nullptr));
+        _exit(127);
+    }
+    close(input_pipe[0]);
+    close(output_pipe[1]);
+    std::string config =
+        "silent\nshow-error\nconnect-timeout = 8\nmax-time = 25\n"
+        "url = \"" + config_quote(url) + "\"\n"
+        "header = \"Accept: application/json\"\n"
+        "write-out = \"\\nREDDMEDIA_HTTP_STATUS:%{http_code}\"\n";
+    if (!authorization.empty()) {
+        config += "header = \"Authorization: " + config_quote(authorization) + "\"\n";
+    }
+    const bool sent = write_all(input_pipe[1], config);
+    close(input_pipe[1]);
+    char buffer[8192];
+    for (;;) {
+        const ssize_t amount = read(output_pipe[0], buffer, sizeof(buffer));
+        if (amount > 0) result.body.append(buffer, static_cast<std::size_t>(amount));
+        else break;
+    }
+    close(output_pipe[0]);
+    int status = 0;
+    while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
+    }
+    result.process_status = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    const std::string marker = "\nREDDMEDIA_HTTP_STATUS:";
+    const std::size_t marker_position = result.body.rfind(marker);
+    if (marker_position != std::string::npos) {
+        result.http_status = std::atoi(result.body.c_str() +
+            static_cast<std::ptrdiff_t>(marker_position + marker.size()));
+        result.body.resize(marker_position);
+    }
+    if (!sent) result.process_status = -1;
+    return result;
 }
 
 int hex_value(char character) {
@@ -76,10 +193,7 @@ std::string json_string_value(const std::string& text, const std::string& key) {
     for (++position; position < text.size(); ++position) {
         const char character = text[position];
         if (character == '"') break;
-        if (character != '\\') {
-            result.push_back(character);
-            continue;
-        }
+        if (character != '\\') { result.push_back(character); continue; }
         if (++position >= text.size()) break;
         const char escaped = text[position];
         if (escaped == 'n') result.push_back('\n');
@@ -104,6 +218,33 @@ int json_int_value(const std::string& text, const std::string& key) {
     return std::atoi(text.c_str() + static_cast<std::ptrdiff_t>(position));
 }
 
+std::string json_compound_value(const std::string& text,
+                                const std::string& key,
+                                char opening,
+                                char closing) {
+    std::size_t position = value_position(text, key);
+    if (position == std::string::npos || text[position] != opening) return {};
+    const std::size_t start = position;
+    bool in_string = false;
+    bool escaped = false;
+    int depth = 0;
+    for (; position < text.size(); ++position) {
+        const char character = text[position];
+        if (in_string) {
+            if (escaped) escaped = false;
+            else if (character == '\\') escaped = true;
+            else if (character == '"') in_string = false;
+            continue;
+        }
+        if (character == '"') in_string = true;
+        else if (character == opening) ++depth;
+        else if (character == closing && --depth == 0) {
+            return text.substr(start, position - start + 1U);
+        }
+    }
+    return {};
+}
+
 std::vector<std::string> json_array_objects(const std::string& text, const std::string& key) {
     std::vector<std::string> objects;
     std::size_t position = value_position(text, key);
@@ -121,12 +262,9 @@ std::vector<std::string> json_array_objects(const std::string& text, const std::
             continue;
         }
         if (character == '"') in_string = true;
-        else if (character == '{') {
-            if (depth == 0) start = position;
-            ++depth;
-        } else if (character == '}' && depth > 0) {
-            --depth;
-            if (depth == 0 && start != std::string::npos) {
+        else if (character == '{') { if (depth++ == 0) start = position; }
+        else if (character == '}' && depth > 0) {
+            if (--depth == 0 && start != std::string::npos) {
                 objects.push_back(text.substr(start, position - start + 1U));
                 start = std::string::npos;
             }
@@ -152,16 +290,6 @@ std::vector<std::string> json_int_array(const std::string& text, const std::stri
     return values;
 }
 
-bool write_all(int descriptor, const std::string& text) {
-    std::size_t written = 0;
-    while (written < text.size()) {
-        const ssize_t amount = write(descriptor, text.data() + written, text.size() - written);
-        if (amount <= 0) return false;
-        written += static_cast<std::size_t>(amount);
-    }
-    return true;
-}
-
 int release_year(const std::string& date) {
     if (date.size() < 4U || !std::all_of(date.begin(), date.begin() + 4,
                                         [](char c) { return std::isdigit(static_cast<unsigned char>(c)) != 0; })) {
@@ -170,114 +298,205 @@ int release_year(const std::string& date) {
     return std::atoi(date.substr(0, 4).c_str());
 }
 
+std::string safe_cache_component(const std::string& value) {
+    std::string result;
+    for (const unsigned char character : value) {
+        result.push_back(std::isalnum(character) != 0 ? static_cast<char>(character) : '_');
+        if (result.size() >= 120U) break;
+    }
+    return result.empty() ? "poster" : result;
+}
+
+bool numeric_id(const std::string& value) {
+    return !value.empty() && std::all_of(value.begin(), value.end(), [](unsigned char character) {
+        return std::isdigit(character) != 0;
+    });
+}
+
+bool valid_region(const std::string& region) {
+    return region.size() == 2U && std::all_of(region.begin(), region.end(), [](unsigned char character) {
+        return std::isupper(character) != 0;
+    });
+}
+
+void append_provider_group(const std::string& region_object,
+                           const std::string& key,
+                           WatchProviderCategory category,
+                           std::vector<WatchProvider>& providers) {
+    for (const std::string& object : json_array_objects(region_object, key)) {
+        WatchProvider provider;
+        provider.id = json_int_value(object, "provider_id");
+        provider.name = json_string_value(object, "provider_name");
+        provider.logo_path = json_string_value(object, "logo_path");
+        provider.display_priority = json_int_value(object, "display_priority");
+        provider.category = category;
+        if (provider.id > 0 && !provider.name.empty()) providers.push_back(std::move(provider));
+    }
+}
+
+void append_catalog(const std::string& json, std::vector<WatchProvider>& providers) {
+    for (const std::string& object : json_array_objects(json, "results")) {
+        WatchProvider provider;
+        provider.id = json_int_value(object, "provider_id");
+        provider.name = json_string_value(object, "provider_name");
+        provider.logo_path = json_string_value(object, "logo_path");
+        provider.display_priority = json_int_value(object, "display_priority");
+        if (provider.id > 0 && !provider.name.empty()) providers.push_back(std::move(provider));
+    }
+}
+
+bool read_binary_file(const std::string& path, std::string& bytes) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return false;
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    bytes = contents.str();
+    return !bytes.empty();
+}
+
+bool write_private_file(const std::string& path, const std::string& bytes) {
+    const int file = open(path.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    if (file < 0) return false;
+    const bool written = write_all(file, bytes);
+    const bool closed = close(file) == 0;
+    chmod(path.c_str(), 0600);
+    return written && closed;
+}
+
 } // namespace
 
-TmdbClient::TmdbClient(std::string token_file)
-    : token_file_(std::move(token_file)) {
+TmdbClient::TmdbClient(std::string credential_file)
+    : credential_file_(std::move(credential_file)) {
     const char* base_override = std::getenv("REDDMEDIA_TMDB_BASE_URL");
     base_url_ = base_override && *base_override ? base_override : "https://api.themoviedb.org";
-    if (!token_file_.empty()) return;
-    const char* token_override = std::getenv("REDDMEDIA_TMDB_TOKEN_FILE");
-    if (token_override && *token_override) token_file_ = token_override;
+    const char* image_override = std::getenv("REDDMEDIA_TMDB_IMAGE_BASE_URL");
+    image_base_url_ = image_override && *image_override
+        ? image_override : "https://image.tmdb.org/t/p/w500";
+    if (!credential_file_.empty()) return;
+    const char* credential_override = std::getenv("REDDMEDIA_TMDB_TOKEN_FILE");
+    if (credential_override && *credential_override) credential_file_ = credential_override;
     else {
         const char* home = std::getenv("HOME");
-        token_file_ = std::string(home ? home : ".") + "/.config/reddmedia/ai/tmdb.token";
+        credential_file_ = std::string(home ? home : ".") + "/.config/reddmedia/ai/tmdb.token";
     }
 }
 
-bool TmdbClient::load_token(std::string& token) const {
-    std::ifstream input(token_file_);
-    if (!input) return false;
-    std::getline(input, token);
-    while (!token.empty() && std::isspace(static_cast<unsigned char>(token.back())) != 0) {
-        token.pop_back();
-    }
-    return !token.empty();
+bool TmdbClient::load_credential(std::string& credential, TmdbCredentialType& type) const {
+    std::ifstream input(credential_file_);
+    if (!input) { type = TmdbCredentialType::NotConfigured; return false; }
+    std::getline(input, credential);
+    credential = trim_copy(credential);
+    chmod(credential_file_.c_str(), 0600);
+    type = detect_credential_type(credential);
+    return type == TmdbCredentialType::ReadAccessToken || type == TmdbCredentialType::ApiKey;
 }
 
-bool TmdbClient::has_token() const {
-    std::string token;
-    return load_token(token);
+bool TmdbClient::has_credential() const {
+    std::string credential;
+    TmdbCredentialType type = TmdbCredentialType::NotConfigured;
+    return load_credential(credential, type);
 }
 
-bool TmdbClient::save_token(const std::string& token, std::string& error) {
-    if (token.empty()) {
-        error = "Enter a TMDb read-access token first.";
-        return false;
+TmdbCredentialType TmdbClient::credential_type() const {
+    std::string credential;
+    TmdbCredentialType type = TmdbCredentialType::NotConfigured;
+    load_credential(credential, type);
+    return type;
+}
+
+std::string TmdbClient::credential_label() const {
+    switch (credential_type()) {
+    case TmdbCredentialType::ReadAccessToken: return "TMDb read access token saved";
+    case TmdbCredentialType::ApiKey: return "TMDb API key saved";
+    case TmdbCredentialType::Invalid: return "TMDb credential needs replacement";
+    case TmdbCredentialType::NotConfigured: return "No TMDb credential saved";
     }
-    if (!ensure_directory(parent_directory(token_file_))) {
-        error = "ReddMedia could not create its private AI settings folder.";
-        return false;
-    }
-    const int file = open(token_file_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0600);
-    if (file < 0) {
-        error = "ReddMedia could not store the TMDb token.";
-        return false;
-    }
-    const bool written = write_all(file, token + "\n");
-    const bool closed = close(file) == 0;
-    if (!written || !closed) {
-        error = "ReddMedia could not store the TMDb token.";
-        return false;
-    }
-    return true;
+    return "No TMDb credential saved";
 }
 
 bool TmdbClient::request_json(const std::string& target,
                               std::string& json,
-                              std::string& error) const {
-    std::string token;
-    if (!load_token(token)) {
-        error = "TMDb token required for External recommendations.";
+                              std::string& error,
+                              const std::string* credential_override) const {
+    std::string credential;
+    TmdbCredentialType type = TmdbCredentialType::NotConfigured;
+    if (credential_override) {
+        credential = trim_copy(*credential_override);
+        type = detect_credential_type(credential);
+    } else if (!load_credential(credential, type)) {
+        error = type == TmdbCredentialType::Invalid
+            ? "The saved TMDb credential is not recognized. Use Save / Replace."
+            : "TMDb credential required. Use Save / Replace to enter an API key or read access token.";
         return false;
     }
-    int input_pipe[2] = {-1, -1};
-    int output_pipe[2] = {-1, -1};
-    if (pipe(input_pipe) != 0 || pipe(output_pipe) != 0) {
-        if (input_pipe[0] >= 0) { close(input_pipe[0]); close(input_pipe[1]); }
-        error = "ReddMedia could not start its TMDb request.";
+    if (type != TmdbCredentialType::ReadAccessToken && type != TmdbCredentialType::ApiKey) {
+        error = "TMDb credentials must be a 32-character API key or a read access token.";
         return false;
     }
-    const pid_t child = fork();
-    if (child < 0) {
-        close(input_pipe[0]); close(input_pipe[1]);
-        close(output_pipe[0]); close(output_pipe[1]);
-        error = "ReddMedia could not start its TMDb request.";
+    std::string url = base_url_ + target;
+    std::string authorization;
+    if (type == TmdbCredentialType::ApiKey) {
+        url += target.find('?') == std::string::npos ? "?api_key=" : "&api_key=";
+        url += credential;
+    } else {
+        authorization = "Bearer " + credential;
+    }
+    const CurlResult response = run_curl(url, authorization);
+    if (response.http_status == 401) {
+        error = "TMDb rejected this credential (401). Use Save / Replace to enter a valid API key or read access token.";
         return false;
     }
-    if (child == 0) {
-        dup2(input_pipe[0], STDIN_FILENO);
-        dup2(output_pipe[1], STDOUT_FILENO);
-        dup2(output_pipe[1], STDERR_FILENO);
-        close(input_pipe[0]); close(input_pipe[1]);
-        close(output_pipe[0]); close(output_pipe[1]);
-        const std::string url = base_url_ + target;
-        execlp("curl", "curl", "-fsS", "--connect-timeout", "8", "--max-time", "25",
-               "-H", "@-", url.c_str(), static_cast<char*>(nullptr));
-        _exit(127);
-    }
-    close(input_pipe[0]);
-    close(output_pipe[1]);
-    const std::string headers = "Authorization: Bearer " + token +
-        "\nAccept: application/json\n";
-    const bool sent = write_all(input_pipe[1], headers);
-    close(input_pipe[1]);
-    std::string response;
-    char buffer[8192];
-    for (;;) {
-        const ssize_t amount = read(output_pipe[0], buffer, sizeof(buffer));
-        if (amount > 0) response.append(buffer, static_cast<std::size_t>(amount));
-        else break;
-    }
-    close(output_pipe[0]);
-    int status = 0;
-    waitpid(child, &status, 0);
-    if (!sent || !WIFEXITED(status) || WEXITSTATUS(status) != 0 || response.empty()) {
-        error = response.empty() ? "TMDb is unavailable right now." : response;
-        if (error.size() > 240U) error.resize(240U);
+    if (response.process_status != 0 || response.http_status == 0) {
+        error = "TMDb is unavailable right now. Check the network and try again.";
         return false;
     }
-    json = std::move(response);
+    if (response.http_status != 200) {
+        error = "TMDb request failed with HTTP " + std::to_string(response.http_status) + ".";
+        return false;
+    }
+    if (response.body.empty()) {
+        error = "TMDb returned an empty response.";
+        return false;
+    }
+    json = response.body;
+    return true;
+}
+
+bool TmdbClient::test_saved_credential(std::string& error) const {
+    std::string json;
+    return request_json("/3/configuration", json, error);
+}
+
+bool TmdbClient::save_credential(const std::string& credential_input, std::string& error) {
+    const std::string credential = trim_copy(credential_input);
+    const TmdbCredentialType type = detect_credential_type(credential);
+    if (type != TmdbCredentialType::ApiKey && type != TmdbCredentialType::ReadAccessToken) {
+        error = "TMDb credentials must be a 32-character API key or a read access token.";
+        return false;
+    }
+    std::string json;
+    if (!request_json("/3/configuration", json, error, &credential)) return false;
+    if (!ensure_directory(parent_directory(credential_file_))) {
+        error = "ReddMedia could not create its private TMDb settings folder.";
+        return false;
+    }
+    const std::string temporary = credential_file_ + ".new";
+    if (!write_private_file(temporary, credential + "\n") ||
+        rename(temporary.c_str(), credential_file_.c_str()) != 0) {
+        unlink(temporary.c_str());
+        error = "ReddMedia could not store the validated TMDb credential.";
+        return false;
+    }
+    chmod(credential_file_.c_str(), 0600);
+    return true;
+}
+
+bool TmdbClient::clear_credential(std::string& error) {
+    if (unlink(credential_file_.c_str()) != 0 && errno != ENOENT) {
+        error = "ReddMedia could not clear the saved TMDb credential.";
+        return false;
+    }
+    unlink((credential_file_ + ".new").c_str());
     return true;
 }
 
@@ -313,10 +532,180 @@ bool TmdbClient::discover(RecommendationMediaType type,
         loaded.push_back(std::move(item));
     }
     if (loaded.empty()) {
-        error = "TMDb returned no matching titles.";
+        error = "TMDb returned no matching " + std::string(kind == "movie" ? "movies" : "TV shows") + ".";
         return false;
     }
     items = std::move(loaded);
+    return true;
+}
+
+bool TmdbClient::load_poster_bmp(const std::string& poster_path,
+                                 int width,
+                                 int height,
+                                 std::string& bytes,
+                                 std::string& error) const {
+    if (poster_path.empty()) {
+        error = "TMDb did not provide a poster for this title.";
+        return false;
+    }
+    const char* home = std::getenv("HOME");
+    const std::string cache_directory = std::string(home ? home : ".") +
+        "/.cache/reddmedia/posters/tmdb";
+    const std::string cache_path = cache_directory + "/" + safe_cache_component(poster_path) +
+        "_" + std::to_string(std::max(32, width)) + "x" +
+        std::to_string(std::max(32, height)) + ".bmp";
+    if (read_binary_file(cache_path, bytes) && bytes.size() >= 2U &&
+        bytes[0] == 'B' && bytes[1] == 'M') {
+        return true;
+    }
+    std::string url = image_base_url_;
+    if (!url.empty() && url.back() == '/' && poster_path.front() == '/') url.pop_back();
+    else if (!url.empty() && url.back() != '/' && poster_path.front() != '/') url.push_back('/');
+    url += poster_path;
+    const CurlResult response = run_curl(url);
+    if (response.process_status != 0 || response.http_status != 200 || response.body.empty()) {
+        error = "The TMDb poster is unavailable right now.";
+        return false;
+    }
+    if (!normalize_library_poster_bmp(response.body, bytes, error)) return false;
+    if (ensure_directory(cache_directory)) write_private_file(cache_path, bytes);
+    return true;
+}
+
+bool TmdbClient::watch_availability(RecommendationMediaType type,
+                                    const std::string& tmdb_id,
+                                    const std::string& region,
+                                    WatchAvailability& availability,
+                                    std::string& error) const {
+    if (!numeric_id(tmdb_id) || !valid_region(region)) {
+        error = "A valid TMDb title and two-letter region are required for watch availability.";
+        return false;
+    }
+    const std::string kind = type == RecommendationMediaType::Movie ? "movie" : "tv";
+    std::string json;
+    if (!request_json("/3/" + kind + "/" + tmdb_id + "/watch/providers", json, error)) {
+        return false;
+    }
+    WatchAvailability loaded;
+    loaded.region = region;
+    loaded.refreshed_at = static_cast<long long>(std::time(nullptr));
+    const std::string results = json_compound_value(json, "results", '{', '}');
+    const std::string region_object = json_compound_value(results, region, '{', '}');
+    if (!region_object.empty()) {
+        loaded.listing_found = true;
+        loaded.link = json_string_value(region_object, "link");
+        append_provider_group(region_object, "flatrate", WatchProviderCategory::Subscription,
+                              loaded.providers);
+        append_provider_group(region_object, "free", WatchProviderCategory::Free,
+                              loaded.providers);
+        append_provider_group(region_object, "ads", WatchProviderCategory::Ads,
+                              loaded.providers);
+        append_provider_group(region_object, "rent", WatchProviderCategory::Rent,
+                              loaded.providers);
+        append_provider_group(region_object, "buy", WatchProviderCategory::Buy,
+                              loaded.providers);
+    }
+    availability = std::move(loaded);
+    return true;
+}
+
+bool TmdbClient::watch_provider_catalog(const std::string& region,
+                                        std::vector<WatchProvider>& providers,
+                                        std::string& error) const {
+    if (!valid_region(region)) {
+        error = "A two-letter watch region is required.";
+        return false;
+    }
+    std::vector<WatchProvider> loaded;
+    for (const std::string& kind : {std::string("movie"), std::string("tv")}) {
+        std::string json;
+        if (!request_json("/3/watch/providers/" + kind +
+                          "?language=en-US&watch_region=" + region, json, error)) {
+            return false;
+        }
+        append_catalog(json, loaded);
+    }
+    std::sort(loaded.begin(), loaded.end(), [](const WatchProvider& left,
+                                                const WatchProvider& right) {
+        if (left.display_priority != right.display_priority) {
+            return left.display_priority < right.display_priority;
+        }
+        return left.name < right.name;
+    });
+    std::set<int> seen_provider_ids;
+    loaded.erase(std::remove_if(loaded.begin(), loaded.end(), [&seen_provider_ids](
+        const WatchProvider& provider) {
+        return !seen_provider_ids.insert(provider.id).second;
+    }), loaded.end());
+    providers = std::move(loaded);
+    return true;
+}
+
+bool TmdbClient::tv_episode_details(const std::string& series_tmdb_id,
+                                    int season_number,
+                                    int episode_number,
+                                    std::string& title,
+                                    std::string& overview,
+                                    std::string& error) const {
+    if (!numeric_id(series_tmdb_id) || season_number < 0 || episode_number <= 0) {
+        error = "Exact series, season, and episode numbers are required for TMDb episode metadata.";
+        return false;
+    }
+    std::string json;
+    const std::string target = "/3/tv/" + series_tmdb_id + "/season/" +
+        std::to_string(season_number) + "/episode/" + std::to_string(episode_number) +
+        "?language=en-US";
+    if (!request_json(target, json, error)) return false;
+    title = json_string_value(json, "name");
+    overview = json_string_value(json, "overview");
+    if (title.empty()) {
+        error = "TMDb did not provide a verified title for this episode.";
+        return false;
+    }
+    return true;
+}
+
+bool TmdbClient::tv_poster_path(const std::string& series_tmdb_id,
+                                int season_number,
+                                std::string& poster_path,
+                                std::string& error) const {
+    if (!numeric_id(series_tmdb_id) || season_number < 0) {
+        error = "A valid TMDb series and season are required for artwork fallback.";
+        return false;
+    }
+    std::string target = "/3/tv/" + series_tmdb_id;
+    if (season_number > 0) target += "/season/" + std::to_string(season_number);
+    target += "?language=en-US";
+    std::string json;
+    if (!request_json(target, json, error)) return false;
+    poster_path = json_string_value(json, "poster_path");
+    if (poster_path.empty() && season_number > 0) {
+        if (!request_json("/3/tv/" + series_tmdb_id + "?language=en-US", json, error)) {
+            return false;
+        }
+        poster_path = json_string_value(json, "poster_path");
+    }
+    if (poster_path.empty()) {
+        error = "TMDb did not provide usable series artwork.";
+        return false;
+    }
+    return true;
+}
+
+bool TmdbClient::movie_poster_path(const std::string& tmdb_id,
+                                   std::string& poster_path,
+                                   std::string& error) const {
+    if (!numeric_id(tmdb_id)) {
+        error = "A valid TMDb movie ID is required for artwork fallback.";
+        return false;
+    }
+    std::string json;
+    if (!request_json("/3/movie/" + tmdb_id + "?language=en-US", json, error)) return false;
+    poster_path = json_string_value(json, "poster_path");
+    if (poster_path.empty()) {
+        error = "TMDb did not provide usable movie artwork.";
+        return false;
+    }
     return true;
 }
 

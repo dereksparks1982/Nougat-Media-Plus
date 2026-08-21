@@ -1,0 +1,6 @@
+cd "$HOME/Downloads" && \
+package="ReddMedia_v0_0_19_PINNED_AI_MODEL_RUNTIME_LAYOUT_REPAIR_CHANGED_FILES_ONLY.zip" && \
+candidate="$HOME/Downloads/ReddMedia_v0_0_19_PINNED_AI_MODEL_RUNTIME_LAYOUT_REPAIR_$(date +%Y%m%d_%H%M%S)" && \
+mkdir -p "$candidate" && \
+unzip "$package" -d "$candidate" && \
+bash "$candidate/INSTALL_REDDMEDIA_v0_0_19.sh"
