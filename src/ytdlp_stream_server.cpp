@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cctype>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -46,6 +47,67 @@ bool send_chunk(int fd, const char* data, std::size_t size) {
 
 bool finish_chunked(int fd) {
     return send_all(fd, "0\r\n\r\n", 5);
+}
+
+std::string find_executable_in_path(const std::string& name) {
+    const char* raw = std::getenv("PATH");
+    if (!raw || name.empty()) return {};
+    std::istringstream paths(raw);
+    std::string directory;
+    while (std::getline(paths, directory, ':')) {
+        if (directory.empty()) directory = ".";
+        const std::string candidate = directory + "/" + name;
+        if (access(candidate.c_str(), X_OK) == 0) return candidate;
+    }
+    return {};
+}
+
+bool youtube_url(const std::string& source) {
+    std::string lower = source;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return lower.find("youtube.com/") != std::string::npos ||
+           lower.find("youtu.be/") != std::string::npos;
+}
+
+bool supported_node_runtime_present() {
+    FILE* pipe = popen("node --version 2>/dev/null", "r");
+    if (!pipe) return false;
+    char buffer[64]{};
+    const bool read_ok = std::fgets(buffer, sizeof(buffer), pipe) != nullptr;
+    pclose(pipe);
+    if (!read_ok) return false;
+    int major = 0;
+    return std::sscanf(buffer, "v%d", &major) == 1 && major >= 22;
+}
+
+void append_youtube_compatibility_args(std::vector<std::string>& args, const std::string& source) {
+    if (!youtube_url(source)) return;
+
+    // Current yt-dlp YouTube extraction requires an external JS runtime for
+    // EJS challenge solving. Deno is yt-dlp's preferred runtime; Node 22+ is
+    // supported when explicitly enabled. Do not add a new dependency here:
+    // use an already-installed supported runtime when present.
+    const std::string deno = find_executable_in_path("deno");
+    const std::string node = find_executable_in_path("node");
+    const std::string qjs = find_executable_in_path("qjs");
+    if (!deno.empty()) {
+        args.push_back("--js-runtimes");
+        args.push_back("deno:" + deno);
+    } else if (!node.empty() && supported_node_runtime_present()) {
+        args.push_back("--js-runtimes");
+        args.push_back("node:" + node);
+    } else if (!qjs.empty()) {
+        args.push_back("--js-runtimes");
+        args.push_back("quickjs:" + qjs);
+    }
+
+    // Prefer the Safari HLS path first. YouTube's current GVS/PO-token rollout
+    // can return HTTP 403 for some direct HTTPS format URLs while Safari HLS
+    // remains playable. Fall back to ordinary combined/separate formats.
+    args.push_back("--extractor-args");
+    args.push_back("youtube:player_client=default,web_safari");
 }
 
 std::string section_from_ms(long long ms) {
@@ -197,9 +259,13 @@ bool YtDlpStreamServer::start_feeder(std::string& error) {
     }
 
     std::vector<std::string> args = {
-        engine_, "--ignore-config", "--no-playlist", "--downloader", "ffmpeg",
-        "-f", "bv*[height<=1080]+ba/b[height<=1080]"
+        engine_, "--ignore-config", "--no-playlist", "--downloader", "ffmpeg"
     };
+    append_youtube_compatibility_args(args, source_url_);
+    args.push_back("-f");
+    args.push_back(youtube_url(source_url_)
+        ? "b[protocol^=m3u8][height<=1080]/b[height<=1080]/bv*[height<=1080]+ba/b"
+        : "bv*[height<=1080]+ba/b[height<=1080]");
     if (base_time_ms_ > 0) {
         args.push_back("--download-sections");
         args.push_back(section_from_ms(base_time_ms_));

@@ -489,7 +489,7 @@ public:
     Rect debugRunBtn, debugRetryBtn, debugMetadataBtn, debugTmdbBtn;
     Rect debugServerBtn, debugLogsBtn, debugCopyBtn, debugListBox;
     Rect streamYoutubeTab, streamRumbleTab, streamRutubeTab, streamVkTab, streamOkTab;
-    Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpPlayBtn, ytdlpDirectWatchBtn, ytdlpWebpageBtn, ytdlpClearBtn, ytdlpFolderBtn;
+    Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpDirectWatchBtn, ytdlpWebpageBtn, ytdlpClearBtn, ytdlpFolderBtn;
     Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn;
     Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatP2PPanelTab, nougatNetworkAdvancedBtn;
     Rect nougatSearchRect, nougatSearchBtn, nougatRawBtn, nougatPeersToggleBtn, nougatResultsBox;
@@ -509,6 +509,7 @@ public:
     long long sessionTime=0;
     Cursor blankCursor=0, normalCursor=0;
     bool pointerInVideo=false, pointerHidden=false;
+    int pointerWindowX=-10000, pointerWindowY=-10000;
     time_t lastMouse=0;
     Time lastClickTime=0;
     int lastClickX=0, lastClickY=0;
@@ -727,6 +728,109 @@ public:
     }
     void outline(Drawable target, const Rect& r, unsigned long c) { XSetForeground(d,gc,c); XDrawRectangle(d,target,gc,r.x,r.y,r.w,r.h); }
     void line(Drawable target, int x1, int y1, int x2, int y2, unsigned long c) { XSetForeground(d,gc,c); XDrawLine(d,target,gc,x1,y1,x2,y2); }
+
+    unsigned long rgb8(unsigned char r, unsigned char g, unsigned char b) {
+        return col(static_cast<unsigned short>(r) * 257U,
+                   static_cast<unsigned short>(g) * 257U,
+                   static_cast<unsigned short>(b) * 257U);
+    }
+
+    void fill_round(Drawable target, const Rect& raw, int radius, unsigned long c) {
+        if (raw.w <= 0 || raw.h <= 0) return;
+        Rect r = raw;
+        radius = std::max(0, std::min(radius, std::min(r.w, r.h) / 2));
+        XSetForeground(d, gc, c);
+        if (radius <= 0) {
+            XFillRectangle(d, target, gc, r.x, r.y, r.w, r.h);
+            return;
+        }
+        XFillRectangle(d, target, gc, r.x + radius, r.y, std::max(0, r.w - 2 * radius), r.h);
+        XFillRectangle(d, target, gc, r.x, r.y + radius, r.w, std::max(0, r.h - 2 * radius));
+        const int diameter = radius * 2;
+        XFillArc(d, target, gc, r.x, r.y, diameter, diameter, 90 * 64, 90 * 64);
+        XFillArc(d, target, gc, r.x + r.w - diameter, r.y, diameter, diameter, 0, 90 * 64);
+        XFillArc(d, target, gc, r.x, r.y + r.h - diameter, diameter, diameter, 180 * 64, 90 * 64);
+        XFillArc(d, target, gc, r.x + r.w - diameter, r.y + r.h - diameter, diameter, diameter, 270 * 64, 90 * 64);
+    }
+
+    void outline_round(Drawable target, const Rect& raw, int radius, unsigned long c) {
+        if (raw.w <= 1 || raw.h <= 1) return;
+        Rect r = raw;
+        radius = std::max(0, std::min(radius, std::min(r.w, r.h) / 2));
+        XSetForeground(d, gc, c);
+        if (radius <= 0) {
+            XDrawRectangle(d, target, gc, r.x, r.y, r.w - 1, r.h - 1);
+            return;
+        }
+        const int diameter = radius * 2;
+        XDrawLine(d, target, gc, r.x + radius, r.y, r.x + r.w - radius - 1, r.y);
+        XDrawLine(d, target, gc, r.x + radius, r.y + r.h - 1, r.x + r.w - radius - 1, r.y + r.h - 1);
+        XDrawLine(d, target, gc, r.x, r.y + radius, r.x, r.y + r.h - radius - 1);
+        XDrawLine(d, target, gc, r.x + r.w - 1, r.y + radius, r.x + r.w - 1, r.y + r.h - radius - 1);
+        XDrawArc(d, target, gc, r.x, r.y, diameter, diameter, 90 * 64, 90 * 64);
+        XDrawArc(d, target, gc, r.x + r.w - diameter - 1, r.y, diameter, diameter, 0, 90 * 64);
+        XDrawArc(d, target, gc, r.x, r.y + r.h - diameter - 1, diameter, diameter, 180 * 64, 90 * 64);
+        XDrawArc(d, target, gc, r.x + r.w - diameter - 1, r.y + r.h - diameter - 1, diameter, diameter, 270 * 64, 90 * 64);
+    }
+
+    void draw_quilted_background(Drawable target, const Rect& area, ViewMode view) {
+        unsigned long base = rgb8(246, 234, 216);
+        unsigned long highlight = rgb8(255, 248, 236);
+        unsigned long shadow = rgb8(224, 205, 180);
+        if (view == ViewMode::VideoPlayer) {
+            base = rgb8(245, 231, 210); highlight = rgb8(255, 246, 231); shadow = rgb8(219, 193, 161);
+        } else if (view == ViewMode::Library) {
+            base = rgb8(239, 235, 215); highlight = rgb8(250, 247, 232); shadow = rgb8(210, 211, 179);
+        } else if (view == ViewMode::Discover) {
+            base = rgb8(243, 231, 238); highlight = rgb8(253, 245, 250); shadow = rgb8(216, 194, 215);
+        } else if (view == ViewMode::Stream) {
+            base = rgb8(232, 236, 235); highlight = rgb8(246, 249, 247); shadow = rgb8(194, 207, 212);
+        } else if (view == ViewMode::Debug) {
+            base = rgb8(236, 230, 220); highlight = rgb8(248, 243, 235); shadow = rgb8(205, 195, 183);
+        }
+        fill(target, area, base);
+        XRectangle clip{static_cast<short>(area.x), static_cast<short>(area.y),
+                        static_cast<unsigned short>(std::max(1, area.w)),
+                        static_cast<unsigned short>(std::max(1, area.h))};
+        XSetClipRectangles(d, gc, 0, 0, &clip, 1, Unsorted);
+        constexpr int step = 34;
+        for (int offset = -area.h - step; offset < area.w + step; offset += step) {
+            line(target, area.x + offset + 1, area.y,
+                 area.x + offset + area.h + 1, area.y + area.h, shadow);
+            line(target, area.x + offset, area.y,
+                 area.x + offset + area.h, area.y + area.h, highlight);
+        }
+        for (int offset = -area.h - step; offset < area.w + step; offset += step) {
+            line(target, area.x + offset + 1, area.y + area.h,
+                 area.x + offset + area.h + 1, area.y, shadow);
+            line(target, area.x + offset, area.y + area.h,
+                 area.x + offset + area.h, area.y, highlight);
+        }
+        XSetClipMask(d, gc, None);
+    }
+
+    void draw_concept_field(Drawable target, const Rect& r, unsigned long fillColor,
+                            unsigned long borderColor, bool focused=false) {
+        Rect shadow{r.x, r.y + 2, r.w, r.h};
+        fill_round(target, shadow, 7, rgb8(188, 154, 113));
+        fill_round(target, r, 7, fillColor);
+        outline_round(target, r, 7, focused ? rgb8(179, 108, 42) : borderColor);
+        Rect inset{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        outline_round(target, inset, 5, rgb8(247, 230, 202));
+    }
+
+    void draw_speaker_icon(Drawable target, int x, int y, bool loud, unsigned long c) {
+        XSetForeground(d, gc, c);
+        XFillRectangle(d, target, gc, x, y + 5, 4, 6);
+        XPoint points[3] = {{static_cast<short>(x + 4), static_cast<short>(y + 4)},
+                            {static_cast<short>(x + 10), static_cast<short>(y)},
+                            {static_cast<short>(x + 10), static_cast<short>(y + 16)}};
+        XFillPolygon(d, target, gc, points, 3, Convex, CoordModeOrigin);
+        if (loud) {
+            XDrawArc(d, target, gc, x + 8, y + 3, 10, 10, -60 * 64, 120 * 64);
+            XDrawArc(d, target, gc, x + 7, y, 16, 16, -55 * 64, 110 * 64);
+        }
+    }
     void button(const Rect& r, const std::string& label) {
         button_on(win, r, label);
     }
@@ -747,79 +851,94 @@ public:
     };
 
     ViewPalette stream_palette_for(StreamPlatform platform) {
+        // The page stays in the approved pale dusty-blue quilt. Service selection
+        // still owns the Stream accents and button treatment.
+        const unsigned long background = rgb8(232, 236, 235);
+        const unsigned long panel = rgb8(246, 240, 229);
+        const unsigned long field = rgb8(252, 247, 239);
+        const unsigned long textColor = rgb8(68, 42, 28);
+        const unsigned long muted = rgb8(125, 105, 91);
+        const unsigned long cream = rgb8(250, 239, 219);
         switch (platform) {
             case StreamPlatform::YouTube:
-                return {col(0x0f0f,0x0f0f,0x0f0f), col(0x2121,0x2121,0x2121), col(0xf1f1,0xf1f1,0xf1f1),
-                        col(0x5a5a,0x5a5a,0x5a5a), col(0xffff,0xffff,0xffff), col(0xaaaa,0xaaaa,0xaaaa),
-                        col(0xffff,0x0000,0x0000), col(0xffff,0x0000,0x0000), col(0x8f8f,0x0000,0x0000),
-                        col(0xffff,0x4d4d,0x4d4d), col(0xffff,0xffff,0xffff), col(0xffff,0x0000,0x0000)};
+                return {background, panel, field, rgb8(166,93,79), textColor, muted,
+                        rgb8(190,75,67), rgb8(196,82,72), rgb8(120,55,49),
+                        rgb8(225,132,119), cream, rgb8(190,75,67)};
             case StreamPlatform::Rumble:
-                return {col(0x0d0d,0x1515,0x0e0e), col(0x1929,0x261a,0x1b1b), col(0xf2f2,0xf7f7,0xefef),
-                        col(0x5f5f,0x7c7c,0x4d4d), col(0xf8f8,0xffff,0xf4f4), col(0xbdbd,0xd0d0,0xb5b5),
-                        col(0x8585,0xc7c7,0x4242), col(0x8585,0xc7c7,0x4242), col(0x4c4c,0x7a7a,0x2121),
-                        col(0xa9a9,0xe8e8,0x6c6c), col(0x1111,0x1818,0x1010), col(0x8585,0xc7c7,0x4242)};
+                return {background, panel, field, rgb8(112,126,70), textColor, muted,
+                        rgb8(134,151,84), rgb8(144,153,89), rgb8(82,91,48),
+                        rgb8(188,196,127), rgb8(48,45,27), rgb8(116,132,65)};
             case StreamPlatform::RuTube:
-                return {col(0x1010,0x0909,0x4343), col(0x1c1c,0x1414,0x5a5a), col(0xf4f4,0xf1f1,0xffff),
-                        col(0x9a9a,0x1313,0xeded), col(0xffff,0xffff,0xffff), col(0xbdbd,0xb4b4,0xdada),
-                        col(0x1212,0x3a3a,0xeded), col(0xeded,0x1414,0x3b3b), col(0x9292,0x0909,0x2525),
-                        col(0xffff,0x5b5b,0x7474), col(0xffff,0xffff,0xffff), col(0x1212,0xcccc,0xeded)};
+                return {background, panel, field, rgb8(139,91,144), textColor, muted,
+                        rgb8(166,112,171), rgb8(181,143,177), rgb8(111,73,114),
+                        rgb8(211,177,210), rgb8(61,42,61), rgb8(149,99,154)};
             case StreamPlatform::VK:
-                return {col(0x0b0b,0x1818,0x2727), col(0x1414,0x2a2a,0x4545), col(0xf0f0,0xf6f6,0xffff),
-                        col(0x0077,0x7777,0xffff), col(0xffff,0xffff,0xffff), col(0xaaaa,0xc2c2,0xdddd),
-                        col(0x0077,0x7777,0xffff), col(0x0077,0x7777,0xffff), col(0x004f,0x4f4f,0xa8a8),
-                        col(0x4f4f,0xa3a3,0xffff), col(0xffff,0xffff,0xffff), col(0x0000,0xeaea,0xffff)};
+                return {background, panel, field, rgb8(92,122,141), textColor, muted,
+                        rgb8(112,146,165), rgb8(133,154,168), rgb8(77,100,117),
+                        rgb8(176,194,203), rgb8(44,55,61), rgb8(91,133,157)};
             case StreamPlatform::OK:
-                return {col(0x2323,0x1717,0x0e0e), col(0x3a3a,0x2424,0x1414), col(0xffff,0xf4f4,0xe8e8),
-                        col(0xeeee,0x8282,0x0808), col(0xffff,0xf7f7,0xf0f0), col(0xe3e3,0xb8b8,0x8787),
-                        col(0xeeee,0x8282,0x0808), col(0xeeee,0x8282,0x0808), col(0xa6a6,0x4d4d,0x0000),
-                        col(0xffff,0xaaaa,0x4343), col(0x1e1e,0x1010,0x0606), col(0xffff,0x9d9d,0x2424)};
+                return {background, panel, field, rgb8(172,113,55), textColor, muted,
+                        rgb8(201,130,50), rgb8(205,145,73), rgb8(126,76,30),
+                        rgb8(232,183,112), rgb8(69,38,18), rgb8(194,120,43)};
         }
-        return {col(0x2418,0x1818,0x1212), col(0x4930,0x3030,0x2525), col(0xf3e5,0xe5e5,0xcccc),
-                col(0xd2a5,0xa5a5,0x6d6d), col(0xf3f3,0xe5e5,0xcccc), col(0xcdcd,0xb9b9,0x9e9e),
-                col(0xb96f,0x6f6f,0x3636), col(0xb96f,0x6f6f,0x3636), col(0x6b35,0x3535,0x1a1a),
-                col(0xe0a0,0xa0a0,0x5656), col(0xffff,0xffff,0xffff), col(0xd2a5,0xa5a5,0x6d6d)};
+        return {background, panel, field, rgb8(161,111,61), textColor, muted,
+                rgb8(191,130,61), rgb8(206,161,102), rgb8(116,63,23),
+                rgb8(232,194,137), rgb8(66,34,17), rgb8(184,111,43)};
     }
 
     ViewPalette palette_for(ViewMode view) {
         if (view == ViewMode::VideoPlayer) return {
-            col(0x1b1b,0x0f0f,0x0808), col(0x341a,0x1a1a,0x0d0d), col(0xf5e6,0xe6e6,0xc8c8),
-            col(0x9a5a,0x5a5a,0x2626), col(0xf8eb,0xebeb,0xd3d3), col(0xd3b9,0xb9b9,0x8c8c),
-            col(0x7b3f,0x3f3f,0x1717), col(0x6b35,0x3535,0x1a1a), col(0x3b1c,0x1c1c,0x0d0d),
-            col(0xa965,0x6565,0x3232), col(0xffff,0xf5f5,0xe3e3), col(0xd2a5,0xa5a5,0x6d6d)};
+            rgb8(245,231,210), rgb8(238,219,194), rgb8(252,247,239),
+            rgb8(167,116,66), rgb8(68,42,28), rgb8(126,100,78),
+            rgb8(191,130,61), rgb8(206,161,102), rgb8(116,63,23),
+            rgb8(232,194,137), rgb8(66,34,17), rgb8(184,111,43)};
         if (view == ViewMode::Library) return {
-            col(0x101c,0x1c1c,0x1313), col(0x1b32,0x3232,0x2222), col(0xeaf2,0xf2f2,0xe4e4),
-            col(0x4f7c,0x7c7c,0x5858), col(0xf2f7,0xf7f7,0xeeee), col(0xb8cc,0xcccc,0xb8b8),
-            col(0x597f,0x7f7f,0x5f5f), col(0x3474,0x7474,0x4242), col(0x1942,0x4242,0x2424),
-            col(0x6ca2,0xa2a2,0x7777), col(0xffff,0xffff,0xffff), col(0x8faa,0xaaaa,0x7777)};
+            rgb8(239,235,215), rgb8(232,229,205), rgb8(250,247,235),
+            rgb8(112,126,70), rgb8(55,50,31), rgb8(108,105,77),
+            rgb8(134,151,84), rgb8(144,148,89), rgb8(82,91,48),
+            rgb8(188,196,127), rgb8(48,45,27), rgb8(116,132,65)};
         if (view == ViewMode::Discover) return {
-            col(0x1d10,0x1010,0x2424), col(0x3420,0x2020,0x4242), col(0xf2eb,0xebeb,0xf5f5),
-            col(0x8053,0x5353,0x9292), col(0xf7ed,0xeded,0xfafa), col(0xd2bd,0xbdbd,0xdbdb),
-            col(0x7652,0x5252,0x8989), col(0x7040,0x4040,0x8282), col(0x4020,0x2020,0x4e4e),
-            col(0xa069,0x6969,0xb3b3), col(0xffff,0xffff,0xffff), col(0xbd7a,0x7a7a,0xd1d1)};
-        if (view == ViewMode::Stream) return stream_palette_for(streamPlatform);
+            rgb8(243,231,238), rgb8(237,219,233), rgb8(251,245,249),
+            rgb8(139,91,144), rgb8(61,42,61), rgb8(119,91,118),
+            rgb8(166,112,171), rgb8(181,143,177), rgb8(111,73,114),
+            rgb8(211,177,210), rgb8(61,42,61), rgb8(149,99,154)};
+        if (view == ViewMode::Stream) return {
+            rgb8(232,236,235), rgb8(225,232,229), rgb8(250,247,239),
+            rgb8(92,122,141), rgb8(55,50,43), rgb8(108,105,98),
+            rgb8(112,146,165), rgb8(112,146,165), rgb8(77,100,117),
+            rgb8(176,194,203), rgb8(44,55,61), rgb8(91,133,157)};
         if (view == ViewMode::P2P) return {
-            col(0x0915,0x1515,0x2525), col(0x142c,0x2c2c,0x4848), col(0xe9f1,0xf1f1,0xf9f9),
-            col(0x4a82,0x8282,0xacac), col(0xf2f8,0xf8f8,0xffff), col(0xb8cf,0xcfcf,0xe4e4),
-            col(0x315f,0x5f5f,0x8d8d), col(0x2d62,0x6262,0x9292), col(0x1638,0x3838,0x5858),
-            col(0x5e91,0x9191,0xbdbd), col(0xffff,0xffff,0xffff), col(0x60a7,0xa7a7,0xd7d7)};
+            rgb8(225,233,240), rgb8(213,226,237), rgb8(248,250,252),
+            rgb8(85,122,150), rgb8(43,58,70), rgb8(101,122,138),
+            rgb8(91,133,157), rgb8(112,146,165), rgb8(77,100,117),
+            rgb8(176,194,203), rgb8(44,55,61), rgb8(91,133,157)};
         if (view == ViewMode::Debug) return {
-            col(0x201a,0x1a1a,0x1111), col(0x3a2f,0x2f2f,0x1818), col(0xf6ed,0xeded,0xd8d8),
-            col(0xa87a,0x7a7a,0x2828), col(0xfff6,0xf6f6,0xdbdb), col(0xd8c3,0xc3c3,0x9090),
-            col(0x8c68,0x6868,0x2424), col(0xc68a,0x8a8a,0x0909), col(0x7450,0x5050,0x0000),
-            col(0xf1b7,0xb7b7,0x3737), col(0x1711,0x1111,0x0707), col(0xf0b4,0xb4b4,0x2b2b)};
-        return {col(0x2418,0x1818,0x1212), col(0x4930,0x3030,0x2525), col(0xf3e5,0xe5e5,0xcccc),
-                col(0xd2a5,0xa5a5,0x6d6d), col(0xf3f3,0xe5e5,0xcccc), col(0xcdcd,0xb9b9,0x9e9e),
-                col(0xb96f,0x6f6f,0x3636), col(0xb96f,0x6f6f,0x3636), col(0x6b35,0x3535,0x1a1a),
-                col(0xe0a0,0xa0a0,0x5656), col(0xffff,0xffff,0xffff), col(0xd2a5,0xa5a5,0x6d6d)};
+            rgb8(236,230,220), rgb8(226,218,207), rgb8(248,244,237),
+            rgb8(126,105,89), rgb8(67,52,42), rgb8(119,106,94),
+            rgb8(139,111,87), rgb8(119,102,88), rgb8(61,48,39),
+            rgb8(154,136,117), rgb8(248,239,224), rgb8(147,105,59)};
+        return {
+            rgb8(246,234,216), rgb8(239,224,202), rgb8(252,247,239),
+            rgb8(166,112,56), rgb8(68,42,28), rgb8(124,95,71),
+            rgb8(191,130,61), rgb8(219,190,147), rgb8(144,91,37),
+            rgb8(238,210,168), rgb8(72,39,20), rgb8(191,122,46)};
     }
 
     void button_on(Drawable target, const Rect& r, const std::string& label) {
         const ViewPalette palette = palette_for(currentView);
-        fill(target, r, palette.button);
-        outline(target, r, palette.buttonDark);
-        line(target, r.x + 1, r.y + 1, r.x + (int)r.w - 2, r.y + 1, palette.buttonLight);
-        const int label_x = r.x + std::max(5, (r.w - text_width(label)) / 2);
-        text(target, label_x, r.y + 18, head_to_width(label, r.w - 10), palette.buttonText);
+        const bool hover = target == win && r.contains(pointerWindowX, pointerWindowY);
+        const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        Rect shadow{visual.x, visual.y + 2, visual.w, visual.h};
+        fill_round(target, shadow, 8, palette.buttonDark);
+        fill_round(target, visual, 8, hover ? palette.buttonLight : palette.button);
+        outline_round(target, visual, 8, palette.buttonDark);
+        Rect stitch{visual.x + 2, visual.y + 2, std::max(1, visual.w - 4), std::max(1, visual.h - 4)};
+        outline_round(target, stitch, 6, hover ? rgb8(252,232,198) : palette.buttonLight);
+        line(target, visual.x + 8, visual.y + 2, visual.x + visual.w - 9, visual.y + 2,
+             rgb8(255,235,198));
+        const int label_x = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
+        const int label_y = visual.y + visual.h / 2 + 5;
+        text(target, label_x, label_y, head_to_width(label, visual.w - 10), palette.buttonText);
     }
 
     static unsigned long component_to_visual_mask(unsigned char value, unsigned long mask) {
@@ -965,8 +1084,18 @@ public:
     void layout() {
         const int topStatusReserve = 178;
         topNavViewportW = std::max(kCompactButtonW, W - topStatusReserve);
-        topNavScrollX = clamp_button_scroll(topNavScrollX, 6, topNavViewportW);
+        const int topControlCount = 6;
+        const int topControlTotalW = topControlCount * kCompactButtonW;
+        topNavScrollX = clamp_button_scroll(topNavScrollX, topControlCount, topNavViewportW);
         int topX = -topNavScrollX;
+        if (topControlTotalW <= topNavViewportW) {
+            // Center across the full application width whenever the status area
+            // still has clear space. If a narrower window would collide with
+            // Server/version, shift only as far left as necessary.
+            const int centered = std::max(0, (W - topControlTotalW) / 2);
+            const int latestWithoutStatusCollision = std::max(0, W - topStatusReserve - topControlTotalW);
+            topX = std::min(centered, latestWithoutStatusCollision);
+        }
         videoPlayerTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
         libraryTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
         discoverTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
@@ -994,7 +1123,16 @@ public:
         const int seekX = 10 + currentTimeWidth + 10;
         const int seekRightPad = totalTimeWidth + 20;
         seekRect = {seekX, seekY, std::max(220, W-seekX-seekRightPad), 18};
-        volRect = {110, volumeY, std::max(120, W-130), 18};
+
+        // The approved concept sheet uses a compact volume control, distinctly
+        // shorter than the seek bar, with a clean right-side percentage readout.
+        const int volumeTrackW = std::max(150, std::min(280, W / 3));
+        const int volumeReadoutW = 54;
+        const int volumeHousingPad = 28;
+        const int volumeRightInset = 22;
+        const int volumeHousingW = volumeTrackW + volumeHousingPad * 2;
+        const int volumeHousingX = std::max(94, W - volumeRightInset - volumeReadoutW - volumeHousingW);
+        volRect = {volumeHousingX + volumeHousingPad, volumeY + 4, volumeTrackW, 10};
 
         const int promptX = std::max(20, W/2-kCompactButtonW);
         resumeBtn = {promptX, H/2+40, kCompactButtonW, kCompactButtonH};
@@ -1004,7 +1142,7 @@ public:
                           54, streamSourceScrollX);
         ytdlpUrlRect = {28, 120, std::max(240, W-56), 28};
         ytdlpOutputRect = {28, 160, std::max(240, W-56), 28};
-        layout_button_row({&ytdlpDownloadBtn,&ytdlpPlayBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn},
+        layout_button_row({&ytdlpDownloadBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn},
                           202, ytdlpButtonsScrollX);
         ytdlpFolderBtn = {0,0,0,0};
 
@@ -1647,20 +1785,48 @@ public:
     }
 
     void draw_top_bar(Drawable target) {
-        const unsigned long suiteChocolate = col(0x4a4a,0x1f1f,0x0b0b);
-        const unsigned long topText = col(0xf2f2,0xe6e6,0xc9c9);
-        const unsigned long divider = col(0x2d2d,0x1111,0x0808);
-        fill(target, {0,0,W,26}, suiteChocolate);
+        const unsigned long topText = rgb8(72, 39, 20);
+        const unsigned long divider = rgb8(174, 132, 87);
+        draw_quilted_background(target, {0, 0, W, 34}, ViewMode::Nougat);
 
-        XRectangle navClip{0,0,(unsigned short)std::max(1,topNavViewportW),26};
+        XRectangle navClip{0,0,(unsigned short)std::max(1,topNavViewportW),34};
         XSetClipRectangles(d, gc, 0, 0, &navClip, 1, Unsorted);
         const auto draw_tab = [&](const Rect& tab, const char* label, ViewMode view) {
             const bool active = currentView == view;
+            const bool hover = tab.contains(pointerWindowX, pointerWindowY);
             const ViewPalette tabPalette = palette_for(view);
-            fill(target, tab, active ? tabPalette.buttonLight : tabPalette.button);
-            if (active) fill(target, {tab.x, 23, tab.w, 3}, tab_accent(view));
-            line(target, tab.x + tab.w - 1, 0, tab.x + tab.w - 1, 25, divider);
-            text(target, tab.x + std::max(5,(tab.w-text_width(label))/2), 17, label, tabPalette.buttonText);
+            Rect visual{tab.x + 2, 2, std::max(1, tab.w - 4), 22};
+            Rect shadow{visual.x, visual.y + 2, visual.w, visual.h};
+            fill_round(target, shadow, 7, tabPalette.buttonDark);
+            fill_round(target, visual, 7, hover ? tabPalette.buttonLight : tabPalette.button);
+            outline_round(target, visual, 7, tabPalette.buttonDark);
+            Rect stitch{visual.x + 2, visual.y + 2, std::max(1, visual.w - 4), std::max(1, visual.h - 4)};
+            outline_round(target, stitch, 5, tabPalette.buttonLight);
+            line(target, visual.x + 7, visual.y + 2, visual.x + visual.w - 8, visual.y + 2,
+                 rgb8(255,235,198));
+
+            if (active) {
+                const int cx = visual.x + visual.w / 2;
+                XPoint point[3] = {
+                    {static_cast<short>(cx - 9), static_cast<short>(visual.y + visual.h - 2)},
+                    {static_cast<short>(cx + 9), static_cast<short>(visual.y + visual.h - 2)},
+                    {static_cast<short>(cx), static_cast<short>(31)}
+                };
+                XSetForeground(d, gc, tabPalette.buttonDark);
+                XFillPolygon(d, target, gc, point, 3, Convex, CoordModeOrigin);
+                XPoint inner[3] = {
+                    {static_cast<short>(cx - 7), static_cast<short>(visual.y + visual.h - 2)},
+                    {static_cast<short>(cx + 7), static_cast<short>(visual.y + visual.h - 2)},
+                    {static_cast<short>(cx), static_cast<short>(29)}
+                };
+                XSetForeground(d, gc, hover ? tabPalette.buttonLight : tabPalette.button);
+                XFillPolygon(d, target, gc, inner, 3, Convex, CoordModeOrigin);
+                line(target, cx - 6, visual.y + visual.h - 1, cx, 28, tabPalette.buttonLight);
+                line(target, cx, 28, cx + 6, visual.y + visual.h - 1, tabPalette.buttonLight);
+            }
+
+            const int labelX = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
+            text(target, labelX, 17, label, tabPalette.buttonText);
         };
         draw_tab(videoPlayerTab,"Video Player",ViewMode::VideoPlayer);
         draw_tab(libraryTab,"Library",ViewMode::Library);
@@ -1670,12 +1836,10 @@ public:
         draw_tab(debugTab,"Debug",ViewMode::Debug);
         XSetClipMask(d, gc, None);
 
-        fill(target, {topNavViewportW,0,std::max(0,W-topNavViewportW),26}, suiteChocolate);
-        outline(target, {0,24,W,1}, divider);
-        const std::string versionLabel = "v0.0.21";
+        const std::string versionLabel = "v0.0.23";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
-        const int treeX = versionX - nougat_media_suite_icon::kTopBar14Size - 6;
+        const int badgeX = versionX - nougat_media_suite_icon::kTopBar14Size - 6;
         bool serverBusy = false;
         reddmedia::MediaServerState serverStateValue = reddmedia::MediaServerState::Stopped;
         {
@@ -1683,17 +1847,18 @@ public:
             serverBusy = serverState->busy;
             serverStateValue = serverState->state;
         }
-        unsigned long light = col(0xe0e0, 0x3131, 0x4545);
-        if (serverStateValue == reddmedia::MediaServerState::Ready && !serverBusy) light = col(0x8585,0xc7c7,0x4242);
-        else if (serverStateValue == reddmedia::MediaServerState::Starting || serverBusy) light = col(0xf0f0,0xb4b4,0x2b2b);
+        unsigned long light = rgb8(190, 75, 67);
+        if (serverStateValue == reddmedia::MediaServerState::Ready && !serverBusy) light = rgb8(134,151,84);
+        else if (serverStateValue == reddmedia::MediaServerState::Starting || serverBusy) light = rgb8(201,145,73);
         const std::string serverLabel = "Server:";
-        const int serverX = treeX - 34 - text_width(serverLabel);
+        const int serverX = badgeX - 34 - text_width(serverLabel);
         if (serverX >= topNavViewportW) {
             text(target, serverX, 17, serverLabel, topText);
             fill_circle(target, serverX + text_width(serverLabel) + 7, 8, 10, light);
         }
-        draw_suite_badge(target, treeX, 5, 0x4a, 0x1f, 0x0b);
+        draw_suite_badge(target, badgeX, 5, 0xf6, 0xea, 0xd8);
         text(target, versionX, 17, versionLabel, topText);
+        line(target, 0, 25, W, 25, divider);
     }
 
     void update_chapter_marks(bool force=false) {
@@ -1772,24 +1937,53 @@ public:
 
     void draw_seek_time_row(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
-        const unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
-        const unsigned long markDark = col(0x5555,0x3333,0x3333);
-        const unsigned long markReal = col(0xffff,0xd6d6,0xd6d6);
-        fill(target, {0, std::max(0, seekRect.y-6), W, seekRect.h+16}, palette.background);
-        fill(target, seekRect, palette.field);
-        outline(target, seekRect, palette.border);
+        const unsigned long caramel = rgb8(184,111,43);
+        const unsigned long caramelLight = rgb8(224,173,105);
+        const unsigned long creamTrack = rgb8(247,236,217);
+        const unsigned long trackBorder = rgb8(166,112,56);
+        const unsigned long markDark = rgb8(121,88,56);
+        const unsigned long markReal = rgb8(255,244,224);
+
+        draw_quilted_background(target, {0, std::max(0, seekRect.y-7), W, seekRect.h+18}, ViewMode::VideoPlayer);
+
+        Rect shadow{seekRect.x, seekRect.y + 2, seekRect.w, seekRect.h};
+        fill_round(target, shadow, 7, rgb8(181,145,103));
+        fill_round(target, seekRect, 7, creamTrack);
+        outline_round(target, seekRect, 7, trackBorder);
+        Rect inner{seekRect.x+2, seekRect.y+2, std::max(1,seekRect.w-4), std::max(1,seekRect.h-4)};
+        outline_round(target, inner, 5, rgb8(255,246,227));
+
         long long t=0,l=0;
         if (mp) { t=playback_time_ms(); l=playback_length_ms(); }
+        int pos = 0;
         if (l > 0) {
             update_chapter_marks(false);
-            int pos = (int)((double)t / (double)l * seekRect.w);
-            fill(target, {seekRect.x, seekRect.y, std::max(1,pos), seekRect.h}, companyRed);
+            pos = std::max(0, std::min(seekRect.w, (int)((double)t / (double)l * seekRect.w)));
+            if (pos > 0) {
+                Rect played{seekRect.x+1, seekRect.y+3, std::max(1,pos-1), std::max(4,seekRect.h-6)};
+                fill_round(target, played, std::min(6, played.h/2), caramel);
+                line(target, played.x+5, played.y+1, played.x+std::max(5,played.w-5), played.y+1, caramelLight);
+            }
             for (long long markMs : chapterMarksMs) {
                 if (markMs <= 0 || markMs >= l) continue;
                 int mx = seekRect.x + (int)((double)markMs / (double)l * seekRect.w);
-                line(target, mx, seekRect.y, mx, seekRect.y + seekRect.h, chapterMarksAreReal ? markReal : markDark);
+                line(target, mx, seekRect.y+3, mx, seekRect.y + seekRect.h-3,
+                     chapterMarksAreReal ? markReal : markDark);
             }
         }
+
+        const int knobD = 16;
+        const int knobX = std::max(seekRect.x-knobD/2+1,
+                                   std::min(seekRect.x+seekRect.w-knobD/2-1,
+                                            seekRect.x + pos - knobD/2));
+        const int knobY = seekRect.y + seekRect.h/2 - knobD/2;
+        fill_circle(target, knobX+1, knobY+2, knobD, rgb8(169,117,61));
+        fill_circle(target, knobX, knobY, knobD, rgb8(225,188,132));
+        XSetForeground(d,gc,trackBorder);
+        XDrawArc(d,target,gc,knobX,knobY,knobD,knobD,0,360*64);
+        XSetForeground(d,gc,rgb8(249,222,177));
+        XDrawArc(d,target,gc,knobX+2,knobY+2,knobD-4,knobD-4,30*64,160*64);
+
         text(target, 10, seekRect.y+14, format_time(t), palette.text);
         int totalX = seekRect.x + seekRect.w + 10;
         text(target, totalX, seekRect.y+14, format_time(l), palette.text);
@@ -1797,26 +1991,61 @@ public:
 
     void draw_volume_bar(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
-        const unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
-        fill(target, {0, std::max(0, volRect.y-6), W, volRect.h+16}, palette.background);
-        fill(target, volRect, palette.field);
-        outline(target, volRect, palette.border);
+        const unsigned long caramel = rgb8(184,111,43);
+        const unsigned long caramelLight = rgb8(224,173,105);
+        const unsigned long creamTrack = rgb8(247,236,217);
+        const unsigned long trackBorder = rgb8(166,112,56);
+
+        const int y0 = std::max(0, volRect.y - 9);
+        draw_quilted_background(target, {0, y0, W, 31}, ViewMode::VideoPlayer);
+
         int vol = mp ? api.get_volume(mp) : volumePercent;
         if (vol < 0) vol = volumePercent;
         vol = std::max(0,std::min(200,vol));
         volumePercent = vol;
-        fill(target, {volRect.x, volRect.y, volRect.w*vol/200, volRect.h}, companyRed);
+
+        const Rect housing{volRect.x - 28, volRect.y - 5, volRect.w + 56, volRect.h + 10};
+        Rect housingShadow{housing.x, housing.y+2, housing.w, housing.h};
+        fill_round(target,housingShadow,8,rgb8(181,145,103));
+        fill_round(target,housing,8,rgb8(244,229,205));
+        outline_round(target,housing,8,trackBorder);
+        Rect housingInset{housing.x+2,housing.y+2,housing.w-4,housing.h-4};
+        outline_round(target,housingInset,6,rgb8(255,246,227));
+
+        fill_round(target,volRect,5,creamTrack);
+        outline_round(target,volRect,5,rgb8(191,151,106));
+
+        const int filledW = std::max(0,std::min(volRect.w,volRect.w*vol/200));
+        if (filledW > 0) {
+            Rect played{volRect.x+1,volRect.y+2,std::max(1,filledW-1),std::max(3,volRect.h-4)};
+            fill_round(target,played,std::min(4,played.h/2),caramel);
+            line(target,played.x+4,played.y+1,played.x+std::max(4,played.w-4),played.y+1,caramelLight);
+        }
+
         const int normalX = volRect.x + volRect.w / 2;
-        line(target, normalX, volRect.y - 3, normalX, volRect.y + volRect.h + 3, palette.muted);
-        text(target, normalX - 16, volRect.y - 5, "100%", palette.muted);
-        text(target, 10, volRect.y+14, "Volume " + std::to_string(vol) + "%", palette.text);
+        line(target, normalX, volRect.y - 2, normalX, volRect.y + volRect.h + 2, rgb8(135,100,67));
+
+        const int knobD=14;
+        const int knobCenterX=volRect.x + filledW;
+        const int knobX=std::max(volRect.x-knobD/2+1,
+                                 std::min(volRect.x+volRect.w-knobD/2-1,knobCenterX-knobD/2));
+        const int knobY=volRect.y + volRect.h/2-knobD/2;
+        fill_circle(target,knobX+1,knobY+2,knobD,rgb8(169,117,61));
+        fill_circle(target,knobX,knobY,knobD,rgb8(225,188,132));
+        XSetForeground(d,gc,trackBorder);
+        XDrawArc(d,target,gc,knobX,knobY,knobD,knobD,0,360*64);
+
+        draw_speaker_icon(target,housing.x+8,housing.y+3,false,palette.text);
+        draw_speaker_icon(target,housing.x+housing.w-22,housing.y+3,true,palette.text);
+        text(target,10,volRect.y+9,"Volume",palette.text);
+        text(target,housing.x+housing.w+8,volRect.y+9,std::to_string(vol)+"%",palette.text);
+        text(target,normalX-14,volRect.y-7,"100%",palette.muted);
     }
 
     void draw_controls(Drawable target) {
         draw_top_bar(target);
         if (currentView != ViewMode::VideoPlayer) return;
-        const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
-        fill(target, {0, std::max(26, H-38), W, std::max(0, H-std::max(26, H-38))}, palette.panel);
+        draw_quilted_background(target, {0, std::max(26, H-38), W, std::max(0, H-std::max(26, H-38))}, ViewMode::VideoPlayer);
         button_on(target, openBtn, "Open");
         button_on(target, rewindBtn, "Rewind 10s");
         button_on(target, playBtn, "Play/Pause");
@@ -1870,15 +2099,15 @@ public:
     void draw_loading_bar(Drawable target) {
         double progress = 0.0;
         if (!loading_state(progress)) return;
-        const Rect track = {0, 26, W, 6};
-        fill(target, track, col(0x8888,0x8888,0x8888));
+        const Rect track = {0, 27, W, 6};
+        fill(target, track, rgb8(236,220,197));
         if (progress > 0.0) {
             const int loaded = std::max(2, std::min(W, static_cast<int>(progress * W)));
-            fill(target, {0, 26, loaded, 6}, col(0xbbbb,0x0000,0x0000));
+            fill(target, {0, 27, loaded, 6}, rgb8(184,111,43));
         } else {
             const int chunk = std::max(80, W / 5);
             const int position = static_cast<int>((now_ms() / 8) % (W + chunk)) - chunk;
-            fill(target, {position, 26, chunk, 6}, col(0xbbbb,0x0000,0x0000));
+            fill(target, {position, 27, chunk, 6}, rgb8(184,111,43));
         }
     }
 
@@ -1896,14 +2125,12 @@ public:
 
     void draw_volume_only() {
         if (fullscreen || currentView != ViewMode::VideoPlayer) return;
-        const int x0 = std::max(0, volRect.x - 62);
-        const int y0 = std::max(0, volRect.y - 6);
-        const int w = std::min(W - x0, volRect.w + 72);
-        const int h = std::min(H - y0, volRect.h + 16);
-        if (w <= 0 || h <= 0) return;
+        const int y0 = std::max(0, volRect.y - 10);
+        const int h = std::min(H - y0, 34);
+        if (h <= 0) return;
         Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
         draw_volume_bar(buffer);
-        XCopyArea(d, buffer, win, gc, x0, y0, w, h, x0, y0);
+        XCopyArea(d, buffer, win, gc, 0, y0, W, h, 0, y0);
         XFreePixmap(d, buffer);
         XFlush(d);
     }
@@ -1930,19 +2157,49 @@ public:
         return {};
     }
 
+    bool detect_stream_platform_from_url(const std::string& url, StreamPlatform& detected) const {
+        const std::string lower = lower_copy(url);
+        if (lower.find("youtube.com/") != std::string::npos ||
+            lower.find("youtu.be/") != std::string::npos) {
+            detected = StreamPlatform::YouTube; return true;
+        }
+        if (lower.find("rumble.com/") != std::string::npos) {
+            detected = StreamPlatform::Rumble; return true;
+        }
+        if (lower.find("rutube.ru/") != std::string::npos) {
+            detected = StreamPlatform::RuTube; return true;
+        }
+        if (lower.find("vk.com/") != std::string::npos ||
+            lower.find("vkvideo.ru/") != std::string::npos) {
+            detected = StreamPlatform::VK; return true;
+        }
+        if (lower.find("ok.ru/") != std::string::npos) {
+            detected = StreamPlatform::OK; return true;
+        }
+        return false;
+    }
+
+    void sync_stream_platform_from_url() {
+        StreamPlatform detected = streamPlatform;
+        if (detect_stream_platform_from_url(ytdlpUrl, detected)) streamPlatform = detected;
+    }
+
     void select_stream_platform(StreamPlatform platform) {
         streamPlatform = platform;
         urlFocused = false;
         urlSelectAll = false;
-        ytdlpStatus = std::string(stream_platform_name(platform)) + " selected. Paste a video URL, Direct Watch, download, or open the webpage.";
+        ytdlpStatus = std::string(stream_platform_name(platform)) + " selected. The Direct Play URL box is shared across Stream.";
         redraw();
     }
 
     void open_stream_webpage() {
+        if (!ytdlpUrl.empty()) sync_stream_platform_from_url();
         const std::string target = ytdlpUrl.empty() ? stream_platform_home(streamPlatform) : ytdlpUrl;
         if (target.empty()) return;
         launch_external_target(target);
-        ytdlpStatus = std::string("Opened ") + stream_platform_name(streamPlatform) + " webpage in your default browser.";
+        ytdlpStatus = ytdlpUrl.empty()
+            ? std::string("Opened ") + stream_platform_name(streamPlatform) + " homepage in your default browser."
+            : std::string("Opened Direct Play URL in your default browser.");
         redraw();
     }
 
@@ -1952,14 +2209,16 @@ public:
             redraw();
             return;
         }
-        ytdlpStatus = std::string("Direct Watch: opening ") + stream_platform_name(streamPlatform) + " in Nougat Media Suite's native player...";
+        sync_stream_platform_from_url();
+        ytdlpStatus = std::string("Direct Watch: opening ") + stream_platform_name(streamPlatform) +
+                      " in Nougat Media Suite's native player...";
         redraw();
         start_ytdlp_play();
     }
 
     void draw_stream_screen(Drawable target) {
         const ViewPalette palette = stream_palette_for(streamPlatform);
-        fill(target, {0,26,W,H-26}, palette.background);
+        draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Stream);
         fill(target, {18,36,W-36,52}, palette.panel);
         outline(target, {18,36,W-36,52}, palette.border);
         text(target, 28, 58, "STREAM", palette.text);
@@ -1967,12 +2226,17 @@ public:
 
         const auto source_button = [&](const Rect& r, const char* label, StreamPlatform platform) {
             const bool selected = streamPlatform == platform;
+            const bool hover = r.contains(pointerWindowX, pointerWindowY);
             const ViewPalette own = stream_palette_for(platform);
-            fill(target, r, selected ? own.buttonLight : own.buttonDark);
-            outline(target, r, selected ? own.accent : own.border);
-            if (selected) fill(target, {r.x, r.y + r.h - 3, r.w, 3}, own.accent);
-            text(target, r.x + std::max(6,(r.w-text_width(label))/2), r.y+18, label,
-                 selected ? own.buttonText : own.text);
+            const Rect visual{r.x+2,r.y+1,std::max(1,r.w-4),std::max(1,r.h-4)};
+            Rect shadow{visual.x,visual.y+2,visual.w,visual.h};
+            fill_round(target,shadow,8,own.buttonDark);
+            fill_round(target,visual,8,hover?own.buttonLight:own.button);
+            outline_round(target,visual,8,selected?own.accent:own.buttonDark);
+            Rect stitch{visual.x+2,visual.y+2,std::max(1,visual.w-4),std::max(1,visual.h-4)};
+            outline_round(target,stitch,6,own.buttonLight);
+            if (selected) fill_round(target,{visual.x+8,visual.y+visual.h-4,visual.w-16,3},1,own.accent);
+            text(target, visual.x + std::max(6,(visual.w-text_width(label))/2), visual.y+17, label, own.buttonText);
         };
         source_button(streamYoutubeTab,"YouTube",StreamPlatform::YouTube);
         source_button(streamRumbleTab,"Rumble",StreamPlatform::Rumble);
@@ -1981,9 +2245,8 @@ public:
         source_button(streamOkTab,"OK",StreamPlatform::OK);
 
         const unsigned long focusBorder = urlFocused ? palette.accent : palette.border;
-        fill(target, ytdlpUrlRect, palette.field);
-        outline(target, ytdlpUrlRect, focusBorder);
-        text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y-8, "Video URL", palette.text);
+        draw_concept_field(target, ytdlpUrlRect, palette.field, focusBorder, urlFocused);
+        text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y-8, "Direct Play URL", palette.text);
         int urlTextMax = std::max(24, ytdlpUrlRect.w - 18);
         std::string visibleUrl = ytdlpUrl.empty() ? std::string("") : tail_to_width(ytdlpUrl, urlTextMax);
         XRectangle urlClip{(short)(ytdlpUrlRect.x+5),(short)(ytdlpUrlRect.y+2),
@@ -1992,7 +2255,7 @@ public:
         const unsigned long fieldInk = col(0x1717,0x1111,0x0b0b);
         if (visibleUrl.empty() && !urlFocused) {
             text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18,
-                 std::string("paste a ") + stream_platform_name(streamPlatform) + " video URL", palette.muted);
+                 "Paste YouTube / Rumble / RuTube / VK / OK URL", palette.muted);
         } else if (urlSelectAll && !visibleUrl.empty()) {
             int selectedW = std::min(text_width(visibleUrl)+4,std::max(1,ytdlpUrlRect.w-12));
             fill(target,{ytdlpUrlRect.x+6,ytdlpUrlRect.y+4,selectedW,ytdlpUrlRect.h-8},palette.selection);
@@ -2007,12 +2270,10 @@ public:
         }
         XSetClipMask(d,gc,None);
 
-        fill(target,ytdlpOutputRect,palette.field);
-        outline(target,ytdlpOutputRect,palette.border);
+        draw_concept_field(target,ytdlpOutputRect,palette.field,palette.border,false);
         text(target,ytdlpOutputRect.x+8,ytdlpOutputRect.y+18,
              tail_to_width("Output folder: "+ytdlpOutputFolder,ytdlpOutputRect.w-16),fieldInk);
         button_on(target,ytdlpDownloadBtn,"Download");
-        button_on(target,ytdlpPlayBtn,"Play");
         button_on(target,ytdlpDirectWatchBtn,"Direct Watch");
         button_on(target,ytdlpWebpageBtn,"Open Webpage");
         button_on(target,ytdlpClearBtn,"Clear Log");
@@ -2808,7 +3069,7 @@ public:
 
     void draw_library_screen(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::Library);
-        fill(target,{0,26,W,H-26},palette.background);
+        draw_quilted_background(target,{0,32,W,H-32},ViewMode::Library);
         text(target,28,58,libraryParents.empty()?"MEDIA LIBRARY":libraryParents.back().name,palette.text);
         draw_library_view_button(target,libraryListViewBtn,LibraryDisplayMode::List,current_library_display_mode()==LibraryDisplayMode::List);
         draw_library_view_button(target,libraryGridBtn,LibraryDisplayMode::Grid,current_library_display_mode()==LibraryDisplayMode::Grid);
@@ -3643,7 +3904,7 @@ public:
     }
 
     void draw_nougat_screen(Drawable target) {
-        fill(target, {0,26,W,H-26}, nougat_cocoa());
+        draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Nougat);
         text(target, 28, 44, "SEARCH", nougat_tan());
         text(target, 96, 44, "Nougat Media Suite | Just Nougat it.", nougat_light());
         std::string node;
@@ -3748,7 +4009,7 @@ public:
         const ViewPalette palette = palette_for(ViewMode::Debug);
         const unsigned long dark = palette.text;
         const unsigned long border = palette.border;
-        fill(target, {0,26,W,H-26}, palette.background);
+        draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Debug);
         text(target, 28, 58, "DEBUG AND SYSTEM HEALTH", dark);
         button_on(target, debugRunBtn, "Run Checks");
         button_on(target, debugRetryBtn, "Retry");
@@ -3870,7 +4131,7 @@ public:
         const ViewPalette palette = palette_for(ViewMode::Discover);
         const unsigned long dark = palette.text;
         const unsigned long border = palette.border;
-        fill(target, {0,26,W,H-26}, palette.background);
+        draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Discover);
         if (discoverServiceSettings) {
             text(target, 28, 58, "MY STREAMING SERVICES - UNITED STATES", dark);
             button_on(target, discoverServicesBackBtn, "Back to Discover");
@@ -4300,6 +4561,7 @@ public:
     }
 
     void start_ytdlp_download() {
+        sync_stream_platform_from_url();
         if (ytdlpPid > 0) { ytdlpStatus = "Download already running."; redraw(); return; }
         if (ytdlpUrl.empty()) { ytdlpStatus = "Paste or type a URL first."; redraw(); return; }
         std::string engine = ytdlp_engine_path();
@@ -4361,7 +4623,7 @@ public:
         scroll_button_row(controlsScrollX, 6, delta, std::max(kCompactButtonW, W - 20));
     }
     void scroll_top_navigation(int delta) {
-        scroll_button_row(topNavScrollX, 7, delta, topNavViewportW);
+        scroll_button_row(topNavScrollX, 6, delta, topNavViewportW);
     }
 
     void close_context_menu() {
@@ -4541,7 +4803,7 @@ public:
             if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,10,delta); return true; }
             if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,7,delta); return true; }
         }
-        if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,5,delta); return true; }
+        if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,4,delta); return true; }
         if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && y >= 224 && y < 266) { scroll_button_row(p2pButtonsScrollX,4,delta); return true; }
         if (currentView == ViewMode::Stream && target == win && y >= 54 && y < 82) {
             scroll_button_row(streamSourceScrollX,5,delta);
@@ -4850,7 +5112,6 @@ public:
                 return;
             }
             if (ytdlpDownloadBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; start_ytdlp_download(); return; }
-            if (ytdlpPlayBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; start_ytdlp_play(); return; }
             if (ytdlpDirectWatchBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; direct_watch_stream(); return; }
             if (ytdlpWebpageBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; open_stream_webpage(); return; }
             if (ytdlpClearBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; ytdlpLog = "No stream activity yet."; ytdlpStatus = "Ready."; redraw(); return; }
@@ -4953,7 +5214,14 @@ public:
                 else if (e.type == SelectionRequest) handle_clipboard_selection_request(e.xselectionrequest);
                 else if (e.type == SelectionClear && e.xselectionclear.selection == clipboardAtom) ownedClipboardText.clear();
                 else if (e.type == MotionNotify) {
-                    lastMouse=time(nullptr); show_pointer(); handle_nougat_motion(e.xmotion);
+                    lastMouse=time(nullptr); show_pointer();
+                    if (e.xmotion.window == win) {
+                        const bool moved = pointerWindowX != e.xmotion.x || pointerWindowY != e.xmotion.y;
+                        pointerWindowX = e.xmotion.x;
+                        pointerWindowY = e.xmotion.y;
+                        if (moved && !fullscreen) redraw();
+                    }
+                    handle_nougat_motion(e.xmotion);
                     if (volumeDragging && currentView==ViewMode::VideoPlayer && mp) {
                         const int v=std::max(0,std::min(200,(e.xmotion.x-volRect.x)*200/std::max(1,volRect.w)));
                         volumePercent=v; api.set_volume(mp,v); draw_volume_only();
@@ -5164,7 +5432,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.21\n");
+        printf("Nougat Media Suite v0.0.23\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {

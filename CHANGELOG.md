@@ -1,5 +1,32 @@
 # Nougat Media Suite Changelog
 
+## v0.0.23 - Exact Concept UI and Stream Direct Watch Repair
+
+- Applied the owner-approved concept-sheet control language to the existing UI without changing the established top-tab or player-control order.
+- Added the integrated downward point/notch to the active top-level tab and centered the top navigation group when width permits while preserving narrow-window scrolling.
+- Centered the six-button Video Player control row when width permits while preserving narrow-window wheel scrolling.
+- Replaced the old red seek/progress and volume fill colors with the concept-sheet caramel/cream/chocolate treatment.
+- Shortened the 0-200% volume control to the approved compact concept-sheet proportions while retaining its live percentage and 100% marker.
+- Added the approved quilted page material with subtle area tints for Video Player, Library, Discover, Search, Stream, and Debug.
+- Replaced the old candy icon asset with the exact square chocolate/caramel N emblem from the approved concept sheet across project icon sizes and embedded X11 icon data.
+- Simplified Stream to one shared Direct Play URL field and removed the redundant Stream Play button; Direct Watch remains the single native-player playback action.
+- Preserved the existing Stream services only: YouTube, Rumble, RuTube, VK, and OK. No additional services were added.
+- Updated YouTube Direct Watch to auto-detect supported Deno, Node, or QuickJS runtimes for yt-dlp challenge solving and to prefer a YouTube playback fallback path intended to avoid the reported 403 failure.
+- Preserved the v0.0.22 PolyForm Noncommercial licensing files unchanged.
+
+## v0.0.22 - License Protection and Contribution Boundary
+
+- Corrected the project licensor/copyright notice to **Elderred Softworks LLC**.
+- Kept **PolyForm Noncommercial License 1.0.0** as the controlling recipient license for owner-controlled Original Materials.
+- Added `COPYRIGHT.md` to state the ownership boundary and preserve the owner's ungranted commercial/relicensing rights.
+- Added `CONTRIBUTING.md` and a pull-request confirmation template so outside contributions grant the project owner broad inbound rights without silently changing the recipient license.
+- Added `docs/LICENSING_POLICY.md` to separate Original Materials from third-party material and prohibit accidental relicensing.
+- Rewrote `THIRD_PARTY_NOTICES.md` under the Nougat Media Suite identity and clarified Jellyfin, FFmpeg, libVLC, libtorrent, yt-dlp, llama.cpp, Nomic, TMDb, and system-component boundaries.
+- Added deterministic license-protection and installer-rollback tests.
+- Same-version runtime-path repair: the installer now proves the accepted v0.0.21 executable against the relocated AI runtime after the project-directory rename, and v0.0.22 embeds a relocatable `$ORIGIN` llama.cpp RPATH instead of an absolute project path.
+- Advanced only release/version plumbing to `Nougat_Media_Suite_v22`; media/UI behavior remains the accepted v0.0.21 behavior.
+- Moved the planned UI-polish/service-expansion lane to v0.0.23 so v0.0.22 remains a clean licensing release.
+
 ## v0.0.21 - Official Rename, Candy Palette, and Navigation Repair
 
 - Renamed the visible application identity from **ReddMedia** to **Nougat Media Suite**.
@@ -13,7 +40,7 @@
 - Added service-reactive Stream palettes for existing YouTube, Rumble, RuTube, VK, and OK selectors.
 - Replaced nonworking `Grid [x]` / `List [x]` Library text controls with working compact List (three lines) and Grid (four-square) icon controls beside the Library heading. Movie and TV preferences remain independently persistent.
 - Preserved the v0.0.20 Stream service set with no new services in this version.
-- Deferred Jelly/Unity candy-button sprites, additional Stream services, and the other post-rebrand feature work to v0.0.22.
+- Deferred the post-rebrand UI polish, additional Stream services, and the other feature work to v0.0.23 after the v0.0.22 licensing release.
 
 
 ## Historical ReddMedia changelog

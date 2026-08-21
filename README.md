@@ -1,6 +1,27 @@
-# Nougat Media Suite v0.0.21
+# Nougat Media Suite v0.0.23
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+
+## v0.0.23 - Exact Concept UI and Stream Direct Watch Repair
+
+v0.0.23 is the owner-approved post-license UI and Stream repair build. The uploaded Nougat Media Suite concept sheet is the visual authority for the application theme: rounded stitched/beveled candy-style controls, cream/caramel/chocolate materials, area-specific tab accents, the active-tab point, quilted page surfaces, concept-style seek/volume controls, and the exact square chocolate/caramel N emblem. Existing control order and media behavior are preserved unless explicitly listed below.
+
+- Top-level order remains `Video Player | Library | Discover | Search | Stream | Debug`.
+- The active top tab receives the concept-sheet downward point/notch; the navigation group centers when width permits and remains scrollable when narrow.
+- The main player row remains `Open | Rewind 10s | Play/Pause | Stop | Fast Forward 10s | Fullscreen` and centers when width permits.
+- The seek and volume fills no longer use the old red theme; they use the concept-sheet caramel/cream/chocolate palette.
+- Volume remains 0-200% with the 100% marker, but uses the approved compact concept-sheet geometry.
+- Video Player, Library, Discover, Search, Stream, and Debug use the quilted material with the approved subtle page tinting.
+- Stream keeps only YouTube, Rumble, RuTube, VK, and OK, uses one shared Direct Play URL field, removes the redundant Stream `Play` button, and keeps `Direct Watch` as the native-player action.
+- YouTube Direct Watch now detects supported external JavaScript runtimes for current yt-dlp YouTube challenge solving and uses the updated YouTube extraction/playback fallback path.
+- The old candy executable/launcher artwork is replaced by the exact N emblem from the approved concept sheet.
+
+## v0.0.22 - License Protection and Contribution Boundary
+
+v0.0.22 is a legal/release-infrastructure build over the owner-accepted v0.0.21 baseline. It does not add or redesign media behavior. It strengthens the project license boundary around Elderred Softworks LLC Original Materials, preserves third-party licensing, adds explicit copyright/ownership notices, establishes inbound contributor terms, and adds automated release checks intended to prevent accidental relicensing.
+
+The versioned root executable advances to `Nougat_Media_Suite_v22` only so the accepted legal release remains versioned consistently with Nougat Media Suite's release rules. The application's media, Search, Stream, Library, Discover, P2P, server, playback, and palette behavior is retained from v0.0.21.
 
 ## v0.0.21 - Official Rename, Candy Palette, and Navigation Repair
 
@@ -14,7 +35,7 @@ The suite-wide visual system is rebuilt around the candy identity. **Video Playe
 
 In Library, the old `Grid [x]` / `List [x]` text buttons are removed. Immediately after the **MEDIA LIBRARY** heading are two compact view icons: **three horizontal lines** for List and a **2x2 four-square grid** for Grid. Clicking either changes the actual Library layout and the selected icon is highlighted. Movie and TV view preferences remain independent and persistent.
 
-Existing Stream services remain exactly **YouTube | Rumble | RuTube | VK | OK** in v0.0.21. Vimeo, Dailymotion, Twitch, Kick, TikTok, Bilibili, and Niconico are deferred to v0.0.22. Jelly/Unity candy-button sprites, poster/artwork overhaul, rounded-corner polish, top-navigation centering, volume-bar geometry changes, the optional local Web Player, and Plex integration are also deferred.
+Existing Stream services remain exactly **YouTube | Rumble | RuTube | VK | OK** in v0.0.21. Vimeo, Dailymotion, Twitch, Kick, TikTok, Bilibili, and Niconico are deferred to v0.0.23. The approved nougat-specific UI polish, poster/artwork overhaul, rounded-corner polish, top-navigation centering, volume-bar geometry changes, the optional local Web Player, and Plex integration are also deferred.
 
 The existing Git repository directory and backward-compatible user-data/config paths remain unchanged so the product rename does not silently become a filesystem/data migration. User-visible application identity is Nougat Media Suite.
 
@@ -462,9 +483,13 @@ Validation target:
 - YouTube Play starts embedded playback through the bundled yt-dlp/FFmpeg stream path.
 - `ReddMedia_v11` retains the red-triangle executable icon.
 
-## Third-party software
+## Licensing and third-party software
 
-See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and the license files under `licenses/`.
+Nougat Media Suite Original Materials are made available to recipients under the **PolyForm Noncommercial License 1.0.0**. Elderred Softworks LLC retains all rights not granted to recipients, including commercial use and separate commercial licensing of its own Original Materials. See [`LICENSE`](LICENSE), [`COPYRIGHT.md`](COPYRIGHT.md), and [`docs/LICENSING_POLICY.md`](docs/LICENSING_POLICY.md).
+
+Outside contributions are accepted only under [`CONTRIBUTING.md`](CONTRIBUTING.md), which grants the project owner sufficient rights to continue maintaining, sublicensing, relicensing, and commercially licensing the combined project.
+
+Third-party components keep their upstream licenses and terms. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and the preserved files under `licenses/`.
 
 ## Roadmap
 

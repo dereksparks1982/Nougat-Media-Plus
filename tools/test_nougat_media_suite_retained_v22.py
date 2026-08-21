@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic v0.0.21 retained non-visual behavior validation."""
+"""Deterministic v0.0.22 retained non-visual behavior validation."""
 
 from __future__ import annotations
 
@@ -367,4 +367,4 @@ with tempfile.TemporaryDirectory(prefix="reddmedia-v19-tests-") as temporary:
     require(stat.S_IMODE((temp / "watch.conf").stat().st_mode) == 0o600,
             "My Services preferences are not owner-only")
 
-print("Nougat Media Suite v0.0.21 retained deterministic validation PASS")
+print("Nougat Media Suite v0.0.22 retained deterministic validation PASS")

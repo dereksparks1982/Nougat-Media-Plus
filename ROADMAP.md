@@ -1,6 +1,16 @@
 # Nougat Media Suite Roadmap
 
-## v0.0.21 candidate - Official Rename, Candy Palette, and Navigation Repair
+## v0.0.22 candidate - License Protection and Contribution Boundary
+
+- Keep PolyForm Noncommercial License 1.0.0 as the controlling recipient license for Elderred Softworks LLC Original Materials.
+- Correct the copyright/licensor identity and add explicit ownership, contribution, and licensing-policy records.
+- Preserve all third-party licenses and prevent project-level notices from relicensing upstream components.
+- Add an inbound contribution grant that preserves the owner's ability to maintain, sublicense, relicense, and commercially license Nougat Media Suite.
+- Add deterministic license-boundary and rollback validation.
+- Advance the root executable to `Nougat_Media_Suite_v22` with no media/UI behavior change.
+- Move the previously planned UI-polish and Stream-service expansion work to v0.0.23.
+
+## v0.0.21 accepted - Official Rename, Palette, and Navigation Repair
 
 - Official application identity changes from **ReddMedia** to **Nougat Media Suite**.
 - Versioned root executable becomes `Nougat_Media_Suite_v21`.
@@ -15,16 +25,22 @@
 - Preserve all accepted v0.0.20 media-engine, Library catalog, Discover, Search, Stream, server, AI, playback, and history behavior outside these approved UI identity/navigation repairs.
 
 
-## Planned v0.0.22 - Post-rebrand feature work
+## v0.0.23 candidate - Exact Concept UI and Stream Direct Watch Repair
 
-- Evaluate/import the owner-selected Jelly Pack UI candy-button sprites and adapt them to the Nougat Media Suite palette after the Unity asset is available.
-- Add Stream selectors for **Vimeo, Dailymotion, Twitch, Kick, TikTok, Bilibili, and Niconico** using the same service-reactive palette model.
-- Higher-quality poster/artwork selection and caching with aspect-ratio-safe rendering.
-- Rounded buttons, cards, panels, inputs, and other currently boxy UI surfaces.
-- Shorter/balanced Video Player volume-bar geometry.
-- Center the entire top navigation group when wide/fullscreen while retaining narrow-window wheel scrolling.
-- Add the separate local-only **Web Player** action while keeping native **Play** as default.
-- Plex account/server integration remains a high-priority parity feature.
+- Use the owner-uploaded Nougat concept sheet as the visual authority for buttons, tabs, fields, seek/volume controls, page material, and active-tab point/notch.
+- Preserve the exact top-level order `Video Player | Library | Discover | Search | Stream | Debug` and the exact player-control order `Open | Rewind 10s | Play/Pause | Stop | Fast Forward 10s | Fullscreen`.
+- Center top navigation and the bottom player-control group when width permits; preserve narrow-window scrolling.
+- Remove the old red seek/volume fill and use the concept-sheet caramel/cream/chocolate palette.
+- Keep volume at 0-200% with its 100% marker while shortening it to the approved compact concept geometry.
+- Use the quilted page material with subtle per-area tinting.
+- Replace the old candy executable/launcher artwork with the exact approved square N emblem.
+- Keep only YouTube, Rumble, RuTube, VK, and OK in Stream. Use one shared Direct Play URL field, remove the redundant Stream Play button, and keep Direct Watch as the single native-player action.
+- Repair the reported YouTube Direct Watch JavaScript-runtime/403 path without adding a new bundled dependency.
+- Preserve the v0.0.22 licensing boundary unchanged.
+
+### Later owner-approval lane
+
+Additional Stream services, Web Player, Plex integration, and other feature expansion remain future work and are not part of v0.0.23.
 
 ## v0.0.20 accepted - final ReddMedia-branded baseline
 

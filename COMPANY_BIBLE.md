@@ -56,6 +56,16 @@ The active Git commit, branch, worktree state, expected executable, rollback sna
 - Credentials must be stored with owner-only permissions and must never be printed in logs, terminal commands, process arguments when avoidable, documentation, test output, commits, or packages.
 - User media must never be deleted by a library unlink, refresh, repair, rollback, or uninstall operation.
 
+## 6A. Licensing and contribution law
+
+- The project licensor/copyright identity for owner-controlled Original Materials is **Elderred Softworks LLC**.
+- Original Materials are licensed to recipients under the **PolyForm Noncommercial License 1.0.0** unless the owner explicitly approves a different license for a defined file or release.
+- The recipient license does not restrict Elderred Softworks LLC from commercially using, distributing, sublicensing, dual-licensing, or relicensing its own Original Materials.
+- A project-level license never relicenses third-party software, models, artwork, services, APIs, or data. Upstream notices and license copies must remain intact.
+- Outside contributions may enter the project only under the owner-approved contributor terms in `CONTRIBUTING.md`, including an inbound grant broad enough to preserve the owner's ability to maintain, sublicense, relicense, and commercially license the combined project.
+- No build may change `LICENSE`, `COPYRIGHT.md`, `CONTRIBUTING.md`, `THIRD_PARTY_NOTICES.md`, or `docs/LICENSING_POLICY.md` without explicit owner approval.
+- A release must run the current license-boundary regression test before handoff.
+
 ## 7. Nougat Media Suite identity law
 
 The owner-approved rounded-square chocolate/nougat **N + play triangle** artwork is Nougat Media Suite's active identity beginning with v0.0.21.
@@ -203,7 +213,7 @@ Only the owner decides whether the candidate is accepted.
 - Common suite chrome: chocolate/cocoa/cream/caramel with the approved N + play icon.
 - Video Player: chocolate/cocoa/caramel; Library: forest/sage; Discover: plum/lavender; Search: cocoa/nougat/caramel; Debug: graphite/amber. P2P may retain a navy/ice sub-surface inside Search.
 - Stream retains only YouTube, Rumble, RuTube, VK, and OK in v0.0.21; selecting one changes Stream to that service's recognizable palette.
-- Additional Stream services, Jelly/Unity candy-button sprites, and other post-rebrand feature work are deferred to v0.0.22. The approved v0.0.21 UI repairs are the Search/P2P navigation consolidation and working Library view-icon controls.
+- Additional Stream services and other post-rebrand UI/feature work are deferred to v0.0.23 after the v0.0.22 licensing release. The approved v0.0.21 UI repairs are the Search/P2P navigation consolidation and working Library view-icon controls.
 - v0.0.21 does not rename the Git working directory or migrate existing user data/config paths.
 
 ### v0.0.21 Library view-control rule
@@ -219,3 +229,16 @@ Only the owner decides whether the candidate is accepted.
 - Movies and TV independently persist Grid/List Library preferences.
 - Custom editable text fields show focus/caret state.
 - Default Play remains the native Nougat Media Suite player.
+
+### v0.0.23 exact concept UI rules
+
+- The owner-uploaded Nougat Media Suite concept sheet is the canonical visual authority for the v0.0.23 UI treatment. Approximate alternate themes are not substitutes.
+- The established top-level layout remains `Video Player | Library | Discover | Search | Stream | Debug`; styling may not reorder or replace those tabs without explicit owner approval.
+- The selected top-level tab uses the integrated downward point/notch shown in the concept sheet.
+- The established Video Player control order remains `Open | Rewind 10s | Play/Pause | Stop | Fast Forward 10s | Fullscreen`.
+- The common page material is the approved cream quilted surface, with only subtle owner-approved area tinting.
+- Seek and volume controls use the concept-sheet caramel/cream/chocolate palette; the old red fill is not part of the Nougat v0.0.23 theme.
+- Volume remains 0-200% with a visible 100% marker and uses the compact concept-sheet geometry.
+- The active icon is the exact owner-approved square chocolate/caramel N emblem extracted from the concept sheet; the former candy-filled N icon is no longer active identity.
+- Stream retains YouTube, Rumble, RuTube, VK, and OK. Stream uses one shared Direct Play URL field and one native playback action named Direct Watch; the redundant Stream Play button is removed.
+- Additional Stream services, Web Player, Plex integration, or other feature expansion require separate owner approval.

@@ -130,3 +130,11 @@ The v0.0.20 changed-files handoff does not re-ship the unchanged 84,106,624-byte
 ## Nougat Media Suite v0.0.21 identity/palette build
 
 v0.0.21 adds no new runtime or build dependency. The rename, icon replacement, palette expansion, and service-reactive Stream colors are implemented in the existing native X11 application. Existing backward-compatible runtime/config paths remain unchanged in this identity-only release.
+## Nougat Media Suite v0.0.22 license-protection build
+
+v0.0.22 adds no runtime or build dependency. It changes licensing/release records and advances version/release plumbing only. Existing VLC/libVLC, FFmpeg, libtorrent, Jellyfin, llama.cpp, Nomic, X11, Python/SQLite, curl, and other dependency behavior remains unchanged from accepted v0.0.21.
+
+
+## Nougat Media Suite v0.0.23 UI and Direct Watch build
+
+v0.0.23 adds no mandatory bundled dependency. It retains the existing X11, VLC/libVLC, FFmpeg, libtorrent, Jellyfin, llama.cpp, Nomic, Python/SQLite, curl, and bundled yt-dlp requirements. For current YouTube extraction, Direct Watch automatically uses an already-installed supported JavaScript runtime when available: Deno is preferred, followed by Node or QuickJS. No JavaScript runtime is silently installed by the v0.0.23 installer.

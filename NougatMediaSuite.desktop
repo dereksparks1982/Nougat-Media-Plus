@@ -2,7 +2,7 @@
 Type=Application
 Name=Nougat Media Suite
 Comment=Nougat Media Suite native player, library, Discover AI, decentralized Search, Stream, P2P, and diagnostics
-Exec=/home/dereksparks1982/DKLab/Projects/ReddMedia/Nougat_Media_Suite_v21
+Exec=/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Suite_v23
 Icon=nougat-media-suite
 StartupWMClass=NougatMediaSuite
 Terminal=false
