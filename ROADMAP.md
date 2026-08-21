@@ -1,5 +1,26 @@
 # ReddMedia Roadmap
 
+## v0.0.20 candidate - Stream, Full Tab Palettes, Volume Boost, and Library Views
+
+- Top-level order: `Video Player | Library | Discover | Nougat | Stream | P2P | Debug`.
+- Stream platform selectors: YouTube, Rumble, RuTube, VK, OK.
+- Preserve URL Download/Play and activity output; add Direct Watch through the native player and Open Webpage through the default browser.
+- Full coordinated interior palettes for every major tab while preserving the common red ReddMedia top navigation.
+- 0-200% volume, 100% default, live percentage, and visible 100% marker.
+- Center compact bottom player controls when wide; preserve horizontal wheel scrolling when narrow.
+- Movies and TV each persist an independent Grid/List Library preference.
+- Visible caret/focus feedback in custom editable fields.
+
+## Planned v0.0.21 - Visual Polish, Artwork, and Optional Local Web Player
+
+- Higher-quality poster/artwork selection and caching with aspect-ratio-safe rendering; do not stretch or needlessly upscale poor thumbnails.
+- Rounded buttons, cards, panels, inputs, and other currently boxy UI surfaces while preserving ReddMedia's native identity and per-tab palettes.
+- Make the Video Player volume bar slightly shorter than the seek bar and visually balance its right inset against the left-side controls.
+- Center the entire top navigation group when the window is wide/fullscreen; retain horizontal wheel scrolling when narrow.
+- Add a separate **Web Player** button. Normal **Play** remains the default native-player path; Web Player opens a local-only ReddMedia browser player with no Jellyfin cloud account or third-party login.
+- Keep localhost access account-free; if LAN access is enabled, prefer an optional local ReddMedia PIN/session rather than cloud identity.
+- Plex account/server integration remains a high-priority parity feature: official device/PIN linking, server discovery, Movies/TV/Music browsing, native playback, multiple servers where practical, and supported direct-play/transcoding/remote/Plex Pass paths.
+
 ## v0.0.19 candidate - Nougat Search Integration
 
 - Native Nougat tab between Discover and YouTube.

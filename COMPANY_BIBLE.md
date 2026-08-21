@@ -193,7 +193,7 @@ Only the owner decides whether the candidate is accepted.
 ## 18. Nougat inside ReddMedia
 
 1. Nougat is an integrated ReddMedia subsystem, not a required standalone project installation.
-2. The owner-approved top-level order is `Video Player | Library | Discover | Nougat | YouTube | P2P | Debug` until the owner explicitly changes it.
+2. The owner-approved top-level order is `Video Player | Library | Discover | Nougat | Stream | P2P | Debug` until the owner explicitly changes it.
 3. Existing ReddMedia behavior remains preserved when Nougat changes unless the owner explicitly approves changes outside Nougat.
 4. Nougat's content surface preserves its approved cocoa/chocolate/nougat-tan/caramel/cream palette unless the owner explicitly changes it.
 5. Read-only Nougat output that displays useful text must remain selectable and copyable with normal mouse selection, Ctrl+C, Ctrl+A, and a right-click Copy/Select All menu.
@@ -202,8 +202,20 @@ Only the owner decides whether the candidate is accepted.
 
 ### v0.0.19 UI and TV continuity rules
 
-- Exact current top-level order remains `Video Player | Library | Discover | Nougat | YouTube | P2P | Debug`; the future `Stream` rename is roadmap-only.
+- Historical v0.0.19 top-level order was `Video Player | Library | Discover | Nougat | YouTube | P2P | Debug`; v0.0.20 supersedes that order with Stream.
 - Normal action buttons use one compact app-wide size, sit immediately beside one another, and horizontal rows use mouse-wheel scrolling when they overflow.
 - The red ReddMedia top bar remains common to the suite. Interior tab identity: Video Player red, Library forest green, Discover plum, Nougat cocoa/tan/caramel/cream, YouTube red, P2P deep blue, Debug amber/yellow.
 - Video Player footer order from top to bottom is seek/time, volume with live percent, then the compact control row.
 - TV playback queues the following episode through season boundaries after natural completion, while manual Stop cancels autoplay. Switching to Video Player must not discard the current Library series/season navigation context.
+### v0.0.20 Stream, palette, volume, and Library-view rules
+
+- Current top-level order is `Video Player | Library | Discover | Nougat | Stream | P2P | Debug`.
+- Stream is the online-video umbrella and exposes YouTube, Rumble, RuTube, VK, and OK selectors. It preserves URL Download/Play and adds Direct Watch through ReddMedia's native player plus Open Webpage through the user's default browser.
+- Each major tab uses a coordinated interior palette, not merely colored buttons. The common top navigation remains ReddMedia red.
+- Video Player volume defaults to 100%, ranges from 0% through 200%, and always shows the live numeric value plus a visible 100% marker.
+- The compact bottom player-control group centers when width permits and remains one horizontally wheel-scrollable row when it does not.
+- Movies and TV independently persist Grid/List Library preferences.
+- Custom editable text fields must visibly show focus/caret state.
+- Poster-quality/aspect-ratio overhaul and rounded-corner visual polish are explicitly deferred to v0.0.21.
+- The default Play path remains the native ReddMedia player. The planned local Web Player is a separate optional action and must not replace native playback.
+

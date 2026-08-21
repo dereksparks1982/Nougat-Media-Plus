@@ -1,5 +1,25 @@
 # ReddMedia Changelog
 
+## v0.0.20 - Stream, Full Tab Palettes, Volume Boost, and Library Views (candidate)
+
+## v0.0.20 small-handoff repair
+
+- Reissued the accepted-base candidate without re-shipping the unchanged 84,106,624-byte Nomic model, reducing transfer size and avoiding repeated large-file download corruption.
+- The installer now verifies the exact pinned v0.0.19 model in place before changing any source. Missing or altered model state causes a clean preflight stop.
+- No v0.0.20 feature or behavior changed in this handoff repair.
+
+
+- Replaced the top-level YouTube area with **Stream** in the exact order `Video Player | Library | Discover | Nougat | Stream | P2P | Debug`.
+- Added Stream platform selectors for YouTube, Rumble, RuTube, VK, and OK while preserving URL Download/Play, activity output, and the existing yt-dlp playback path.
+- Added **Direct Watch** to send a supplied supported video URL directly to ReddMedia's native player and **Open Webpage** to open the supplied/platform webpage in the user's default browser.
+- Added coordinated full interior palettes: Video Player red/burgundy, Library forest/sage, Discover plum/lavender, Nougat cocoa/tan/caramel/cream, Stream teal/cyan, P2P navy/steel, Debug charcoal/amber.
+- Expanded volume from 0-100% to **0-200%**, with a 100% default, live percent display, and visible normal-volume marker.
+- Centered the compact bottom player-control group when enough width exists while preserving horizontal wheel scrolling when narrow.
+- Added persistent independent **Grid/List** Library view choices for Movies and TV.
+- Added visible focus carets to the custom editable text fields used by Nougat, Stream, and P2P.
+- Preserved v0.0.19 TV next-episode autoplay, Library navigation continuity, Nougat integration, existing media/server behavior, and app-wide compact scrolling control rows.
+- Deferred poster-quality overhaul, rounded corners, shorter volume geometry, wide-window top-nav centering, local-only Web Player, and Plex integration to the next polish/feature lane.
+
 ## v0.0.19 - Nougat Search Integration
 
 - Repaired the rejected first v0.0.19 candidate under the same version: the installer now installs the missing Ubuntu X11 smoke-test packages (`xvfb` and `x11-utils`) when required before rerunning validation.
@@ -216,3 +236,7 @@ Known limitations:
 - Corrected the real-AI build gate so the temporary `/tmp` build executable receives a project-equivalent `components/ai/models` path before `--discover-ai-self-test`; the previous gate incorrectly searched relative to the temporary build executable.
 - Added a second real Discover AI self-test after the final `ReddMedia_v19` executable is copied to the project root, so FINAL PASS proves the installed root executable can actually load and use the pinned model.
 - Same target remains v0.0.19 because the previous candidate failed and rolled back to v0.0.18.
+
+### v0.0.20 candidate handoff repair — accepted v0.0.19 base manifest
+- Corrected the installer/package base gate to the final accepted v0.0.19 `REDDMEDIA_PATCH_MANIFEST_v19.json` hash.
+- No v0.0.20 feature behavior changed.

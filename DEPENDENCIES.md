@@ -115,3 +115,13 @@ The installer checks for the commands first and installs only the missing packag
 ### v0.0.19 repair-carried pinned embedding model
 
 The v0.0.19 AI-runtime-layout repair package carries the already-pinned `nomic-embed-text-v1.5-Q4_K_M.gguf` runtime asset because the deployed v0.0.18 changed-file baseline did not contain the model. The installer verifies the exact 84,106,624-byte file and SHA-256 `d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac` before using it. The model remains under its upstream Apache-2.0 license.
+## v0.0.20 Stream and UI requirements
+
+v0.0.20 adds no new linked runtime library. Stream continues to use ReddMedia's bundled `yt-dlp` plus the existing FFmpeg/libVLC path for supported public video URLs. **Open Webpage** uses the installed desktop's normal URL opener (`xdg-open` when available); v0.0.20 does not embed a second browser engine. Rumble, RuTube, VK, and OK support therefore follows the extractors and public URLs supported by the pinned yt-dlp runtime.
+
+The full-tab palette system, 0-200% volume control, Grid/List Library views, visible text carets, and centered wide-window bottom controls are implemented in ReddMedia's existing native X11 code and add no new package dependency.
+
+
+### v0.0.20 small-handoff runtime rule
+
+The v0.0.20 changed-files handoff does not re-ship the unchanged 84,106,624-byte Nomic model. Accepted v0.0.19 already installed that pinned runtime asset. The v0.0.20 installer verifies the existing file is exactly 84,106,624 bytes with SHA-256 `d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac` before modifying the project.

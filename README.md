@@ -1,18 +1,20 @@
-# ReddMedia v0.0.19
+# ReddMedia v0.0.20
 
-ReddMedia is an integrated Linux media player and media server by Elderredd Softworks. It combines native local playback, a hidden Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, YouTube downloading/playback powered by yt-dlp, and built-in P2P file transfer and streaming in one application package.
+ReddMedia is an integrated Linux media suite by Elderredd Softworks. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, Nougat decentralized search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
 
-## Current candidate: v0.0.19 Nougat Search Integration
+## Current candidate: v0.0.20 Stream, Full Tab Palettes, Volume Boost, and Library Views
 
-v0.0.19 adds **Nougat** as a native top-level ReddMedia tab while preserving the existing Video Player, Library, Discover, YouTube, P2P, Debug, Jellyfin catalog, playback, recommendation, and transfer behavior. The exact top-level order is **Video Player | Library | Discover | Nougat | YouTube | P2P | Debug**.
+v0.0.20 builds directly on the owner-accepted v0.0.19 baseline. The top-level order is **Video Player | Library | Discover | Nougat | Stream | P2P | Debug**. The former YouTube top-level area becomes **Stream**, with platform selectors for **YouTube, Rumble, RuTube, VK, and OK**. Stream keeps the existing URL-based Download and Play workflow, adds **Direct Watch** through ReddMedia's native player, and adds **Open Webpage** through the user's default browser. The same yt-dlp engine remains the URL playback/download backend where the selected public URL is supported.
 
-Nougat provides a local SQLite FTS5 index, a recursive HTML crawler, Ranked and RAW search views, direct peer search, and a Tor retrieval/open path for `.onion` results. The active Nougat data lives under `~/.local/share/reddmedia/nougat/`; it does not depend on the archived standalone Nougat prototype. RAW changes ordering to index order and does not add a SafeSearch/content-suppression layer.
+Each major area now has a coordinated interior palette instead of a black/gray surface with one accent color. Video Player uses the ReddMedia red/burgundy family, Library uses forest/sage, Discover uses plum/lavender, Nougat preserves its cocoa/tan/caramel/cream identity, Stream uses deep-ocean teal/cyan, P2P uses navy/steel blue, and Debug uses charcoal/amber. The common top navigation remains ReddMedia red.
 
-The Nougat content surface preserves the approved candy-bar palette: dark cocoa, chocolate, nougat tan, caramel, cream, and light nougat. Crawler output is read-only but selectable: mouse selection, Ctrl+C, Ctrl+A, right-click **Copy**, and right-click **Select All** are supported. Crawler seeds such as `google.com`, `www.google.com`, and full HTTP(S) URLs normalize as URLs; a bare search word such as `google` is rejected as a crawler seed instead of being silently converted into `https://google/`.
+Video volume now defaults to **100%** and can be amplified from **0% through 200%**, with the live percentage and a visible 100% marker. The compact bottom player-control group centers when the window has enough room and retains horizontal mouse-wheel scrolling when narrow.
 
-The integrated Nougat engine is headless Python standard-library code called through a native C++ bridge. ReddMedia remains the application and owns the active Nougat implementation. The final versioned executable for this candidate is `ReddMedia_v19`.
+Movies and TV now each remember their own **Grid** or **List** Library view. List mode presents compact rows with identifying metadata; Grid preserves the existing poster layout. Editable in-app text fields show a visible caret when focused.
 
-ReddMedia/Nougat original code in v0.0.19 is source-available to recipients for noncommercial use under the PolyForm Noncommercial License 1.0.0; the copyright owner retains all ungranted rights, including commercial use/licensing of the owner's own original work. Separately licensed third-party components retain their upstream licenses. This candidate is not accepted or tagged until owner testing and explicit acceptance. The v0.0.19 replacement candidate also standardizes compact controls and wheel-scrollable button rows app-wide, separates seek/volume/player controls with a live volume percentage, adds TV next-episode autoplay with preserved Library navigation, and gives each major tab its approved interior color identity.
+Poster-quality/aspect-ratio overhaul, rounded-corner visual polish, shorter/balanced volume-bar geometry, wide-window top-navigation centering, the optional local-only ReddMedia Web Player button, and Plex account/server integration are intentionally reserved for v0.0.21 or later.
+
+The final versioned executable for this candidate is `ReddMedia_v20`. This candidate remains unaccepted until owner installation and visual/functional testing.
 
 ## Previous candidate: v0.0.18 Intelligent Debug, Metadata, Watch Availability, and Responsive Library
 

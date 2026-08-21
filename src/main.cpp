@@ -388,8 +388,10 @@ enum class MenuAction {
     P2pUrlCut, P2pUrlCopy, P2pUrlPaste,
     NougatCopySelection, NougatSelectAll
 };
-enum class ViewMode { VideoPlayer, Library, Discover, Nougat, YtDlp, P2P, Debug };
+enum class ViewMode { VideoPlayer, Library, Discover, Nougat, Stream, P2P, Debug };
 enum class NougatPanel { Search, Crawler, Peers, About };
+enum class StreamPlatform { YouTube, Rumble, RuTube, VK, OK };
+enum class LibraryDisplayMode { Grid, List };
 enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
 enum class YtDlpJob { Idle, Download };
 struct MenuItem {
@@ -476,7 +478,7 @@ public:
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn;
     Rect videoPlayerTab, libraryTab, discoverTab, nougatTab, ytdlpTab, p2pTab, debugTab;
-    Rect libraryMoviesBtn, libraryTvBtn, libraryAddFolderBtn, libraryUnlinkFolderBtn;
+    Rect libraryMoviesBtn, libraryTvBtn, libraryGridBtn, libraryListViewBtn, libraryAddFolderBtn, libraryUnlinkFolderBtn;
     Rect libraryRefreshBtn, libraryBackBtn, libraryListBox;
     Rect serverStartBtn, serverStopBtn, serverRefreshBtn;
     Rect discoverUsualTab, discoverRandomTab;
@@ -486,7 +488,8 @@ public:
     Rect discoverServicesBackBtn;
     Rect debugRunBtn, debugRetryBtn, debugMetadataBtn, debugTmdbBtn;
     Rect debugServerBtn, debugLogsBtn, debugCopyBtn, debugListBox;
-    Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpPlayBtn, ytdlpClearBtn, ytdlpFolderBtn;
+    Rect streamYoutubeTab, streamRumbleTab, streamRutubeTab, streamVkTab, streamOkTab;
+    Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpPlayBtn, ytdlpDirectWatchBtn, ytdlpWebpageBtn, ytdlpClearBtn, ytdlpFolderBtn;
     Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn;
     Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatPeersPanelTab, nougatAboutPanelTab;
     Rect nougatSearchRect, nougatSearchBtn, nougatRawBtn, nougatPeersToggleBtn, nougatResultsBox;
@@ -555,10 +558,14 @@ public:
     int libraryButtonsScrollX = 0;
     int discoverButtonsScrollX = 0;
     int ytdlpButtonsScrollX = 0;
+    int streamSourceScrollX = 0;
     int p2pButtonsScrollX = 0;
     int debugButtonsScrollX = 0;
-    int volumePercent = 80;
+    int volumePercent = 100;
     bool volumeDragging = false;
+    StreamPlatform streamPlatform = StreamPlatform::YouTube;
+    LibraryDisplayMode libraryMovieView = LibraryDisplayMode::Grid;
+    LibraryDisplayMode libraryTvView = LibraryDisplayMode::Grid;
     bool tvAutoplayArmed = false;
     bool playbackEndHandled = false;
     std::vector<reddmedia::LibraryNode> tvAutoplayQueue;
@@ -722,6 +729,40 @@ public:
     void button(const Rect& r, const std::string& label) {
         button_on(win, r, label);
     }
+
+    struct ViewPalette {
+        unsigned long background;
+        unsigned long panel;
+        unsigned long field;
+        unsigned long border;
+        unsigned long text;
+        unsigned long muted;
+        unsigned long selection;
+    };
+
+    ViewPalette palette_for(ViewMode view) {
+        if (view == ViewMode::VideoPlayer) return {
+            col(0x2414,0x0b0b,0x0b0b), col(0x3b3b,0x1515,0x1515), col(0xeeeE,0xe3e3,0xe3e3),
+            col(0x8d8d,0x3030,0x3030), col(0xf7f7,0xeaea,0xeaea), col(0xd0d0,0xaaaa,0xaaaa), col(0x6c6c,0x2222,0x2222)};
+        if (view == ViewMode::Library) return {
+            col(0x1414,0x2828,0x1919), col(0x2020,0x3c3c,0x2828), col(0xe6e6,0xf0f0,0xe3e3),
+            col(0x4f4f,0x7c7c,0x5858), col(0xf0f0,0xf4f4,0xeaea), col(0xb8b8,0xcccc,0xb8b8), col(0x4a4a,0x6f6f,0x5050)};
+        if (view == ViewMode::Discover) return {
+            col(0x2626,0x1515,0x2c2c), col(0x3a3a,0x2121,0x4242), col(0xeeee,0xe6e6,0xf1f1),
+            col(0x7d7d,0x5353,0x8787), col(0xf4f4,0xeaea,0xf6f6), col(0xcdcd,0xb9b9,0xd2d2), col(0x6e6e,0x4a4a,0x7878)};
+        if (view == ViewMode::Stream) return {
+            col(0x0d0d,0x2323,0x2626), col(0x1616,0x3838,0x3c3c), col(0xe0e0,0xf1f1,0xf0f0),
+            col(0x4a4a,0x8e8e,0x9393), col(0xeaea,0xf7f7,0xf5f5), col(0xa7a7,0xcccc,0xcaca), col(0x3a3a,0x7373,0x7777)};
+        if (view == ViewMode::P2P) return {
+            col(0x0e0e,0x1b1b,0x2a2a), col(0x1818,0x3131,0x4a4a), col(0xe3e3,0xeded,0xf6f6),
+            col(0x4a4a,0x8282,0xacac), col(0xefef,0xf6f6,0xfcfc), col(0xb6b6,0xc9c9,0xdbdb), col(0x3155,0x5f5f,0x7c7c)};
+        if (view == ViewMode::Debug) return {
+            col(0x2b2b,0x2424,0x1616), col(0x4343,0x3535,0x1a1a), col(0xf3f3,0xeaea,0xd0d0),
+            col(0xa8a8,0x7a7a,0x2828), col(0xffff,0xf4f4,0xd6d6), col(0xd8d8,0xc3c3,0x9090), col(0x6f6f,0x5a5a,0x2929)};
+        return {col(0xdede,0xdede,0xdede), col(0xcaca,0xcaca,0xcaca), col(0xffff,0xffff,0xffff),
+                col(0x7777,0x7777,0x7777), col(0x1111,0x1111,0x1111), col(0x5555,0x5555,0x5555), col(0xdddd,0xeeee,0xffff)};
+    }
+
     void button_on(Drawable target, const Rect& r, const std::string& label) {
         unsigned long base = col(0xbbbb,0x0000,0x0000);
         unsigned long dark = col(0x6600,0x0000,0x0000);
@@ -731,6 +772,8 @@ public:
             base = col(0x2f2f,0x6b6b,0x3a3a); dark = col(0x1717,0x4040,0x2020); light = col(0x5959,0x9a9a,0x6464);
         } else if (currentView == ViewMode::Discover) {
             base = col(0x6c6c,0x3b3b,0x7474); dark = col(0x3d3d,0x1f1f,0x4444); light = col(0x9292,0x6161,0x9a9a);
+        } else if (currentView == ViewMode::Stream) {
+            base = col(0x2d2d,0x6f6f,0x7373); dark = col(0x1430,0x4545,0x4848); light = col(0x5858,0xb8b8,0xbfbf);
         } else if (currentView == ViewMode::P2P) {
             base = col(0x2a2a,0x5d5d,0x8787); dark = col(0x1717,0x3a3a,0x5959); light = col(0x4a4a,0x8282,0xacac);
         } else if (currentView == ViewMode::Debug) {
@@ -845,6 +888,7 @@ public:
             if (!inst) vlcErr = "Could not start VLC engine.";
         }
         load_session();
+        load_library_view_modes();
         std::string p2pRestoreError;
         if (p2p.restore_last(p2pRestoreError)) p2pUiStatus = "Previous P2P download restored.";
         else if (!p2pRestoreError.empty()) p2pUiStatus = p2pRestoreError;
@@ -898,8 +942,11 @@ public:
         const int bottomY = H - 32;
         const int volumeY = H - 64;
         const int seekY = H - 96;
-        controlsScrollX = clamp_button_scroll(controlsScrollX, 6, std::max(kCompactButtonW, W - 20));
-        int x = 10 - controlsScrollX;
+        const int controlCount = 6;
+        const int controlTotalW = controlCount * kCompactButtonW;
+        const int controlViewportW = std::max(kCompactButtonW, W - 20);
+        controlsScrollX = clamp_button_scroll(controlsScrollX, controlCount, controlViewportW);
+        int x = controlTotalW <= controlViewportW ? std::max(10, (W - controlTotalW) / 2) : 10 - controlsScrollX;
         openBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
         rewindBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
         playBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
@@ -918,9 +965,12 @@ public:
         resumeBtn = {promptX, H/2+40, kCompactButtonW, kCompactButtonH};
         loadBtn = {promptX+kCompactButtonW, H/2+40, kCompactButtonW, kCompactButtonH};
 
-        ytdlpUrlRect = {28, 108, std::max(240, W-56), 28};
-        ytdlpOutputRect = {28, 148, std::max(240, W-56), 28};
-        layout_button_row({&ytdlpDownloadBtn,&ytdlpPlayBtn,&ytdlpClearBtn}, 190, ytdlpButtonsScrollX);
+        layout_button_row({&streamYoutubeTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab},
+                          54, streamSourceScrollX);
+        ytdlpUrlRect = {28, 120, std::max(240, W-56), 28};
+        ytdlpOutputRect = {28, 160, std::max(240, W-56), 28};
+        layout_button_row({&ytdlpDownloadBtn,&ytdlpPlayBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn},
+                          202, ytdlpButtonsScrollX);
         ytdlpFolderBtn = {0,0,0,0};
 
         p2pMagnetRect = {28, 102, std::max(240, W-56), 28};
@@ -948,8 +998,9 @@ public:
         nougatNodeBtn = {std::max(540, W-120),104,kCompactButtonW,kCompactButtonH};
         nougatPeerListBox = {28, 154, std::max(240, W-56), std::max(120, H-182)};
 
-        layout_button_row({&libraryMoviesBtn,&libraryTvBtn,&libraryAddFolderBtn,&libraryUnlinkFolderBtn,
-                           &libraryRefreshBtn,&libraryBackBtn,&serverStartBtn,&serverStopBtn,&serverRefreshBtn},
+        layout_button_row({&libraryMoviesBtn,&libraryTvBtn,&libraryGridBtn,&libraryListViewBtn,
+                           &libraryAddFolderBtn,&libraryUnlinkFolderBtn,&libraryRefreshBtn,&libraryBackBtn,
+                           &serverStartBtn,&serverStopBtn,&serverRefreshBtn},
                           76, libraryButtonsScrollX);
         libraryListBox = {28, 134, std::max(240, W-56), std::max(100, H-162)};
 
@@ -976,7 +1027,7 @@ public:
     void apply_video_layout() {
         if (!video) return;
         if (currentView == ViewMode::Library || currentView == ViewMode::Discover ||
-            currentView == ViewMode::Nougat || currentView == ViewMode::YtDlp || currentView == ViewMode::P2P ||
+            currentView == ViewMode::Nougat || currentView == ViewMode::Stream || currentView == ViewMode::P2P ||
             currentView == ViewMode::Debug) {
             XUnmapWindow(d, video);
             return;
@@ -996,8 +1047,8 @@ public:
     void adjust_volume(int delta) {
         if (!mp) return;
         int vol = api.get_volume(mp);
-        if (vol < 0) vol = 80;
-        vol = std::max(0, std::min(100, vol + delta));
+        if (vol < 0) vol = 100;
+        vol = std::max(0, std::min(200, vol + delta));
         volumePercent = vol;
         api.set_volume(mp, vol);
         if (!fullscreen) draw_volume_only();
@@ -1115,8 +1166,8 @@ public:
         std::string error;
         if (!ytdlpStream.start(engine, ytdlpUrl, targetMs, error)) {
             ytdlpSeekBuffering = false;
-            ytdlpStatus = error.empty() ? "Could not start YouTube cache bridge." : error;
-            switch_view(ViewMode::YtDlp);
+            ytdlpStatus = error.empty() ? "Could not start Stream cache bridge." : error;
+            switch_view(ViewMode::Stream);
             redraw();
             return false;
         }
@@ -1124,8 +1175,8 @@ public:
         ytdlpSeekTargetMs = targetMs;
         ytdlpSeekStartedAtMs = now_ms();
         ytdlpSeekBuffering = true;
-        ytdlpStatus = targetMs > 0 ? "Buffering YouTube seek..."
-                                   : "Buffering YouTube cache at up to 1080p...";
+        ytdlpStatus = targetMs > 0 ? "Buffering Stream seek..."
+                                   : "Buffering Stream cache at up to 1080p...";
         redraw();
         return true;
     }
@@ -1142,9 +1193,9 @@ public:
         if (!enough) {
             ytdlpSeekBuffering = false;
             ytdlpStream.stop();
-            ytdlpStatus = ytdlpStream.failed() ? "YouTube cache feeder failed before playback could start."
-                                               : "YouTube cache did not buffer enough media.";
-            switch_view(ViewMode::YtDlp);
+            ytdlpStatus = ytdlpStream.failed() ? "Stream cache feeder failed before playback could start."
+                                               : "Stream cache did not buffer enough media.";
+            switch_view(ViewMode::Stream);
             redraw();
             return;
         }
@@ -1153,8 +1204,8 @@ public:
         ytdlpSeekBuffering = false;
         if (!open_ytdlp_cache_location(ytdlpStream.url(), targetMs)) {
             ytdlpStream.stop();
-            ytdlpStatus = "VLC could not start the YouTube cache stream. See log.";
-            switch_view(ViewMode::YtDlp);
+            ytdlpStatus = "VLC could not start the Stream cache. See log.";
+            switch_view(ViewMode::Stream);
             redraw();
             return;
         }
@@ -1563,14 +1614,14 @@ public:
         draw_tab(libraryTab,"Library",currentView==ViewMode::Library);
         draw_tab(discoverTab,"Discover",currentView==ViewMode::Discover);
         draw_tab(nougatTab,"Nougat",currentView==ViewMode::Nougat);
-        draw_tab(ytdlpTab,"YouTube",currentView==ViewMode::YtDlp);
+        draw_tab(ytdlpTab,"Stream",currentView==ViewMode::Stream);
         draw_tab(p2pTab,"P2P",currentView==ViewMode::P2P);
         draw_tab(debugTab,"Debug",currentView==ViewMode::Debug);
         XSetClipMask(d, gc, None);
 
         fill(target, {topNavViewportW,0,std::max(0,W-topNavViewportW),26}, companyRed);
         outline(target, {0,24,W,1}, divider);
-        const std::string versionLabel = "v0.0.19";
+        const std::string versionLabel = "v0.0.20";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         const int treeX = versionX - reddmedia_icon::kTopBar14Size - 6;
@@ -1669,14 +1720,13 @@ public:
     }
 
     void draw_seek_time_row(Drawable target) {
-        unsigned long dark = col(0x1111,0x1111,0x1111);
-        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
-        unsigned long markDark = col(0x3333,0x3333,0x3333);
-        unsigned long markReal = col(0x0000,0x0000,0x0000);
-        unsigned long bg = col(0xdede,0xdede,0xdede);
-        fill(target, {0, std::max(0, seekRect.y-6), W, seekRect.h+16}, bg);
-        fill(target, seekRect, col(0xeeee,0xeeee,0xeeee));
-        outline(target, seekRect, col(0x8888,0x8888,0x8888));
+        const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
+        const unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
+        const unsigned long markDark = col(0x5555,0x3333,0x3333);
+        const unsigned long markReal = col(0xffff,0xd6d6,0xd6d6);
+        fill(target, {0, std::max(0, seekRect.y-6), W, seekRect.h+16}, palette.background);
+        fill(target, seekRect, palette.field);
+        outline(target, seekRect, palette.border);
         long long t=0,l=0;
         if (mp) { t=playback_time_ms(); l=playback_length_ms(); }
         if (l > 0) {
@@ -1689,29 +1739,33 @@ public:
                 line(target, mx, seekRect.y, mx, seekRect.y + seekRect.h, chapterMarksAreReal ? markReal : markDark);
             }
         }
-        text(target, 10, seekRect.y+14, format_time(t), dark);
+        text(target, 10, seekRect.y+14, format_time(t), palette.text);
         int totalX = seekRect.x + seekRect.w + 10;
-        text(target, totalX, seekRect.y+14, format_time(l), dark);
+        text(target, totalX, seekRect.y+14, format_time(l), palette.text);
     }
 
     void draw_volume_bar(Drawable target) {
-        unsigned long dark = col(0x1111,0x1111,0x1111);
-        unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
-        unsigned long bg = col(0xdede,0xdede,0xdede);
-        fill(target, {0, std::max(0, volRect.y-6), W, volRect.h+16}, bg);
-        fill(target, volRect, col(0xeeee,0xeeee,0xeeee));
-        outline(target, volRect, col(0x8888,0x8888,0x8888));
+        const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
+        const unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
+        fill(target, {0, std::max(0, volRect.y-6), W, volRect.h+16}, palette.background);
+        fill(target, volRect, palette.field);
+        outline(target, volRect, palette.border);
         int vol = mp ? api.get_volume(mp) : volumePercent;
         if (vol < 0) vol = volumePercent;
-        vol = std::max(0,std::min(100,vol));
+        vol = std::max(0,std::min(200,vol));
         volumePercent = vol;
-        fill(target, {volRect.x, volRect.y, volRect.w*vol/100, volRect.h}, companyRed);
-        text(target, 10, volRect.y+14, "Volume " + std::to_string(vol) + "%", dark);
+        fill(target, {volRect.x, volRect.y, volRect.w*vol/200, volRect.h}, companyRed);
+        const int normalX = volRect.x + volRect.w / 2;
+        line(target, normalX, volRect.y - 3, normalX, volRect.y + volRect.h + 3, palette.muted);
+        text(target, normalX - 16, volRect.y - 5, "100%", palette.muted);
+        text(target, 10, volRect.y+14, "Volume " + std::to_string(vol) + "%", palette.text);
     }
 
     void draw_controls(Drawable target) {
         draw_top_bar(target);
         if (currentView != ViewMode::VideoPlayer) return;
+        const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
+        fill(target, {0, std::max(26, H-38), W, std::max(0, H-std::max(26, H-38))}, palette.panel);
         button_on(target, openBtn, "Open");
         button_on(target, rewindBtn, "Rewind 10s");
         button_on(target, playBtn, "Play/Pause");
@@ -1803,66 +1857,126 @@ public:
         XFlush(d);
     }
 
-    void draw_yt_dlp_screen(Drawable target) {
-        unsigned long bg = col(0xeeee,0xe4e4,0xe4e4);
-        unsigned long dark = col(0x1111,0x1111,0x1111);
-        unsigned long border = urlFocused ? col(0xbbbb,0x0000,0x0000) : col(0x7777,0x7777,0x7777);
-        fill(target, {0,26,W,H-26}, bg);
-        text(target, 28, 68, "YouTube", dark);
-        text(target, 28, 92, "Download or play YouTube videos.", dark);
-        fill(target, ytdlpUrlRect, col(0xffff,0xffff,0xffff));
-        outline(target, ytdlpUrlRect, border);
-        text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y-8, "URL", dark);
+    const char* stream_platform_name(StreamPlatform platform) const {
+        switch (platform) {
+            case StreamPlatform::YouTube: return "YouTube";
+            case StreamPlatform::Rumble: return "Rumble";
+            case StreamPlatform::RuTube: return "RuTube";
+            case StreamPlatform::VK: return "VK";
+            case StreamPlatform::OK: return "OK";
+        }
+        return "Stream";
+    }
+
+    std::string stream_platform_home(StreamPlatform platform) const {
+        switch (platform) {
+            case StreamPlatform::YouTube: return "https://www.youtube.com/";
+            case StreamPlatform::Rumble: return "https://rumble.com/";
+            case StreamPlatform::RuTube: return "https://rutube.ru/";
+            case StreamPlatform::VK: return "https://vk.com/video";
+            case StreamPlatform::OK: return "https://ok.ru/video";
+        }
+        return {};
+    }
+
+    void select_stream_platform(StreamPlatform platform) {
+        streamPlatform = platform;
+        urlFocused = false;
+        urlSelectAll = false;
+        ytdlpStatus = std::string(stream_platform_name(platform)) + " selected. Paste a video URL, Direct Watch, download, or open the webpage.";
+        redraw();
+    }
+
+    void open_stream_webpage() {
+        const std::string target = ytdlpUrl.empty() ? stream_platform_home(streamPlatform) : ytdlpUrl;
+        if (target.empty()) return;
+        launch_external_target(target);
+        ytdlpStatus = std::string("Opened ") + stream_platform_name(streamPlatform) + " webpage in your default browser.";
+        redraw();
+    }
+
+    void direct_watch_stream() {
+        if (ytdlpUrl.empty()) {
+            ytdlpStatus = "Paste a video URL first.";
+            redraw();
+            return;
+        }
+        ytdlpStatus = std::string("Direct Watch: opening ") + stream_platform_name(streamPlatform) + " in ReddMedia's native player...";
+        redraw();
+        start_ytdlp_play();
+    }
+
+    void draw_stream_screen(Drawable target) {
+        const ViewPalette palette = palette_for(ViewMode::Stream);
+        fill(target, {0,26,W,H-26}, palette.background);
+        text(target, 28, 46, "STREAM", palette.text);
+        text(target, 96, 46, std::string("Online video: ") + stream_platform_name(streamPlatform), palette.muted);
+
+        const auto source_button = [&](const Rect& r, const char* label, StreamPlatform platform) {
+            const bool selected = streamPlatform == platform;
+            fill(target, r, selected ? col(0x5858,0xb8b8,0xbfbf) : col(0x2d2d,0x6f6f,0x7373));
+            outline(target, r, palette.border);
+            text(target, r.x + std::max(6,(r.w-text_width(label))/2), r.y+18, label,
+                 selected ? col(0x0d0d,0x2323,0x2626) : palette.text);
+        };
+        source_button(streamYoutubeTab,"YouTube",StreamPlatform::YouTube);
+        source_button(streamRumbleTab,"Rumble",StreamPlatform::Rumble);
+        source_button(streamRutubeTab,"RuTube",StreamPlatform::RuTube);
+        source_button(streamVkTab,"VK",StreamPlatform::VK);
+        source_button(streamOkTab,"OK",StreamPlatform::OK);
+
+        const unsigned long focusBorder = urlFocused ? col(0x5858,0xb8b8,0xbfbf) : palette.border;
+        fill(target, ytdlpUrlRect, palette.field);
+        outline(target, ytdlpUrlRect, focusBorder);
+        text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y-8, "Video URL", palette.text);
         int urlTextMax = std::max(24, ytdlpUrlRect.w - 18);
         std::string visibleUrl = ytdlpUrl.empty() ? std::string("") : tail_to_width(ytdlpUrl, urlTextMax);
-        XRectangle urlClip;
-        urlClip.x = (short)(ytdlpUrlRect.x + 5);
-        urlClip.y = (short)(ytdlpUrlRect.y + 2);
-        urlClip.width = (unsigned short)std::max(1, ytdlpUrlRect.w - 10);
-        urlClip.height = (unsigned short)std::max(1, ytdlpUrlRect.h - 4);
+        XRectangle urlClip{(short)(ytdlpUrlRect.x+5),(short)(ytdlpUrlRect.y+2),
+                           (unsigned short)std::max(1,ytdlpUrlRect.w-10),(unsigned short)std::max(1,ytdlpUrlRect.h-4)};
         XSetClipRectangles(d, gc, 0, 0, &urlClip, 1, Unsorted);
         if (visibleUrl.empty() && !urlFocused) {
-            std::string hint = "click here, then Ctrl+V or right-click";
-            text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18, hint, col(0x5555,0x5555,0x5555));
+            text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18,
+                 std::string("paste a ") + stream_platform_name(streamPlatform) + " video URL",
+                 col(0x5555,0x7777,0x7777));
         } else if (urlSelectAll && !visibleUrl.empty()) {
-            int selectedW = std::min(text_width(visibleUrl) + 4, std::max(1, ytdlpUrlRect.w - 12));
-            fill(target, {ytdlpUrlRect.x+6, ytdlpUrlRect.y+4, selectedW, ytdlpUrlRect.h-8}, col(0x3333,0x6666,0xaaaa));
-            text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18, visibleUrl, col(0xffff,0xffff,0xffff));
+            int selectedW = std::min(text_width(visibleUrl)+4,std::max(1,ytdlpUrlRect.w-12));
+            fill(target,{ytdlpUrlRect.x+6,ytdlpUrlRect.y+4,selectedW,ytdlpUrlRect.h-8},palette.selection);
+            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+18,visibleUrl,col(0xffff,0xffff,0xffff));
         } else {
-            text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18, visibleUrl, dark);
+            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+18,visibleUrl,col(0x1111,0x2222,0x2222));
         }
         if (urlFocused && !urlSelectAll) {
-            int cx = ytdlpUrlRect.x + 8 + text_width(visibleUrl);
-            int rightEdge = ytdlpUrlRect.x + ytdlpUrlRect.w - 8;
-            if (cx > rightEdge) cx = rightEdge;
-            line(target, cx, ytdlpUrlRect.y+5, cx, ytdlpUrlRect.y+23, dark);
+            int cx=ytdlpUrlRect.x+8+text_width(visibleUrl);
+            cx=std::min(cx,ytdlpUrlRect.x+ytdlpUrlRect.w-8);
+            line(target,cx,ytdlpUrlRect.y+5,cx,ytdlpUrlRect.y+23,col(0x1111,0x2222,0x2222));
         }
-        XSetClipMask(d, gc, None);
-        fill(target, ytdlpOutputRect, col(0xffff,0xffff,0xffff));
-        outline(target, ytdlpOutputRect, col(0x7777,0x7777,0x7777));
-        std::string outLine = "Output folder: " + ytdlpOutputFolder;
-        if ((int)outLine.size() > std::max(12, (ytdlpOutputRect.w-14)/8)) outLine = outLine.substr(0, std::max(12, (ytdlpOutputRect.w-14)/8));
-        text(target, ytdlpOutputRect.x+8, ytdlpOutputRect.y+18, outLine, dark);
-        button_on(target, ytdlpDownloadBtn, "Download");
-        button_on(target, ytdlpPlayBtn, "Play");
-        button_on(target, ytdlpClearBtn, "Clear Log");
-        text(target, 28, 234, "Status: " + ytdlpStatus, dark);
-        Rect logBox = {28, 252, std::max(240, W-56), std::max(100, H-277)};
-        fill(target, logBox, col(0xf7f7,0xf7f7,0xf7f7));
-        outline(target, logBox, col(0x7777,0x7777,0x7777));
-        text(target, logBox.x+8, logBox.y+20, "YouTube activity log", dark);
-        int lineY = logBox.y + 44;
+        XSetClipMask(d,gc,None);
+
+        fill(target,ytdlpOutputRect,palette.field);
+        outline(target,ytdlpOutputRect,palette.border);
+        text(target,ytdlpOutputRect.x+8,ytdlpOutputRect.y+18,
+             tail_to_width("Output folder: "+ytdlpOutputFolder,ytdlpOutputRect.w-16),col(0x1111,0x2222,0x2222));
+        button_on(target,ytdlpDownloadBtn,"Download");
+        button_on(target,ytdlpPlayBtn,"Play");
+        button_on(target,ytdlpDirectWatchBtn,"Direct Watch");
+        button_on(target,ytdlpWebpageBtn,"Open Webpage");
+        button_on(target,ytdlpClearBtn,"Clear Log");
+        text(target,28,246,head_to_width("Status: "+ytdlpStatus,W-56),palette.text);
+
+        Rect logBox={28,264,std::max(240,W-56),std::max(100,H-289)};
+        fill(target,logBox,palette.panel);
+        outline(target,logBox,palette.border);
+        text(target,logBox.x+8,logBox.y+20,std::string(stream_platform_name(streamPlatform))+" activity log",palette.text);
+        int lineY=logBox.y+44;
         std::istringstream iss(ytdlpLog);
         std::string lineText;
         std::vector<std::string> lines;
-        while (std::getline(iss, lineText)) lines.push_back(lineText);
-        int maxLines = std::max(1, (logBox.h - 52) / 18);
-        int start = std::max(0, (int)lines.size() - maxLines);
-        for (int i=start; i<(int)lines.size() && lineY < logBox.y + logBox.h - 8; ++i) {
-            std::string ln = lines[(size_t)i];
-            if ((int)ln.size() > std::max(10, (logBox.w-18)/8)) ln = ln.substr(0, std::max(10, (logBox.w-18)/8));
-            text(target, logBox.x+8, lineY, ln, dark);
-            lineY += 18;
+        while(std::getline(iss,lineText)) lines.push_back(lineText);
+        int maxLines=std::max(1,(logBox.h-52)/18);
+        int first=std::max(0,(int)lines.size()-maxLines);
+        for(int i=first;i<(int)lines.size() && lineY<logBox.y+logBox.h-8;++i) {
+            text(target,logBox.x+8,lineY,head_to_width(lines[(size_t)i],logBox.w-18),palette.muted);
+            lineY+=18;
         }
     }
 
@@ -1888,13 +2002,14 @@ public:
         }
     }
     void draw_p2p_screen(Drawable target) {
-        unsigned long bg = col(0xe3e3,0xeaea,0xf2f2);
-        unsigned long dark = col(0x1111,0x1a1a,0x2424);
-        unsigned long border = p2pMagnetFocused ? col(0xbbbb,0x0000,0x0000) : col(0x7777,0x7777,0x7777);
-        fill(target, {0,26,W,H-26}, bg);
+        const ViewPalette palette = palette_for(ViewMode::P2P);
+        const unsigned long dark = palette.text;
+        const unsigned long fieldInk = col(0x0d0d,0x1b1b,0x2a2a);
+        unsigned long border = p2pMagnetFocused ? col(0x7070,0xb0b0,0xdada) : palette.border;
+        fill(target, {0,26,W,H-26}, palette.background);
         text(target, 28, 62, "P2P Streaming", dark);
         text(target, 28, 84, "Open a P2P source, choose a video, then Play.", dark);
-        fill(target, p2pMagnetRect, col(0xffff,0xffff,0xffff));
+        fill(target, p2pMagnetRect, palette.field);
         outline(target, p2pMagnetRect, border);
         text(target, p2pMagnetRect.x+8, p2pMagnetRect.y-7, "Magnet link", dark);
         const int textMax = std::max(24, p2pMagnetRect.w-18);
@@ -1906,16 +2021,16 @@ public:
             int selectedW=std::min(text_width(visible)+4,std::max(1,p2pMagnetRect.w-12));
             fill(target,{p2pMagnetRect.x+6,p2pMagnetRect.y+4,selectedW,p2pMagnetRect.h-8},col(0x3333,0x6666,0xaaaa));
             text(target,p2pMagnetRect.x+8,p2pMagnetRect.y+18,visible,col(0xffff,0xffff,0xffff));
-        } else text(target,p2pMagnetRect.x+8,p2pMagnetRect.y+18,visible,dark);
+        } else text(target,p2pMagnetRect.x+8,p2pMagnetRect.y+18,visible,fieldInk);
         if (p2pMagnetFocused && !p2pMagnetSelectAll) {
             int cx=p2pMagnetRect.x+8+text_width(visible);
             cx=std::min(cx,p2pMagnetRect.x+p2pMagnetRect.w-8);
-            line(target,cx,p2pMagnetRect.y+5,cx,p2pMagnetRect.y+23,dark);
+            line(target,cx,p2pMagnetRect.y+5,cx,p2pMagnetRect.y+23,fieldInk);
         }
         XSetClipMask(d,gc,None);
-        fill(target,p2pOutputRect,col(0xffff,0xffff,0xffff));
-        outline(target,p2pOutputRect,col(0x7777,0x7777,0x7777));
-        text(target,p2pOutputRect.x+8,p2pOutputRect.y+18,tail_to_width("Download folder: "+p2pOutputFolder,p2pOutputRect.w-16),dark);
+        fill(target,p2pOutputRect,palette.field);
+        outline(target,p2pOutputRect,palette.border);
+        text(target,p2pOutputRect.x+8,p2pOutputRect.y+18,tail_to_width("Download folder: "+p2pOutputFolder,p2pOutputRect.w-16),fieldInk);
         button_on(target,p2pLoadMagnetBtn,"Load Magnet");
         button_on(target,p2pOpenTorrentBtn,"Open P2P File");
         button_on(target,p2pPlayBtn,"Play");
@@ -1935,21 +2050,21 @@ public:
         p2pFileRows.clear();
         std::vector<P2PFileInfo> fs=p2p.files();
         Rect fileBox={28,y,std::max(240,W-56),std::max(80,H-y-24)};
-        fill(target,fileBox,col(0xf7f7,0xf7f7,0xf7f7)); outline(target,fileBox,col(0x7777,0x7777,0x7777));
+        fill(target,fileBox,palette.panel); outline(target,fileBox,palette.border);
         text(target,fileBox.x+8,fileBox.y+19,"P2P files",dark);
         int rowY=fileBox.y+30;
         const int selected=p2p.selected_file();
         for (const P2PFileInfo& f:fs) {
             if (rowY+24>fileBox.y+fileBox.h) break;
             Rect row={fileBox.x+6,rowY,fileBox.w-12,24};
-            if (f.index==selected) fill(target,row,col(0xdddd,0xeeee,0xffff));
-            outline(target,row,col(0xcccc,0xcccc,0xcccc));
+            if (f.index==selected) fill(target,row,palette.selection);
+            outline(target,row,palette.border);
             std::string label=(f.video?"[video] ":"[file] ")+f.path+"  ("+format_bytes((std::int64_t)f.size)+")";
             text(target,row.x+6,row.y+17,tail_to_width(label,row.w-12),dark);
             p2pFileRows.push_back(row);
             rowY+=26;
         }
-        if (fs.empty()) text(target,fileBox.x+8,fileBox.y+46,st.active?"Waiting for P2P metadata...":"Load a magnet or P2P metadata file.",col(0x5555,0x5555,0x5555));
+        if (fs.empty()) text(target,fileBox.x+8,fileBox.y+46,st.active?"Waiting for P2P metadata...":"Load a magnet or P2P metadata file.",palette.muted);
     }
 
     std::string server_control_label() const {
@@ -2529,11 +2644,56 @@ public:
                   col(0x9999,0x9999,0x9999));
     }
 
+    std::string library_view_modes_file() const {
+        return config_dir() + "/library_view_modes.cfg";
+    }
+
+    LibraryDisplayMode current_library_display_mode() const {
+        return libraryMediaType == reddmedia::LibraryMediaType::Television ? libraryTvView : libraryMovieView;
+    }
+
+    void save_library_view_modes() {
+        ensure_config_dir();
+        std::ofstream out(library_view_modes_file(), std::ios::trunc);
+        if (!out) return;
+        out << "movies=" << (libraryMovieView == LibraryDisplayMode::List ? "list" : "grid") << "\n";
+        out << "tv=" << (libraryTvView == LibraryDisplayMode::List ? "list" : "grid") << "\n";
+    }
+
+    void load_library_view_modes() {
+        std::ifstream in(library_view_modes_file());
+        std::string line;
+        while (std::getline(in,line)) {
+            if (line == "movies=list") libraryMovieView = LibraryDisplayMode::List;
+            else if (line == "movies=grid") libraryMovieView = LibraryDisplayMode::Grid;
+            else if (line == "tv=list") libraryTvView = LibraryDisplayMode::List;
+            else if (line == "tv=grid") libraryTvView = LibraryDisplayMode::Grid;
+        }
+    }
+
+    void set_library_display_mode(LibraryDisplayMode mode) {
+        if (libraryMediaType == reddmedia::LibraryMediaType::Television) libraryTvView = mode;
+        else libraryMovieView = mode;
+        libraryScroll = 0;
+        librarySelected = -1;
+        save_library_view_modes();
+        redraw();
+    }
+
     LibraryGridMetrics library_grid_metrics() const {
         LibraryGridMetrics metrics;
         const int inner_width = std::max(1, libraryListBox.w - 12);
         const int inner_height = std::max(1, libraryListBox.h - 12);
         metrics.gap = 8;
+        if (current_library_display_mode() == LibraryDisplayMode::List) {
+            metrics.columns = 1;
+            metrics.rows = std::max(1, inner_height / 34);
+            metrics.tileWidth = inner_width;
+            metrics.tileHeight = 32;
+            metrics.posterHeight = 0;
+            metrics.visibleItems = metrics.rows;
+            return metrics;
+        }
         metrics.columns = std::max(1, (inner_width + metrics.gap) / (140 + metrics.gap));
         metrics.rows = std::max(1, (inner_height + metrics.gap) / (180 + metrics.gap));
         metrics.tileWidth = std::max(108,
@@ -2565,69 +2725,87 @@ public:
     }
 
     void draw_library_screen(Drawable target) {
-        const unsigned long bg = col(0xe4e4,0xeeeE,0xe6e6);
-        const unsigned long dark = col(0x1111,0x2211,0x1515);
-        const unsigned long border = col(0x6688,0x8877,0x6688);
-        fill(target, {0,26,W,H-26}, bg);
-        text(target, 28, 58, libraryParents.empty() ? "MEDIA LIBRARY" : libraryParents.back().name, dark);
-        button_on(target, libraryMoviesBtn, "Movies");
-        button_on(target, libraryTvBtn, "TV");
-        button_on(target, libraryAddFolderBtn, "Link Folder");
-        button_on(target, libraryUnlinkFolderBtn, "Unlink Folder");
-        button_on(target, libraryRefreshBtn, "Refresh Library");
-        button_on(target, libraryBackBtn, "Back");
-        button_on(target, serverStartBtn, "Start Server");
-        button_on(target, serverStopBtn, "Stop Server");
-        button_on(target, serverRefreshBtn, "Refresh Server");
+        const ViewPalette palette = palette_for(ViewMode::Library);
+        fill(target,{0,26,W,H-26},palette.background);
+        text(target,28,58,libraryParents.empty()?"MEDIA LIBRARY":libraryParents.back().name,palette.text);
+        button_on(target,libraryMoviesBtn,"Movies");
+        button_on(target,libraryTvBtn,"TV");
+        button_on(target,libraryGridBtn,current_library_display_mode()==LibraryDisplayMode::Grid?"Grid [x]":"Grid");
+        button_on(target,libraryListViewBtn,current_library_display_mode()==LibraryDisplayMode::List?"List [x]":"List");
+        button_on(target,libraryAddFolderBtn,"Link Folder");
+        button_on(target,libraryUnlinkFolderBtn,"Unlink Folder");
+        button_on(target,libraryRefreshBtn,"Refresh Library");
+        button_on(target,libraryBackBtn,"Back");
+        button_on(target,serverStartBtn,"Start Server");
+        button_on(target,serverStopBtn,"Stop Server");
+        button_on(target,serverRefreshBtn,"Refresh Server");
 
         std::vector<reddmedia::LibraryNode> nodes;
         std::string status;
-        bool busy = false;
+        bool busy=false;
         {
             std::lock_guard<std::mutex> lock(libraryState->mutex);
-            nodes = libraryState->nodes;
-            status = libraryState->status;
-            busy = libraryState->busy;
+            nodes=libraryState->nodes; status=libraryState->status; busy=libraryState->busy;
         }
-        text(target, 28, 122, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
-        fill(target, libraryListBox, col(0xf7f7,0xf7f7,0xf7f7));
-        outline(target, libraryListBox, border);
+        text(target,28,122,head_to_width(std::string("Status: ")+(busy?"Working - ":"")+status,W-56),palette.text);
+        fill(target,libraryListBox,palette.panel);
+        outline(target,libraryListBox,palette.border);
         libraryRows.clear();
-        const LibraryGridMetrics grid = library_grid_metrics();
-        const int max_scroll = std::max(0, static_cast<int>(nodes.size()) - grid.visibleItems);
-        libraryScroll = std::max(0, std::min(libraryScroll, max_scroll));
-        for (int visible_index = 0; visible_index < grid.visibleItems; ++visible_index) {
-            const int node_index = libraryScroll + visible_index;
-            if (node_index >= static_cast<int>(nodes.size())) break;
-            const reddmedia::LibraryNode& item = nodes[static_cast<std::size_t>(node_index)];
-            const int column = visible_index % grid.columns;
-            const int row_number = visible_index / grid.columns;
-            Rect row = {libraryListBox.x + 6 + column * (grid.tileWidth + grid.gap),
-                        libraryListBox.y + 6 + row_number * (grid.tileHeight + grid.gap),
-                        grid.tileWidth, grid.tileHeight};
-            if (node_index == librarySelected) fill(target, row, col(0xdddd,0xeeee,0xffff));
-            outline(target, row, col(0x9999,0x9999,0x9999));
-            draw_library_poster(target, {row.x + 4, row.y + 4, row.w - 8, grid.posterHeight}, item);
-            const int title_y = row.y + grid.posterHeight + 18;
-            text(target, row.x + 6, title_y,
-                 head_to_width(library_display_title(item), row.w - 12), dark);
-            if (!item.technical_details.empty()) {
-                text(target, row.x + 6, title_y + 14,
-                     head_to_width(item.technical_details, row.w - 12),
-                     col(0x4444,0x4444,0x4444));
+        const LibraryGridMetrics grid=library_grid_metrics();
+        const int max_scroll=std::max(0,static_cast<int>(nodes.size())-grid.visibleItems);
+        libraryScroll=std::max(0,std::min(libraryScroll,max_scroll));
+
+        if (current_library_display_mode()==LibraryDisplayMode::List) {
+            const int rowHeight=32;
+            const int visible=std::max(1,(libraryListBox.h-12)/rowHeight);
+            for(int visibleIndex=0;visibleIndex<visible;++visibleIndex) {
+                const int nodeIndex=libraryScroll+visibleIndex;
+                if(nodeIndex>=static_cast<int>(nodes.size())) break;
+                const auto& item=nodes[static_cast<std::size_t>(nodeIndex)];
+                Rect row={libraryListBox.x+6,libraryListBox.y+6+visibleIndex*rowHeight,libraryListBox.w-12,rowHeight-2};
+                if(nodeIndex==librarySelected) fill(target,row,palette.selection);
+                outline(target,row,palette.border);
+                const bool container=item.kind==reddmedia::LibraryNodeKind::MovieCollection || item.kind==reddmedia::LibraryNodeKind::Series || item.kind==reddmedia::LibraryNodeKind::Season;
+                const std::string action=container?"Open":"Play";
+                std::string details;
+                if(item.production_year>0) details+=std::to_string(item.production_year);
+                if(item.child_count>0) {
+                    if(!details.empty()) details+="  |  ";
+                    details+=std::to_string(item.child_count)+(item.kind==reddmedia::LibraryNodeKind::Series?" seasons/items":" items");
+                }
+                if(!item.technical_details.empty()) {
+                    if(!details.empty()) details+="  |  ";
+                    details+=item.technical_details;
+                }
+                const int actionW=60;
+                const int detailsW=std::min(340,std::max(120,row.w/3));
+                text(target,row.x+8,row.y+20,head_to_width(library_display_title(item),row.w-detailsW-actionW-30),palette.text);
+                text(target,row.x+row.w-detailsW-actionW-12,row.y+20,head_to_width(details,detailsW),palette.muted);
+                text(target,row.x+row.w-actionW,row.y+20,action,col(0x9f9f,0xd0d0,0xa7a7));
+                libraryRows.push_back(row);
             }
-            const bool container = item.kind == reddmedia::LibraryNodeKind::MovieCollection ||
-                item.kind == reddmedia::LibraryNodeKind::Series ||
-                item.kind == reddmedia::LibraryNodeKind::Season;
-            text(target, row.x + 6, row.y + row.h - 5, container ? "Open" : "Play",
-                 col(0x6666,0x0000,0x0000));
-            libraryRows.push_back(row);
+        } else {
+            for(int visible_index=0;visible_index<grid.visibleItems;++visible_index) {
+                const int node_index=libraryScroll+visible_index;
+                if(node_index>=static_cast<int>(nodes.size())) break;
+                const auto& item=nodes[static_cast<std::size_t>(node_index)];
+                const int column=visible_index%grid.columns;
+                const int row_number=visible_index/grid.columns;
+                Rect row={libraryListBox.x+6+column*(grid.tileWidth+grid.gap),
+                          libraryListBox.y+6+row_number*(grid.tileHeight+grid.gap),grid.tileWidth,grid.tileHeight};
+                if(node_index==librarySelected) fill(target,row,palette.selection);
+                outline(target,row,palette.border);
+                draw_library_poster(target,{row.x+4,row.y+4,row.w-8,grid.posterHeight},item);
+                const int title_y=row.y+grid.posterHeight+18;
+                text(target,row.x+6,title_y,head_to_width(library_display_title(item),row.w-12),palette.text);
+                if(!item.technical_details.empty()) text(target,row.x+6,title_y+14,head_to_width(item.technical_details,row.w-12),palette.muted);
+                const bool container=item.kind==reddmedia::LibraryNodeKind::MovieCollection || item.kind==reddmedia::LibraryNodeKind::Series || item.kind==reddmedia::LibraryNodeKind::Season;
+                text(target,row.x+6,row.y+row.h-5,container?"Open":"Play",col(0x9f9f,0xd0d0,0xa7a7));
+                libraryRows.push_back(row);
+            }
         }
-        if (nodes.empty() && !busy) {
-            text(target, libraryListBox.x + 12, libraryListBox.y + 28,
-                 libraryTypeChosen ? "No real titles to show." : "Choose Movies or TV.",
-                 col(0x5555,0x5555,0x5555));
-        }
+        if(nodes.empty() && !busy) text(target,libraryListBox.x+12,libraryListBox.y+28,
+            libraryTypeChosen?"No real titles to show.":"Choose Movies or TV.",palette.muted);
     }
 
     void start_discover_task(reddmedia::RecommendationSource source,
@@ -3034,6 +3212,11 @@ public:
             fill(target, {r.x+5, r.y+5, std::min((int)r.w-10, text_width(shown)+6), (int)r.h-10}, nougat_tan());
         }
         text(target, r.x+8, r.y+20, shown, nougat_dark());
+        if (nougatInputFocus == field && !nougatInputSelectAll) {
+            int cx = r.x + 8 + text_width(shown);
+            cx = std::min(cx, r.x + r.w - 8);
+            line(target, cx, r.y + 5, cx, r.y + r.h - 5, nougat_dark());
+        }
     }
 
     std::string& focused_nougat_text() {
@@ -3439,10 +3622,10 @@ public:
     }
 
     void draw_debug_screen(Drawable target) {
-        const unsigned long bg = col(0xf3f3,0xeaea,0xd0d0);
-        const unsigned long dark = col(0x2222,0x1a1a,0x0909);
-        const unsigned long border = col(0x8a8a,0x6a6a,0x2222);
-        fill(target, {0,26,W,H-26}, bg);
+        const ViewPalette palette = palette_for(ViewMode::Debug);
+        const unsigned long dark = palette.text;
+        const unsigned long border = palette.border;
+        fill(target, {0,26,W,H-26}, palette.background);
         text(target, 28, 58, "DEBUG AND SYSTEM HEALTH", dark);
         button_on(target, debugRunBtn, "Run Checks");
         button_on(target, debugRetryBtn, "Retry");
@@ -3465,13 +3648,13 @@ public:
         }
         text(target, 28, 116, head_to_width(
             std::string("Status: ") + (busy ? "Working - " : "") + status, W - 56), dark);
-        fill(target, debugListBox, col(0xf7f7,0xf7f7,0xf7f7));
+        fill(target, debugListBox, palette.panel);
         outline(target, debugListBox, border);
         debugIssueRows.clear();
         if (!has_report) {
             text(target, debugListBox.x + 14, debugListBox.y + 30,
                  "Run Checks to inspect the server, metadata, TMDb, AI runtime, and local paths.",
-                 col(0x5555,0x5555,0x5555));
+                 palette.muted);
             return;
         }
         unsigned long health_color = col(0x1111,0xdddd,0x2222);
@@ -3495,7 +3678,7 @@ public:
             if (issue_index >= static_cast<int>(report.issues.size())) break;
             const reddmedia::DiagnosticIssue& issue = report.issues[static_cast<std::size_t>(issue_index)];
             Rect row = {debugListBox.x + 8, y, debugListBox.w - 16, issue_height - 6};
-            outline(target, row, col(0xaaaa,0xaaaa,0xaaaa));
+            outline(target, row, palette.border);
             unsigned long issue_color = col(0x1166,0x7777,0x2222);
             if (issue.severity == reddmedia::DiagnosticSeverity::Warning) {
                 issue_color = col(0x9999,0x7777,0x0000);
@@ -3509,9 +3692,8 @@ public:
                  head_to_width(issue.detail, row.w - 16), dark);
             text(target, row.x + 8, row.y + 57,
                  "Action: " + head_to_width(issue.action, row.w - 72),
-                 col(0x4444,0x4444,0x4444));
-            text(target, row.x + 8, row.y + 75, issue.code,
-                 col(0x7777,0x7777,0x7777));
+                 palette.muted);
+            text(target, row.x + 8, row.y + 75, issue.code, palette.muted);
             debugIssueRows.push_back(row);
             y += issue_height;
         }
@@ -3562,18 +3744,18 @@ public:
     }
 
     void draw_discover_screen(Drawable target) {
-        const unsigned long bg = col(0xeeeE,0xe8e8,0xf2f2);
-        const unsigned long dark = col(0x2211,0x1522,0x2424);
-        const unsigned long border = col(0x7777,0x7777,0x7777);
-        fill(target, {0,26,W,H-26}, bg);
+        const ViewPalette palette = palette_for(ViewMode::Discover);
+        const unsigned long dark = palette.text;
+        const unsigned long border = palette.border;
+        fill(target, {0,26,W,H-26}, palette.background);
         if (discoverServiceSettings) {
             text(target, 28, 58, "MY STREAMING SERVICES - UNITED STATES", dark);
             button_on(target, discoverServicesBackBtn, "Back to Discover");
             text(target, 224, 97,
                  "Select services you use. Availability still shows every verified listing.",
-                 col(0x4444,0x4444,0x4444));
+                 palette.muted);
             const Rect services_box = {28, 120, std::max(240, W - 56), std::max(150, H - 148)};
-            fill(target, services_box, col(0xf7f7,0xf7f7,0xf7f7));
+            fill(target, services_box, palette.panel);
             outline(target, services_box, border);
             std::vector<reddmedia::WatchProvider> providers;
             std::string status;
@@ -3588,7 +3770,7 @@ public:
             if (providers.empty()) {
                 text(target, services_box.x + 12, services_box.y + 28,
                      busy ? "Loading watch services..." : head_to_width(status, services_box.w - 24),
-                     col(0x5555,0x5555,0x5555));
+                     palette.muted);
                 return;
             }
             const int row_height = 28;
@@ -3603,9 +3785,9 @@ public:
                     providers[static_cast<std::size_t>(provider_index)];
                 const Rect row = {services_box.x + 6, row_y, services_box.w - 12, row_height - 2};
                 if (watchPreferences.is_selected(provider.id)) {
-                    fill(target, row, col(0xdddd,0xeeee,0xffff));
+                    fill(target, row, palette.selection);
                 }
-                outline(target, row, col(0xcccc,0xcccc,0xcccc));
+                outline(target, row, palette.border);
                 const std::string label =
                     std::string(watchPreferences.is_selected(provider.id) ? "[x] " : "[ ] ") +
                     provider.name;
@@ -3654,14 +3836,14 @@ public:
             availability_status = discoverState->availabilityStatus;
         }
         text(target, 28, 218, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
-        fill(target, discoverResultBox, col(0xf7f7,0xf7f7,0xf7f7));
+        fill(target, discoverResultBox, palette.panel);
         outline(target, discoverResultBox, border);
         text(target, 28, H - 12,
              "Watch availability by JustWatch via TMDb. This product uses the TMDB API but is not endorsed or certified by TMDB.",
-             col(0x5555,0x5555,0x5555));
+             palette.muted);
         if (!has_result) {
             text(target, discoverResultBox.x + 14, discoverResultBox.y + 30,
-                 "No recommendation selected.", col(0x5555,0x5555,0x5555));
+                 "No recommendation selected.", palette.muted);
             return;
         }
         const Rect poster_area = {discoverResultBox.x + 16, discoverResultBox.y + 16,
@@ -3677,7 +3859,7 @@ public:
         text(target, details_x, discoverResultBox.y + 32,
              head_to_width(title, details_width), dark);
         text(target, details_x, discoverResultBox.y + 58,
-             result.item.local_path.empty() ? "External" : "Local", col(0x6666,0,0));
+             result.item.local_path.empty() ? "External" : "Local", col(0xc7c7,0x9f9f,0xd2d2));
         text(target, details_x, discoverResultBox.y + 84,
              head_to_width(result.reason, details_width), dark);
 
@@ -3727,10 +3909,10 @@ public:
              line_y < discoverResultBox.y + discoverResultBox.h - 8;
              ++index) {
             const std::string& detail = detail_lines[static_cast<std::size_t>(index)];
-            unsigned long color = col(0x4444,0x4444,0x4444);
+            unsigned long color = palette.muted;
             if (detail == "Description" || detail == "Where to Watch - United States" ||
                 detail.rfind("-- ", 0U) == 0U || detail.rfind("[MY] ", 0U) == 0U) {
-                color = col(0x7777,0x0000,0x0000);
+                color = col(0xd2d2,0xa8a8,0xd9d9);
             }
             text(target, details_x, line_y, head_to_width(detail, details_width), color);
             line_y += line_height;
@@ -3800,7 +3982,7 @@ public:
         if (currentView == ViewMode::Discover) draw_discover_screen(buffer);
         if (currentView == ViewMode::Nougat) draw_nougat_screen(buffer);
         if (currentView == ViewMode::Debug) draw_debug_screen(buffer);
-        if (currentView == ViewMode::YtDlp) draw_yt_dlp_screen(buffer);
+        if (currentView == ViewMode::Stream) draw_stream_screen(buffer);
         if (currentView == ViewMode::P2P) draw_p2p_screen(buffer);
         draw_loading_bar(buffer);
         XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
@@ -3840,7 +4022,7 @@ public:
                 const bool ok = WIFEXITED(status) && WEXITSTATUS(status)==0;
                 ytdlpPid = -1; ytdlpJob = YtDlpJob::Idle;
                 ytdlpStatus = ok ? "Download complete." : "Download failed. See log.";
-                if (currentView == ViewMode::YtDlp) redraw();
+                if (currentView == ViewMode::Stream) redraw();
                 ytdlpProcessOutput.clear();
             }
         }
@@ -3849,8 +4031,8 @@ public:
             append_ytdlp_log(ytdlpStream.take_log());
             if (ytdlpSeekBuffering) finish_ytdlp_buffer_if_ready();
             if (ytdlpStream.failed() && !ytdlpSeekBuffering) {
-                ytdlpStatus="YouTube cache feeder ended with an error. See log.";
-                if (currentView==ViewMode::YtDlp) redraw();
+                ytdlpStatus="Stream cache feeder ended with an error. See log.";
+                if (currentView==ViewMode::Stream) redraw();
             }
         }
     }
@@ -3998,7 +4180,7 @@ public:
         if (ytdlpPid > 0) { ytdlpStatus = "Download already running."; redraw(); return; }
         if (ytdlpUrl.empty()) { ytdlpStatus = "Paste or type a URL first."; redraw(); return; }
         std::string engine = ytdlp_engine_path();
-        if (!exists_file(engine)) { ytdlpStatus = "YouTube engine is missing."; redraw(); return; }
+        if (!exists_file(engine)) { ytdlpStatus = "Stream engine (yt-dlp) is missing."; redraw(); return; }
         int pipefd[2];
         if (pipe(pipefd) != 0) { ytdlpStatus = "Could not start download pipe."; redraw(); return; }
         pid_t pid = fork();
@@ -4010,7 +4192,7 @@ public:
             _exit(127);
         }
         close(pipefd[1]);
-        if (pid < 0) { close(pipefd[0]); ytdlpStatus = "Could not start YouTube download."; redraw(); return; }
+        if (pid < 0) { close(pipefd[0]); ytdlpStatus = "Could not start Stream download."; redraw(); return; }
         ytdlpPid = pid;
         ytdlpPipe = pipefd[0];
         ytdlpJob = YtDlpJob::Download;
@@ -4022,14 +4204,14 @@ public:
     }
     void start_ytdlp_play() {
         cancel_tv_autoplay();
-        if (ytdlpPid > 0) { ytdlpStatus = "YouTube download is already running."; redraw(); return; }
+        if (ytdlpPid > 0) { ytdlpStatus = "Stream download is already running."; redraw(); return; }
         if (ytdlpUrl.empty()) { ytdlpStatus = "Paste or type a URL first."; redraw(); return; }
         std::string engine = ytdlp_engine_path();
-        if (!exists_file(engine)) { ytdlpStatus = "YouTube engine is missing."; redraw(); return; }
+        if (!exists_file(engine)) { ytdlpStatus = "Stream engine (yt-dlp) is missing."; redraw(); return; }
 
         ytdlpTotalDurationMs = 0;
         ytdlpLog.clear();
-        ytdlpStatus = "Reading YouTube duration...";
+        ytdlpStatus = "Reading Stream duration...";
         redraw();
         ytdlpTotalDurationMs = resolve_ytdlp_duration_ms(engine, ytdlpUrl);
         start_ytdlp_cache_playback_at(0);
@@ -4232,12 +4414,16 @@ public:
         int delta = (button == Button4) ? -40 : 40;
         if (target == win && y < 26) { scroll_top_navigation(delta); return true; }
         if (target == win && y >= 70 && y < 110) {
-            if (currentView == ViewMode::Library) { scroll_button_row(libraryButtonsScrollX,9,delta); return true; }
+            if (currentView == ViewMode::Library) { scroll_button_row(libraryButtonsScrollX,11,delta); return true; }
             if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,10,delta); return true; }
             if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,7,delta); return true; }
         }
-        if (target == win && currentView == ViewMode::YtDlp && y >= 184 && y < 222) { scroll_button_row(ytdlpButtonsScrollX,3,delta); return true; }
+        if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,5,delta); return true; }
         if (target == win && currentView == ViewMode::P2P && y >= 178 && y < 216) { scroll_button_row(p2pButtonsScrollX,4,delta); return true; }
+        if (currentView == ViewMode::Stream && target == win && y >= 54 && y < 82) {
+            scroll_button_row(streamSourceScrollX,5,delta);
+            return true;
+        }
         if (currentView == ViewMode::Library && target == win && libraryListBox.contains(x,y)) {
             std::size_t count = 0;
             {
@@ -4318,7 +4504,7 @@ public:
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
         if (contextMenuOpen && target == contextMenu) { handle_context_menu_click(x,y); return; }
         if (contextMenuOpen) close_context_menu();
-        if (currentView == ViewMode::YtDlp && target == win && ytdlpUrlRect.contains(x,y) && button == Button3) {
+        if (currentView == ViewMode::Stream && target == win && ytdlpUrlRect.contains(x,y) && button == Button3) {
             urlFocused = true;
             XSetInputFocus(d, win, RevertToParent, CurrentTime);
             redraw();
@@ -4336,7 +4522,7 @@ public:
         }
         if (target == video) {
             if (button == Button3) { show_context_menu(target, x, y); return; }
-            if (button != Button1 && !(currentView == ViewMode::YtDlp && ytdlpUrlRect.contains(x,y) && button == Button3)) return;
+            if (button != Button1 && !(currentView == ViewMode::Stream && ytdlpUrlRect.contains(x,y) && button == Button3)) return;
             if (needResumePrompt && videoResumeBtn.contains(x,y)) { pendingVideoSingleClick=false; open_media(sessionPath, sessionTime); return; }
             if (needResumePrompt && videoLoadBtn.contains(x,y)) { pendingVideoSingleClick=false; needResumePrompt=false; redraw(); do_open(); return; }
             if (lastClickTime && eventTime - lastClickTime < 350 && abs(x-lastClickX)<8 && abs(y-lastClickY)<8) {
@@ -4383,7 +4569,7 @@ public:
             return;
         }
         if (y < 26 && ytdlpTab.contains(x,y)) {
-            if (currentView != ViewMode::YtDlp) { switch_view(ViewMode::YtDlp); return; }
+            if (currentView != ViewMode::Stream) { switch_view(ViewMode::Stream); return; }
             show_ytdlp_menu(ytdlpTab.x, 26);
             return;
         }
@@ -4408,6 +4594,8 @@ public:
                 select_library_type(reddmedia::LibraryMediaType::Television);
                 return;
             }
+            if (libraryGridBtn.contains(x,y)) { set_library_display_mode(LibraryDisplayMode::Grid); return; }
+            if (libraryListViewBtn.contains(x,y)) { set_library_display_mode(LibraryDisplayMode::List); return; }
             if (libraryAddFolderBtn.contains(x,y)) { add_library_folder(); return; }
             if (libraryUnlinkFolderBtn.contains(x,y)) { unlink_library_folder(); return; }
             if (libraryRefreshBtn.contains(x,y)) {
@@ -4546,7 +4734,12 @@ public:
             }
             p2pMagnetFocused=false; p2pMagnetSelectAll=false; redraw(); return;
         }
-        if (currentView == ViewMode::YtDlp) {
+        if (currentView == ViewMode::Stream) {
+            if (streamYoutubeTab.contains(x,y)) { select_stream_platform(StreamPlatform::YouTube); return; }
+            if (streamRumbleTab.contains(x,y)) { select_stream_platform(StreamPlatform::Rumble); return; }
+            if (streamRutubeTab.contains(x,y)) { select_stream_platform(StreamPlatform::RuTube); return; }
+            if (streamVkTab.contains(x,y)) { select_stream_platform(StreamPlatform::VK); return; }
+            if (streamOkTab.contains(x,y)) { select_stream_platform(StreamPlatform::OK); return; }
             if (ytdlpUrlRect.contains(x,y)) {
                 urlFocused=true;
                 urlSelectAll=false;
@@ -4565,7 +4758,9 @@ public:
             }
             if (ytdlpDownloadBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; start_ytdlp_download(); return; }
             if (ytdlpPlayBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; start_ytdlp_play(); return; }
-            if (ytdlpClearBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; ytdlpLog = "No download output yet."; ytdlpStatus = "Ready."; redraw(); return; }
+            if (ytdlpDirectWatchBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; direct_watch_stream(); return; }
+            if (ytdlpWebpageBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; open_stream_webpage(); return; }
+            if (ytdlpClearBtn.contains(x,y)) { urlFocused=false; urlSelectAll=false; ytdlpLog = "No stream activity yet."; ytdlpStatus = "Ready."; redraw(); return; }
             urlFocused=false;
             urlSelectAll=false;
             redraw();
@@ -4586,7 +4781,7 @@ public:
             return;
         }
         if (volRect.contains(x,y) && mp) {
-            int v = std::max(0, std::min(100, (x-volRect.x)*100/volRect.w)); volumePercent=v; api.set_volume(mp, v); volumeDragging=true; draw_volume_only(); return;
+            int v = std::max(0, std::min(200, (x-volRect.x)*200/volRect.w)); volumePercent=v; api.set_volume(mp, v); volumeDragging=true; draw_volume_only(); return;
         }
     }
     void run_pending_video_click() {
@@ -4667,7 +4862,7 @@ public:
                 else if (e.type == MotionNotify) {
                     lastMouse=time(nullptr); show_pointer(); handle_nougat_motion(e.xmotion);
                     if (volumeDragging && currentView==ViewMode::VideoPlayer && mp) {
-                        const int v=std::max(0,std::min(100,(e.xmotion.x-volRect.x)*100/std::max(1,volRect.w)));
+                        const int v=std::max(0,std::min(200,(e.xmotion.x-volRect.x)*200/std::max(1,volRect.w)));
                         volumePercent=v; api.set_volume(mp,v); draw_volume_only();
                     }
                 }
@@ -4676,7 +4871,7 @@ public:
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
                     if (currentView == ViewMode::Nougat) { handle_nougat_key(e.xkey, ks); }
-                    else if (currentView == ViewMode::YtDlp && urlFocused) {
+                    else if (currentView == ViewMode::Stream && urlFocused) {
                         if (ks == XK_Escape) { urlFocused=false; urlSelectAll=false; redraw(); }
                         else if (ks == XK_Return || ks == XK_KP_Enter) { start_ytdlp_download(); }
                         else if ((e.xkey.state & ControlMask) && (ks == XK_a || ks == XK_A)) { urlSelectAll = !ytdlpUrl.empty(); redraw(); }
@@ -4875,7 +5070,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.19\n");
+        printf("ReddMedia v0.0.20\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {
