@@ -1,4 +1,4 @@
-# ReddMedia Dependencies
+# Nougat Media Suite Dependencies
 
 ## v0.0.18 metadata, diagnostics, and watch-availability requirements
 
@@ -125,3 +125,8 @@ The full-tab palette system, 0-200% volume control, Grid/List Library views, vis
 ### v0.0.20 small-handoff runtime rule
 
 The v0.0.20 changed-files handoff does not re-ship the unchanged 84,106,624-byte Nomic model. Accepted v0.0.19 already installed that pinned runtime asset. The v0.0.20 installer verifies the existing file is exactly 84,106,624 bytes with SHA-256 `d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac` before modifying the project.
+
+
+## Nougat Media Suite v0.0.21 identity/palette build
+
+v0.0.21 adds no new runtime or build dependency. The rename, icon replacement, palette expansion, and service-reactive Stream colors are implemented in the existing native X11 application. Existing backward-compatible runtime/config paths remain unchanged in this identity-only release.

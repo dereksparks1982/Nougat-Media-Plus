@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=ReddMedia
-Comment=ReddMedia native player, library, Discover AI, Nougat search, Stream, P2P, and diagnostics
-Exec=/home/dereksparks1982/DKLab/Projects/ReddMedia/ReddMedia_v20
-Icon=reddmedia
-StartupWMClass=ReddMedia
-Terminal=false
-Categories=AudioVideo;Player;

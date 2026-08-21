@@ -1,25 +1,37 @@
-# ReddMedia Roadmap
+# Nougat Media Suite Roadmap
 
-## v0.0.20 candidate - Stream, Full Tab Palettes, Volume Boost, and Library Views
+## v0.0.21 candidate - Official Rename, Candy Palette, and Navigation Repair
 
+- Official application identity changes from **ReddMedia** to **Nougat Media Suite**.
+- Versioned root executable becomes `Nougat_Media_Suite_v21`.
+- Top-level order becomes `Video Player | Library | Discover | Search | Stream | Debug`; the former top-level Nougat label becomes **Search**.
+- Search's ordinary internal sections are `Search | Crawler | P2P`; media/torrent P2P moves under Search and its former top-level tab is removed.
+- Decentralized search-network peer/node controls move behind a smaller **Network...** advanced surface inside Search instead of remaining a normal tab.
+- Replace the former red-tree identity with the owner-approved rounded-square chocolate/nougat **N + play triangle** icon across launcher, dock/app switcher, X11 window icon, raw executable custom-icon metadata, and in-app version badge.
+- Replace the common red top chrome with candy-family identities: Video Player chocolate/cocoa/caramel, Library forest/sage, Discover plum/lavender, Search cocoa/nougat/caramel, and Debug graphite/amber.
+- Make top-level tabs themselves use their area identity colors.
+- Stream remains service-reactive for the existing v0.0.20 services only: YouTube, Rumble, RuTube, VK, and OK each recolor the Stream interior and its top-level tab when selected.
+- Replace the dead `Grid [x]` / `List [x]` Library controls with working compact List (three lines) and Grid (2x2 squares) icon buttons immediately after the Library heading. Preserve independent Movies/TV view persistence.
+- Preserve all accepted v0.0.20 media-engine, Library catalog, Discover, Search, Stream, server, AI, playback, and history behavior outside these approved UI identity/navigation repairs.
+
+
+## Planned v0.0.22 - Post-rebrand feature work
+
+- Evaluate/import the owner-selected Jelly Pack UI candy-button sprites and adapt them to the Nougat Media Suite palette after the Unity asset is available.
+- Add Stream selectors for **Vimeo, Dailymotion, Twitch, Kick, TikTok, Bilibili, and Niconico** using the same service-reactive palette model.
+- Higher-quality poster/artwork selection and caching with aspect-ratio-safe rendering.
+- Rounded buttons, cards, panels, inputs, and other currently boxy UI surfaces.
+- Shorter/balanced Video Player volume-bar geometry.
+- Center the entire top navigation group when wide/fullscreen while retaining narrow-window wheel scrolling.
+- Add the separate local-only **Web Player** action while keeping native **Play** as default.
+- Plex account/server integration remains a high-priority parity feature.
+
+## v0.0.20 accepted - final ReddMedia-branded baseline
+
+- Accepted commit: `c3d2c60e5c36407b96a0eba72e2863f884aacd28`.
 - Top-level order: `Video Player | Library | Discover | Nougat | Stream | P2P | Debug`.
 - Stream platform selectors: YouTube, Rumble, RuTube, VK, OK.
-- Preserve URL Download/Play and activity output; add Direct Watch through the native player and Open Webpage through the default browser.
-- Full coordinated interior palettes for every major tab while preserving the common red ReddMedia top navigation.
-- 0-200% volume, 100% default, live percentage, and visible 100% marker.
-- Center compact bottom player controls when wide; preserve horizontal wheel scrolling when narrow.
-- Movies and TV each persist an independent Grid/List Library preference.
-- Visible caret/focus feedback in custom editable fields.
-
-## Planned v0.0.21 - Visual Polish, Artwork, and Optional Local Web Player
-
-- Higher-quality poster/artwork selection and caching with aspect-ratio-safe rendering; do not stretch or needlessly upscale poor thumbnails.
-- Rounded buttons, cards, panels, inputs, and other currently boxy UI surfaces while preserving ReddMedia's native identity and per-tab palettes.
-- Make the Video Player volume bar slightly shorter than the seek bar and visually balance its right inset against the left-side controls.
-- Center the entire top navigation group when the window is wide/fullscreen; retain horizontal wheel scrolling when narrow.
-- Add a separate **Web Player** button. Normal **Play** remains the default native-player path; Web Player opens a local-only ReddMedia browser player with no Jellyfin cloud account or third-party login.
-- Keep localhost access account-free; if LAN access is enabled, prefer an optional local ReddMedia PIN/session rather than cloud identity.
-- Plex account/server integration remains a high-priority parity feature: official device/PIN linking, server discovery, Movies/TV/Music browsing, native playback, multiple servers where practical, and supported direct-play/transcoding/remote/Plex Pass paths.
+- Full tab palettes, 0-200% volume, centered bottom controls when wide, independent Movies/TV Grid/List preferences, and visible text caret/focus state.
 
 ## v0.0.19 candidate - Nougat Search Integration
 

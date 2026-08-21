@@ -1,4 +1,23 @@
-# ReddMedia Changelog
+# Nougat Media Suite Changelog
+
+## v0.0.21 - Official Rename, Candy Palette, and Navigation Repair
+
+- Renamed the visible application identity from **ReddMedia** to **Nougat Media Suite**.
+- Renamed the top-level **Nougat** tab to **Search** while preserving the integrated decentralized search engine and behavior.
+- Removed top-level **P2P** and moved media/torrent P2P under Search, giving the ordinary Search subnavigation exactly **Search | Crawler | P2P**.
+- Moved decentralized search peer/node administration behind a smaller **Network...** advanced surface instead of presenting Peers as a normal Search tab.
+- Changed the versioned root executable target to `Nougat_Media_Suite_v21` and the X11/window/launcher identity to Nougat Media Suite.
+- Replaced the red-tree icon system with the owner-approved rounded-square chocolate/nougat **N + play triangle** artwork.
+- Replaced common red navigation chrome with the candy-family identity and made the top-level tabs themselves carry their area colors.
+- Changed Video Player from the former cinema-red identity to **chocolate/cocoa/caramel**, while preserving Library forest/sage, Discover plum/lavender, Search nougat/caramel, and Debug graphite/amber.
+- Added service-reactive Stream palettes for existing YouTube, Rumble, RuTube, VK, and OK selectors.
+- Replaced nonworking `Grid [x]` / `List [x]` Library text controls with working compact List (three lines) and Grid (four-square) icon controls beside the Library heading. Movie and TV preferences remain independently persistent.
+- Preserved the v0.0.20 Stream service set with no new services in this version.
+- Deferred Jelly/Unity candy-button sprites, additional Stream services, and the other post-rebrand feature work to v0.0.22.
+
+
+## Historical ReddMedia changelog
+
 
 ## v0.0.20 - Stream, Full Tab Palettes, Volume Boost, and Library Views (candidate)
 

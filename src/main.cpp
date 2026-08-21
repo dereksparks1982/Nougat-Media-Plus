@@ -36,7 +36,7 @@
 #include "p2p_engine.hpp"
 #include "p2p_stream_server.hpp"
 #include "ytdlp_stream_server.hpp"
-#include "reddmedia_icon_data.hpp"
+#include "nougat_media_suite_icon_data.hpp"
 #include "media_server/jellyfin_api_client.hpp"
 #include "media_server/library_poster.hpp"
 #include "media_server/media_server_manager.hpp"
@@ -139,7 +139,7 @@ struct VlcApi {
             handle = dlopen(names[i], RTLD_NOW);
             if (handle) break;
         }
-        if (!handle) { err = "VLC/libVLC was not found. Install VLC, then reopen ReddMedia."; return false; }
+        if (!handle) { err = "VLC/libVLC was not found. Install VLC, then reopen Nougat Media Suite."; return false; }
 #define LOAD_SYM(field, name) do { field = (decltype(field))dlsym(handle, name); if (!field) { err = std::string("Missing libVLC symbol: ") + name; return false; } } while(0)
         LOAD_SYM(new_, "libvlc_new");
         LOAD_SYM(release, "libvlc_release");
@@ -311,13 +311,13 @@ static std::string choose_media_library_folder_dialog() {
 static std::string choose_tmdb_credential_dialog() {
     std::string credential = run_command_capture(
         "command -v zenity >/dev/null 2>&1 && "
-        "zenity --entry --hide-text --title='ReddMedia External Recommendations' "
+        "zenity --entry --hide-text --title='Nougat Media Suite External Recommendations' "
         "--text='Enter a TMDb API key or read access token' 2>/dev/null");
     if (!credential.empty()) return credential;
     const std::string py =
         "python3 -c \"import tkinter as tk; from tkinter import simpledialog; "
         "root=tk.Tk(); root.withdraw(); "
-        "v=simpledialog.askstring('ReddMedia External Recommendations',"
+        "v=simpledialog.askstring('Nougat Media Suite External Recommendations',"
         "'Enter a TMDb API key or read access token',show='*'); print(v if v else '')\" 2>/dev/null";
     return run_command_capture(py);
 }
@@ -389,7 +389,7 @@ enum class MenuAction {
     NougatCopySelection, NougatSelectAll
 };
 enum class ViewMode { VideoPlayer, Library, Discover, Nougat, Stream, P2P, Debug };
-enum class NougatPanel { Search, Crawler, Peers, About };
+enum class NougatPanel { Search, Crawler, P2P };
 enum class StreamPlatform { YouTube, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
 enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
@@ -446,7 +446,7 @@ struct DebugUiState {
     std::mutex mutex;
     reddmedia::DiagnosticInput input;
     reddmedia::DiagnosticReport report;
-    std::string status = "Run Checks to inspect ReddMedia.";
+    std::string status = "Run Checks to inspect Nougat Media Suite.";
     bool busy = false;
     bool updated = false;
     bool hasReport = false;
@@ -477,7 +477,7 @@ public:
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn;
-    Rect videoPlayerTab, libraryTab, discoverTab, nougatTab, ytdlpTab, p2pTab, debugTab;
+    Rect videoPlayerTab, libraryTab, discoverTab, nougatTab, ytdlpTab, debugTab;
     Rect libraryMoviesBtn, libraryTvBtn, libraryGridBtn, libraryListViewBtn, libraryAddFolderBtn, libraryUnlinkFolderBtn;
     Rect libraryRefreshBtn, libraryBackBtn, libraryListBox;
     Rect serverStartBtn, serverStopBtn, serverRefreshBtn;
@@ -491,7 +491,7 @@ public:
     Rect streamYoutubeTab, streamRumbleTab, streamRutubeTab, streamVkTab, streamOkTab;
     Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpPlayBtn, ytdlpDirectWatchBtn, ytdlpWebpageBtn, ytdlpClearBtn, ytdlpFolderBtn;
     Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn;
-    Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatPeersPanelTab, nougatAboutPanelTab;
+    Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatP2PPanelTab, nougatNetworkAdvancedBtn;
     Rect nougatSearchRect, nougatSearchBtn, nougatRawBtn, nougatPeersToggleBtn, nougatResultsBox;
     Rect nougatCrawlSeedRect, nougatCrawlMinusBtn, nougatCrawlPlusBtn, nougatSameDomainBtn, nougatStartCrawlBtn, nougatCrawlLogBox;
     Rect nougatPeerEntryRect, nougatAddPeerBtn, nougatRemovePeerBtn, nougatNodeBtn, nougatPeerListBox;
@@ -619,6 +619,7 @@ public:
     std::thread nougatSearchWorker;
     std::thread nougatCrawlWorker;
     NougatPanel nougatPanel = NougatPanel::Search;
+    bool nougatNetworkAdvanced = false;
     NougatInputFocus nougatInputFocus = NougatInputFocus::NoFocus;
     bool nougatInputSelectAll = false;
     std::string nougatSearchQuery;
@@ -738,52 +739,87 @@ public:
         unsigned long text;
         unsigned long muted;
         unsigned long selection;
+        unsigned long button;
+        unsigned long buttonDark;
+        unsigned long buttonLight;
+        unsigned long buttonText;
+        unsigned long accent;
     };
+
+    ViewPalette stream_palette_for(StreamPlatform platform) {
+        switch (platform) {
+            case StreamPlatform::YouTube:
+                return {col(0x0f0f,0x0f0f,0x0f0f), col(0x2121,0x2121,0x2121), col(0xf1f1,0xf1f1,0xf1f1),
+                        col(0x5a5a,0x5a5a,0x5a5a), col(0xffff,0xffff,0xffff), col(0xaaaa,0xaaaa,0xaaaa),
+                        col(0xffff,0x0000,0x0000), col(0xffff,0x0000,0x0000), col(0x8f8f,0x0000,0x0000),
+                        col(0xffff,0x4d4d,0x4d4d), col(0xffff,0xffff,0xffff), col(0xffff,0x0000,0x0000)};
+            case StreamPlatform::Rumble:
+                return {col(0x0d0d,0x1515,0x0e0e), col(0x1929,0x261a,0x1b1b), col(0xf2f2,0xf7f7,0xefef),
+                        col(0x5f5f,0x7c7c,0x4d4d), col(0xf8f8,0xffff,0xf4f4), col(0xbdbd,0xd0d0,0xb5b5),
+                        col(0x8585,0xc7c7,0x4242), col(0x8585,0xc7c7,0x4242), col(0x4c4c,0x7a7a,0x2121),
+                        col(0xa9a9,0xe8e8,0x6c6c), col(0x1111,0x1818,0x1010), col(0x8585,0xc7c7,0x4242)};
+            case StreamPlatform::RuTube:
+                return {col(0x1010,0x0909,0x4343), col(0x1c1c,0x1414,0x5a5a), col(0xf4f4,0xf1f1,0xffff),
+                        col(0x9a9a,0x1313,0xeded), col(0xffff,0xffff,0xffff), col(0xbdbd,0xb4b4,0xdada),
+                        col(0x1212,0x3a3a,0xeded), col(0xeded,0x1414,0x3b3b), col(0x9292,0x0909,0x2525),
+                        col(0xffff,0x5b5b,0x7474), col(0xffff,0xffff,0xffff), col(0x1212,0xcccc,0xeded)};
+            case StreamPlatform::VK:
+                return {col(0x0b0b,0x1818,0x2727), col(0x1414,0x2a2a,0x4545), col(0xf0f0,0xf6f6,0xffff),
+                        col(0x0077,0x7777,0xffff), col(0xffff,0xffff,0xffff), col(0xaaaa,0xc2c2,0xdddd),
+                        col(0x0077,0x7777,0xffff), col(0x0077,0x7777,0xffff), col(0x004f,0x4f4f,0xa8a8),
+                        col(0x4f4f,0xa3a3,0xffff), col(0xffff,0xffff,0xffff), col(0x0000,0xeaea,0xffff)};
+            case StreamPlatform::OK:
+                return {col(0x2323,0x1717,0x0e0e), col(0x3a3a,0x2424,0x1414), col(0xffff,0xf4f4,0xe8e8),
+                        col(0xeeee,0x8282,0x0808), col(0xffff,0xf7f7,0xf0f0), col(0xe3e3,0xb8b8,0x8787),
+                        col(0xeeee,0x8282,0x0808), col(0xeeee,0x8282,0x0808), col(0xa6a6,0x4d4d,0x0000),
+                        col(0xffff,0xaaaa,0x4343), col(0x1e1e,0x1010,0x0606), col(0xffff,0x9d9d,0x2424)};
+        }
+        return {col(0x2418,0x1818,0x1212), col(0x4930,0x3030,0x2525), col(0xf3e5,0xe5e5,0xcccc),
+                col(0xd2a5,0xa5a5,0x6d6d), col(0xf3f3,0xe5e5,0xcccc), col(0xcdcd,0xb9b9,0x9e9e),
+                col(0xb96f,0x6f6f,0x3636), col(0xb96f,0x6f6f,0x3636), col(0x6b35,0x3535,0x1a1a),
+                col(0xe0a0,0xa0a0,0x5656), col(0xffff,0xffff,0xffff), col(0xd2a5,0xa5a5,0x6d6d)};
+    }
 
     ViewPalette palette_for(ViewMode view) {
         if (view == ViewMode::VideoPlayer) return {
-            col(0x2414,0x0b0b,0x0b0b), col(0x3b3b,0x1515,0x1515), col(0xeeeE,0xe3e3,0xe3e3),
-            col(0x8d8d,0x3030,0x3030), col(0xf7f7,0xeaea,0xeaea), col(0xd0d0,0xaaaa,0xaaaa), col(0x6c6c,0x2222,0x2222)};
+            col(0x1b1b,0x0f0f,0x0808), col(0x341a,0x1a1a,0x0d0d), col(0xf5e6,0xe6e6,0xc8c8),
+            col(0x9a5a,0x5a5a,0x2626), col(0xf8eb,0xebeb,0xd3d3), col(0xd3b9,0xb9b9,0x8c8c),
+            col(0x7b3f,0x3f3f,0x1717), col(0x6b35,0x3535,0x1a1a), col(0x3b1c,0x1c1c,0x0d0d),
+            col(0xa965,0x6565,0x3232), col(0xffff,0xf5f5,0xe3e3), col(0xd2a5,0xa5a5,0x6d6d)};
         if (view == ViewMode::Library) return {
-            col(0x1414,0x2828,0x1919), col(0x2020,0x3c3c,0x2828), col(0xe6e6,0xf0f0,0xe3e3),
-            col(0x4f4f,0x7c7c,0x5858), col(0xf0f0,0xf4f4,0xeaea), col(0xb8b8,0xcccc,0xb8b8), col(0x4a4a,0x6f6f,0x5050)};
+            col(0x101c,0x1c1c,0x1313), col(0x1b32,0x3232,0x2222), col(0xeaf2,0xf2f2,0xe4e4),
+            col(0x4f7c,0x7c7c,0x5858), col(0xf2f7,0xf7f7,0xeeee), col(0xb8cc,0xcccc,0xb8b8),
+            col(0x597f,0x7f7f,0x5f5f), col(0x3474,0x7474,0x4242), col(0x1942,0x4242,0x2424),
+            col(0x6ca2,0xa2a2,0x7777), col(0xffff,0xffff,0xffff), col(0x8faa,0xaaaa,0x7777)};
         if (view == ViewMode::Discover) return {
-            col(0x2626,0x1515,0x2c2c), col(0x3a3a,0x2121,0x4242), col(0xeeee,0xe6e6,0xf1f1),
-            col(0x7d7d,0x5353,0x8787), col(0xf4f4,0xeaea,0xf6f6), col(0xcdcd,0xb9b9,0xd2d2), col(0x6e6e,0x4a4a,0x7878)};
-        if (view == ViewMode::Stream) return {
-            col(0x0d0d,0x2323,0x2626), col(0x1616,0x3838,0x3c3c), col(0xe0e0,0xf1f1,0xf0f0),
-            col(0x4a4a,0x8e8e,0x9393), col(0xeaea,0xf7f7,0xf5f5), col(0xa7a7,0xcccc,0xcaca), col(0x3a3a,0x7373,0x7777)};
+            col(0x1d10,0x1010,0x2424), col(0x3420,0x2020,0x4242), col(0xf2eb,0xebeb,0xf5f5),
+            col(0x8053,0x5353,0x9292), col(0xf7ed,0xeded,0xfafa), col(0xd2bd,0xbdbd,0xdbdb),
+            col(0x7652,0x5252,0x8989), col(0x7040,0x4040,0x8282), col(0x4020,0x2020,0x4e4e),
+            col(0xa069,0x6969,0xb3b3), col(0xffff,0xffff,0xffff), col(0xbd7a,0x7a7a,0xd1d1)};
+        if (view == ViewMode::Stream) return stream_palette_for(streamPlatform);
         if (view == ViewMode::P2P) return {
-            col(0x0e0e,0x1b1b,0x2a2a), col(0x1818,0x3131,0x4a4a), col(0xe3e3,0xeded,0xf6f6),
-            col(0x4a4a,0x8282,0xacac), col(0xefef,0xf6f6,0xfcfc), col(0xb6b6,0xc9c9,0xdbdb), col(0x3155,0x5f5f,0x7c7c)};
+            col(0x0915,0x1515,0x2525), col(0x142c,0x2c2c,0x4848), col(0xe9f1,0xf1f1,0xf9f9),
+            col(0x4a82,0x8282,0xacac), col(0xf2f8,0xf8f8,0xffff), col(0xb8cf,0xcfcf,0xe4e4),
+            col(0x315f,0x5f5f,0x8d8d), col(0x2d62,0x6262,0x9292), col(0x1638,0x3838,0x5858),
+            col(0x5e91,0x9191,0xbdbd), col(0xffff,0xffff,0xffff), col(0x60a7,0xa7a7,0xd7d7)};
         if (view == ViewMode::Debug) return {
-            col(0x2b2b,0x2424,0x1616), col(0x4343,0x3535,0x1a1a), col(0xf3f3,0xeaea,0xd0d0),
-            col(0xa8a8,0x7a7a,0x2828), col(0xffff,0xf4f4,0xd6d6), col(0xd8d8,0xc3c3,0x9090), col(0x6f6f,0x5a5a,0x2929)};
-        return {col(0xdede,0xdede,0xdede), col(0xcaca,0xcaca,0xcaca), col(0xffff,0xffff,0xffff),
-                col(0x7777,0x7777,0x7777), col(0x1111,0x1111,0x1111), col(0x5555,0x5555,0x5555), col(0xdddd,0xeeee,0xffff)};
+            col(0x201a,0x1a1a,0x1111), col(0x3a2f,0x2f2f,0x1818), col(0xf6ed,0xeded,0xd8d8),
+            col(0xa87a,0x7a7a,0x2828), col(0xfff6,0xf6f6,0xdbdb), col(0xd8c3,0xc3c3,0x9090),
+            col(0x8c68,0x6868,0x2424), col(0xc68a,0x8a8a,0x0909), col(0x7450,0x5050,0x0000),
+            col(0xf1b7,0xb7b7,0x3737), col(0x1711,0x1111,0x0707), col(0xf0b4,0xb4b4,0x2b2b)};
+        return {col(0x2418,0x1818,0x1212), col(0x4930,0x3030,0x2525), col(0xf3e5,0xe5e5,0xcccc),
+                col(0xd2a5,0xa5a5,0x6d6d), col(0xf3f3,0xe5e5,0xcccc), col(0xcdcd,0xb9b9,0x9e9e),
+                col(0xb96f,0x6f6f,0x3636), col(0xb96f,0x6f6f,0x3636), col(0x6b35,0x3535,0x1a1a),
+                col(0xe0a0,0xa0a0,0x5656), col(0xffff,0xffff,0xffff), col(0xd2a5,0xa5a5,0x6d6d)};
     }
 
     void button_on(Drawable target, const Rect& r, const std::string& label) {
-        unsigned long base = col(0xbbbb,0x0000,0x0000);
-        unsigned long dark = col(0x6600,0x0000,0x0000);
-        unsigned long light = col(0xffff,0x2222,0x2222);
-        unsigned long ink = col(0xffff,0xffff,0xffff);
-        if (currentView == ViewMode::Library) {
-            base = col(0x2f2f,0x6b6b,0x3a3a); dark = col(0x1717,0x4040,0x2020); light = col(0x5959,0x9a9a,0x6464);
-        } else if (currentView == ViewMode::Discover) {
-            base = col(0x6c6c,0x3b3b,0x7474); dark = col(0x3d3d,0x1f1f,0x4444); light = col(0x9292,0x6161,0x9a9a);
-        } else if (currentView == ViewMode::Stream) {
-            base = col(0x2d2d,0x6f6f,0x7373); dark = col(0x1430,0x4545,0x4848); light = col(0x5858,0xb8b8,0xbfbf);
-        } else if (currentView == ViewMode::P2P) {
-            base = col(0x2a2a,0x5d5d,0x8787); dark = col(0x1717,0x3a3a,0x5959); light = col(0x4a4a,0x8282,0xacac);
-        } else if (currentView == ViewMode::Debug) {
-            base = col(0xb8b8,0x7a7a,0x0000); dark = col(0x6d6d,0x4949,0x0000); light = col(0xe0e0,0xa8a8,0x2828); ink = col(0x1111,0x1111,0x1111);
-        }
-        fill(target, r, base);
-        outline(target, r, dark);
-        line(target, r.x + 1, r.y + 1, r.x + (int)r.w - 2, r.y + 1, light);
+        const ViewPalette palette = palette_for(currentView);
+        fill(target, r, palette.button);
+        outline(target, r, palette.buttonDark);
+        line(target, r.x + 1, r.y + 1, r.x + (int)r.w - 2, r.y + 1, palette.buttonLight);
         const int label_x = r.x + std::max(5, (r.w - text_width(label)) / 2);
-        text(target, label_x, r.y + 18, head_to_width(label, r.w - 10), ink);
+        text(target, label_x, r.y + 18, head_to_width(label, r.w - 10), palette.buttonText);
     }
 
     static unsigned long component_to_visual_mask(unsigned char value, unsigned long mask) {
@@ -802,10 +838,10 @@ public:
                component_to_visual_mask(b, visual->blue_mask);
     }
 
-    void draw_tree_badge(Drawable target, int x0, int y0, unsigned char bgR, unsigned char bgG, unsigned char bgB) {
-        for (int y=0; y<reddmedia_icon::kTopBar14Size; ++y) {
-            for (int x=0; x<reddmedia_icon::kTopBar14Size; ++x) {
-                const std::uint32_t argb = reddmedia_icon::kTopBar14[y * reddmedia_icon::kTopBar14Size + x];
+    void draw_suite_badge(Drawable target, int x0, int y0, unsigned char bgR, unsigned char bgG, unsigned char bgB) {
+        for (int y=0; y<nougat_media_suite_icon::kTopBar14Size; ++y) {
+            for (int x=0; x<nougat_media_suite_icon::kTopBar14Size; ++x) {
+                const std::uint32_t argb = nougat_media_suite_icon::kTopBar14[y * nougat_media_suite_icon::kTopBar14Size + x];
                 const unsigned char a = static_cast<unsigned char>((argb >> 24) & 0xffU);
                 if (a == 0) continue;
                 const unsigned char sr = static_cast<unsigned char>((argb >> 16) & 0xffU);
@@ -830,9 +866,9 @@ public:
     void set_net_wm_icon() {
         std::vector<unsigned long> data;
         data.reserve(2 + 16*16 + 2 + 32*32 + 2 + 64*64);
-        append_net_wm_icon(data, reddmedia_icon::kIcon16Size, reddmedia_icon::kIcon16);
-        append_net_wm_icon(data, reddmedia_icon::kIcon32Size, reddmedia_icon::kIcon32);
-        append_net_wm_icon(data, reddmedia_icon::kIcon64Size, reddmedia_icon::kIcon64);
+        append_net_wm_icon(data, nougat_media_suite_icon::kIcon16Size, nougat_media_suite_icon::kIcon16);
+        append_net_wm_icon(data, nougat_media_suite_icon::kIcon32Size, nougat_media_suite_icon::kIcon32);
+        append_net_wm_icon(data, nougat_media_suite_icon::kIcon64Size, nougat_media_suite_icon::kIcon64);
         Atom netWmIcon = XInternAtom(d, "_NET_WM_ICON", False);
         Atom cardinal = XInternAtom(d, "CARDINAL", False);
         XChangeProperty(d, win, netWmIcon, cardinal, 32, PropModeReplace,
@@ -841,14 +877,14 @@ public:
 
     void set_window_identity() {
         XClassHint classHint;
-        classHint.res_name = const_cast<char*>("reddmedia");
-        classHint.res_class = const_cast<char*>("ReddMedia");
+        classHint.res_name = const_cast<char*>("nougat-media-suite");
+        classHint.res_class = const_cast<char*>("NougatMediaSuite");
         XSetClassHint(d, win, &classHint);
         set_net_wm_icon();
     }
 
     void set_window_title() {
-        const char* title = "ReddMedia";
+        const char* title = "Nougat Media Suite";
         XStoreName(d, win, title);
         Atom netWmName = XInternAtom(d, "_NET_WM_NAME", False);
         Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
@@ -929,14 +965,13 @@ public:
     void layout() {
         const int topStatusReserve = 178;
         topNavViewportW = std::max(kCompactButtonW, W - topStatusReserve);
-        topNavScrollX = clamp_button_scroll(topNavScrollX, 7, topNavViewportW);
+        topNavScrollX = clamp_button_scroll(topNavScrollX, 6, topNavViewportW);
         int topX = -topNavScrollX;
         videoPlayerTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
         libraryTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
         discoverTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
         nougatTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
         ytdlpTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
-        p2pTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
         debugTab = {topX,0,kCompactButtonW,26};
 
         const int bottomY = H - 32;
@@ -973,14 +1008,14 @@ public:
                           202, ytdlpButtonsScrollX);
         ytdlpFolderBtn = {0,0,0,0};
 
-        p2pMagnetRect = {28, 102, std::max(240, W-56), 28};
-        p2pOutputRect = {28, 142, std::max(240, W-56), 28};
-        layout_button_row({&p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn}, 184, p2pButtonsScrollX);
+        p2pMagnetRect = {28, 148, std::max(240, W-56), 28};
+        p2pOutputRect = {28, 188, std::max(240, W-56), 28};
+        layout_button_row({&p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn}, 230, p2pButtonsScrollX);
 
         nougatSearchPanelTab = {28,54,kCompactButtonW,kCompactButtonH};
         nougatCrawlerPanelTab = {28+kCompactButtonW,54,kCompactButtonW,kCompactButtonH};
-        nougatPeersPanelTab = {28+kCompactButtonW*2,54,kCompactButtonW,kCompactButtonH};
-        nougatAboutPanelTab = {28+kCompactButtonW*3,54,kCompactButtonW,kCompactButtonH};
+        nougatP2PPanelTab = {28+kCompactButtonW*2,54,kCompactButtonW,kCompactButtonH};
+        nougatNetworkAdvancedBtn = {std::max(28+kCompactButtonW*3+16, W-144),54,kCompactButtonW,kCompactButtonH};
         nougatSearchRect = {28, 104, std::max(220, W-400), 30};
         nougatRawBtn = {std::max(260, W-360),104,kCompactButtonW,kCompactButtonH};
         nougatPeersToggleBtn = {std::max(380, W-240),104,kCompactButtonW,kCompactButtonH};
@@ -992,13 +1027,18 @@ public:
         nougatSameDomainBtn = {28, 146, kCompactButtonW, kCompactButtonH};
         nougatStartCrawlBtn = {28+kCompactButtonW, 146, kCompactButtonW, kCompactButtonH};
         nougatCrawlLogBox = {28, 190, std::max(240, W-56), std::max(120, H-218)};
-        nougatPeerEntryRect = {28, 104, std::max(220, W-400), 30};
-        nougatAddPeerBtn = {std::max(300, W-360),104,kCompactButtonW,kCompactButtonH};
-        nougatRemovePeerBtn = {std::max(420, W-240),104,kCompactButtonW,kCompactButtonH};
-        nougatNodeBtn = {std::max(540, W-120),104,kCompactButtonW,kCompactButtonH};
-        nougatPeerListBox = {28, 154, std::max(240, W-56), std::max(120, H-182)};
+        nougatPeerEntryRect = {28, 120, std::max(220, W-520), 30};
+        nougatAddPeerBtn = {std::max(300, W-480),120,kCompactButtonW,kCompactButtonH};
+        nougatRemovePeerBtn = {std::max(420, W-360),120,kCompactButtonW,kCompactButtonH};
+        nougatNodeBtn = {std::max(540, W-240),120,kCompactButtonW,kCompactButtonH};
+        nougatPeersToggleBtn = {std::max(660, W-120),120,kCompactButtonW,kCompactButtonH};
+        nougatPeerListBox = {28, 170, std::max(240, W-56), std::max(120, H-198)};
 
-        layout_button_row({&libraryMoviesBtn,&libraryTvBtn,&libraryGridBtn,&libraryListViewBtn,
+        const std::string libraryHeading = libraryParents.empty() ? "MEDIA LIBRARY" : libraryParents.back().name;
+        const int libraryViewX = std::min(std::max(150, 28 + text_width(libraryHeading) + 12), std::max(150, W - 82));
+        libraryListViewBtn = {libraryViewX, 38, 32, kCompactButtonH};
+        libraryGridBtn = {libraryViewX + 36, 38, 32, kCompactButtonH};
+        layout_button_row({&libraryMoviesBtn,&libraryTvBtn,
                            &libraryAddFolderBtn,&libraryUnlinkFolderBtn,&libraryRefreshBtn,&libraryBackBtn,
                            &serverStartBtn,&serverStopBtn,&serverRefreshBtn},
                           76, libraryButtonsScrollX);
@@ -1596,35 +1636,46 @@ public:
             text(video, 28, 68, "File menu or Open button.", col(0xcccc,0xcccc,0xcccc));
         }
     }
+    unsigned long tab_accent(ViewMode view) {
+        if (view == ViewMode::VideoPlayer) return col(0xd2a5,0xa5a5,0x6d6d);
+        if (view == ViewMode::Library) return col(0x8faa,0xaaaa,0x7777);
+        if (view == ViewMode::Discover) return col(0xbd7a,0x7a7a,0xd1d1);
+        if (view == ViewMode::Nougat) return col(0xd2a5,0xa5a5,0x6d6d);
+        if (view == ViewMode::Stream) return stream_palette_for(streamPlatform).accent;
+        if (view == ViewMode::P2P) return col(0x60a7,0xa7a7,0xd7d7);
+        return col(0xf0b4,0xb4b4,0x2b2b);
+    }
+
     void draw_top_bar(Drawable target) {
-        const unsigned long companyRed = col(0xbbbb,0x0000,0x0000);
-        const unsigned long activeRed = col(0x9900,0x0000,0x0000);
-        const unsigned long topText = col(0xffff,0xffff,0xffff);
-        const unsigned long divider = col(0x6600,0x0000,0x0000);
-        fill(target, {0,0,W,26}, companyRed);
+        const unsigned long suiteChocolate = col(0x4a4a,0x1f1f,0x0b0b);
+        const unsigned long topText = col(0xf2f2,0xe6e6,0xc9c9);
+        const unsigned long divider = col(0x2d2d,0x1111,0x0808);
+        fill(target, {0,0,W,26}, suiteChocolate);
 
         XRectangle navClip{0,0,(unsigned short)std::max(1,topNavViewportW),26};
         XSetClipRectangles(d, gc, 0, 0, &navClip, 1, Unsorted);
-        const auto draw_tab = [&](const Rect& tab, const char* label, bool active) {
-            if (active) fill(target, tab, activeRed);
+        const auto draw_tab = [&](const Rect& tab, const char* label, ViewMode view) {
+            const bool active = currentView == view;
+            const ViewPalette tabPalette = palette_for(view);
+            fill(target, tab, active ? tabPalette.buttonLight : tabPalette.button);
+            if (active) fill(target, {tab.x, 23, tab.w, 3}, tab_accent(view));
             line(target, tab.x + tab.w - 1, 0, tab.x + tab.w - 1, 25, divider);
-            text(target, tab.x + std::max(5,(tab.w-text_width(label))/2), 17, label, topText);
+            text(target, tab.x + std::max(5,(tab.w-text_width(label))/2), 17, label, tabPalette.buttonText);
         };
-        draw_tab(videoPlayerTab,"Video Player",currentView==ViewMode::VideoPlayer);
-        draw_tab(libraryTab,"Library",currentView==ViewMode::Library);
-        draw_tab(discoverTab,"Discover",currentView==ViewMode::Discover);
-        draw_tab(nougatTab,"Nougat",currentView==ViewMode::Nougat);
-        draw_tab(ytdlpTab,"Stream",currentView==ViewMode::Stream);
-        draw_tab(p2pTab,"P2P",currentView==ViewMode::P2P);
-        draw_tab(debugTab,"Debug",currentView==ViewMode::Debug);
+        draw_tab(videoPlayerTab,"Video Player",ViewMode::VideoPlayer);
+        draw_tab(libraryTab,"Library",ViewMode::Library);
+        draw_tab(discoverTab,"Discover",ViewMode::Discover);
+        draw_tab(nougatTab,"Search",ViewMode::Nougat);
+        draw_tab(ytdlpTab,"Stream",ViewMode::Stream);
+        draw_tab(debugTab,"Debug",ViewMode::Debug);
         XSetClipMask(d, gc, None);
 
-        fill(target, {topNavViewportW,0,std::max(0,W-topNavViewportW),26}, companyRed);
+        fill(target, {topNavViewportW,0,std::max(0,W-topNavViewportW),26}, suiteChocolate);
         outline(target, {0,24,W,1}, divider);
-        const std::string versionLabel = "v0.0.20";
+        const std::string versionLabel = "v0.0.21";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
-        const int treeX = versionX - reddmedia_icon::kTopBar14Size - 6;
+        const int treeX = versionX - nougat_media_suite_icon::kTopBar14Size - 6;
         bool serverBusy = false;
         reddmedia::MediaServerState serverStateValue = reddmedia::MediaServerState::Stopped;
         {
@@ -1632,16 +1683,16 @@ public:
             serverBusy = serverState->busy;
             serverStateValue = serverState->state;
         }
-        unsigned long light = col(0xffff, 0x2222, 0x2222);
-        if (serverStateValue == reddmedia::MediaServerState::Ready && !serverBusy) light = col(0x1111,0xdddd,0x2222);
-        else if (serverStateValue == reddmedia::MediaServerState::Starting || serverBusy) light = col(0xffff,0xdddd,0x1111);
+        unsigned long light = col(0xe0e0, 0x3131, 0x4545);
+        if (serverStateValue == reddmedia::MediaServerState::Ready && !serverBusy) light = col(0x8585,0xc7c7,0x4242);
+        else if (serverStateValue == reddmedia::MediaServerState::Starting || serverBusy) light = col(0xf0f0,0xb4b4,0x2b2b);
         const std::string serverLabel = "Server:";
         const int serverX = treeX - 34 - text_width(serverLabel);
         if (serverX >= topNavViewportW) {
             text(target, serverX, 17, serverLabel, topText);
             fill_circle(target, serverX + text_width(serverLabel) + 7, 8, 10, light);
         }
-        draw_tree_badge(target, treeX, 5, 0xbb, 0x00, 0x00);
+        draw_suite_badge(target, treeX, 5, 0x4a, 0x1f, 0x0b);
         text(target, versionX, 17, versionLabel, topText);
     }
 
@@ -1901,23 +1952,27 @@ public:
             redraw();
             return;
         }
-        ytdlpStatus = std::string("Direct Watch: opening ") + stream_platform_name(streamPlatform) + " in ReddMedia's native player...";
+        ytdlpStatus = std::string("Direct Watch: opening ") + stream_platform_name(streamPlatform) + " in Nougat Media Suite's native player...";
         redraw();
         start_ytdlp_play();
     }
 
     void draw_stream_screen(Drawable target) {
-        const ViewPalette palette = palette_for(ViewMode::Stream);
+        const ViewPalette palette = stream_palette_for(streamPlatform);
         fill(target, {0,26,W,H-26}, palette.background);
-        text(target, 28, 46, "STREAM", palette.text);
-        text(target, 96, 46, std::string("Online video: ") + stream_platform_name(streamPlatform), palette.muted);
+        fill(target, {18,36,W-36,52}, palette.panel);
+        outline(target, {18,36,W-36,52}, palette.border);
+        text(target, 28, 58, "STREAM", palette.text);
+        text(target, 96, 58, std::string("Online video: ") + stream_platform_name(streamPlatform), palette.muted);
 
         const auto source_button = [&](const Rect& r, const char* label, StreamPlatform platform) {
             const bool selected = streamPlatform == platform;
-            fill(target, r, selected ? col(0x5858,0xb8b8,0xbfbf) : col(0x2d2d,0x6f6f,0x7373));
-            outline(target, r, palette.border);
+            const ViewPalette own = stream_palette_for(platform);
+            fill(target, r, selected ? own.buttonLight : own.buttonDark);
+            outline(target, r, selected ? own.accent : own.border);
+            if (selected) fill(target, {r.x, r.y + r.h - 3, r.w, 3}, own.accent);
             text(target, r.x + std::max(6,(r.w-text_width(label))/2), r.y+18, label,
-                 selected ? col(0x0d0d,0x2323,0x2626) : palette.text);
+                 selected ? own.buttonText : own.text);
         };
         source_button(streamYoutubeTab,"YouTube",StreamPlatform::YouTube);
         source_button(streamRumbleTab,"Rumble",StreamPlatform::Rumble);
@@ -1925,7 +1980,7 @@ public:
         source_button(streamVkTab,"VK",StreamPlatform::VK);
         source_button(streamOkTab,"OK",StreamPlatform::OK);
 
-        const unsigned long focusBorder = urlFocused ? col(0x5858,0xb8b8,0xbfbf) : palette.border;
+        const unsigned long focusBorder = urlFocused ? palette.accent : palette.border;
         fill(target, ytdlpUrlRect, palette.field);
         outline(target, ytdlpUrlRect, focusBorder);
         text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y-8, "Video URL", palette.text);
@@ -1934,28 +1989,28 @@ public:
         XRectangle urlClip{(short)(ytdlpUrlRect.x+5),(short)(ytdlpUrlRect.y+2),
                            (unsigned short)std::max(1,ytdlpUrlRect.w-10),(unsigned short)std::max(1,ytdlpUrlRect.h-4)};
         XSetClipRectangles(d, gc, 0, 0, &urlClip, 1, Unsorted);
+        const unsigned long fieldInk = col(0x1717,0x1111,0x0b0b);
         if (visibleUrl.empty() && !urlFocused) {
             text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18,
-                 std::string("paste a ") + stream_platform_name(streamPlatform) + " video URL",
-                 col(0x5555,0x7777,0x7777));
+                 std::string("paste a ") + stream_platform_name(streamPlatform) + " video URL", palette.muted);
         } else if (urlSelectAll && !visibleUrl.empty()) {
             int selectedW = std::min(text_width(visibleUrl)+4,std::max(1,ytdlpUrlRect.w-12));
             fill(target,{ytdlpUrlRect.x+6,ytdlpUrlRect.y+4,selectedW,ytdlpUrlRect.h-8},palette.selection);
-            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+18,visibleUrl,col(0xffff,0xffff,0xffff));
+            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+18,visibleUrl,palette.buttonText);
         } else {
-            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+18,visibleUrl,col(0x1111,0x2222,0x2222));
+            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+18,visibleUrl,fieldInk);
         }
         if (urlFocused && !urlSelectAll) {
             int cx=ytdlpUrlRect.x+8+text_width(visibleUrl);
             cx=std::min(cx,ytdlpUrlRect.x+ytdlpUrlRect.w-8);
-            line(target,cx,ytdlpUrlRect.y+5,cx,ytdlpUrlRect.y+23,col(0x1111,0x2222,0x2222));
+            line(target,cx,ytdlpUrlRect.y+5,cx,ytdlpUrlRect.y+23,fieldInk);
         }
         XSetClipMask(d,gc,None);
 
         fill(target,ytdlpOutputRect,palette.field);
         outline(target,ytdlpOutputRect,palette.border);
         text(target,ytdlpOutputRect.x+8,ytdlpOutputRect.y+18,
-             tail_to_width("Output folder: "+ytdlpOutputFolder,ytdlpOutputRect.w-16),col(0x1111,0x2222,0x2222));
+             tail_to_width("Output folder: "+ytdlpOutputFolder,ytdlpOutputRect.w-16),fieldInk);
         button_on(target,ytdlpDownloadBtn,"Download");
         button_on(target,ytdlpPlayBtn,"Play");
         button_on(target,ytdlpDirectWatchBtn,"Direct Watch");
@@ -1966,7 +2021,8 @@ public:
         Rect logBox={28,264,std::max(240,W-56),std::max(100,H-289)};
         fill(target,logBox,palette.panel);
         outline(target,logBox,palette.border);
-        text(target,logBox.x+8,logBox.y+20,std::string(stream_platform_name(streamPlatform))+" activity log",palette.text);
+        fill(target,{logBox.x,logBox.y,6,logBox.h},palette.accent);
+        text(target,logBox.x+14,logBox.y+20,std::string(stream_platform_name(streamPlatform))+" activity log",palette.text);
         int lineY=logBox.y+44;
         std::istringstream iss(ytdlpLog);
         std::string lineText;
@@ -1975,7 +2031,7 @@ public:
         int maxLines=std::max(1,(logBox.h-52)/18);
         int first=std::max(0,(int)lines.size()-maxLines);
         for(int i=first;i<(int)lines.size() && lineY<logBox.y+logBox.h-8;++i) {
-            text(target,logBox.x+8,lineY,head_to_width(lines[(size_t)i],logBox.w-18),palette.muted);
+            text(target,logBox.x+14,lineY,head_to_width(lines[(size_t)i],logBox.w-24),palette.muted);
             lineY+=18;
         }
     }
@@ -2006,9 +2062,9 @@ public:
         const unsigned long dark = palette.text;
         const unsigned long fieldInk = col(0x0d0d,0x1b1b,0x2a2a);
         unsigned long border = p2pMagnetFocused ? col(0x7070,0xb0b0,0xdada) : palette.border;
-        fill(target, {0,26,W,H-26}, palette.background);
-        text(target, 28, 62, "P2P Streaming", dark);
-        text(target, 28, 84, "Open a P2P source, choose a video, then Play.", dark);
+        fill(target, {0,86,W,H-86}, palette.background);
+        text(target, 28, 108, "P2P STREAMING", dark);
+        text(target, 28, 130, "Open a magnet or P2P metadata file, choose a video, then Play.", dark);
         fill(target, p2pMagnetRect, palette.field);
         outline(target, p2pMagnetRect, border);
         text(target, p2pMagnetRect.x+8, p2pMagnetRect.y-7, "Magnet link", dark);
@@ -2038,7 +2094,7 @@ public:
 
         auto_select_single_video();
         P2PStatus st=p2p.status();
-        int y=230;
+        int y=278;
         text(target,28,y,"Status: "+p2pUiStatus,dark); y+=20;
         if (st.active) {
             int pct=std::max(0,std::min(100,(int)(st.progress*100.0f)));
@@ -2724,14 +2780,40 @@ public:
         return title.str();
     }
 
+    void draw_library_view_button(Drawable target, const Rect& r, LibraryDisplayMode mode, bool active) {
+        const ViewPalette palette = palette_for(ViewMode::Library);
+        fill(target, r, active ? palette.selection : palette.button);
+        outline(target, r, active ? palette.accent : palette.buttonDark);
+        if (mode == LibraryDisplayMode::List) {
+            const int x1 = r.x + 7;
+            const int x2 = r.x + r.w - 7;
+            for (int row = 0; row < 3; ++row) {
+                const int y = r.y + 7 + row * 6;
+                line(target, x1, y, x2, y, palette.buttonText);
+            }
+        } else {
+            const int size = 6;
+            const int gap = 4;
+            const int total = size * 2 + gap;
+            const int sx = r.x + (r.w - total) / 2;
+            const int sy = r.y + (r.h - total) / 2;
+            for (int row = 0; row < 2; ++row) {
+                for (int column = 0; column < 2; ++column) {
+                    Rect square{sx + column * (size + gap), sy + row * (size + gap), size, size};
+                    fill(target, square, palette.buttonText);
+                }
+            }
+        }
+    }
+
     void draw_library_screen(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::Library);
         fill(target,{0,26,W,H-26},palette.background);
         text(target,28,58,libraryParents.empty()?"MEDIA LIBRARY":libraryParents.back().name,palette.text);
+        draw_library_view_button(target,libraryListViewBtn,LibraryDisplayMode::List,current_library_display_mode()==LibraryDisplayMode::List);
+        draw_library_view_button(target,libraryGridBtn,LibraryDisplayMode::Grid,current_library_display_mode()==LibraryDisplayMode::Grid);
         button_on(target,libraryMoviesBtn,"Movies");
         button_on(target,libraryTvBtn,"TV");
-        button_on(target,libraryGridBtn,current_library_display_mode()==LibraryDisplayMode::Grid?"Grid [x]":"Grid");
-        button_on(target,libraryListViewBtn,current_library_display_mode()==LibraryDisplayMode::List?"List [x]":"List");
         button_on(target,libraryAddFolderBtn,"Link Folder");
         button_on(target,libraryUnlinkFolderBtn,"Unlink Folder");
         button_on(target,libraryRefreshBtn,"Refresh Library");
@@ -3190,12 +3272,12 @@ public:
         redraw();
     }
 
-    unsigned long nougat_cocoa() { return col(0x2424,0x1818,0x1212); }
-    unsigned long nougat_chocolate() { return col(0x4949,0x3030,0x2525); }
+    unsigned long nougat_cocoa() { return col(0x1717,0x0d0d,0x0808); }
+    unsigned long nougat_chocolate() { return col(0x4a4a,0x1f1f,0x0b0b); }
     unsigned long nougat_tan() { return col(0xd2d2,0xa5a5,0x6d6d); }
-    unsigned long nougat_caramel() { return col(0xb9b9,0x6f6f,0x3636); }
-    unsigned long nougat_cream() { return col(0xf3f3,0xe5e5,0xcccc); }
-    unsigned long nougat_light() { return col(0xcdcd,0xb9b9,0x9e9e); }
+    unsigned long nougat_caramel() { return col(0xc9c9,0x8282,0x2c2c); }
+    unsigned long nougat_cream() { return col(0xf2f2,0xe6e6,0xc9c9); }
+    unsigned long nougat_light() { return col(0xdfdf,0xc6c6,0xa5a5); }
     unsigned long nougat_dark() { return col(0x1a1a,0x1212,0x0e0e); }
 
     void nougat_button(Drawable target, const Rect& r, const std::string& label, bool selected=false) {
@@ -3260,7 +3342,7 @@ public:
             else {
                 std::ostringstream status;
                 status << (raw ? "RAW" : "RANKED") << ": " << response.total << " matching record(s) reported";
-                if (!response.results.empty()) status << " • showing " << (offset + 1) << "-" << (offset + (int)response.results.size());
+                if (!response.results.empty()) status << " | showing " << (offset + 1) << "-" << (offset + (int)response.results.size());
                 state->status = status.str();
             }
             state->updated = true;
@@ -3464,15 +3546,72 @@ public:
         }
     }
 
+    void handle_p2p_click(int x, int y) {
+        if (p2pMagnetRect.contains(x,y)) {
+            p2pMagnetFocused=true; p2pMagnetSelectAll=false;
+            XSetInputFocus(d,win,RevertToParent,CurrentTime);
+            p2pUiStatus="Magnet field ready. Ctrl+A selects all. Right-click opens Cut / Copy / Paste.";
+            redraw(); return;
+        }
+        if (p2pOutputRect.contains(x,y)) {
+            p2pMagnetFocused=false; p2pMagnetSelectAll=false;
+            std::string folder=choose_p2p_folder_dialog();
+            if (!folder.empty()) { p2pOutputFolder=folder; p2pUiStatus="Download folder set."; }
+            redraw(); return;
+        }
+        if (p2pLoadMagnetBtn.contains(x,y)) { start_p2p_magnet(); return; }
+        if (p2pOpenTorrentBtn.contains(x,y)) { open_p2p_torrent(); return; }
+        if (p2pPlayBtn.contains(x,y)) { play_selected_p2p(); return; }
+        if (p2pStopResumeBtn.contains(x,y)) { toggle_p2p_transfer(); return; }
+        for (std::size_t i=0;i<p2pFileRows.size();++i) {
+            if (p2pFileRows[i].contains(x,y)) {
+                std::vector<P2PFileInfo> fs=p2p.files();
+                if (i<fs.size()) { std::string error; if (p2p.select_file(fs[i].index,error)) p2pUiStatus="Selected: "+fs[i].path; else p2pUiStatus=error; }
+                redraw(); return;
+            }
+        }
+        p2pMagnetFocused=false; p2pMagnetSelectAll=false; redraw(); return;
+    }
+
     void handle_nougat_click(int x, int y) {
-        if (nougatSearchPanelTab.contains(x,y)) { nougatPanel=NougatPanel::Search; nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; redraw(); return; }
-        if (nougatCrawlerPanelTab.contains(x,y)) { nougatPanel=NougatPanel::Crawler; nougatInputFocus=NougatInputFocus::NoFocus; redraw(); return; }
-        if (nougatPeersPanelTab.contains(x,y)) { nougatPanel=NougatPanel::Peers; nougatInputFocus=NougatInputFocus::NoFocus; refresh_nougat_peers(); redraw(); return; }
-        if (nougatAboutPanelTab.contains(x,y)) { nougatPanel=NougatPanel::About; nougatInputFocus=NougatInputFocus::NoFocus; redraw(); return; }
+        if (nougatSearchPanelTab.contains(x,y)) {
+            nougatPanel=NougatPanel::Search; nougatNetworkAdvanced=false;
+            nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; p2pMagnetFocused=false;
+            redraw(); return;
+        }
+        if (nougatCrawlerPanelTab.contains(x,y)) {
+            nougatPanel=NougatPanel::Crawler; nougatNetworkAdvanced=false;
+            nougatInputFocus=NougatInputFocus::NoFocus; p2pMagnetFocused=false; redraw(); return;
+        }
+        if (nougatP2PPanelTab.contains(x,y)) {
+            nougatPanel=NougatPanel::P2P; nougatNetworkAdvanced=false;
+            nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; redraw(); return;
+        }
+        if (nougatPanel == NougatPanel::Search && nougatNetworkAdvancedBtn.contains(x,y)) {
+            nougatNetworkAdvanced=!nougatNetworkAdvanced;
+            nougatInputFocus=NougatInputFocus::NoFocus;
+            if (nougatNetworkAdvanced) refresh_nougat_peers();
+            redraw(); return;
+        }
+        if (nougatPanel == NougatPanel::P2P) { handle_p2p_click(x,y); return; }
+        if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced) {
+            if (nougatPeerEntryRect.contains(x,y)) { focus_nougat_input(NougatInputFocus::Peer); return; }
+            if (nougatAddPeerBtn.contains(x,y)) { add_nougat_peer(); return; }
+            if (nougatRemovePeerBtn.contains(x,y)) { remove_selected_nougat_peer(); return; }
+            if (nougatNodeBtn.contains(x,y)) { toggle_nougat_node(); redraw(); return; }
+            if (nougatPeersToggleBtn.contains(x,y)) { nougatSearchPeers=!nougatSearchPeers; nougatSearchOffset=0; redraw(); return; }
+            if (nougatPeerListBox.contains(x,y)) {
+                const int local=(y-nougatPeerListBox.y-8)/22;
+                const int index=nougatPeerScroll+local;
+                std::size_t count=0; { std::lock_guard<std::mutex> lock(nougatState->mutex); count=nougatState->peers.size(); }
+                if (index>=0 && index<(int)count) { nougatPeerSelected=index; redraw(); }
+                return;
+            }
+            return;
+        }
         if (nougatPanel == NougatPanel::Search) {
             if (nougatSearchRect.contains(x,y)) { focus_nougat_input(NougatInputFocus::Search); return; }
             if (nougatRawBtn.contains(x,y)) { nougatRaw=!nougatRaw; nougatSearchOffset=0; redraw(); return; }
-            if (nougatPeersToggleBtn.contains(x,y)) { nougatSearchPeers=!nougatSearchPeers; nougatSearchOffset=0; redraw(); return; }
             if (nougatSearchBtn.contains(x,y)) { nougatSearchOffset=0; start_nougat_search(); return; }
             for (const auto& hit : nougatResultHitboxes) {
                 if (hit.index < 0) continue;
@@ -3500,41 +3639,52 @@ public:
                 }
                 return;
             }
-            return;
-        }
-        if (nougatPanel == NougatPanel::Peers) {
-            if (nougatPeerEntryRect.contains(x,y)) { focus_nougat_input(NougatInputFocus::Peer); return; }
-            if (nougatAddPeerBtn.contains(x,y)) { add_nougat_peer(); return; }
-            if (nougatRemovePeerBtn.contains(x,y)) { remove_selected_nougat_peer(); return; }
-            if (nougatNodeBtn.contains(x,y)) { toggle_nougat_node(); redraw(); return; }
-            if (nougatPeerListBox.contains(x,y)) {
-                const int local=(y-nougatPeerListBox.y-8)/22;
-                const int index=nougatPeerScroll+local;
-                std::size_t count=0; { std::lock_guard<std::mutex> lock(nougatState->mutex); count=nougatState->peers.size(); }
-                if (index>=0 && index<(int)count) { nougatPeerSelected=index; redraw(); }
-                return;
-            }
         }
     }
 
     void draw_nougat_screen(Drawable target) {
         fill(target, {0,26,W,H-26}, nougat_cocoa());
-        text(target, 28, 44, "NOUGAT", nougat_tan());
-        text(target, 104, 44, "Just Nougat it.", nougat_light());
+        text(target, 28, 44, "SEARCH", nougat_tan());
+        text(target, 96, 44, "Nougat Media Suite | Just Nougat it.", nougat_light());
         std::string node;
         std::string status;
         bool search_busy=false, crawl_busy=false;
         { std::lock_guard<std::mutex> lock(nougatState->mutex); node=nougatState->node_id; status=nougatState->status; search_busy=nougatState->search_busy; crawl_busy=nougatState->crawl_busy; }
         if (!node.empty()) text(target, std::max(500,W-220), 44, "Node " + node, nougat_light());
-        nougat_button(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search);
+        nougat_button(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search && !nougatNetworkAdvanced);
         nougat_button(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler);
-        nougat_button(target,nougatPeersPanelTab,"Peers",nougatPanel==NougatPanel::Peers);
-        nougat_button(target,nougatAboutPanelTab,"About",nougatPanel==NougatPanel::About);
+        nougat_button(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P);
+        if (nougatPanel == NougatPanel::Search) {
+            nougat_button(target,nougatNetworkAdvancedBtn,nougatNetworkAdvanced?"Back":"Network...",nougatNetworkAdvanced);
+        }
 
+        if (nougatPanel == NougatPanel::P2P) {
+            draw_p2p_screen(target);
+            return;
+        }
+        if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced) {
+            text(target,28,106,"NETWORK / ADVANCED",nougat_cream());
+            draw_nougat_input(target,nougatPeerEntryRect,nougatPeerEntry,NougatInputFocus::Peer);
+            nougat_button(target,nougatAddPeerBtn,"Add Peer");
+            nougat_button(target,nougatRemovePeerBtn,"Remove");
+            nougat_button(target,nougatNodeBtn,nougat.node_running()?"STOP NODE":"START NODE",nougat.node_running());
+            nougat_button(target,nougatPeersToggleBtn,nougatSearchPeers?"Search peers [x]":"Search peers",nougatSearchPeers);
+            fill(target,nougatPeerListBox,nougat_chocolate()); outline(target,nougatPeerListBox,nougat_tan());
+            std::vector<std::string> peers;
+            { std::lock_guard<std::mutex> lock(nougatState->mutex); peers=nougatState->peers; }
+            const int visible=std::max(1,((int)nougatPeerListBox.h-16)/22);
+            nougatPeerScroll=std::max(0,std::min(nougatPeerScroll,std::max(0,(int)peers.size()-visible)));
+            int y=nougatPeerListBox.y+22;
+            for (int i=nougatPeerScroll; i<(int)peers.size() && i<nougatPeerScroll+visible; ++i) {
+                if (i==nougatPeerSelected) fill(target,{nougatPeerListBox.x+5,y-16,(int)nougatPeerListBox.w-10,21},nougat_tan());
+                text(target,nougatPeerListBox.x+9,y,peers[(size_t)i],i==nougatPeerSelected?nougat_dark():nougat_cream()); y+=22;
+            }
+            text(target,28,H-20,status,nougat_light());
+            return;
+        }
         if (nougatPanel == NougatPanel::Search) {
             draw_nougat_input(target,nougatSearchRect,nougatSearchQuery,NougatInputFocus::Search);
-            nougat_button(target,nougatRawBtn,nougatRaw?"RAW ✓":"RAW",nougatRaw);
-            nougat_button(target,nougatPeersToggleBtn,nougatSearchPeers?"Peers ✓":"Peers",nougatSearchPeers);
+            nougat_button(target,nougatRawBtn,nougatRaw?"RAW [x]":"RAW",nougatRaw);
             nougat_button(target,nougatSearchBtn,search_busy?"SEARCHING":"SEARCH");
             text(target,28,160,status,nougat_light());
             fill(target,nougatResultsBox,nougat_chocolate()); outline(target,nougatResultsBox,nougat_tan());
@@ -3552,7 +3702,7 @@ public:
                 text(target,card.x+8,card.y+18,head_to_width(std::to_string(nougatSearchOffset+i+1)+". "+r.title,card.w-170),nougat_cream());
                 text(target,card.x+8,card.y+38,head_to_width(r.url,card.w-16),nougat_tan());
                 text(target,card.x+8,card.y+58,head_to_width(r.snippet,card.w-16),nougat_light());
-                text(target,card.x+8,card.y+78,head_to_width(r.source_network+" • Node "+r.source_node,card.w-300),nougat_light());
+                text(target,card.x+8,card.y+78,head_to_width(r.source_network+" | Node "+r.source_node,card.w-300),nougat_light());
                 Rect copy={card.x+card.w-278,card.y+63,82,24};
                 Rect tor={card.x+card.w-190,card.y+63,94,24};
                 Rect open={card.x+card.w-90,card.y+63,82,24};
@@ -3562,54 +3712,27 @@ public:
             }
             return;
         }
-        if (nougatPanel == NougatPanel::Crawler) {
-            text(target,28,102,"Seed URL",nougat_cream());
-            draw_nougat_input(target,nougatCrawlSeedRect,nougatCrawlSeed,NougatInputFocus::CrawlSeed);
-            nougat_button(target,nougatCrawlMinusBtn,"-"); nougat_button(target,nougatCrawlPlusBtn,"+");
-            text(target,nougatCrawlMinusBtn.x-96,130,"Max pages: "+std::to_string(nougatMaxPages),nougat_cream());
-            nougat_button(target,nougatSameDomainBtn,nougatSameDomain?"Stay on domain ✓":"Stay on domain",nougatSameDomain);
-            nougat_button(target,nougatStartCrawlBtn,crawl_busy?"CRAWLING":"START CRAWL");
-            fill(target,nougatCrawlLogBox,nougat_chocolate()); outline(target,nougatCrawlLogBox,nougat_tan());
-            std::vector<std::string> lines;
-            { std::lock_guard<std::mutex> lock(nougatState->mutex); lines=nougatState->crawl_log; }
-            const int visible=std::max(1,((int)nougatCrawlLogBox.h-16)/18);
-            const int max_scroll=std::max(0,(int)lines.size()-visible);
-            nougatCrawlScroll=std::max(0,std::min(nougatCrawlScroll,max_scroll));
-            if (crawl_busy && max_scroll>0) nougatCrawlScroll=max_scroll;
-            int y=nougatCrawlLogBox.y+20;
-            for (int i=nougatCrawlScroll; i<(int)lines.size() && i<nougatCrawlScroll+visible; ++i) {
-                const bool selected=nougatOutputSelectionStart>=0 && i>=std::min(nougatOutputSelectionStart,nougatOutputSelectionEnd) && i<=std::max(nougatOutputSelectionStart,nougatOutputSelectionEnd);
-                if (selected) fill(target,{nougatCrawlLogBox.x+5,y-14,(int)nougatCrawlLogBox.w-10,18},nougat_tan());
-                text(target,nougatCrawlLogBox.x+9,y,head_to_width(lines[(size_t)i],nougatCrawlLogBox.w-18),selected?nougat_dark():nougat_cream());
-                y+=18;
-            }
-            text(target,28,194,status,nougat_light());
-            return;
+        text(target,28,102,"Seed URL",nougat_cream());
+        draw_nougat_input(target,nougatCrawlSeedRect,nougatCrawlSeed,NougatInputFocus::CrawlSeed);
+        nougat_button(target,nougatCrawlMinusBtn,"-"); nougat_button(target,nougatCrawlPlusBtn,"+");
+        text(target,nougatCrawlMinusBtn.x-96,130,"Max pages: "+std::to_string(nougatMaxPages),nougat_cream());
+        nougat_button(target,nougatSameDomainBtn,nougatSameDomain?"Stay on domain [x]":"Stay on domain",nougatSameDomain);
+        nougat_button(target,nougatStartCrawlBtn,crawl_busy?"CRAWLING":"START CRAWL");
+        fill(target,nougatCrawlLogBox,nougat_chocolate()); outline(target,nougatCrawlLogBox,nougat_tan());
+        std::vector<std::string> lines;
+        { std::lock_guard<std::mutex> lock(nougatState->mutex); lines=nougatState->crawl_log; }
+        const int visible=std::max(1,((int)nougatCrawlLogBox.h-16)/18);
+        const int max_scroll=std::max(0,(int)lines.size()-visible);
+        nougatCrawlScroll=std::max(0,std::min(nougatCrawlScroll,max_scroll));
+        if (crawl_busy && max_scroll>0) nougatCrawlScroll=max_scroll;
+        int y=nougatCrawlLogBox.y+20;
+        for (int i=nougatCrawlScroll; i<(int)lines.size() && i<nougatCrawlScroll+visible; ++i) {
+            const bool selected=nougatOutputSelectionStart>=0 && i>=std::min(nougatOutputSelectionStart,nougatOutputSelectionEnd) && i<=std::max(nougatOutputSelectionStart,nougatOutputSelectionEnd);
+            if (selected) fill(target,{nougatCrawlLogBox.x+5,y-14,(int)nougatCrawlLogBox.w-10,18},nougat_tan());
+            text(target,nougatCrawlLogBox.x+9,y,head_to_width(lines[(size_t)i],nougatCrawlLogBox.w-18),selected?nougat_dark():nougat_cream());
+            y+=18;
         }
-        if (nougatPanel == NougatPanel::Peers) {
-            text(target,28,102,"Peer address",nougat_cream());
-            draw_nougat_input(target,nougatPeerEntryRect,nougatPeerEntry,NougatInputFocus::Peer);
-            nougat_button(target,nougatAddPeerBtn,"Add Peer");
-            nougat_button(target,nougatRemovePeerBtn,"Remove");
-            nougat_button(target,nougatNodeBtn,nougat.node_running()?"STOP NODE":"START NODE",nougat.node_running());
-            fill(target,nougatPeerListBox,nougat_chocolate()); outline(target,nougatPeerListBox,nougat_tan());
-            std::vector<std::string> peers;
-            { std::lock_guard<std::mutex> lock(nougatState->mutex); peers=nougatState->peers; }
-            const int visible=std::max(1,((int)nougatPeerListBox.h-16)/22);
-            nougatPeerScroll=std::max(0,std::min(nougatPeerScroll,std::max(0,(int)peers.size()-visible)));
-            int y=nougatPeerListBox.y+22;
-            for (int i=nougatPeerScroll; i<(int)peers.size() && i<nougatPeerScroll+visible; ++i) {
-                if (i==nougatPeerSelected) fill(target,{nougatPeerListBox.x+5,y-16,(int)nougatPeerListBox.w-10,21},nougat_tan());
-                text(target,nougatPeerListBox.x+9,y,peers[(size_t)i],i==nougatPeerSelected?nougat_dark():nougat_cream()); y+=22;
-            }
-            text(target,28,H-20,status,nougat_light());
-            return;
-        }
-        text(target,28,118,"Nougat is ReddMedia's decentralized search subsystem.",nougat_cream());
-        text(target,28,146,"Ranking changes order, not membership. RAW exposes every matching record the node can return.",nougat_light());
-        text(target,28,174,"No account, search-profile system, or SafeSearch layer is implemented.",nougat_light());
-        text(target,28,202,"Data: "+nougat.data_directory(),nougat_tan());
-        text(target,28,230,"Candy-bar palette: dark cocoa, chocolate, nougat tan, caramel, vanilla cream.",nougat_light());
+        text(target,28,194,status,nougat_light());
     }
 
     void poll_nougat_workers() {
@@ -3919,7 +4042,7 @@ public:
         }
         if (result.item.id.find("tmdb:") != 0U) {
             button_on(target, discoverOpenBtn,
-                      result.item.local_path.empty() ? "Open in Library" : "Play in ReddMedia");
+                      result.item.local_path.empty() ? "Open in Library" : "Play in Nougat Media Suite");
         }
         if (result.item.local_path.empty() && has_availability &&
             availability.link.rfind("https://www.themoviedb.org/", 0U) == 0U) {
@@ -3947,12 +4070,13 @@ public:
         std::string error;
         p2p.prioritize_range(0,std::min<std::uint64_t>(16ULL*1024ULL*1024ULL,p2p.selected_file_size()));
         if (!p2pStream.start(error)) { p2pUiStatus=error; redraw(); return; }
-        p2pUiStatus="Streaming. ReddMedia will prioritize pieces around playback and seeks.";
+        p2pUiStatus="Streaming. Nougat Media Suite will prioritize pieces around playback and seeks.";
         switch_view(ViewMode::VideoPlayer);
         if (!open_p2p_stream_location(p2pStream.url())) {
             p2pStream.stop();
             p2pUiStatus="VLC could not open the local P2P stream.";
-            switch_view(ViewMode::P2P);
+            nougatPanel = NougatPanel::P2P;
+            switch_view(ViewMode::Nougat);
         }
     }
     void toggle_p2p_transfer() {
@@ -3983,7 +4107,6 @@ public:
         if (currentView == ViewMode::Nougat) draw_nougat_screen(buffer);
         if (currentView == ViewMode::Debug) draw_debug_screen(buffer);
         if (currentView == ViewMode::Stream) draw_stream_screen(buffer);
-        if (currentView == ViewMode::P2P) draw_p2p_screen(buffer);
         draw_loading_bar(buffer);
         XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
         XFreePixmap(d, buffer);
@@ -4284,7 +4407,7 @@ public:
     void show_file_menu(int x, int y) {
         std::vector<MenuItem> items;
         items.push_back({"Open File", MenuAction::OpenFile, 0});
-        items.push_back({"Exit ReddMedia", MenuAction::ExitApp, 0});
+        items.push_back({"Exit Nougat Media Suite", MenuAction::ExitApp, 0});
         show_menu(win, x, y, items);
     }
     void show_audio_menu(int x, int y) {
@@ -4414,12 +4537,12 @@ public:
         int delta = (button == Button4) ? -40 : 40;
         if (target == win && y < 26) { scroll_top_navigation(delta); return true; }
         if (target == win && y >= 70 && y < 110) {
-            if (currentView == ViewMode::Library) { scroll_button_row(libraryButtonsScrollX,11,delta); return true; }
+            if (currentView == ViewMode::Library) { scroll_button_row(libraryButtonsScrollX,9,delta); return true; }
             if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,10,delta); return true; }
             if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,7,delta); return true; }
         }
         if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,5,delta); return true; }
-        if (target == win && currentView == ViewMode::P2P && y >= 178 && y < 216) { scroll_button_row(p2pButtonsScrollX,4,delta); return true; }
+        if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && y >= 224 && y < 266) { scroll_button_row(p2pButtonsScrollX,4,delta); return true; }
         if (currentView == ViewMode::Stream && target == win && y >= 54 && y < 82) {
             scroll_button_row(streamSourceScrollX,5,delta);
             return true;
@@ -4480,7 +4603,7 @@ public:
                 redraw();
                 return true;
             }
-            if (nougatPanel == NougatPanel::Peers && nougatPeerListBox.contains(x,y)) {
+            if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced && nougatPeerListBox.contains(x,y)) {
                 std::size_t count = 0;
                 { std::lock_guard<std::mutex> lock(nougatState->mutex); count = nougatState->peers.size(); }
                 const int visible = std::max(1, ((int)nougatPeerListBox.h - 16) / 22);
@@ -4511,7 +4634,7 @@ public:
             show_url_context_menu(x, y);
             return;
         }
-        if (currentView == ViewMode::P2P && target == win && p2pMagnetRect.contains(x,y) && button == Button3) {
+        if (currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && target == win && p2pMagnetRect.contains(x,y) && button == Button3) {
             p2pMagnetFocused=true;
             XSetInputFocus(d,win,RevertToParent,CurrentTime);
             redraw(); show_p2p_url_context_menu(x,y); return;
@@ -4549,7 +4672,7 @@ public:
             items.push_back({"Delay -0.5s (earlier)", MenuAction::SubtitleDelayMinus, 0});
             items.push_back({"Delay +0.5s (later)", MenuAction::SubtitleDelayPlus, 0});
             items.push_back({"Reset Subtitle Delay", MenuAction::SubtitleDelayReset, 0});
-            items.push_back({"Exit ReddMedia", MenuAction::ExitApp, 0});
+            items.push_back({"Exit Nougat Media Suite", MenuAction::ExitApp, 0});
             show_menu(win, 8, 26, items);
             return;
         }
@@ -4571,10 +4694,6 @@ public:
         if (y < 26 && ytdlpTab.contains(x,y)) {
             if (currentView != ViewMode::Stream) { switch_view(ViewMode::Stream); return; }
             show_ytdlp_menu(ytdlpTab.x, 26);
-            return;
-        }
-        if (y < 26 && p2pTab.contains(x,y)) {
-            if (currentView != ViewMode::P2P) { switch_view(ViewMode::P2P); return; }
             return;
         }
         if (y < 26 && debugTab.contains(x,y)) {
@@ -4707,32 +4826,6 @@ public:
             if (debugLogsBtn.contains(x,y)) { open_debug_logs(); return; }
             if (debugCopyBtn.contains(x,y)) { copy_debug_report(); return; }
             return;
-        }
-        if (currentView == ViewMode::P2P) {
-            if (p2pMagnetRect.contains(x,y)) {
-                p2pMagnetFocused=true; p2pMagnetSelectAll=false;
-                XSetInputFocus(d,win,RevertToParent,CurrentTime);
-                p2pUiStatus="Magnet field ready. Ctrl+A selects all. Right-click opens Cut / Copy / Paste.";
-                redraw(); return;
-            }
-            if (p2pOutputRect.contains(x,y)) {
-                p2pMagnetFocused=false; p2pMagnetSelectAll=false;
-                std::string folder=choose_p2p_folder_dialog();
-                if (!folder.empty()) { p2pOutputFolder=folder; p2pUiStatus="Download folder set."; }
-                redraw(); return;
-            }
-            if (p2pLoadMagnetBtn.contains(x,y)) { start_p2p_magnet(); return; }
-            if (p2pOpenTorrentBtn.contains(x,y)) { open_p2p_torrent(); return; }
-            if (p2pPlayBtn.contains(x,y)) { play_selected_p2p(); return; }
-            if (p2pStopResumeBtn.contains(x,y)) { toggle_p2p_transfer(); return; }
-            for (std::size_t i=0;i<p2pFileRows.size();++i) {
-                if (p2pFileRows[i].contains(x,y)) {
-                    std::vector<P2PFileInfo> fs=p2p.files();
-                    if (i<fs.size()) { std::string error; if (p2p.select_file(fs[i].index,error)) p2pUiStatus="Selected: "+fs[i].path; else p2pUiStatus=error; }
-                    redraw(); return;
-                }
-            }
-            p2pMagnetFocused=false; p2pMagnetSelectAll=false; redraw(); return;
         }
         if (currentView == ViewMode::Stream) {
             if (streamYoutubeTab.contains(x,y)) { select_stream_platform(StreamPlatform::YouTube); return; }
@@ -4870,7 +4963,24 @@ public:
                 else if (e.type == LeaveNotify && e.xcrossing.window == video) { pointerInVideo=false; show_pointer(); }
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
-                    if (currentView == ViewMode::Nougat) { handle_nougat_key(e.xkey, ks); }
+                    if (currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && p2pMagnetFocused) {
+                        if (ks == XK_Escape) { p2pMagnetFocused=false; p2pMagnetSelectAll=false; redraw(); }
+                        else if (ks == XK_Return || ks == XK_KP_Enter) { start_p2p_magnet(); }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_a || ks == XK_A)) { p2pMagnetSelectAll=!p2pMagnet.empty(); redraw(); }
+                        else if (ks == XK_BackSpace) {
+                            if (p2pMagnetSelectAll) { p2pMagnet.clear(); p2pMagnetSelectAll=false; }
+                            else if (!p2pMagnet.empty()) p2pMagnet.pop_back();
+                            redraw();
+                        }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_v || ks == XK_V)) paste_into_p2p_url();
+                        else if ((e.xkey.state & ShiftMask) && ks == XK_Insert) paste_into_p2p_url();
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_u || ks == XK_U)) { p2pMagnet.clear(); p2pMagnetSelectAll=false; redraw(); }
+                        else {
+                            char buf[32]; KeySym outks=0; int n=XLookupString(&e.xkey,buf,sizeof(buf)-1,&outks,nullptr);
+                            if (n>0) { if (p2pMagnetSelectAll) { p2pMagnet.clear(); p2pMagnetSelectAll=false; } buf[n]=0; p2pMagnet+=std::string(buf,n); redraw(); }
+                        }
+                    }
+                    else if (currentView == ViewMode::Nougat) { handle_nougat_key(e.xkey, ks); }
                     else if (currentView == ViewMode::Stream && urlFocused) {
                         if (ks == XK_Escape) { urlFocused=false; urlSelectAll=false; redraw(); }
                         else if (ks == XK_Return || ks == XK_KP_Enter) { start_ytdlp_download(); }
@@ -4889,22 +4999,6 @@ public:
                                 if (urlSelectAll) { ytdlpUrl.clear(); urlSelectAll=false; }
                                 buf[n]=0; ytdlpUrl += std::string(buf, n); redraw();
                             }
-                        }
-                    } else if (currentView == ViewMode::P2P && p2pMagnetFocused) {
-                        if (ks == XK_Escape) { p2pMagnetFocused=false; p2pMagnetSelectAll=false; redraw(); }
-                        else if (ks == XK_Return || ks == XK_KP_Enter) { start_p2p_magnet(); }
-                        else if ((e.xkey.state & ControlMask) && (ks == XK_a || ks == XK_A)) { p2pMagnetSelectAll=!p2pMagnet.empty(); redraw(); }
-                        else if (ks == XK_BackSpace) {
-                            if (p2pMagnetSelectAll) { p2pMagnet.clear(); p2pMagnetSelectAll=false; }
-                            else if (!p2pMagnet.empty()) p2pMagnet.pop_back();
-                            redraw();
-                        }
-                        else if ((e.xkey.state & ControlMask) && (ks == XK_v || ks == XK_V)) paste_into_p2p_url();
-                        else if ((e.xkey.state & ShiftMask) && ks == XK_Insert) paste_into_p2p_url();
-                        else if ((e.xkey.state & ControlMask) && (ks == XK_u || ks == XK_U)) { p2pMagnet.clear(); p2pMagnetSelectAll=false; redraw(); }
-                        else {
-                            char buf[32]; KeySym outks=0; int n=XLookupString(&e.xkey,buf,sizeof(buf)-1,&outks,nullptr);
-                            if (n>0) { if (p2pMagnetSelectAll) { p2pMagnet.clear(); p2pMagnetSelectAll=false; } buf[n]=0; p2pMagnet+=std::string(buf,n); redraw(); }
                         }
                     } else if (currentView == ViewMode::Library) {
                         std::size_t count = 0;
@@ -4994,7 +5088,7 @@ public:
                 redraw();
             }
             if (currentMediaIsYtDlpStream && mp) playback_length_ms();
-            if (!fullscreen && currentView == ViewMode::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
+            if (!fullscreen && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
@@ -5070,7 +5164,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("ReddMedia v0.0.20\n");
+        printf("Nougat Media Suite v0.0.21\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {
@@ -5078,12 +5172,12 @@ int main(int argc, char** argv) {
             exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf");
         std::vector<float> embedding;
         std::string error;
-        if (!engine.embed_document("ReddMedia offline embedding validation", embedding, error) ||
+        if (!engine.embed_document("Nougat Media Suite offline embedding validation", embedding, error) ||
             embedding.empty()) {
-            std::fprintf(stderr, "ReddMedia embedding model FAIL: %s\n", error.c_str());
+            std::fprintf(stderr, "Nougat Media Suite embedding model FAIL: %s\n", error.c_str());
             return 1;
         }
-        std::printf("ReddMedia embedding model PASS: %zu dimensions%s.\n",
+        std::printf("Nougat Media Suite embedding model PASS: %zu dimensions%s.\n",
                     embedding.size(), engine.using_real_model() ? " (llama.cpp)" : " (test stub)");
         return 0;
     }
@@ -5106,7 +5200,7 @@ int main(int argc, char** argv) {
         std::string error;
         if (!engine.record_started(watched_movie, error) ||
             !engine.record_started(watched_tv, error)) {
-            std::fprintf(stderr, "ReddMedia Discover AI FAIL: %s\n", error.c_str());
+            std::fprintf(stderr, "Nougat Media Suite Discover AI FAIL: %s\n", error.c_str());
             unlink(history_path.c_str());
             return 1;
         }
@@ -5132,14 +5226,14 @@ int main(int argc, char** argv) {
                 request.mode = mode;
                 reddmedia::RecommendationResult result;
                 if (!engine.recommend(request, local_items, result, error) || result.item.id.empty()) {
-                    std::fprintf(stderr, "ReddMedia Discover AI FAIL: %s\n", error.c_str());
+                    std::fprintf(stderr, "Nougat Media Suite Discover AI FAIL: %s\n", error.c_str());
                     unlink(history_path.c_str());
                     return 1;
                 }
             }
         }
         unlink(history_path.c_str());
-        std::printf("ReddMedia Discover AI PASS: Local Usual/Random Movie/TV.\n");
+        std::printf("Nougat Media Suite Discover AI PASS: Local Usual/Random Movie/TV.\n");
         return 0;
     }
     if (argc > 1 &&
@@ -5157,21 +5251,21 @@ int main(int argc, char** argv) {
             usleep(200000);
         }
         if (!ready) {
-            std::fprintf(stderr, "ReddMedia integrated server lifecycle FAIL: startup timeout.\n");
+            std::fprintf(stderr, "Nougat Media Suite integrated server lifecycle FAIL: startup timeout.\n");
             server.stop();
             return 1;
         }
         if (std::string(argv[1]) == "--media-server-parent-death-hold") {
-            std::printf("ReddMedia integrated server parent-death test READY.\n");
+            std::printf("Nougat Media Suite integrated server parent-death test READY.\n");
             std::fflush(stdout);
             while (true) pause();
         }
         server.stop();
         if (server.state() != reddmedia::MediaServerState::Stopped) {
-            std::fprintf(stderr, "ReddMedia integrated server lifecycle FAIL: stop state.\n");
+            std::fprintf(stderr, "Nougat Media Suite integrated server lifecycle FAIL: stop state.\n");
             return 1;
         }
-        std::printf("ReddMedia integrated server graceful shutdown PASS.\n");
+        std::printf("Nougat Media Suite integrated server graceful shutdown PASS.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
@@ -5184,12 +5278,12 @@ int main(int argc, char** argv) {
         reddmedia::JellyfinApiClient client;
         std::string error;
         if (!client.initialize(error) || !client.add_media_folder(argv[2], error)) {
-            fprintf(stderr, "ReddMedia native library API FAIL: %s\n", error.c_str());
+            fprintf(stderr, "Nougat Media Suite native library API FAIL: %s\n", error.c_str());
             return 1;
         }
         std::vector<reddmedia::LibraryVideo> videos;
         if (!client.wait_for_video_in_folder(argv[2], videos, error, 180)) {
-            fprintf(stderr, "ReddMedia native library API FAIL: %s\n", error.c_str());
+            fprintf(stderr, "Nougat Media Suite native library API FAIL: %s\n", error.c_str());
             return 1;
         }
         bool found = false;
@@ -5200,10 +5294,10 @@ int main(int argc, char** argv) {
             }
         }
         if (!found) {
-            fprintf(stderr, "ReddMedia native library API FAIL: indexed test video not found.\n");
+            fprintf(stderr, "Nougat Media Suite native library API FAIL: indexed test video not found.\n");
             return 1;
         }
-        printf("ReddMedia native library API PASS: %zu video(s) cataloged for direct playback.\n", videos.size());
+        printf("Nougat Media Suite native library API PASS: %zu video(s) cataloged for direct playback.\n", videos.size());
         return 0;
     }
     App app;

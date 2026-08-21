@@ -1,20 +1,23 @@
-# ReddMedia v0.0.20
+# Nougat Media Suite v0.0.21
 
-ReddMedia is an integrated Linux media suite by Elderredd Softworks. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, Nougat decentralized search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
 
-## Current candidate: v0.0.20 Stream, Full Tab Palettes, Volume Boost, and Library Views
+## v0.0.21 - Official Rename, Candy Palette, and Navigation Repair
 
-v0.0.20 builds directly on the owner-accepted v0.0.19 baseline. The top-level order is **Video Player | Library | Discover | Nougat | Stream | P2P | Debug**. The former YouTube top-level area becomes **Stream**, with platform selectors for **YouTube, Rumble, RuTube, VK, and OK**. Stream keeps the existing URL-based Download and Play workflow, adds **Direct Watch** through ReddMedia's native player, and adds **Open Webpage** through the user's default browser. The same yt-dlp engine remains the URL playback/download backend where the selected public URL is supported.
+v0.0.21 builds directly on the owner-accepted ReddMedia v0.0.20 baseline at commit `c3d2c60e5c36407b96a0eba72e2863f884aacd28`. The release establishes the new product identity and candy color system, then folds two owner-approved UI organization repairs into the same still-unaccepted candidate: P2P moves under Search, and the nonworking Library Grid/List text controls become real view-toggle icons. No media engine, recommendation engine, server engine, or additional Stream service is added by this version.
 
-Each major area now has a coordinated interior palette instead of a black/gray surface with one accent color. Video Player uses the ReddMedia red/burgundy family, Library uses forest/sage, Discover uses plum/lavender, Nougat preserves its cocoa/tan/caramel/cream identity, Stream uses deep-ocean teal/cyan, P2P uses navy/steel blue, and Debug uses charcoal/amber. The common top navigation remains ReddMedia red.
+The visible top-level order is **Video Player | Library | Discover | Search | Stream | Debug**. The former top-level **Nougat** label becomes **Search** because Nougat now names the entire suite. Search exposes **Search | Crawler | P2P** as its ordinary internal sections. Decentralized search-node peer controls are tucked behind **Network...** inside Search instead of occupying a normal user-facing tab.
 
-Video volume now defaults to **100%** and can be amplified from **0% through 200%**, with the live percentage and a visible 100% marker. The compact bottom player-control group centers when the window has enough room and retains horizontal mouse-wheel scrolling when narrow.
+The application/window/launcher identity becomes **Nougat Media Suite**. The versioned root executable is `Nougat_Media_Suite_v21`. The approved rounded-square chocolate/nougat **N + play triangle** artwork replaces the former ReddMedia red-tree icon for the launcher, dock/app switcher, X11 window, raw executable metadata, and the in-app version badge.
 
-Movies and TV now each remember their own **Grid** or **List** Library view. List mode presents compact rows with identifying metadata; Grid preserves the existing poster layout. Editable in-app text fields show a visible caret when focused.
+The suite-wide visual system is rebuilt around the candy identity. **Video Player is chocolate/cocoa/caramel**, Library is forest/sage, Discover is plum/lavender, Search is chocolate/nougat/caramel, and Debug is graphite/amber. The top navigation itself uses those area identities instead of one inherited ReddMedia-red strip. Stream is service-reactive: selecting **YouTube, Rumble, RuTube, VK, or OK** changes the Stream interior and its tab color to that service's recognizable palette.
 
-Poster-quality/aspect-ratio overhaul, rounded-corner visual polish, shorter/balanced volume-bar geometry, wide-window top-navigation centering, the optional local-only ReddMedia Web Player button, and Plex account/server integration are intentionally reserved for v0.0.21 or later.
+In Library, the old `Grid [x]` / `List [x]` text buttons are removed. Immediately after the **MEDIA LIBRARY** heading are two compact view icons: **three horizontal lines** for List and a **2x2 four-square grid** for Grid. Clicking either changes the actual Library layout and the selected icon is highlighted. Movie and TV view preferences remain independent and persistent.
 
-The final versioned executable for this candidate is `ReddMedia_v20`. This candidate remains unaccepted until owner installation and visual/functional testing.
+Existing Stream services remain exactly **YouTube | Rumble | RuTube | VK | OK** in v0.0.21. Vimeo, Dailymotion, Twitch, Kick, TikTok, Bilibili, and Niconico are deferred to v0.0.22. Jelly/Unity candy-button sprites, poster/artwork overhaul, rounded-corner polish, top-navigation centering, volume-bar geometry changes, the optional local Web Player, and Plex integration are also deferred.
+
+The existing Git repository directory and backward-compatible user-data/config paths remain unchanged so the product rename does not silently become a filesystem/data migration. User-visible application identity is Nougat Media Suite.
+
 
 ## Previous candidate: v0.0.18 Intelligent Debug, Metadata, Watch Availability, and Responsive Library
 

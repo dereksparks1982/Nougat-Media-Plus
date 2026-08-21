@@ -1,14 +1,14 @@
-# ReddMedia Company Bible
+# Nougat Media Suite Company Bible
 
 **Status:** Canonical project operating law  
-**Scope:** ReddMedia only  
+**Scope:** Nougat Media Suite only  
 **Authority:** The owner has final authority over scope, acceptance, release state, and exceptions.
 
 ## 1. Purpose
 
-This is the one canonical project Bible for ReddMedia. It defines how ReddMedia is planned, changed, validated, packaged, explained, committed, published, and recovered. It must not contain rules, source, secrets, history, or identifying material from unrelated projects.
+This is the one canonical project Bible for Nougat Media Suite. It defines how Nougat Media Suite is planned, changed, validated, packaged, explained, committed, published, and recovered. It must not contain rules, source, secrets, history, or identifying material from unrelated projects.
 
-No second ReddMedia Bible may be created. Amend this file in an owner-approved build when a durable ReddMedia rule changes.
+No second Nougat Media Suite Bible may be created. Amend this file in an owner-approved build when a durable Nougat Media Suite rule changes.
 
 ## 2. Owner authority and stop law
 
@@ -20,7 +20,7 @@ No second ReddMedia Bible may be created. Amend this file in an owner-approved b
 
 ## 3. Required reading order
 
-Before changing ReddMedia, read:
+Before changing Nougat Media Suite, read:
 
 1. this Bible in full;
 2. the current roadmap;
@@ -50,32 +50,27 @@ The active Git commit, branch, worktree state, expected executable, rollback sna
 
 ## 6. Source and privacy law
 
-- The repository contains ReddMedia material only.
+- The repository contains Nougat Media Suite material and its own historical ReddMedia lineage only.
 - Do not place credentials, tokens, API keys, personal data, unrelated private-project material, generated runtime trees, caches, or build debris in Git.
 - Runtime state belongs under the user's standard config, data, and cache directories.
 - Credentials must be stored with owner-only permissions and must never be printed in logs, terminal commands, process arguments when avoidable, documentation, test output, commits, or packages.
 - User media must never be deleted by a library unlink, refresh, repair, rollback, or uninstall operation.
 
-## 7. ReddMedia identity law
+## 7. Nougat Media Suite identity law
 
-The approved red-tree artwork is ReddMedia's identity.
+The owner-approved rounded-square chocolate/nougat **N + play triangle** artwork is Nougat Media Suite's active identity beginning with v0.0.21.
 
-Every build, patch, repair, and hotfix must apply the red-tree identity to all approved active surfaces, including:
+Every build, patch, repair, and hotfix must apply the approved active identity to the raw versioned executable in Files/Nautilus, the application launcher, the running window/dock/app-switcher identity, and the in-app version badge where used.
 
-- the raw versioned executable as shown in Files/Nautilus;
-- the application launcher;
-- the running window, dock, and app-switcher identity;
-- the in-app version badge where used.
+The raw executable is a mandatory release gate. The final executable must be written first, then its `metadata::custom-icon` value must be set to the approved Nougat Media Suite asset URI and read back. Rebuilding or replacing the executable after that step invalidates the icon proof. Owner visual confirmation in Files/Nautilus remains required for acceptance.
 
-The raw executable is a mandatory release gate. The final executable must be written first, then its `metadata::custom-icon` value must be set to the approved red-tree asset URI and read back. Rebuilding or replacing the executable after that step invalidates the icon proof and requires the assignment again.
-
-Metadata readback proves assignment, not appearance. Owner visual confirmation in Files/Nautilus remains required for acceptance. A missing or wrong raw-executable tree icon is a build failure.
+The accepted red-tree artwork remains historical ReddMedia identity through v0.0.20 and must not remain as the active v0.0.21 identity.
 
 ## 8. Media-server ownership law
 
-- ReddMedia may start and supervise its integrated Jellyfin process.
-- Closing ReddMedia must stop and reap only the Jellyfin process ReddMedia launched.
-- A separately started Jellyfin process must not be killed by ReddMedia.
+- Nougat Media Suite may start and supervise its integrated Jellyfin process.
+- Closing Nougat Media Suite must stop and reap only the Jellyfin process Nougat Media Suite launched.
+- A separately started Jellyfin process must not be killed by Nougat Media Suite.
 - Start Server, Stop Server, and Refresh Server controls must report their real state.
 - Normal close and forced parent death must release an owned server and port 8096.
 - Server data, config, cache, logs, and the bundled runtime remain separate from Git-tracked source.
@@ -93,7 +88,7 @@ Metadata readback proves assignment, not appearance. Owner visual confirmation i
 - The owner must be able to Test, Save/Replace, and Clear the TMDb credential.
 - A 401 response must be explained clearly without exposing the credential.
 - Random recommendations do not use viewing history. Usual recommendations may use private local viewing history and local embeddings.
-- ReddMedia must never invent a title to hide an API, catalog, model, or network failure.
+- Nougat Media Suite must never invent a title to hide an API, catalog, model, or network failure.
 - Watch availability uses the exact owner-selected region and the complete provider categories returned through TMDb's JustWatch data. ReddMedia must show attribution, freshness, and an explicit no-listing state; it must not infer availability or bypass a provider's official playback path.
 
 ## 10. Diagnostic truth law
@@ -106,7 +101,7 @@ Metadata readback proves assignment, not appearance. Owner visual confirmation i
 ## 11. Responsiveness and progress law
 
 - Network, catalog, poster, inference, and server operations must not freeze the main UI.
-- A full-width red progress surface must appear while approved Library, poster, Discover, TMDb, or server work is active.
+- A full-width palette-aware progress surface must appear while approved Library, poster, Discover, TMDb, or server work is active.
 - Use measured progress when the work has measurable stages or item counts.
 - Use a moving indeterminate state when total work cannot be measured honestly.
 - Fast operations may complete the bar quickly; slow operations must continue to show activity.
@@ -174,7 +169,7 @@ Large tracked assets must be explained when GitHub reports size warnings. New la
 
 ## 17. Acceptance checklist
 
-A ReddMedia candidate is ready for owner testing only when:
+A Nougat Media Suite candidate is ready for owner testing only when:
 
 - the approved scope is complete;
 - builds and automated validation pass;
@@ -185,37 +180,42 @@ A ReddMedia candidate is ready for owner testing only when:
 - owned server shutdown is proven;
 - Movie/TV separation is proven;
 - TMDb credential lifecycle and poster paths are proven;
-- the final raw executable has the red-tree metadata assignment read back;
+- the final raw executable has the approved Nougat Media Suite icon metadata assignment read back;
 - the owner receives one clearly explained install command and the explicit remaining visual checks.
 
 Only the owner decides whether the candidate is accepted.
 
-## 18. Nougat inside ReddMedia
+## 18. Search inside Nougat Media Suite
 
-1. Nougat is an integrated ReddMedia subsystem, not a required standalone project installation.
-2. The owner-approved top-level order is `Video Player | Library | Discover | Nougat | Stream | P2P | Debug` until the owner explicitly changes it.
-3. Existing ReddMedia behavior remains preserved when Nougat changes unless the owner explicitly approves changes outside Nougat.
-4. Nougat's content surface preserves its approved cocoa/chocolate/nougat-tan/caramel/cream palette unless the owner explicitly changes it.
-5. Read-only Nougat output that displays useful text must remain selectable and copyable with normal mouse selection, Ctrl+C, Ctrl+A, and a right-click Copy/Select All menu.
-6. ReddMedia/Nougat owner-created code is distributed to recipients for noncommercial use under the project license. Third-party components retain their own upstream licenses. The owner retains all rights not granted by that license, including the right to commercialize or separately license the owner's own original work.
-7. The active Nougat data belongs under ReddMedia's user-data tree and must not depend on an archived standalone Nougat project folder.
+1. The decentralized Nougat engine is the integrated **Search** subsystem inside Nougat Media Suite.
+2. The owner-approved v0.0.21 top-level order is `Video Player | Library | Discover | Search | Stream | Debug`. Media/torrent P2P lives under Search, not as a top-level area.
+3. Accepted behavior remains preserved when identity/palette work changes unless functionality is explicitly approved.
+4. Search uses the approved cocoa/chocolate/nougat-cream/caramel palette. Its ordinary internal sections are `Search | Crawler | P2P`; decentralized peer/node administration is available only through a smaller Network/Advanced surface.
+5. Read-only Search output remains selectable/copyable with normal mouse selection, Ctrl+C, Ctrl+A, and right-click Copy/Select All.
+6. Nougat Media Suite owner-created code is distributed to recipients for noncommercial use under the project license; third-party components retain upstream licenses; the owner retains all rights not granted.
+7. Active Search data remains under the backward-compatible existing user-data tree.
 
-### v0.0.19 UI and TV continuity rules
+### v0.0.21 identity and palette rules
 
-- Historical v0.0.19 top-level order was `Video Player | Library | Discover | Nougat | YouTube | P2P | Debug`; v0.0.20 supersedes that order with Stream.
-- Normal action buttons use one compact app-wide size, sit immediately beside one another, and horizontal rows use mouse-wheel scrolling when they overflow.
-- The red ReddMedia top bar remains common to the suite. Interior tab identity: Video Player red, Library forest green, Discover plum, Nougat cocoa/tan/caramel/cream, YouTube red, P2P deep blue, Debug amber/yellow.
-- Video Player footer order from top to bottom is seek/time, volume with live percent, then the compact control row.
-- TV playback queues the following episode through season boundaries after natural completion, while manual Stop cancels autoplay. Switching to Video Player must not discard the current Library series/season navigation context.
-### v0.0.20 Stream, palette, volume, and Library-view rules
+- Official visible application identity is **Nougat Media Suite**; historical ReddMedia identity ended with accepted v0.0.20.
+- Root executable: `Nougat_Media_Suite_v21`.
+- Former top-level Nougat tab label: **Search**.
+- Common suite chrome: chocolate/cocoa/cream/caramel with the approved N + play icon.
+- Video Player: chocolate/cocoa/caramel; Library: forest/sage; Discover: plum/lavender; Search: cocoa/nougat/caramel; Debug: graphite/amber. P2P may retain a navy/ice sub-surface inside Search.
+- Stream retains only YouTube, Rumble, RuTube, VK, and OK in v0.0.21; selecting one changes Stream to that service's recognizable palette.
+- Additional Stream services, Jelly/Unity candy-button sprites, and other post-rebrand feature work are deferred to v0.0.22. The approved v0.0.21 UI repairs are the Search/P2P navigation consolidation and working Library view-icon controls.
+- v0.0.21 does not rename the Git working directory or migrate existing user data/config paths.
 
-- Current top-level order is `Video Player | Library | Discover | Nougat | Stream | P2P | Debug`.
-- Stream is the online-video umbrella and exposes YouTube, Rumble, RuTube, VK, and OK selectors. It preserves URL Download/Play and adds Direct Watch through ReddMedia's native player plus Open Webpage through the user's default browser.
-- Each major tab uses a coordinated interior palette, not merely colored buttons. The common top navigation remains ReddMedia red.
-- Video Player volume defaults to 100%, ranges from 0% through 200%, and always shows the live numeric value plus a visible 100% marker.
-- The compact bottom player-control group centers when width permits and remains one horizontally wheel-scrollable row when it does not.
+### v0.0.21 Library view-control rule
+
+- The root Library heading is followed by two compact icon controls: three horizontal lines for List and a 2x2 four-square symbol for Grid.
+- These controls must change the actual Library presentation when clicked; active state is indicated by the button treatment, never by `Grid [x]` or `List [x]` text.
+- Movies and TV retain independent persisted view choices.
+
+### retained v0.0.20 behavior rules
+
+- Video Player volume defaults to 100%, ranges through 200%, and shows live value plus 100% marker.
+- Compact bottom controls center when width permits and remain wheel-scrollable when narrow.
 - Movies and TV independently persist Grid/List Library preferences.
-- Custom editable text fields must visibly show focus/caret state.
-- Poster-quality/aspect-ratio overhaul and rounded-corner visual polish are explicitly deferred to v0.0.21.
-- The default Play path remains the native ReddMedia player. The planned local Web Player is a separate optional action and must not replace native playback.
-
+- Custom editable text fields show focus/caret state.
+- Default Play remains the native Nougat Media Suite player.

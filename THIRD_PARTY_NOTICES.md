@@ -1,7 +1,7 @@
 
-## ReddMedia/Nougat original-code license
+## Nougat Media Suite original-code license
 
-Original ReddMedia and integrated Nougat code first distributed in v0.0.19 is provided under the PolyForm Noncommercial License 1.0.0 as described in `LICENSE`. This does not alter the license of any third-party component listed below or under `licenses/`.
+Original code now distributed as Nougat Media Suite, including the integrated decentralized Search/Nougat engine, is provided under the PolyForm Noncommercial License 1.0.0 as described in `LICENSE`. This does not alter the license of any third-party component listed below or under `licenses/`.
 
 Nougat uses the system Python 3 standard library and SQLite FTS5. Its optional Tor crawl path invokes the user's separately installed `curl` and local Tor service; those system programs are not bundled by this candidate.
 

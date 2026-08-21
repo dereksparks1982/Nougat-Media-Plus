@@ -1,6 +1,6 @@
 cd "$HOME/Downloads" && \
-package="ReddMedia_v0_0_20_ACCEPTED_V19_BASE_MANIFEST_REPAIR_CHANGED_FILES_ONLY.zip" && \
-candidate="$HOME/Downloads/ReddMedia_v0_0_20_STREAM_PALETTES_VOLUME_LIBRARY_VIEWS_$(date +%Y%m%d_%H%M%S)" && \
+package="Nougat_Media_Suite_v0_0_21_IDENTITY_PALETTE_SEARCH_P2P_LIBRARY_VIEW_REPAIR_CHANGED_FILES_ONLY.zip" && \
+candidate="$HOME/Downloads/Nougat_Media_Suite_v0_0_21_$(date +%Y%m%d_%H%M%S)" && \
 mkdir -p "$candidate" && \
 unzip "$package" -d "$candidate" && \
-bash "$candidate/INSTALL_REDDMEDIA_v0_0_20.sh"
+bash "$candidate/INSTALL_NOUGAT_MEDIA_SUITE_v0_0_21.sh"
