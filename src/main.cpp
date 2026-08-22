@@ -37,6 +37,7 @@
 #include "p2p_stream_server.hpp"
 #include "ytdlp_stream_server.hpp"
 #include "nougat_media_suite_icon_data.hpp"
+#include "nougat_quilt_texture_data.hpp"
 #include "media_server/jellyfin_api_client.hpp"
 #include "media_server/library_poster.hpp"
 #include "media_server/media_server_manager.hpp"
@@ -473,6 +474,7 @@ struct NougatResultHitboxes {
 class App {
 public:
     Display* d=nullptr; int screen=0; Window win=0, video=0; GC gc=0; XFontStruct* fontInfo=nullptr;
+    Pixmap quiltTiles[7] = {};
     int W=1000,H=650;
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
@@ -510,6 +512,8 @@ public:
     Cursor blankCursor=0, normalCursor=0;
     bool pointerInVideo=false, pointerHidden=false;
     int pointerWindowX=-10000, pointerWindowY=-10000;
+    long long lastPointerFullRedrawMs=0;
+    bool pointerFullRedrawPending=false;
     time_t lastMouse=0;
     Time lastClickTime=0;
     int lastClickX=0, lastClickY=0;
@@ -571,6 +575,11 @@ public:
     bool playbackEndHandled = false;
     std::vector<reddmedia::LibraryNode> tvAutoplayQueue;
     int tvAutoplayIndex = -1;
+    int tvAutoplayRetryIndex = -1;
+    int tvAutoplayRetryAttempts = 0;
+    long long tvAutoplayRetryAtMs = 0;
+    long long lastLocalPlaybackPositionMs = 0;
+    long long lastLocalPlaybackLengthMs = 0;
     reddmedia::LibraryNode activeLibraryItem;
     bool activeLibraryItemValid = false;
     P2PEngine p2p;
@@ -773,40 +782,115 @@ public:
         XDrawArc(d, target, gc, r.x + r.w - diameter - 1, r.y + r.h - diameter - 1, diameter, diameter, 270 * 64, 90 * 64);
     }
 
+    static int quilt_view_index(ViewMode view) {
+        switch (view) {
+            case ViewMode::VideoPlayer: return 0;
+            case ViewMode::Library: return 1;
+            case ViewMode::Discover: return 2;
+            case ViewMode::Nougat: return 3;
+            case ViewMode::Stream: return 4;
+            case ViewMode::P2P: return 5;
+            case ViewMode::Debug: return 6;
+        }
+        return 3;
+    }
+
+    void quilt_tint_for(ViewMode view, unsigned char& r, unsigned char& g,
+                        unsigned char& b, unsigned& blendPercent) const {
+        // Exact quilt material comes from the owner-approved concept sheet.
+        // Only its dye/tint changes with the active area so every page keeps
+        // the same upholstered Nougat material while matching its tab family.
+        switch (view) {
+            case ViewMode::VideoPlayer: r=196; g=142; b=84;  blendPercent=18; break;
+            case ViewMode::Library:     r=143; g=170; b=119; blendPercent=18; break;
+            case ViewMode::Discover:    r=185; g=132; b=199; blendPercent=16; break;
+            case ViewMode::Nougat:      r=208; g=161; b=102; blendPercent=5;  break;
+            case ViewMode::Stream:      r=105; g=160; b=192; blendPercent=17; break;
+            case ViewMode::P2P:         r=105; g=160; b=192; blendPercent=17; break;
+            case ViewMode::Debug:       r=120; g=110; b=102; blendPercent=20; break;
+        }
+    }
+
+    Pixmap create_quilt_tile(ViewMode view) {
+        constexpr int sourceSize = nougat_quilt_texture::kSourceSize;
+        constexpr int tileSize = sourceSize * 2;
+        const int depth = DefaultDepth(d, screen);
+        constexpr int bytesPerPixel = 4;
+        char* imageData = static_cast<char*>(std::calloc(
+            static_cast<std::size_t>(tileSize) * static_cast<std::size_t>(tileSize),
+            static_cast<std::size_t>(bytesPerPixel)));
+        if (!imageData) return 0;
+
+        unsigned char tintR=255, tintG=255, tintB=255;
+        unsigned blend=0;
+        quilt_tint_for(view, tintR, tintG, tintB, blend);
+        const unsigned keep = 100U - blend;
+
+        for (int y=0; y<tileSize; ++y) {
+            const int sy = y < sourceSize ? y : (tileSize - 1 - y);
+            for (int x=0; x<tileSize; ++x) {
+                const int sx = x < sourceSize ? x : (tileSize - 1 - x);
+                const std::uint32_t argb = nougat_quilt_texture::kSource[sy * sourceSize + sx];
+                const unsigned char sr = static_cast<unsigned char>((argb >> 16) & 0xffU);
+                const unsigned char sg = static_cast<unsigned char>((argb >> 8) & 0xffU);
+                const unsigned char sb = static_cast<unsigned char>(argb & 0xffU);
+                const unsigned char rr = static_cast<unsigned char>((static_cast<unsigned>(sr) * keep + static_cast<unsigned>(tintR) * blend) / 100U);
+                const unsigned char gg = static_cast<unsigned char>((static_cast<unsigned>(sg) * keep + static_cast<unsigned>(tintG) * blend) / 100U);
+                const unsigned char bb = static_cast<unsigned char>((static_cast<unsigned>(sb) * keep + static_cast<unsigned>(tintB) * blend) / 100U);
+                const unsigned long pixel = visual_pixel(rr, gg, bb);
+                std::memcpy(imageData +
+                    (static_cast<std::size_t>(y) * static_cast<std::size_t>(tileSize) +
+                     static_cast<std::size_t>(x)) * static_cast<std::size_t>(bytesPerPixel),
+                    &pixel, static_cast<std::size_t>(bytesPerPixel));
+            }
+        }
+
+        XImage* image = XCreateImage(d, DefaultVisual(d, screen), depth, ZPixmap, 0,
+                                     imageData, tileSize, tileSize, 32, 0);
+        if (!image) {
+            std::free(imageData);
+            return 0;
+        }
+        Pixmap tile = XCreatePixmap(d, win, tileSize, tileSize, static_cast<unsigned>(depth));
+        if (!tile) {
+            XDestroyImage(image);
+            return 0;
+        }
+        XPutImage(d, tile, gc, image, 0, 0, 0, 0, tileSize, tileSize);
+        XDestroyImage(image);
+        return tile;
+    }
+
+    void init_quilt_tiles() {
+        const ViewMode views[7] = {
+            ViewMode::VideoPlayer, ViewMode::Library, ViewMode::Discover,
+            ViewMode::Nougat, ViewMode::Stream, ViewMode::P2P, ViewMode::Debug
+        };
+        for (int i=0; i<7; ++i) quiltTiles[i] = create_quilt_tile(views[i]);
+    }
+
+    void free_quilt_tiles() {
+        if (!d) return;
+        for (Pixmap& tile : quiltTiles) {
+            if (tile) XFreePixmap(d, tile);
+            tile = 0;
+        }
+    }
+
     void draw_quilted_background(Drawable target, const Rect& area, ViewMode view) {
-        unsigned long base = rgb8(246, 234, 216);
-        unsigned long highlight = rgb8(255, 248, 236);
-        unsigned long shadow = rgb8(224, 205, 180);
-        if (view == ViewMode::VideoPlayer) {
-            base = rgb8(245, 231, 210); highlight = rgb8(255, 246, 231); shadow = rgb8(219, 193, 161);
-        } else if (view == ViewMode::Library) {
-            base = rgb8(239, 235, 215); highlight = rgb8(250, 247, 232); shadow = rgb8(210, 211, 179);
-        } else if (view == ViewMode::Discover) {
-            base = rgb8(243, 231, 238); highlight = rgb8(253, 245, 250); shadow = rgb8(216, 194, 215);
-        } else if (view == ViewMode::Stream) {
-            base = rgb8(232, 236, 235); highlight = rgb8(246, 249, 247); shadow = rgb8(194, 207, 212);
-        } else if (view == ViewMode::Debug) {
-            base = rgb8(236, 230, 220); highlight = rgb8(248, 243, 235); shadow = rgb8(205, 195, 183);
+        if (area.w <= 0 || area.h <= 0) return;
+        const Pixmap tile = quiltTiles[quilt_view_index(view)];
+        if (!tile) {
+            // Safe fallback only if X11 could not allocate the exact concept tile.
+            fill(target, area, rgb8(246, 234, 216));
+            return;
         }
-        fill(target, area, base);
-        XRectangle clip{static_cast<short>(area.x), static_cast<short>(area.y),
-                        static_cast<unsigned short>(std::max(1, area.w)),
-                        static_cast<unsigned short>(std::max(1, area.h))};
-        XSetClipRectangles(d, gc, 0, 0, &clip, 1, Unsorted);
-        constexpr int step = 34;
-        for (int offset = -area.h - step; offset < area.w + step; offset += step) {
-            line(target, area.x + offset + 1, area.y,
-                 area.x + offset + area.h + 1, area.y + area.h, shadow);
-            line(target, area.x + offset, area.y,
-                 area.x + offset + area.h, area.y + area.h, highlight);
-        }
-        for (int offset = -area.h - step; offset < area.w + step; offset += step) {
-            line(target, area.x + offset + 1, area.y + area.h,
-                 area.x + offset + area.h + 1, area.y, shadow);
-            line(target, area.x + offset, area.y + area.h,
-                 area.x + offset + area.h, area.y, highlight);
-        }
-        XSetClipMask(d, gc, None);
+        XSetFillStyle(d, gc, FillTiled);
+        XSetTile(d, gc, tile);
+        XSetTSOrigin(d, gc, 0, 0);
+        XFillRectangle(d, target, gc, area.x, area.y,
+                       static_cast<unsigned>(area.w), static_cast<unsigned>(area.h));
+        XSetFillStyle(d, gc, FillSolid);
     }
 
     void draw_concept_field(Drawable target, const Rect& r, unsigned long fillColor,
@@ -999,6 +1083,30 @@ public:
         classHint.res_name = const_cast<char*>("nougat-media-suite");
         classHint.res_class = const_cast<char*>("NougatMediaSuite");
         XSetClassHint(d, win, &classHint);
+
+        // GNOME Shell can associate a raw X11 window with the installed
+        // NougatMediaSuite.desktop entry through this stable application ID.
+        // This prevents the running application from falling back to the
+        // generic gear icon when launched outside the desktop file.
+        Atom gtkApplicationId = XInternAtom(d, "_GTK_APPLICATION_ID", False);
+        Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
+        const char* appId = "com.elderredsoftworks.NougatMediaSuite";
+        XChangeProperty(d, win, gtkApplicationId, utf8, 8, PropModeReplace,
+                        reinterpret_cast<const unsigned char*>(appId),
+                        static_cast<int>(std::strlen(appId)));
+
+        // Ubuntu/GNOME primarily associates a running X11 window with a
+        // desktop entry by application ID / WM_CLASS.  Use a canonical
+        // reverse-DNS desktop ID so a raw executable launch still resolves
+        // to the installed Nougat launcher instead of the generic gear.
+        Atom bamfDesktopFile = XInternAtom(d, "_BAMF_DESKTOP_FILE", False);
+        const char* home = std::getenv("HOME");
+        std::string desktopPath = home ? std::string(home) +
+            "/.local/share/applications/com.elderredsoftworks.NougatMediaSuite.desktop" :
+            "com.elderredsoftworks.NougatMediaSuite.desktop";
+        XChangeProperty(d, win, bamfDesktopFile, utf8, 8, PropModeReplace,
+                        reinterpret_cast<const unsigned char*>(desktopPath.c_str()),
+                        static_cast<int>(desktopPath.size()));
         set_net_wm_icon();
     }
 
@@ -1029,6 +1137,7 @@ public:
         gc = XCreateGC(d, win, 0, nullptr);
         fontInfo = XLoadQueryFont(d, "fixed");
         if (fontInfo) XSetFont(d, gc, fontInfo->fid);
+        init_quilt_tiles();
         layout();
         video = XCreateSimpleWindow(d, win, 10, 42, W-20, H-120, 0, BlackPixel(d,screen), BlackPixel(d,screen));
         XSelectInput(d, video, ExposureMask|ButtonPressMask|PointerMotionMask|EnterWindowMask|LeaveWindowMask|KeyPressMask);
@@ -1082,19 +1191,23 @@ public:
     }
 
     void layout() {
-        const int topStatusReserve = 178;
-        topNavViewportW = std::max(kCompactButtonW, W - topStatusReserve);
+        const int topBrandReserve = 222;
+        const int topStatusReserve = 154;
         const int topControlCount = 6;
         const int topControlTotalW = topControlCount * kCompactButtonW;
+        const int centeredTopX = std::max(0, (W - topControlTotalW) / 2);
+        const bool brandFitsBesideCenteredNav = topBrandReserve <= centeredTopX;
+        const int navLeft = brandFitsBesideCenteredNav ? 0 : topBrandReserve;
+        topNavViewportW = std::max(kCompactButtonW, W - navLeft - topStatusReserve);
         topNavScrollX = clamp_button_scroll(topNavScrollX, topControlCount, topNavViewportW);
-        int topX = -topNavScrollX;
+        int topX = navLeft - topNavScrollX;
         if (topControlTotalW <= topNavViewportW) {
-            // Center across the full application width whenever the status area
-            // still has clear space. If a narrower window would collide with
-            // Server/version, shift only as far left as necessary.
-            const int centered = std::max(0, (W - topControlTotalW) / 2);
-            const int latestWithoutStatusCollision = std::max(0, W - topStatusReserve - topControlTotalW);
-            topX = std::min(centered, latestWithoutStatusCollision);
+            // Preserve the accepted centered tab row whenever the left brand
+            // can sit beside it. On narrower windows, keep the tab order and
+            // spacing intact while moving the row just far enough right to
+            // protect the approved N + NOUGAT MEDIA SUITE identity.
+            const int availableCentered = navLeft + std::max(0, (topNavViewportW - topControlTotalW) / 2);
+            topX = brandFitsBesideCenteredNav ? centeredTopX : availableCentered;
         }
         videoPlayerTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
         libraryTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
@@ -1153,18 +1266,19 @@ public:
         nougatSearchPanelTab = {28,54,kCompactButtonW,kCompactButtonH};
         nougatCrawlerPanelTab = {28+kCompactButtonW,54,kCompactButtonW,kCompactButtonH};
         nougatP2PPanelTab = {28+kCompactButtonW*2,54,kCompactButtonW,kCompactButtonH};
-        nougatNetworkAdvancedBtn = {std::max(28+kCompactButtonW*3+16, W-144),54,kCompactButtonW,kCompactButtonH};
+        const int nougatRightColumnX = std::max(500, W-144);
+        nougatNetworkAdvancedBtn = {nougatRightColumnX,54,kCompactButtonW,kCompactButtonH};
         nougatSearchRect = {28, 104, std::max(220, W-400), 30};
         nougatRawBtn = {std::max(260, W-360),104,kCompactButtonW,kCompactButtonH};
         nougatPeersToggleBtn = {std::max(380, W-240),104,kCompactButtonW,kCompactButtonH};
-        nougatSearchBtn = {std::max(500, W-120),104,kCompactButtonW,kCompactButtonH};
+        nougatSearchBtn = {nougatRightColumnX,104,kCompactButtonW,kCompactButtonH};
         nougatResultsBox = {28, 166, std::max(240, W-56), std::max(120, H-194)};
         nougatCrawlSeedRect = {28, 104, std::max(240, W-300), 30};
         nougatCrawlMinusBtn = {std::max(320, W-260),104,36,26};
         nougatCrawlPlusBtn = {std::max(364, W-216),104,36,26};
         nougatSameDomainBtn = {28, 146, kCompactButtonW, kCompactButtonH};
         nougatStartCrawlBtn = {28+kCompactButtonW, 146, kCompactButtonW, kCompactButtonH};
-        nougatCrawlLogBox = {28, 190, std::max(240, W-56), std::max(120, H-218)};
+        nougatCrawlLogBox = {28, 208, std::max(240, W-56), std::max(120, H-236)};
         nougatPeerEntryRect = {28, 120, std::max(220, W-520), 30};
         nougatAddPeerBtn = {std::max(300, W-480),120,kCompactButtonW,kCompactButtonH};
         nougatRemovePeerBtn = {std::max(420, W-360),120,kCompactButtonW,kCompactButtonH};
@@ -1472,30 +1586,52 @@ public:
         currentMediaIsYtDlpStream=false;
         currentMediaIsNetwork=false;
     }
-    void open_media(const std::string& path, long long seek=0) {
-        if (!inst || !api.media_new_path) return;
+    bool open_media(const std::string& path, long long seek=0) {
+        if (!inst || !api.media_new_path || path.empty()) return false;
         p2pStream.stop();
         cleanup_player();
-        libvlc_media_t* media = api.media_new_path(inst, path.c_str());
-        if (!media) return;
-        mp = api.player_new_from_media(media);
-        api.media_release(media);
-        if (!mp) return;
-        api.set_xwindow(mp, (unsigned int)video);
-        api.set_volume(mp, volumePercent);
-        playbackEndHandled = false;
-        currentPath = path; currentMediaIsP2P=false; currentMediaIsNetwork=false; hasMedia=true; paused=false; needResumePrompt=false;
-        subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
-        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; chapterScanComplete=false;
-        playbackCacheValid=false; cachedPlaybackTimeMs=0; cachedPlaybackLengthMs=0;
-        api.play(mp);
-        auto_load_subtitle_for_current_media();
-        if (seek > 0) {
-            pendingSeek = true;
-            pendingSeekMs = seek;
-            pendingSeekDeadline = time(nullptr) + 6;
+
+        // Local episode transitions can arrive immediately after libVLC reports
+        // Ended/Stopped.  Give the player one clean retry instead of silently
+        // accepting a failed media-player start and losing TV autoplay.
+        for (int attempt = 0; attempt < 2; ++attempt) {
+            libvlc_media_t* media = api.media_new_path(inst, path.c_str());
+            if (!media) {
+                if (attempt == 0) std::this_thread::sleep_for(std::chrono::milliseconds(80));
+                continue;
+            }
+            mp = api.player_new_from_media(media);
+            api.media_release(media);
+            if (!mp) {
+                if (attempt == 0) std::this_thread::sleep_for(std::chrono::milliseconds(80));
+                continue;
+            }
+            api.set_xwindow(mp, (unsigned int)video);
+            api.set_volume(mp, volumePercent);
+            playbackEndHandled = false;
+            currentPath = path; currentMediaIsP2P=false; currentMediaIsNetwork=false; hasMedia=true; paused=false; needResumePrompt=false;
+            subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
+            chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; chapterScanComplete=false;
+            playbackCacheValid=false; cachedPlaybackTimeMs=0; cachedPlaybackLengthMs=0;
+            lastLocalPlaybackPositionMs=0; lastLocalPlaybackLengthMs=0;
+            const int play_result = api.play(mp);
+            if (play_result == 0) {
+                auto_load_subtitle_for_current_media();
+                if (seek > 0) {
+                    pendingSeek = true;
+                    pendingSeekMs = seek;
+                    pendingSeekDeadline = time(nullptr) + 6;
+                }
+                redraw();
+                return true;
+            }
+            api.player_release(mp);
+            mp=nullptr;
+            hasMedia=false;
+            currentPath.clear();
+            if (attempt == 0) std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
-        redraw();
+        return false;
     }
     bool open_p2p_stream_location(const std::string& url) {
         cancel_tv_autoplay();
@@ -1551,6 +1687,11 @@ public:
         tvAutoplayArmed=false;
         tvAutoplayQueue.clear();
         tvAutoplayIndex=-1;
+        tvAutoplayRetryIndex=-1;
+        tvAutoplayRetryAttempts=0;
+        tvAutoplayRetryAtMs=0;
+        lastLocalPlaybackPositionMs=0;
+        lastLocalPlaybackLengthMs=0;
         activeLibraryItemValid=false;
         playbackEndHandled=false;
     }
@@ -1789,7 +1930,16 @@ public:
         const unsigned long divider = rgb8(174, 132, 87);
         draw_quilted_background(target, {0, 0, W, 34}, ViewMode::Nougat);
 
-        XRectangle navClip{0,0,(unsigned short)std::max(1,topNavViewportW),34};
+        // Approved brand position: exact N identity at the far left with the
+        // suite name immediately beside it. The version area no longer owns a
+        // duplicate N badge.
+        draw_suite_badge(target, 8, 5, 0xf6, 0xea, 0xd8);
+        text(target, 28, 17, "NOUGAT MEDIA SUITE", topText);
+
+        const int navClipX = std::max(0, std::min(videoPlayerTab.x, W));
+        const int navClipRight = std::max(navClipX + 1, std::min(W, debugTab.x + debugTab.w));
+        XRectangle navClip{static_cast<short>(navClipX),0,
+                           static_cast<unsigned short>(std::max(1,navClipRight-navClipX)),34};
         XSetClipRectangles(d, gc, 0, 0, &navClip, 1, Unsorted);
         const auto draw_tab = [&](const Rect& tab, const char* label, ViewMode view) {
             const bool active = currentView == view;
@@ -1836,10 +1986,9 @@ public:
         draw_tab(debugTab,"Debug",ViewMode::Debug);
         XSetClipMask(d, gc, None);
 
-        const std::string versionLabel = "v0.0.23";
+        const std::string versionLabel = "v0.0.24";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
-        const int badgeX = versionX - nougat_media_suite_icon::kTopBar14Size - 6;
         bool serverBusy = false;
         reddmedia::MediaServerState serverStateValue = reddmedia::MediaServerState::Stopped;
         {
@@ -1851,12 +2000,11 @@ public:
         if (serverStateValue == reddmedia::MediaServerState::Ready && !serverBusy) light = rgb8(134,151,84);
         else if (serverStateValue == reddmedia::MediaServerState::Starting || serverBusy) light = rgb8(201,145,73);
         const std::string serverLabel = "Server:";
-        const int serverX = badgeX - 34 - text_width(serverLabel);
-        if (serverX >= topNavViewportW) {
+        const int serverX = versionX - 34 - text_width(serverLabel);
+        if (serverX > debugTab.x + debugTab.w + 6) {
             text(target, serverX, 17, serverLabel, topText);
             fill_circle(target, serverX + text_width(serverLabel) + 7, 8, 10, light);
         }
-        draw_suite_badge(target, badgeX, 5, 0xf6, 0xea, 0xd8);
         text(target, versionX, 17, versionLabel, topText);
         line(target, 0, 25, W, 25, divider);
     }
@@ -2319,15 +2467,17 @@ public:
         }
     }
     void draw_p2p_screen(Drawable target) {
-        const ViewPalette palette = palette_for(ViewMode::P2P);
+        const bool embeddedInSearch = currentView == ViewMode::Nougat;
+        const ViewPalette palette = palette_for(embeddedInSearch ? ViewMode::Nougat : ViewMode::P2P);
         const unsigned long dark = palette.text;
         const unsigned long fieldInk = col(0x0d0d,0x1b1b,0x2a2a);
         unsigned long border = p2pMagnetFocused ? col(0x7070,0xb0b0,0xdada) : palette.border;
-        fill(target, {0,86,W,H-86}, palette.background);
+        if (embeddedInSearch) draw_quilted_background(target, {0,86,W,H-86}, ViewMode::Nougat);
+        else fill(target, {0,86,W,H-86}, palette.background);
         text(target, 28, 108, "P2P STREAMING", dark);
         text(target, 28, 130, "Open a magnet or P2P metadata file, choose a video, then Play.", dark);
-        fill(target, p2pMagnetRect, palette.field);
-        outline(target, p2pMagnetRect, border);
+        if (embeddedInSearch) draw_concept_field(target, p2pMagnetRect, palette.field, palette.border, p2pMagnetFocused);
+        else { fill(target, p2pMagnetRect, palette.field); outline(target, p2pMagnetRect, border); }
         text(target, p2pMagnetRect.x+8, p2pMagnetRect.y-7, "Magnet link", dark);
         const int textMax = std::max(24, p2pMagnetRect.w-18);
         std::string visible = p2pMagnet.empty() ? "" : tail_to_width(p2pMagnet, textMax);
@@ -2345,8 +2495,8 @@ public:
             line(target,cx,p2pMagnetRect.y+5,cx,p2pMagnetRect.y+23,fieldInk);
         }
         XSetClipMask(d,gc,None);
-        fill(target,p2pOutputRect,palette.field);
-        outline(target,p2pOutputRect,palette.border);
+        if (embeddedInSearch) draw_concept_field(target,p2pOutputRect,palette.field,palette.border,false);
+        else { fill(target,p2pOutputRect,palette.field); outline(target,p2pOutputRect,palette.border); }
         text(target,p2pOutputRect.x+8,p2pOutputRect.y+18,tail_to_width("Download folder: "+p2pOutputFolder,p2pOutputRect.w-16),fieldInk);
         button_on(target,p2pLoadMagnetBtn,"Load Magnet");
         button_on(target,p2pOpenTorrentBtn,"Open P2P File");
@@ -2367,7 +2517,8 @@ public:
         p2pFileRows.clear();
         std::vector<P2PFileInfo> fs=p2p.files();
         Rect fileBox={28,y,std::max(240,W-56),std::max(80,H-y-24)};
-        fill(target,fileBox,palette.panel); outline(target,fileBox,palette.border);
+        if (embeddedInSearch) draw_nougat_panel(target,fileBox);
+        else { fill(target,fileBox,palette.panel); outline(target,fileBox,palette.border); }
         text(target,fileBox.x+8,fileBox.y+19,"P2P files",dark);
         int rowY=fileBox.y+30;
         const int selected=p2p.selected_file();
@@ -2666,6 +2817,11 @@ public:
     bool prepare_tv_autoplay(const reddmedia::LibraryNode& selected) {
         tvAutoplayQueue.clear();
         tvAutoplayIndex = -1;
+        tvAutoplayRetryIndex = -1;
+        tvAutoplayRetryAttempts = 0;
+        tvAutoplayRetryAtMs = 0;
+        lastLocalPlaybackPositionMs = 0;
+        lastLocalPlaybackLengthMs = 0;
         tvAutoplayArmed = false;
         activeLibraryItemValid = false;
         playbackEndHandled = false;
@@ -2674,6 +2830,18 @@ public:
         bool have_series = false;
         for (const auto& parent : libraryParents) {
             if (parent.kind == reddmedia::LibraryNodeKind::Series) { series = parent; have_series = true; break; }
+        }
+        // An episode can be opened from a route that no longer has the Series
+        // object in the visible navigation stack. Jellyfin still gives the
+        // episode its SeriesId, so reconstruct the parent and build the full
+        // season-spanning queue instead of silently degrading to one page.
+        if (!have_series && !selected.series_id.empty()) {
+            series.id = selected.series_id;
+            series.name = selected.series_name;
+            series.kind = reddmedia::LibraryNodeKind::Series;
+            series.tmdb_id = selected.series_tmdb_id;
+            series.series_tmdb_id = selected.series_tmdb_id;
+            have_series = true;
         }
         std::string error;
         if (have_series && libraryClient->initialize(error)) {
@@ -2729,35 +2897,69 @@ public:
         recommendationEngine->record_completed(descriptor_for_node(activeLibraryItem), error);
     }
 
+    bool start_tv_autoplay_index(int index) {
+        if (!tvAutoplayArmed || index < 0 || index >= static_cast<int>(tvAutoplayQueue.size())) return false;
+        const reddmedia::LibraryNode candidate = tvAutoplayQueue[static_cast<std::size_t>(index)];
+        if (!exists_file(candidate.path) || !open_media(candidate.path, 0)) {
+            tvAutoplayRetryIndex = index;
+            ++tvAutoplayRetryAttempts;
+            tvAutoplayRetryAtMs = now_ms() + 750;
+            return false;
+        }
+        tvAutoplayIndex = index;
+        tvAutoplayRetryIndex = -1;
+        tvAutoplayRetryAttempts = 0;
+        tvAutoplayRetryAtMs = 0;
+        activeLibraryItem = candidate;
+        activeLibraryItemValid = true;
+        std::string history_error;
+        recommendationEngine->record_started(descriptor_for_node(activeLibraryItem), history_error);
+        return true;
+    }
+
     bool play_next_tv_episode() {
         if (!tvAutoplayArmed || tvAutoplayIndex < 0) return false;
         const int next = tvAutoplayIndex + 1;
         if (next >= static_cast<int>(tvAutoplayQueue.size())) {
             tvAutoplayArmed = false;
+            tvAutoplayRetryIndex = -1;
             return false;
         }
-        tvAutoplayIndex = next;
-        activeLibraryItem = tvAutoplayQueue[static_cast<std::size_t>(next)];
-        activeLibraryItemValid = true;
-        std::string history_error;
-        recommendationEngine->record_started(descriptor_for_node(activeLibraryItem), history_error);
-        open_media(activeLibraryItem.path, 0);
-        return true;
+        return start_tv_autoplay_index(next);
+    }
+
+    void poll_tv_autoplay_retry() {
+        if (!tvAutoplayArmed || tvAutoplayRetryIndex < 0 || now_ms() < tvAutoplayRetryAtMs) return;
+        const int retry_index = tvAutoplayRetryIndex;
+        if (tvAutoplayRetryAttempts >= 3) {
+            tvAutoplayArmed = false;
+            tvAutoplayRetryIndex = -1;
+            return;
+        }
+        start_tv_autoplay_index(retry_index);
     }
 
     void poll_natural_playback_end() {
         if (!mp || paused || playbackEndHandled || currentMediaIsNetwork || currentMediaIsP2P || currentMediaIsYtDlpStream) return;
-        bool ended = false;
-        if (api.get_state) ended = api.get_state(mp) == 6;
-        if (!ended) {
-            const long long length = playback_length_ms();
-            const long long position = playback_time_ms();
-            ended = length > 0 && position >= std::max<long long>(0, length - 350);
+        const int state = api.get_state ? api.get_state(mp) : -1;
+        const long long length = playback_length_ms();
+        const long long position = playback_time_ms();
+        if (length > 0) lastLocalPlaybackLengthMs = length;
+        if (position >= 0) lastLocalPlaybackPositionMs = position;
+
+        bool ended = state == 6; // libVLC Ended
+        if (!ended && length > 0 && position >= std::max<long long>(0, length - 500)) ended = true;
+        // Some local files briefly report Stopped at natural EOF. Manual Stop
+        // cancels tvAutoplayArmed before calling libVLC stop, so this fallback
+        // cannot accidentally advance after an owner-requested Stop.
+        if (!ended && state == 5 && tvAutoplayArmed && lastLocalPlaybackLengthMs > 0 &&
+            lastLocalPlaybackPositionMs >= std::max<long long>(0, lastLocalPlaybackLengthMs - 1500)) {
+            ended = true;
         }
         if (!ended) return;
         playbackEndHandled = true;
         mark_active_episode_completed();
-        if (!play_next_tv_episode() && !fullscreen) redraw();
+        if (!play_next_tv_episode() && tvAutoplayRetryIndex < 0 && !fullscreen) redraw();
     }
 
     void open_library_node(const reddmedia::LibraryNode& selected) {
@@ -3542,23 +3744,70 @@ public:
     unsigned long nougat_dark() { return col(0x1a1a,0x1212,0x0e0e); }
 
     void nougat_button(Drawable target, const Rect& r, const std::string& label, bool selected=false) {
-        fill(target, r, selected ? nougat_tan() : nougat_caramel());
-        outline(target, r, nougat_chocolate());
-        text(target, r.x + 9, r.y + 20, label, selected ? nougat_dark() : nougat_cream());
+        const ViewPalette palette = palette_for(ViewMode::Nougat);
+        const bool hover = target == win && r.contains(pointerWindowX, pointerWindowY);
+        Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        Rect shadow{visual.x, visual.y + 2, visual.w, visual.h};
+        fill_round(target, shadow, 8, palette.buttonDark);
+        const unsigned long face = selected ? palette.buttonDark : (hover ? palette.buttonLight : palette.button);
+        const unsigned long ink = selected ? nougat_cream() : palette.buttonText;
+        fill_round(target, visual, 8, face);
+        outline_round(target, visual, 8, palette.buttonDark);
+        Rect stitch{visual.x + 2, visual.y + 2, std::max(1, visual.w - 4), std::max(1, visual.h - 4)};
+        outline_round(target, stitch, 6, selected ? palette.button : palette.buttonLight);
+        line(target, visual.x + 8, visual.y + 2, visual.x + visual.w - 9, visual.y + 2,
+             selected ? palette.button : rgb8(255,235,198));
+        const int labelX = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
+        const int labelY = visual.y + visual.h / 2 + 5;
+        text(target, labelX, labelY, head_to_width(label, visual.w - 10), ink);
+    }
+
+    void nougat_tab_button(Drawable target, const Rect& r, const std::string& label, bool active) {
+        nougat_button(target, r, label, active);
+        if (!active) return;
+        const ViewPalette palette = palette_for(ViewMode::Nougat);
+        const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        const int cx = visual.x + visual.w / 2;
+        XPoint outer[3] = {
+            {static_cast<short>(cx - 9), static_cast<short>(visual.y + visual.h - 2)},
+            {static_cast<short>(cx + 9), static_cast<short>(visual.y + visual.h - 2)},
+            {static_cast<short>(cx), static_cast<short>(visual.y + visual.h + 7)}
+        };
+        XSetForeground(d, gc, palette.buttonDark);
+        XFillPolygon(d, target, gc, outer, 3, Convex, CoordModeOrigin);
+        XPoint inner[3] = {
+            {static_cast<short>(cx - 7), static_cast<short>(visual.y + visual.h - 2)},
+            {static_cast<short>(cx + 7), static_cast<short>(visual.y + visual.h - 2)},
+            {static_cast<short>(cx), static_cast<short>(visual.y + visual.h + 5)}
+        };
+        XSetForeground(d, gc, palette.buttonDark);
+        XFillPolygon(d, target, gc, inner, 3, Convex, CoordModeOrigin);
+        line(target, cx - 6, visual.y + visual.h - 1, cx, visual.y + visual.h + 4, palette.button);
+        line(target, cx, visual.y + visual.h + 4, cx + 6, visual.y + visual.h - 1, palette.button);
+    }
+
+    void draw_nougat_panel(Drawable target, const Rect& r) {
+        const ViewPalette palette = palette_for(ViewMode::Nougat);
+        Rect shadow{r.x, r.y + 3, r.w, r.h};
+        fill_round(target, shadow, 9, rgb8(199,168,129));
+        fill_round(target, r, 9, palette.panel);
+        outline_round(target, r, 9, palette.border);
+        Rect inset{r.x + 3, r.y + 3, std::max(1, r.w - 6), std::max(1, r.h - 6)};
+        outline_round(target, inset, 7, rgb8(255,245,225));
     }
 
     void draw_nougat_input(Drawable target, const Rect& r, const std::string& value, NougatInputFocus field) {
-        fill(target, r, nougat_cream());
-        outline(target, r, field == nougatInputFocus ? nougat_caramel() : nougat_tan());
+        const ViewPalette palette = palette_for(ViewMode::Nougat);
+        draw_concept_field(target, r, palette.field, palette.border, field == nougatInputFocus);
         const std::string shown = tail_to_width(value, std::max(20, (int)r.w - 16));
         if (nougatInputFocus == field && nougatInputSelectAll && !value.empty()) {
-            fill(target, {r.x+5, r.y+5, std::min((int)r.w-10, text_width(shown)+6), (int)r.h-10}, nougat_tan());
+            fill_round(target, {r.x+5, r.y+5, std::min((int)r.w-10, text_width(shown)+6), (int)r.h-10}, 4, palette.selection);
         }
-        text(target, r.x+8, r.y+20, shown, nougat_dark());
+        text(target, r.x+8, r.y+20, shown, palette.text);
         if (nougatInputFocus == field && !nougatInputSelectAll) {
             int cx = r.x + 8 + text_width(shown);
             cx = std::min(cx, r.x + r.w - 8);
-            line(target, cx, r.y + 5, cx, r.y + r.h - 5, nougat_dark());
+            line(target, cx, r.y + 5, cx, r.y + r.h - 5, palette.text);
         }
     }
 
@@ -3905,16 +4154,16 @@ public:
 
     void draw_nougat_screen(Drawable target) {
         draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Nougat);
-        text(target, 28, 44, "SEARCH", nougat_tan());
-        text(target, 96, 44, "Nougat Media Suite | Just Nougat it.", nougat_light());
+        const ViewPalette searchPalette = palette_for(ViewMode::Nougat);
+        text(target, 28, 44, "SEARCH", searchPalette.text);
         std::string node;
         std::string status;
         bool search_busy=false, crawl_busy=false;
         { std::lock_guard<std::mutex> lock(nougatState->mutex); node=nougatState->node_id; status=nougatState->status; search_busy=nougatState->search_busy; crawl_busy=nougatState->crawl_busy; }
         if (!node.empty()) text(target, std::max(500,W-220), 44, "Node " + node, nougat_light());
-        nougat_button(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search && !nougatNetworkAdvanced);
-        nougat_button(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler);
-        nougat_button(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P);
+        nougat_tab_button(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search && !nougatNetworkAdvanced);
+        nougat_tab_button(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler);
+        nougat_tab_button(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P);
         if (nougatPanel == NougatPanel::Search) {
             nougat_button(target,nougatNetworkAdvancedBtn,nougatNetworkAdvanced?"Back":"Network...",nougatNetworkAdvanced);
         }
@@ -3930,25 +4179,25 @@ public:
             nougat_button(target,nougatRemovePeerBtn,"Remove");
             nougat_button(target,nougatNodeBtn,nougat.node_running()?"STOP NODE":"START NODE",nougat.node_running());
             nougat_button(target,nougatPeersToggleBtn,nougatSearchPeers?"Search peers [x]":"Search peers",nougatSearchPeers);
-            fill(target,nougatPeerListBox,nougat_chocolate()); outline(target,nougatPeerListBox,nougat_tan());
+            draw_nougat_panel(target,nougatPeerListBox);
             std::vector<std::string> peers;
             { std::lock_guard<std::mutex> lock(nougatState->mutex); peers=nougatState->peers; }
             const int visible=std::max(1,((int)nougatPeerListBox.h-16)/22);
             nougatPeerScroll=std::max(0,std::min(nougatPeerScroll,std::max(0,(int)peers.size()-visible)));
             int y=nougatPeerListBox.y+22;
             for (int i=nougatPeerScroll; i<(int)peers.size() && i<nougatPeerScroll+visible; ++i) {
-                if (i==nougatPeerSelected) fill(target,{nougatPeerListBox.x+5,y-16,(int)nougatPeerListBox.w-10,21},nougat_tan());
-                text(target,nougatPeerListBox.x+9,y,peers[(size_t)i],i==nougatPeerSelected?nougat_dark():nougat_cream()); y+=22;
+                if (i==nougatPeerSelected) fill_round(target,{nougatPeerListBox.x+6,y-16,(int)nougatPeerListBox.w-12,21},5,searchPalette.selection);
+                text(target,nougatPeerListBox.x+9,y,peers[(size_t)i],searchPalette.text); y+=22;
             }
-            text(target,28,H-20,status,nougat_light());
+            text(target,28,H-20,status,searchPalette.text);
             return;
         }
         if (nougatPanel == NougatPanel::Search) {
             draw_nougat_input(target,nougatSearchRect,nougatSearchQuery,NougatInputFocus::Search);
             nougat_button(target,nougatRawBtn,nougatRaw?"RAW [x]":"RAW",nougatRaw);
             nougat_button(target,nougatSearchBtn,search_busy?"SEARCHING":"SEARCH");
-            text(target,28,160,status,nougat_light());
-            fill(target,nougatResultsBox,nougat_chocolate()); outline(target,nougatResultsBox,nougat_tan());
+            text(target,28,160,status,searchPalette.text);
+            draw_nougat_panel(target,nougatResultsBox);
             nougatResultHitboxes.clear();
             std::vector<reddmedia::NougatSearchResult> results;
             { std::lock_guard<std::mutex> lock(nougatState->mutex); results=nougatState->search.results; }
@@ -3959,11 +4208,13 @@ public:
             for (int i=nougatResultScroll; i<(int)results.size() && i<nougatResultScroll+visible; ++i) {
                 const auto& r=results[(size_t)i];
                 Rect card={nougatResultsBox.x+8,y,(int)nougatResultsBox.w-16,card_h-6};
-                fill(target,card,col(0x3d3d,0x2828,0x2020)); outline(target,card,nougat_tan());
-                text(target,card.x+8,card.y+18,head_to_width(std::to_string(nougatSearchOffset+i+1)+". "+r.title,card.w-170),nougat_cream());
-                text(target,card.x+8,card.y+38,head_to_width(r.url,card.w-16),nougat_tan());
-                text(target,card.x+8,card.y+58,head_to_width(r.snippet,card.w-16),nougat_light());
-                text(target,card.x+8,card.y+78,head_to_width(r.source_network+" | Node "+r.source_node,card.w-300),nougat_light());
+                fill_round(target,card,7,rgb8(250,240,222)); outline_round(target,card,7,searchPalette.border);
+                Rect cardInset{card.x+2,card.y+2,card.w-4,card.h-4};
+                outline_round(target,cardInset,5,rgb8(255,248,235));
+                text(target,card.x+8,card.y+18,head_to_width(std::to_string(nougatSearchOffset+i+1)+". "+r.title,card.w-170),searchPalette.text);
+                text(target,card.x+8,card.y+38,head_to_width(r.url,card.w-16),rgb8(151,91,36));
+                text(target,card.x+8,card.y+58,head_to_width(r.snippet,card.w-16),searchPalette.muted);
+                text(target,card.x+8,card.y+78,head_to_width(r.source_network+" | Node "+r.source_node,card.w-300),searchPalette.muted);
                 Rect copy={card.x+card.w-278,card.y+63,82,24};
                 Rect tor={card.x+card.w-190,card.y+63,94,24};
                 Rect open={card.x+card.w-90,card.y+63,82,24};
@@ -3979,7 +4230,7 @@ public:
         text(target,nougatCrawlMinusBtn.x-96,130,"Max pages: "+std::to_string(nougatMaxPages),nougat_cream());
         nougat_button(target,nougatSameDomainBtn,nougatSameDomain?"Stay on domain [x]":"Stay on domain",nougatSameDomain);
         nougat_button(target,nougatStartCrawlBtn,crawl_busy?"CRAWLING":"START CRAWL");
-        fill(target,nougatCrawlLogBox,nougat_chocolate()); outline(target,nougatCrawlLogBox,nougat_tan());
+        draw_nougat_panel(target,nougatCrawlLogBox);
         std::vector<std::string> lines;
         { std::lock_guard<std::mutex> lock(nougatState->mutex); lines=nougatState->crawl_log; }
         const int visible=std::max(1,((int)nougatCrawlLogBox.h-16)/18);
@@ -3989,11 +4240,11 @@ public:
         int y=nougatCrawlLogBox.y+20;
         for (int i=nougatCrawlScroll; i<(int)lines.size() && i<nougatCrawlScroll+visible; ++i) {
             const bool selected=nougatOutputSelectionStart>=0 && i>=std::min(nougatOutputSelectionStart,nougatOutputSelectionEnd) && i<=std::max(nougatOutputSelectionStart,nougatOutputSelectionEnd);
-            if (selected) fill(target,{nougatCrawlLogBox.x+5,y-14,(int)nougatCrawlLogBox.w-10,18},nougat_tan());
-            text(target,nougatCrawlLogBox.x+9,y,head_to_width(lines[(size_t)i],nougatCrawlLogBox.w-18),selected?nougat_dark():nougat_cream());
+            if (selected) fill_round(target,{nougatCrawlLogBox.x+6,y-14,(int)nougatCrawlLogBox.w-12,18},4,searchPalette.selection);
+            text(target,nougatCrawlLogBox.x+9,y,head_to_width(lines[(size_t)i],nougatCrawlLogBox.w-18),searchPalette.text);
             y+=18;
         }
-        text(target,28,194,status,nougat_light());
+        text(target,28,194,status,searchPalette.text);
     }
 
     void poll_nougat_workers() {
@@ -5219,7 +5470,20 @@ public:
                         const bool moved = pointerWindowX != e.xmotion.x || pointerWindowY != e.xmotion.y;
                         pointerWindowX = e.xmotion.x;
                         pointerWindowY = e.xmotion.y;
-                        if (moved && !fullscreen) redraw();
+                        if (moved && !fullscreen) {
+                            // The concept UI is intentionally richer than the old
+                            // flat controls. Do not repaint the entire window for
+                            // every raw X11 motion packet; cap hover repaints and
+                            // leave a pending final repaint so the last hover state
+                            // is never stranded.
+                            pointerFullRedrawPending = true;
+                            const long long pointer_now = now_ms();
+                            if (pointer_now - lastPointerFullRedrawMs >= 50) {
+                                lastPointerFullRedrawMs = pointer_now;
+                                pointerFullRedrawPending = false;
+                                redraw();
+                            }
+                        }
                     }
                     handle_nougat_motion(e.xmotion);
                     if (volumeDragging && currentView==ViewMode::VideoPlayer && mp) {
@@ -5328,6 +5592,7 @@ public:
             run_pending_video_click();
             tick_resume_seek();
             poll_natural_playback_end();
+            poll_tv_autoplay_retry();
             poll_ytdlp_process();
             poll_nougat_workers();
             poll_library_worker();
@@ -5358,6 +5623,11 @@ public:
             if (currentMediaIsYtDlpStream && mp) playback_length_ms();
             if (!fullscreen && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
+            if (pointerFullRedrawPending && !fullscreen && now_ms() - lastPointerFullRedrawMs >= 50) {
+                lastPointerFullRedrawMs = now_ms();
+                pointerFullRedrawPending = false;
+                redraw();
+            }
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
         }
@@ -5425,6 +5695,7 @@ public:
         }
         if (inst) api.release(inst);
         inst=nullptr;
+        free_quilt_tiles();
         if (d) XCloseDisplay(d);
         d=nullptr;
     }
@@ -5432,7 +5703,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.23\n");
+        printf("Nougat Media Suite v0.0.24\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {

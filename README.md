@@ -1,6 +1,11 @@
-# Nougat Media Suite v0.0.23
+# Nougat Media Suite v0.0.24
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+
+## v0.0.24 - Search Page UI Polish
+
+v0.0.24 is an owner-approved Search-page-only visual polish release on the accepted v0.0.23 base. It moves the approved N emblem and NOUGAT MEDIA SUITE identity to the far-left header position, removes the duplicate right-side N badge, finishes concept-sheet styling for Search/Crawler/P2P controls and panels, aligns Network... and SEARCH on the same right-side column, and strengthens GNOME launcher/window icon association so the approved N replaces the generic gear fallback. Search-engine behavior is intentionally unchanged in this release.
 
 
 ## v0.0.23 - Exact Concept UI and Stream Direct Watch Repair

@@ -1,5 +1,42 @@
 # Nougat Media Suite Changelog
 
+## v0.0.24 same-version installer repair - Legacy v23 launcher accepted and replaced
+
+- Repaired the exact-N app-wide installer preflight after owner testing found an existing untracked `NougatMediaSuite_v23.desktop` legacy launcher in the rejected v0.0.24 working tree.
+- The legacy v23 launcher is now an explicitly supported icon-identity surface: it is rollback-captured if present, overwritten with the same corrected exact-sheet N launcher identity, installed into the user applications directory, and restored on installer rollback.
+- No icon artwork, background/quilt, Search, playback, Library, Discover, Stream, diagnostic, or licensing behavior changed in this installer-only repair.
+
+## v0.0.24 same-version repair - Exact Master Icon and Quilt Background
+
+- Owner rejected the preceding v0.0.24 candidate because the dock/application N was generated from a blurry screenshot crop and the quilted page background was an approximation instead of the full-resolution concept-sheet material.
+- Replaced every active Nougat icon size and embedded X11/top-bar icon with the exact N extracted from the owner-uploaded full-resolution concept sheet.
+- Removed the concept-sheet canvas from the icon asset: the area outside the emblem is transparent, with no white/cream square or halo around the N.
+- Replaced the procedural diagonal-line quilt approximation with an exact 128x128 crop of the padded quilt material from the concept sheet, rendered as a mirrored X11 tile for seamless page coverage.
+- Applied visible per-area dye/tints to that same quilt material: warm caramel for Video Player, sage for Library, lavender for Discover, cream/gold for Search, dusty blue for Stream, and taupe/gray for Debug.
+- Preserved the already-passing v0.0.24 Search-page polish, Crawler spacing repair, GNOME identity chain, TV autoplay repair, pointer-motion lag repair, Search-engine behavior, and protected licensing files unchanged.
+
+## v0.0.24 same-version repair - Search UI Stability
+
+- Fixed the Crawler status/log overlap by moving the log panel below the status baseline with a visible gap.
+- Preserved Crawler text selection/highlight behavior unchanged.
+- Repaired Ubuntu/GNOME dock matching with canonical application ID `com.elderredsoftworks.NougatMediaSuite`, the accepted `WM_CLASS=NougatMediaSuite`, a canonical desktop-file hint, and the approved N icon-theme asset.
+- Installed `com.elderredsoftworks.NougatMediaSuite.desktop` while retaining the compatibility launcher.
+- Repaired TV next-episode autoplay so an episode can reconstruct its Jellyfin Series parent, natural EOF accepts libVLC Ended plus a guarded near-EOF Stopped fallback, local playback startup is checked, and a failed next-episode start is retried a bounded number of times. Manual Stop still cancels autoplay.
+- Reduced UI lag by throttling full-window concept-UI repaints during raw X11 pointer motion while preserving a final pending hover repaint and existing Crawler drag-selection behavior.
+- Search-engine behavior and protected licensing files remain unchanged.
+
+
+## v0.0.24 - Search Page UI Polish
+
+- Moved the approved N emblem to the far-left header and placed `NOUGAT MEDIA SUITE` immediately beside it.
+- Removed the duplicate right-side N badge while retaining server status and version on the right.
+- Restyled Search/Crawler/P2P sub-tabs with the approved stitched/beveled Nougat controls and active-tab point.
+- Converted Search inputs, action buttons, result cards, peer lists, crawl log, and embedded P2P fields/panels to the concept-sheet family.
+- Aligned `Network...` and `SEARCH` exactly in one right-side column.
+- Improved Search text contrast and replaced the legacy dark results slab with a light Nougat panel.
+- Added a stable GNOME X11 application-ID hint and direct launcher icon path to eliminate the generic gear fallback.
+- Preserved Search-engine behavior and all protected licensing files unchanged.
+
 ## v0.0.23 - Exact Concept UI and Stream Direct Watch Repair
 
 - Applied the owner-approved concept-sheet control language to the existing UI without changing the established top-tab or player-control order.
@@ -286,3 +323,22 @@ Known limitations:
 ### v0.0.20 candidate handoff repair — accepted v0.0.19 base manifest
 - Corrected the installer/package base gate to the final accepted v0.0.19 `REDDMEDIA_PATCH_MANIFEST_v19.json` hash.
 - No v0.0.20 feature behavior changed.
+## v0.0.24 same-version exact N app-wide replacement repair
+
+- Owner rejected the preceding v0.0.24 icon result because the blurry screenshot-derived N remained active on application surfaces.
+- Replaced the complete active Nougat icon family again from the owner-uploaded full-resolution concept sheet, with a clean transparent silhouette and no cream/white exterior halo.
+- Regenerated the embedded top-bar and `_NET_WM_ICON` pixel data from the corrected master so the in-app header, running window, dock/app switcher, and executable all share the same artwork.
+- Changed active desktop launchers to a fresh `nougat-media-suite-exact-n` icon-theme key to bypass stale GNOME icon-cache identity while also overwriting legacy/current Nougat icon aliases with the same corrected artwork.
+- The installer refreshes installed icon-theme assets, desktop entries, GNOME favorites identity, Files/Nautilus metadata, and verifies old rejected blurry icon hashes are absent from every active Nougat icon surface it owns.
+- No Search-engine, quilt/background, playback, licensing, Library, Discover, Stream, or diagnostic behavior is changed by this repair.
+
+
+## v0.0.24 same-version literal concept-sheet N app-wide repair
+
+- Owner rejected the preceding icon result because the in-app left header still visibly showed the old blurry screenshot-derived N and the dock identity was not reliably replaced.
+- The active icon family is regenerated from a literal crop of the N emblem in the owner-supplied full-resolution concept sheet; the surrounding sheet canvas and exterior cream/gray sheet shadow are removed to transparent alpha while the emblem pixels remain from the sheet.
+- The previous rejected 14/16/32/48/64/128/256/512 icon family is explicitly forbidden by hash.
+- `src/nougat_media_suite_icon_data.hpp` is regenerated from the new 14/16/32/64 assets, so the far-left in-app header badge and `_NET_WM_ICON` no longer use the old embedded pixels.
+- Every project launcher from unversioned through v22/v23/v24 plus the canonical reverse-DNS launcher uses the fresh cache-busting key `nougat-media-suite-concept-sheet-v24`.
+- The installer writes the exact same icon under the fresh key and every legacy/current Nougat icon alias used by GNOME, refreshes the dock favorite binding when present, refreshes desktop/icon caches, and reapplies raw executable custom-icon metadata only after the final v24 executable is written.
+- Existing concept-sheet quilt/background tinting and all non-icon behavior remain unchanged.

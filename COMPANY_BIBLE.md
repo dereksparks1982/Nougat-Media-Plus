@@ -242,3 +242,12 @@ Only the owner decides whether the candidate is accepted.
 - The active icon is the exact owner-approved square chocolate/caramel N emblem extracted from the concept sheet; the former candy-filled N icon is no longer active identity.
 - Stream retains YouTube, Rumble, RuTube, VK, and OK. Stream uses one shared Direct Play URL field and one native playback action named Direct Watch; the redundant Stream Play button is removed.
 - Additional Stream services, Web Player, Plex integration, or other feature expansion require separate owner approval.
+## 19. v0.0.24 Search-page polish law
+
+- Search-page polish is scoped to the existing Search area and must not change decentralized-search engine behavior without separate owner approval.
+- The suite header uses the approved N emblem at the far left with `NOUGAT MEDIA SUITE` immediately beside it; the version/server area does not carry a duplicate N.
+- Search's internal `Search | Crawler | P2P` tabs use the approved concept-sheet control family and selected-tab point/notch.
+- `Network...` and `SEARCH` share the same right-side alignment and width.
+- Search fields, results, peer lists, crawl logs, and embedded P2P surfaces use the approved cream/caramel/chocolate concept family rather than the legacy flat dark slab.
+- The GNOME launcher/running-window identity must resolve to the approved Nougat N, not a generic gear fallback.
+
