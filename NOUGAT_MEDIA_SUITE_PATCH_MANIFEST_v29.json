@@ -1,0 +1,188 @@
+{
+  "accepted_base_commit": "80b12f2b47959f4482e65238b9c0b6033f9785a2",
+  "accepted_base_version": "0.0.28",
+  "base_files": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 353,
+      "sha256": "3d7f376d0fa08607cfb0a6a77608e40787cd91f5dca0cf56d6f6f32ed6fc9af3"
+    },
+    "CHANGELOG.md": {
+      "bytes": 42521,
+      "sha256": "bb06332a9a76be2e6569f8f1db3a0ad39a52a28e1ac71b5da090c03563f0ef43"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2848,
+      "sha256": "50ba4145d5cafe7d7aaafb0f627e74ef08f33437ad1d81f52212e48be40ca34c"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 445,
+      "sha256": "85a4588dc8dd36f6a3deea548b38aaa55de43d269bf49b65f225af48caeccb41"
+    },
+    "NougatMediaSuite_v22.desktop": {
+      "bytes": 445,
+      "sha256": "85a4588dc8dd36f6a3deea548b38aaa55de43d269bf49b65f225af48caeccb41"
+    },
+    "NougatMediaSuite_v23.desktop": {
+      "bytes": 445,
+      "sha256": "85a4588dc8dd36f6a3deea548b38aaa55de43d269bf49b65f225af48caeccb41"
+    },
+    "NougatMediaSuite_v24.desktop": {
+      "bytes": 445,
+      "sha256": "85a4588dc8dd36f6a3deea548b38aaa55de43d269bf49b65f225af48caeccb41"
+    },
+    "NougatMediaSuite_v25.desktop": {
+      "bytes": 445,
+      "sha256": "85a4588dc8dd36f6a3deea548b38aaa55de43d269bf49b65f225af48caeccb41"
+    },
+    "NougatMediaSuite_v26.desktop": {
+      "bytes": 445,
+      "sha256": "85a4588dc8dd36f6a3deea548b38aaa55de43d269bf49b65f225af48caeccb41"
+    },
+    "NougatMediaSuite_v27.desktop": {
+      "bytes": 445,
+      "sha256": "85a4588dc8dd36f6a3deea548b38aaa55de43d269bf49b65f225af48caeccb41"
+    },
+    "NougatMediaSuite_v28.desktop": {
+      "bytes": 445,
+      "sha256": "85a4588dc8dd36f6a3deea548b38aaa55de43d269bf49b65f225af48caeccb41"
+    },
+    "README.md": {
+      "bytes": 45063,
+      "sha256": "898ecf80fdcb7c6b580a806237f34bd17d851c1600091af6d1c30b0e82cca3de"
+    },
+    "ROADMAP.md": {
+      "bytes": 27760,
+      "sha256": "436ab8db77c4d5a90a9c12bb22f9c4dc1f75756751acfac18459133e404d137c"
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 445,
+      "sha256": "85a4588dc8dd36f6a3deea548b38aaa55de43d269bf49b65f225af48caeccb41"
+    },
+    "src/main.cpp": {
+      "bytes": 412083,
+      "sha256": "efde8be9cc1884b3d119536399622b05a800a0e48bd0fae444e88410cc3beab7"
+    }
+  },
+  "base_state": "clean main at accepted v0.0.28; root Nougat_Media_Suite_v28 verified separately by installer",
+  "package": "Nougat_Media_Suite_v0_0_29_TV_RELIABILITY_AND_UI_REPAIR_CHANGED_FILES_ONLY.zip",
+  "payload": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 353,
+      "sha256": "2f1940c079ed5d4cea286022b56f6a536b6eca4862f2d43fc577fbbce2d2105c"
+    },
+    "CHANGELOG.md": {
+      "bytes": 44710,
+      "sha256": "417ff3d4f3082b7a0a0030c935c0244a96cc3fb5bf016a467faf826cfd0e7db5"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2848,
+      "sha256": "94c89fc2e766c9fffce69670f240a93334b391fbe3db00ddbc85804211424aeb"
+    },
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_29.sh": {
+      "bytes": 26458,
+      "sha256": "c6aeac3e50ec4e63c8847283c4ddd1ef36f7ca50848783ca64dc6df2a63c0c35"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "NougatMediaSuite_v22.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "NougatMediaSuite_v23.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "NougatMediaSuite_v24.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "NougatMediaSuite_v25.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "NougatMediaSuite_v26.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "NougatMediaSuite_v27.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "NougatMediaSuite_v28.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "NougatMediaSuite_v29.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "README.md": {
+      "bytes": 47363,
+      "sha256": "2f202ad1017d124cac85756f33ce5899ad11b4a27ea59cd314f443b250146670"
+    },
+    "ROADMAP.md": {
+      "bytes": 29506,
+      "sha256": "9fc7458ec30ac0c4b6de918715299d46a978189f20cb2bfd97b302861d157781"
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 445,
+      "sha256": "ba4f742d7284eeac16ba920080220e24a7b0bc132ca5ac60d9933bcf7c30670e"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_29_TV_RELIABILITY_AND_UI_REPAIR_HANDSHAKE.md": {
+      "bytes": 6684,
+      "sha256": "8e0bba0da83bbdff914043d161e73804f5de08a0061a0f0e9ce12bfc20fa7b56"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_29_TV_RELIABILITY_AND_UI_REPAIR_VALIDATION.md": {
+      "bytes": 3991,
+      "sha256": "d7fc64ae56aa0a0279931532169b6d464dff175384f14c88f201833bb406e3f2"
+    },
+    "src/main.cpp": {
+      "bytes": 436648,
+      "sha256": "857bdbfe3084f60dc35dada7904874e305b7e058c6df167cc290e42a207a6f9c"
+    },
+    "tools/test_installer_rollback_v29.py": {
+      "bytes": 4814,
+      "sha256": "8717d90f016a189c06685a598261b16fc82fc50f7e0631c775fc7920e780427a"
+    },
+    "tools/test_nougat_media_suite_retained_v28.py": {
+      "bytes": 5350,
+      "sha256": "1bab287d7d2251afbdb3037718c58809858793d3c0fb8860f2bd15179aeb59d8"
+    },
+    "tools/test_nougat_media_suite_ui_smoke_v29.py": {
+      "bytes": 2125,
+      "sha256": "0a2cb752ede083813cdeefd8f9b1246abcccbe4a22eadaa0cf20f7686988ce3c"
+    },
+    "tools/test_nougat_media_suite_v29.py": {
+      "bytes": 5977,
+      "sha256": "1ff463149c303b71bfd4dbf7406a4ff73b24186aff1ec298912ba79c1bf0da15"
+    }
+  },
+  "project": "Nougat Media Suite",
+  "protected_boundaries": [
+    "licensing",
+    "Search engine/bridge",
+    "current P2P implementation",
+    "diagnostics",
+    "accepted v0.0.28 palette/Home/Library/Search/player/resume/seek foundations"
+  ],
+  "release_split": {
+    "v0.0.30": "focused P2P expansion"
+  },
+  "required_absent": [
+    "NougatMediaSuite_v29.desktop",
+    "tools/test_nougat_media_suite_retained_v28.py",
+    "tools/test_nougat_media_suite_v29.py",
+    "tools/test_nougat_media_suite_ui_smoke_v29.py",
+    "tools/test_installer_rollback_v29.py",
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_29_TV_RELIABILITY_AND_UI_REPAIR_HANDSHAKE.md",
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_29_TV_RELIABILITY_AND_UI_REPAIR_VALIDATION.md",
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_29.sh",
+    "NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v29.json",
+    "Nougat_Media_Suite_v29"
+  ],
+  "scope": "TV Up Next/autoplay/Back-to-Series reliability plus carry-forward Home wheel, Vimeo, Video Player surround, and Home artwork repairs.",
+  "target_executable": "Nougat_Media_Suite_v29",
+  "target_version": "0.0.29"
+}

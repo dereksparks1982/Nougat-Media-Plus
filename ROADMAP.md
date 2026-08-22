@@ -21,7 +21,7 @@
 - Repair mouse-motion flicker at the repaint source, repair the selected-tab notch/header divider layering, and remove the redundant Discover/Stream/Diagnostic headings.
 - Preserve accepted v0.0.26 behavior outside this scope.
 
-## v0.0.28 candidate — Candy Palette, Artwork, and UI State Polish
+## v0.0.28 accepted — Candy Palette, Artwork, and UI State Polish
 - Make the main page background carry each native area identity: purple Home, cocoa/chocolate Video Player, green Library, red Discover, cream Search, provider-reactive Stream, and charcoal/licorice Debug. Use roughly 2–3 coordinated colors per page; the background does most of the differentiation while cream remains selective trim/text/panel material.
 - Replace the remaining light/white halo around windowed video with a cocoa/chocolate theater surround and restrained caramel trim. Preserve true fullscreen as edge-to-edge and square.
 - Keep Home loaded when switching tabs. Returning to Home preserves its recommendation results, Continue Watching shelf, artwork, and scroll positions instead of rebuilding the page; reload only when watch/library data changed or the owner explicitly refreshes.
@@ -33,12 +33,18 @@
 - Remove the redundant standalone `SEARCH` page heading while retaining `Search | Crawler | P2P` and reclaim the vertical space.
 - Preserve accepted v0.0.27 playback, resume, seek-preview, Discover, Search/P2P, diagnostics, licensing, and N identity outside this visual/state scope.
 
-## v0.0.29 planned — TV Playback and Navigation Reliability
-- Repair the owner-observed v0.0.27 Up Next regression as a focused playback build rather than mixing it into v0.0.28.
-- Resolve the next local episode from the current playback file's folder regardless of whether playback began from Home, Library, Open File, or another local path. Prefer parsed/verified season+episode identity, with natural filename order as fallback.
-- Resolve/cache the next episode before end-of-media so the Up Next overlay appears immediately, identifies the actual next episode, visibly counts down from 10 seconds, and autoplays unless the user chooses another action.
-- `Back to Series` returns to the actual series/season context rather than the generic Library root when that identity can be resolved.
-- Add real end-of-media regression coverage so source-token presence cannot falsely report Up Next healthy when the runtime path is broken.
+## v0.0.29 candidate — TV Playback, Navigation, and Carry-Forward UI Repair
+- Resolve the next local episode from the current playback file's folder regardless of whether playback began from Home, Library, Open File, resume history, or another local path. Prefer parsed/verified season+episode identity; use natural filename order for catalog-confirmed episodes when explicit numbering tokens are absent.
+- Resolve/cache the next episode when playback starts so the end-of-media path does not perform a slow folder/catalog discovery before showing Up Next.
+- At natural episode completion, show the resolved Up Next overlay immediately with a visible 10-second countdown, `Play Next`, `Back to Series`, and `Replay`; autoplay at zero unless the owner chooses another action. Manual Stop continues to cancel autoplay.
+- `Back to Series` resolves the actual Jellyfin series and returns to that series/season browsing context when the current episode can be mapped by series ID or exact local path, with TV Library as the honest fallback only when series identity cannot be recovered.
+- Add executable behavior coverage for `S01E13 -> S01E14`, natural filename ordering, and the actual 10-second Up Next overlay state so source-token presence cannot falsely report runtime health.
+- Repair Home wheel routing so the top navigation strip always receives wheel events first, including while Home is the active page. Continue Watching horizontal wheel behavior and ordinary Home vertical scrolling remain unchanged outside the header.
+- Add Vimeo immediately after YouTube in Stream using the provider's current blue/black/white brand family and keep provider detection, homepage action, selected notch, and provider-reactive quilt/palette behavior consistent with the existing Stream services.
+- Remove the partial brown Video Player rail/matte so the Video Player page background itself surrounds the video uniformly on all sides. Preserve the accepted page palette and player controls.
+- Strengthen Home artwork for owner-observed black TV cards: exact episode Primary/still first, matching season poster second, series poster third, with exact path containment able to recover the owning series for resume records created outside Library navigation.
+- Make Home movie/poster art fill the artwork region with aspect-preserving cover behavior instead of rendering as a tiny centered poster. Preserve rounded top clipping and silent hover previews.
+- Preserve accepted v0.0.28 palette, Home state persistence, Library poster work, Search cleanup, resume/seek/player behavior, Discover, Search/P2P, diagnostics, licensing, and N identity outside this focused reliability/repair scope.
 
 ## v0.0.30 planned — P2P expansion
 - Resume the deferred P2P work as its own focused build.

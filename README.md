@@ -1,6 +1,19 @@
-# Nougat Media Suite v0.0.28
+# Nougat Media Suite v0.0.29
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+
+## v0.0.29 - TV Playback, Navigation, and Carry-Forward UI Repair
+
+v0.0.29 builds on the owner-accepted/published v0.0.28 baseline. TV playback now resolves the next local episode from the current file's own folder regardless of whether the episode was opened from Home, Library, Open File, resume history, or another local route. Nougat prefers parsed season/episode identity such as `S01E13 -> S01E14`; for catalog-confirmed episodes without those tokens it uses natural filename order. The next-episode queue is prepared when playback starts instead of waiting for end-of-media.
+
+At natural episode completion, the Up Next overlay appears immediately with the resolved next episode and a visible 10-second countdown. `Play Next` starts it immediately, the countdown autoplays it at zero, `Replay` restarts the completed episode, and `Back to Series` resolves the actual Jellyfin series/season context when available instead of dropping to the generic Library root. Manual Stop continues to cancel autoplay. A real executable self-test now exercises same-folder episode ordering, natural filename fallback, and the 10-second Up Next state rather than merely checking that source tokens exist.
+
+This release also carries forward the owner-visible v0.0.28 polish defects intentionally deferred at acceptance. Home no longer swallows top-header wheel events when Home is selected, so the top tab strip scrolls horizontally just as it does on other pages. Vimeo is added immediately after YouTube in Stream using Vimeo's current blue/black/white brand family while retaining Nougat's provider-reactive Stream behavior. The Video Player page background now surrounds the video uniformly without the partial brown rail/matte.
+
+Home artwork is strengthened again: Continue Watching TV episodes prefer an exact episode Primary/still image, then the matching season poster, then series artwork, including resume records created outside the Library hierarchy when the series can be recovered by exact path containment. Movie/poster artwork fills the card artwork region with aspect-preserving cover behavior rather than appearing as a tiny centered stamp. Existing rounded top clipping and one-at-a-time silent hover previews remain intact.
+
+The focused BitTorrent Pro-class P2P expansion remains v0.0.30.
 
 
 ## v0.0.28 - Candy Palette, Artwork, and UI State Polish

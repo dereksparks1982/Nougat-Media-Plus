@@ -1,6 +1,20 @@
 # Changelog
 
-## v0.0.28 candidate — Candy Palette, Artwork, and UI State Polish
+## v0.0.29 candidate — TV Playback, Navigation, and Carry-Forward UI Repair
+
+- Repaired TV next-episode resolution at the player level: local episodes prepare a same-folder queue regardless of launch route, prefer parsed `SxxEyy` / `NxNN` identity, and retain natural filename ordering for catalog-confirmed episodes without explicit tokens.
+- Pre-resolved the next episode when playback starts so natural EOF can present Up Next immediately instead of waiting on a late folder/catalog scan.
+- Restored a visible 10-second Up Next countdown with `Play Next`, `Back to Series`, and `Replay`, plus autoplay at zero and bounded retry if the resolved local file cannot start immediately.
+- Repaired `Back to Series` so series ID or exact episode-path catalog resolution returns to the actual series browsing context instead of the generic Library root whenever the catalog can identify the series.
+- Added a real v0.0.29 executable behavior self-test covering `S01E13 -> S01E14`, natural filename ordering, series-folder inference, and creation of the actual 10-second Up Next overlay state.
+- Repaired Home wheel routing so the top tab strip scrolls horizontally even while Home is selected; Home's Continue Watching shelf and vertical page wheel handling no longer swallow header events.
+- Added Vimeo immediately after YouTube in Stream, including URL detection, provider homepage action, selected provider control, provider-reactive quilt/palette, and Vimeo blue/black/white treatment.
+- Removed the partial brown Video Player rail so the page background surrounds the video uniformly.
+- Strengthened Continue Watching TV artwork recovery: exact episode Primary/still first, matching season poster second, series poster third, with exact path containment able to recover the owning series for direct/open-file resume records.
+- Changed Home poster rendering from contain/postage-stamp presentation to aspect-preserving cover fill while retaining rounded top clipping and silent hover preview clipping.
+- Preserved accepted v0.0.28 licensing, Search/P2P implementation, diagnostics, palette, Library poster system, Search cleanup, resume/seek behavior, and approved N identity outside this scope.
+
+## v0.0.28 — Candy Palette, Artwork, and UI State Polish
 
 - Page backgrounds now carry the Nougat candy identity: purple Home, cocoa/chocolate Video Player, green Library, red Discover, cream Search, provider-reactive Stream, and charcoal Debug, with restrained supporting colors.
 - Home remains loaded across tab switches unless watch/library data changed or an explicit refresh is requested.

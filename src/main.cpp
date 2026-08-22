@@ -228,6 +228,97 @@ static bool ends_with_lower(const std::string& s, const std::string& ending) {
     std::string a = lower_copy(s);
     return a.size() >= ending.size() && a.substr(a.size()-ending.size()) == ending;
 }
+static bool is_playable_video_path(const std::string& path) {
+    static const char* extensions[] = {
+        ".mkv", ".mp4", ".m4v", ".avi", ".mov", ".webm", ".mpg", ".mpeg",
+        ".ts", ".m2ts", ".wmv", ".flv"
+    };
+    for (const char* extension : extensions) if (ends_with_lower(path, extension)) return true;
+    return false;
+}
+
+static bool parse_episode_code(const std::string& path, int& season, int& episode) {
+    const std::string text = lower_copy(stem_only(path));
+    season = 0;
+    episode = 0;
+    for (std::size_t i = 0; i + 3 < text.size(); ++i) {
+        if (text[i] != 's' || !std::isdigit(static_cast<unsigned char>(text[i + 1]))) continue;
+        std::size_t pos = i + 1;
+        int parsed_season = 0;
+        int season_digits = 0;
+        while (pos < text.size() && season_digits < 3 && std::isdigit(static_cast<unsigned char>(text[pos]))) {
+            parsed_season = parsed_season * 10 + (text[pos] - '0');
+            ++pos; ++season_digits;
+        }
+        if (season_digits == 0 || pos >= text.size() || text[pos] != 'e') continue;
+        ++pos;
+        int parsed_episode = 0;
+        int episode_digits = 0;
+        while (pos < text.size() && episode_digits < 3 && std::isdigit(static_cast<unsigned char>(text[pos]))) {
+            parsed_episode = parsed_episode * 10 + (text[pos] - '0');
+            ++pos; ++episode_digits;
+        }
+        if (episode_digits > 0 && parsed_episode > 0) {
+            season = parsed_season;
+            episode = parsed_episode;
+            return true;
+        }
+    }
+    // Common alternate form: 1x13, 02x04, etc.
+    for (std::size_t i = 0; i + 2 < text.size(); ++i) {
+        if (!std::isdigit(static_cast<unsigned char>(text[i]))) continue;
+        std::size_t start = i;
+        std::size_t pos = i;
+        int parsed_season = 0;
+        int season_digits = 0;
+        while (pos < text.size() && season_digits < 3 && std::isdigit(static_cast<unsigned char>(text[pos]))) {
+            parsed_season = parsed_season * 10 + (text[pos] - '0');
+            ++pos; ++season_digits;
+        }
+        if (season_digits == 0 || pos >= text.size() || text[pos] != 'x') { i = start; continue; }
+        ++pos;
+        int parsed_episode = 0;
+        int episode_digits = 0;
+        while (pos < text.size() && episode_digits < 3 && std::isdigit(static_cast<unsigned char>(text[pos]))) {
+            parsed_episode = parsed_episode * 10 + (text[pos] - '0');
+            ++pos; ++episode_digits;
+        }
+        if (episode_digits > 0 && parsed_episode > 0) {
+            season = parsed_season;
+            episode = parsed_episode;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool natural_filename_less(const std::string& left_path, const std::string& right_path) {
+    const std::string left = lower_copy(basename_only(left_path));
+    const std::string right = lower_copy(basename_only(right_path));
+    std::size_t a = 0, b = 0;
+    while (a < left.size() && b < right.size()) {
+        const bool ad = std::isdigit(static_cast<unsigned char>(left[a]));
+        const bool bd = std::isdigit(static_cast<unsigned char>(right[b]));
+        if (ad && bd) {
+            std::size_t ae = a, be = b;
+            while (ae < left.size() && std::isdigit(static_cast<unsigned char>(left[ae]))) ++ae;
+            while (be < right.size() && std::isdigit(static_cast<unsigned char>(right[be]))) ++be;
+            std::string an = left.substr(a, ae - a);
+            std::string bn = right.substr(b, be - b);
+            std::size_t anz = an.find_first_not_of('0');
+            std::size_t bnz = bn.find_first_not_of('0');
+            const std::string ac = anz == std::string::npos ? "0" : an.substr(anz);
+            const std::string bc = bnz == std::string::npos ? "0" : bn.substr(bnz);
+            if (ac.size() != bc.size()) return ac.size() < bc.size();
+            if (ac != bc) return ac < bc;
+            if (an.size() != bn.size()) return an.size() < bn.size();
+            a = ae; b = be; continue;
+        }
+        if (left[a] != right[b]) return left[a] < right[b];
+        ++a; ++b;
+    }
+    return left.size() < right.size();
+}
 static std::string json_escape(const std::string& s) {
     std::ostringstream o;
     for(char c: s) {
@@ -445,7 +536,7 @@ enum class MenuAction {
 };
 enum class ViewMode { Home, VideoPlayer, Library, Discover, Nougat, Stream, P2P, Debug };
 enum class NougatPanel { Search, Crawler, P2P };
-enum class StreamPlatform { YouTube, Rumble, RuTube, VK, OK };
+enum class StreamPlatform { YouTube, Vimeo, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
 enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
 enum class YtDlpJob { Idle, Download };
@@ -722,7 +813,7 @@ class App {
 public:
     Display* d=nullptr; int screen=0; Window win=0, video=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr; XFontStruct* sectionFontInfo=nullptr; XFontStruct* metadataFontInfo=nullptr;
     Pixmap quiltTiles[8] = {};
-    Pixmap streamQuiltTiles[5] = {};
+    Pixmap streamQuiltTiles[6] = {};
     int W=1000,H=650;
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
@@ -739,7 +830,7 @@ public:
     Rect discoverServicesBackBtn;
     Rect debugRunBtn, debugRetryBtn, debugMetadataBtn, debugTmdbBtn;
     Rect debugServerBtn, debugLogsBtn, debugCopyBtn, debugExportTextBtn, debugExportJsonBtn, debugBundleBtn, debugListBox;
-    Rect streamYoutubeTab, streamRumbleTab, streamRutubeTab, streamVkTab, streamOkTab;
+    Rect streamYoutubeTab, streamVimeoTab, streamRumbleTab, streamRutubeTab, streamVkTab, streamOkTab;
     Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpDirectWatchBtn, ytdlpWebpageBtn, ytdlpClearBtn, ytdlpFolderBtn;
     Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn;
     Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatP2PPanelTab, nougatNetworkAdvancedBtn;
@@ -1127,10 +1218,11 @@ public:
     static int stream_platform_index(StreamPlatform platform) {
         switch (platform) {
             case StreamPlatform::YouTube: return 0;
-            case StreamPlatform::Rumble: return 1;
-            case StreamPlatform::RuTube: return 2;
-            case StreamPlatform::VK: return 3;
-            case StreamPlatform::OK: return 4;
+            case StreamPlatform::Vimeo: return 1;
+            case StreamPlatform::Rumble: return 2;
+            case StreamPlatform::RuTube: return 3;
+            case StreamPlatform::VK: return 4;
+            case StreamPlatform::OK: return 5;
         }
         return 0;
     }
@@ -1144,6 +1236,7 @@ public:
         if (view == ViewMode::Stream) {
             switch (provider) {
                 case StreamPlatform::YouTube: r=205; g=76;  b=67;  blendPercent=22; return;
+                case StreamPlatform::Vimeo:   r=23;  g=213; b=255; blendPercent=22; return;
                 case StreamPlatform::Rumble:  r=128; g=154; b=79;  blendPercent=22; return;
                 case StreamPlatform::RuTube:  r=168; g=107; b=178; blendPercent=20; return;
                 case StreamPlatform::VK:      r=91;  g=142; b=174; blendPercent=20; return;
@@ -1221,11 +1314,11 @@ public:
             ViewMode::Nougat, ViewMode::Stream, ViewMode::P2P, ViewMode::Debug
         };
         for (int i=0; i<8; ++i) quiltTiles[i] = create_quilt_tile(views[i]);
-        const StreamPlatform providers[5] = {
-            StreamPlatform::YouTube, StreamPlatform::Rumble, StreamPlatform::RuTube,
-            StreamPlatform::VK, StreamPlatform::OK
+        const StreamPlatform providers[6] = {
+            StreamPlatform::YouTube, StreamPlatform::Vimeo, StreamPlatform::Rumble,
+            StreamPlatform::RuTube, StreamPlatform::VK, StreamPlatform::OK
         };
-        for (int i=0; i<5; ++i) {
+        for (int i=0; i<6; ++i) {
             streamQuiltTiles[i] = create_quilt_tile(ViewMode::Stream, providers[i]);
         }
     }
@@ -1317,6 +1410,10 @@ public:
                 return {background, panel, field, rgb8(166,93,79), textColor, muted,
                         rgb8(190,75,67), rgb8(196,82,72), rgb8(120,55,49),
                         rgb8(225,132,119), cream, rgb8(190,75,67)};
+            case StreamPlatform::Vimeo:
+                return {background, panel, field, rgb8(23,213,255), rgb8(20,26,32), muted,
+                        rgb8(23,213,255), rgb8(86,224,255), rgb8(20,26,32),
+                        rgb8(145,237,255), rgb8(250,252,253), rgb8(23,213,255)};
             case StreamPlatform::Rumble:
                 return {background, panel, field, rgb8(112,126,70), textColor, muted,
                         rgb8(134,151,84), rgb8(144,153,89), rgb8(82,91,48),
@@ -1636,7 +1733,7 @@ public:
         resumeBtn = {promptX, H/2+40, kCompactButtonW, kCompactButtonH};
         loadBtn = {promptX+kCompactButtonW, H/2+40, kCompactButtonW, kCompactButtonH};
 
-        layout_button_row({&streamYoutubeTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab},
+        layout_button_row({&streamYoutubeTab,&streamVimeoTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab},
                           54, streamSourceScrollX);
         ytdlpUrlRect = {28, 120, std::max(240, W-56), 28};
         ytdlpOutputRect = {28, 160, std::max(240, W-56), 28};
@@ -1914,15 +2011,22 @@ public:
                                 bool offer_resume=true) {
         if (path.empty() || !exists_file(path)) return;
         persist_current_resume(true);
+        cancel_tv_autoplay();
         if (node) {
             activeLibraryItem = *node;
             activeLibraryItemValid = true;
         } else {
-            activeLibraryItem = reddmedia::LibraryNode{};
-            activeLibraryItem.path = path;
-            activeLibraryItem.name = stem_only(path);
-            activeLibraryItem.kind = reddmedia::LibraryNodeKind::Movie;
+            activeLibraryItem = inferred_episode_node_for_path(path);
+            if (activeLibraryItem.path.empty()) {
+                activeLibraryItem = reddmedia::LibraryNode{};
+                activeLibraryItem.path = path;
+                activeLibraryItem.name = stem_only(path);
+                activeLibraryItem.kind = reddmedia::LibraryNodeKind::Movie;
+            }
             activeLibraryItemValid = true;
+        }
+        if (activeLibraryItem.kind == reddmedia::LibraryNodeKind::Episode) {
+            prepare_tv_autoplay(activeLibraryItem);
         }
         ResumeRecord record;
         if (offer_resume && resumeStore.find(path, record) && resume_record_is_useful(record)) {
@@ -2190,6 +2294,12 @@ public:
     }
     bool open_media(const std::string& path, long long seek=0) {
         if (!inst || !api.media_new_path || path.empty()) return false;
+        if (!tvAutoplayArmed && exists_file(path)) {
+            reddmedia::LibraryNode candidate;
+            if (activeLibraryItemValid && activeLibraryItem.path == path) candidate = activeLibraryItem;
+            else candidate = inferred_episode_node_for_path(path);
+            if (candidate.kind == reddmedia::LibraryNodeKind::Episode) prepare_tv_autoplay(candidate);
+        }
         if (!currentPath.empty() && currentPath != path) persist_current_resume(true);
         p2pStream.stop();
         cleanup_player();
@@ -2633,7 +2743,7 @@ public:
         // scrolling tab strip is intentionally painted afterward so tabs can
         // roll over the N/name, Server status/dot, and version number without
         // those fixed elements being redrawn on top of the buttons.
-        const std::string versionLabel = "v0.0.28";
+        const std::string versionLabel = "v0.0.29";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -3031,12 +3141,10 @@ public:
     void draw_controls(Drawable target) {
         draw_top_bar(target);
         if (currentView != ViewMode::VideoPlayer) return;
-        // v0.0.28 theater surround: the windowed video child sits inside this
-        // cocoa matte.  This replaces the pale/white halo visible around v27.
-        fill(target, {0, 34, W, std::max(1, H - 34)}, rgb8(47, 27, 19));
-        fill_round(target, {6, 38, std::max(1, W - 12), std::max(1, H - 158)}, 16, rgb8(68, 39, 24));
-        outline_round(target, {7, 39, std::max(1, W - 14), std::max(1, H - 160)}, 15, rgb8(154, 91, 42));
-        draw_quilted_background(target, {0, std::max(26, H-138), W, std::max(0, H-std::max(26, H-138))}, ViewMode::VideoPlayer);
+        // v0.0.29 player surround: the Video Player page background itself
+        // continues uniformly around all four sides of the video child.  Do not
+        // draw a separate partial brown rail/matte around only part of the frame.
+        draw_quilted_background(target, {0, 34, W, std::max(1, H - 34)}, ViewMode::VideoPlayer);
         button_on(target, openBtn, "Open");
         button_on(target, rewindBtn, "Rewind 10s");
         button_on(target, playBtn, "Play/Pause");
@@ -3137,6 +3245,7 @@ public:
     const char* stream_platform_name(StreamPlatform platform) const {
         switch (platform) {
             case StreamPlatform::YouTube: return "YouTube";
+            case StreamPlatform::Vimeo: return "Vimeo";
             case StreamPlatform::Rumble: return "Rumble";
             case StreamPlatform::RuTube: return "RuTube";
             case StreamPlatform::VK: return "VK";
@@ -3148,6 +3257,7 @@ public:
     std::string stream_platform_home(StreamPlatform platform) const {
         switch (platform) {
             case StreamPlatform::YouTube: return "https://www.youtube.com/";
+            case StreamPlatform::Vimeo: return "https://vimeo.com/";
             case StreamPlatform::Rumble: return "https://rumble.com/";
             case StreamPlatform::RuTube: return "https://rutube.ru/";
             case StreamPlatform::VK: return "https://vk.com/video";
@@ -3161,6 +3271,10 @@ public:
         if (lower.find("youtube.com/") != std::string::npos ||
             lower.find("youtu.be/") != std::string::npos) {
             detected = StreamPlatform::YouTube; return true;
+        }
+        if (lower.find("vimeo.com/") != std::string::npos ||
+            lower.find("player.vimeo.com/") != std::string::npos) {
+            detected = StreamPlatform::Vimeo; return true;
         }
         if (lower.find("rumble.com/") != std::string::npos) {
             detected = StreamPlatform::Rumble; return true;
@@ -3250,6 +3364,7 @@ public:
             text(target, visual.x + std::max(6,(visual.w-text_width(label))/2), visual.y+17, label, own.buttonText);
         };
         source_button(streamYoutubeTab,"YouTube",StreamPlatform::YouTube);
+        source_button(streamVimeoTab,"Vimeo",StreamPlatform::Vimeo);
         source_button(streamRumbleTab,"Rumble",StreamPlatform::Rumble);
         source_button(streamRutubeTab,"RuTube",StreamPlatform::RuTube);
         source_button(streamVkTab,"VK",StreamPlatform::VK);
@@ -3265,7 +3380,7 @@ public:
         const unsigned long fieldInk = col(0x1717,0x1111,0x0b0b);
         if (visibleUrl.empty() && !urlFocused) {
             text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18,
-                 "Paste URL Then Press Direct Watch / Rumble / RuTube / VK / OK", palette.muted);
+                 "Paste URL Then Press Direct Watch / Vimeo / Rumble / RuTube / VK / OK", palette.muted);
         } else if (urlSelectAll && !visibleUrl.empty()) {
             int selectedW = std::min(text_width(visibleUrl)+4,std::max(1,ytdlpUrlRect.w-12));
             fill(target,{ytdlpUrlRect.x+6,ytdlpUrlRect.y+4,selectedW,ytdlpUrlRect.h-8},palette.selection);
@@ -3684,6 +3799,135 @@ public:
         return item;
     }
 
+    std::string inferred_series_name_for_path(const std::string& path) const {
+        const std::string folder = dirname_only(path);
+        std::string name = basename_only(folder);
+        const std::string lower = lower_copy(name);
+        bool season_folder = lower.rfind("season", 0) == 0;
+        if (!season_folder && !lower.empty() && lower[0] == 's') {
+            season_folder = lower.size() > 1 && std::isdigit(static_cast<unsigned char>(lower[1]));
+        }
+        if (season_folder) {
+            const std::string parent = dirname_only(folder);
+            const std::string parent_name = basename_only(parent);
+            if (!parent_name.empty()) name = parent_name;
+        }
+        return name.empty() ? "Series" : name;
+    }
+
+    reddmedia::LibraryNode inferred_episode_node_for_path(const std::string& path) const {
+        reddmedia::LibraryNode node;
+        int season = 0, episode = 0;
+        if (!parse_episode_code(path, season, episode)) return node;
+        node.kind = reddmedia::LibraryNodeKind::Episode;
+        node.path = path;
+        node.name = stem_only(path);
+        node.episode_title = node.name;
+        node.series_name = inferred_series_name_for_path(path);
+        node.season_number = season;
+        node.episode_number = episode;
+        return node;
+    }
+
+    bool build_same_folder_episode_queue(const reddmedia::LibraryNode& selected,
+                                         std::vector<reddmedia::LibraryNode>& queue,
+                                         int& current_index) const {
+        queue.clear();
+        current_index = -1;
+        if (selected.path.empty() || !exists_file(selected.path)) return false;
+        int current_season = 0, current_episode = 0;
+        const bool current_has_code = parse_episode_code(selected.path, current_season, current_episode);
+        if (selected.kind != reddmedia::LibraryNodeKind::Episode && !current_has_code) return false;
+
+        const std::string folder = dirname_only(selected.path);
+        DIR* directory = opendir(folder.c_str());
+        if (!directory) return false;
+        std::vector<std::string> paths;
+        while (dirent* entry = readdir(directory)) {
+            const std::string name(entry->d_name);
+            if (name.empty() || name == "." || name == "..") continue;
+            const std::string candidate = folder + "/" + name;
+            if (!exists_file(candidate) || !is_playable_video_path(candidate)) continue;
+            int season = 0, episode = 0;
+            if (current_has_code && !parse_episode_code(candidate, season, episode)) continue;
+            paths.push_back(candidate);
+        }
+        closedir(directory);
+        if (paths.empty()) return false;
+        std::sort(paths.begin(), paths.end(), [](const std::string& a, const std::string& b) {
+            int as = 0, ae = 0, bs = 0, be = 0;
+            const bool ah = parse_episode_code(a, as, ae);
+            const bool bh = parse_episode_code(b, bs, be);
+            if (ah && bh) {
+                if (as != bs) return as < bs;
+                if (ae != be) return ae < be;
+            } else if (ah != bh) {
+                return ah;
+            }
+            return natural_filename_less(a, b);
+        });
+
+        const std::string inferred_series = !selected.series_name.empty()
+            ? selected.series_name : inferred_series_name_for_path(selected.path);
+        for (const std::string& path : paths) {
+            reddmedia::LibraryNode node = inferred_episode_node_for_path(path);
+            if (node.path.empty()) {
+                node.kind = reddmedia::LibraryNodeKind::Episode;
+                node.path = path;
+                node.name = stem_only(path);
+                node.episode_title = node.name;
+                node.series_name = inferred_series;
+            }
+            if (node.series_name.empty()) node.series_name = inferred_series;
+            if (path == selected.path) {
+                reddmedia::LibraryNode merged = selected;
+                if (merged.path.empty()) merged.path = path;
+                if (merged.name.empty()) merged.name = node.name;
+                if (merged.episode_title.empty()) merged.episode_title = node.episode_title;
+                if (merged.series_name.empty()) merged.series_name = node.series_name;
+                if (merged.season_number <= 0) merged.season_number = node.season_number;
+                if (merged.episode_number <= 0) merged.episode_number = node.episode_number;
+                merged.kind = reddmedia::LibraryNodeKind::Episode;
+                node = std::move(merged);
+            }
+            if (path == selected.path) current_index = static_cast<int>(queue.size());
+            queue.push_back(std::move(node));
+        }
+        return current_index >= 0;
+    }
+
+    bool resolve_catalog_series_for_episode_path(const std::string& path,
+                                                  reddmedia::LibraryNode& series) {
+        if (path.empty()) return false;
+        std::string error;
+        std::vector<reddmedia::LibraryNode> roots;
+        if (!libraryClient->load_library_roots(reddmedia::LibraryMediaType::Television, roots, error)) return false;
+        for (const auto& root : roots) {
+            if (root.kind != reddmedia::LibraryNodeKind::Series) continue;
+            if (!root.path.empty() && path.size() > root.path.size() &&
+                path.compare(0, root.path.size(), root.path) == 0 && path[root.path.size()] == '/') {
+                series = root;
+                return true;
+            }
+            std::vector<reddmedia::LibraryNode> seasons;
+            std::string child_error;
+            if (!libraryClient->load_library_children(root, seasons, child_error)) continue;
+            for (const auto& season : seasons) {
+                if (season.kind != reddmedia::LibraryNodeKind::Season) continue;
+                std::vector<reddmedia::LibraryNode> episodes;
+                child_error.clear();
+                if (!libraryClient->load_library_children(season, episodes, child_error)) continue;
+                for (const auto& episode : episodes) {
+                    if (episode.kind == reddmedia::LibraryNodeKind::Episode && episode.path == path) {
+                        series = root;
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     bool prepare_tv_autoplay(const reddmedia::LibraryNode& selected) {
         tvAutoplayQueue.clear();
         tvAutoplayIndex = -1;
@@ -3695,7 +3939,35 @@ public:
         tvAutoplayArmed = false;
         activeLibraryItemValid = false;
         playbackEndHandled = false;
-        if (selected.kind != reddmedia::LibraryNodeKind::Episode) return false;
+        reddmedia::LibraryNode episode = selected;
+        int parsed_season = 0, parsed_episode = 0;
+        if (episode.kind != reddmedia::LibraryNodeKind::Episode &&
+            parse_episode_code(episode.path, parsed_season, parsed_episode)) {
+            const reddmedia::LibraryNode inferred = inferred_episode_node_for_path(episode.path);
+            if (episode.name.empty()) episode.name = inferred.name;
+            if (episode.episode_title.empty()) episode.episode_title = inferred.episode_title;
+            if (episode.series_name.empty()) episode.series_name = inferred.series_name;
+            episode.season_number = parsed_season;
+            episode.episode_number = parsed_episode;
+            episode.kind = reddmedia::LibraryNodeKind::Episode;
+        }
+        if (episode.kind != reddmedia::LibraryNodeKind::Episode) return false;
+
+        // Player-level reliability: the current file's directory is authoritative
+        // enough to resolve the immediate next local episode regardless of whether
+        // playback started from Home, Library, Open File, resume, or another route.
+        std::vector<reddmedia::LibraryNode> folder_queue;
+        int folder_index = -1;
+        const bool have_folder_queue = build_same_folder_episode_queue(episode, folder_queue, folder_index);
+        if (have_folder_queue && folder_index + 1 < static_cast<int>(folder_queue.size())) {
+            tvAutoplayQueue = std::move(folder_queue);
+            tvAutoplayIndex = folder_index;
+            activeLibraryItem = tvAutoplayQueue[static_cast<std::size_t>(tvAutoplayIndex)];
+            activeLibraryItemValid = true;
+            tvAutoplayArmed = true;
+            return true;
+        }
+
         reddmedia::LibraryNode series;
         bool have_series = false;
         for (const auto& parent : libraryParents) {
@@ -3705,12 +3977,12 @@ public:
         // object in the visible navigation stack. Jellyfin still gives the
         // episode its SeriesId, so reconstruct the parent and build the full
         // season-spanning queue instead of silently degrading to one page.
-        if (!have_series && !selected.series_id.empty()) {
-            series.id = selected.series_id;
-            series.name = selected.series_name;
+        if (!have_series && !episode.series_id.empty()) {
+            series.id = episode.series_id;
+            series.name = episode.series_name;
             series.kind = reddmedia::LibraryNodeKind::Series;
-            series.tmdb_id = selected.series_tmdb_id;
-            series.series_tmdb_id = selected.series_tmdb_id;
+            series.tmdb_id = episode.series_tmdb_id;
+            series.series_tmdb_id = episode.series_tmdb_id;
             have_series = true;
         }
         std::string error;
@@ -3748,14 +4020,18 @@ public:
             }
         }
         for (std::size_t i=0; i<tvAutoplayQueue.size(); ++i) {
-            if ((!selected.id.empty() && tvAutoplayQueue[i].id == selected.id) ||
-                (!selected.path.empty() && tvAutoplayQueue[i].path == selected.path)) {
+            if ((!episode.id.empty() && tvAutoplayQueue[i].id == episode.id) ||
+                (!episode.path.empty() && tvAutoplayQueue[i].path == episode.path)) {
                 tvAutoplayIndex = static_cast<int>(i);
                 break;
             }
         }
+        if (tvAutoplayIndex < 0 && have_folder_queue) {
+            tvAutoplayQueue = std::move(folder_queue);
+            tvAutoplayIndex = folder_index;
+        }
         if (tvAutoplayIndex < 0) return false;
-        activeLibraryItem = selected;
+        activeLibraryItem = episode;
         activeLibraryItemValid = true;
         tvAutoplayArmed = true;
         return true;
@@ -3776,26 +4052,26 @@ public:
         upNextMessage.clear();
     }
 
-    void show_up_next_overlay() {
+    void show_up_next_overlay(bool draw_now=true) {
         clear_up_next_overlay();
         if (!tvAutoplayArmed || tvAutoplayIndex < 0) {
             upNextVisible = true;
             upNextMessage = "No next episode was resolved for this playback.";
-            draw_video_message();
+            if (draw_now) draw_video_message();
             return;
         }
         const int next = tvAutoplayIndex + 1;
         if (next >= static_cast<int>(tvAutoplayQueue.size())) {
             upNextVisible = true;
             upNextMessage = "No next episode found. You reached the end of the available series queue.";
-            draw_video_message();
+            if (draw_now) draw_video_message();
             return;
         }
         const reddmedia::LibraryNode candidate = tvAutoplayQueue[static_cast<std::size_t>(next)];
         if (!exists_file(candidate.path)) {
             upNextVisible = true;
             upNextMessage = "The next episode was identified, but its media file is unavailable.";
-            draw_video_message();
+            if (draw_now) draw_video_message();
             return;
         }
         upNextVisible = true;
@@ -3805,7 +4081,7 @@ public:
         upNextDeadlineMs = now_ms() + 10000;
         upNextLastDisplayedSeconds = 10;
         upNextMessage = "Playing automatically in 10 seconds.";
-        draw_video_message();
+        if (draw_now) draw_video_message();
     }
 
     void play_up_next_now() {
@@ -3839,16 +4115,23 @@ public:
         tvAutoplayRetryIndex = -1;
         tvAutoplayRetryAttempts = 0;
         tvAutoplayRetryAtMs = 0;
-        if (episode.series_id.empty()) {
+        reddmedia::LibraryNode series;
+        if (!episode.series_id.empty()) {
+            series.id = episode.series_id;
+            series.name = episode.series_name.empty() ? "Series" : episode.series_name;
+            series.kind = reddmedia::LibraryNodeKind::Series;
+            series.tmdb_id = episode.series_tmdb_id;
+            series.series_tmdb_id = episode.series_tmdb_id;
+        } else if (!resolve_catalog_series_for_episode_path(episode.path, series)) {
+            libraryMediaType = reddmedia::LibraryMediaType::Television;
+            libraryTypeChosen = true;
+            libraryParents.clear();
+            librarySelected = -1;
+            libraryScroll = 0;
             switch_view(ViewMode::Library);
+            start_library_task(4);
             return;
         }
-        reddmedia::LibraryNode series;
-        series.id = episode.series_id;
-        series.name = episode.series_name.empty() ? "Series" : episode.series_name;
-        series.kind = reddmedia::LibraryNodeKind::Series;
-        series.tmdb_id = episode.series_tmdb_id;
-        series.series_tmdb_id = episode.series_tmdb_id;
         libraryMediaType = reddmedia::LibraryMediaType::Television;
         libraryTypeChosen = true;
         libraryParents.clear();
@@ -4022,6 +4305,12 @@ public:
         const double aspect = static_cast<double>(poster.width) / static_cast<double>(poster.height);
         return aspect >= 0.52 && aspect <= 0.82;
     }
+    static bool home_artwork_quality_ok(const reddmedia::LibraryPoster& image) {
+        if (image.width < 240 || image.height < 135 || image.rgb.empty()) return false;
+        const double aspect = static_cast<double>(image.width) / static_cast<double>(image.height);
+        // Accept ordinary portrait posters and 16:9-ish episode stills/backdrops.
+        return (aspect >= 0.50 && aspect <= 0.90) || (aspect >= 1.20 && aspect <= 2.20);
+    }
 
     static int home_grid_columns_for_width(int width) {
         const int available = std::max(1, width - 56);
@@ -4191,45 +4480,131 @@ public:
                 }
             }
 
-            // Continue Watching TV cards rest on that season's poster.  If a season
-            // has none, load_library_children already carries the series Primary as
-            // its fallback.  Movies use their movie poster.
+            // v0.0.29 Continue Watching artwork hierarchy:
+            // episode Primary still -> matching season poster -> series poster -> Nougat fallback.
+            // This prevents black TV cards while still giving an episode its own image when Jellyfin has one.
             std::map<std::string, reddmedia::LibraryNode> continue_artwork_nodes;
+            const auto has_local_art = [](const reddmedia::LibraryNode& node) {
+                return !node.tmdb_poster_path.empty() ||
+                       !node.poster_image_tag.empty() || !node.primary_image_tag.empty();
+            };
+            const auto art_from_record = [](const ResumeRecord& record) {
+                reddmedia::LibraryNode art;
+                art.id = record.item_id;
+                art.path = record.path;
+                art.name = record.title;
+                art.series_name = record.series_name;
+                art.episode_title = record.episode_title;
+                art.tmdb_id = record.tmdb_id;
+                art.series_id = record.series_id;
+                art.series_tmdb_id = record.series_tmdb_id;
+                art.primary_image_tag = record.primary_image_tag;
+                art.poster_item_id = record.item_id;
+                art.poster_image_tag = record.primary_image_tag;
+                art.season_number = record.season_number;
+                art.episode_number = record.episode_number;
+                art.production_year = record.production_year;
+                art.kind = static_cast<reddmedia::LibraryNodeKind>(record.kind);
+                return art;
+            };
             for (const auto& record : continue_records) {
                 reddmedia::LibraryNode art;
-                const auto exact_item = item_by_id.find(record.item_id);
-                if (exact_item != item_by_id.end()) art = exact_item->second;
+                bool have_art = false;
+                if (record.series_name.empty()) {
+                    const auto exact_item = item_by_id.find(record.item_id);
+                    if (exact_item != item_by_id.end() && has_local_art(exact_item->second)) {
+                        art = exact_item->second;
+                        have_art = true;
+                    }
+                }
+                if (!record.series_name.empty() && !record.item_id.empty() && !record.primary_image_tag.empty()) {
+                    art = art_from_record(record);
+                    art.kind = reddmedia::LibraryNodeKind::Episode;
+                    art.poster_item_id = record.item_id;
+                    art.poster_image_tag = record.primary_image_tag;
+                    art.primary_image_tag = record.primary_image_tag;
+                    have_art = true;
+                }
+                // Resolve the owning series even for resume records created from
+                // Open File / Home paths that do not carry Jellyfin IDs. Exact path
+                // containment is preferred; a case-insensitive series-name match is
+                // only a fallback. This keeps TV cards from becoming black simply
+                // because the episode was not launched from the Library hierarchy.
+                reddmedia::LibraryNode resolved_series;
+                bool have_series = false;
                 if (!record.series_id.empty()) {
                     const auto series_it = series_by_id.find(record.series_id);
                     if (series_it != series_by_id.end()) {
-                        const reddmedia::LibraryNode series = series_it->second;
-                        art = series;
-                        std::vector<reddmedia::LibraryNode> seasons;
-                        std::string season_error;
-                        if (client->load_library_children(series, seasons, season_error)) {
-                            for (auto season : seasons) {
-                                if (season.kind != reddmedia::LibraryNodeKind::Season ||
-                                    season.season_number != record.season_number) continue;
-                                if (engine->external_credential_available() && !series.tmdb_id.empty()) {
-                                    std::string tmdb_error;
-                                    engine->load_tv_poster_path(series.tmdb_id, season.season_number,
-                                                                season.tmdb_poster_path, tmdb_error);
-                                }
-                                art = std::move(season);
-                                break;
-                            }
+                        resolved_series = series_it->second;
+                        have_series = true;
+                    }
+                }
+                if (!have_series && !record.path.empty()) {
+                    for (const auto& pair : series_by_id) {
+                        const auto& candidate = pair.second;
+                        if (!candidate.path.empty() && record.path.size() > candidate.path.size() &&
+                            record.path.compare(0, candidate.path.size(), candidate.path) == 0 &&
+                            record.path[candidate.path.size()] == '/') {
+                            resolved_series = candidate;
+                            have_series = true;
+                            break;
                         }
                     }
                 }
-                if (art.id.empty()) {
-                    art.id = record.item_id;
-                    art.name = record.title;
-                    art.primary_image_tag = record.primary_image_tag;
+                if (!have_series && !record.series_name.empty()) {
+                    const std::string wanted = lower_copy(record.series_name);
+                    for (const auto& pair : series_by_id) {
+                        if (lower_copy(pair.second.name) == wanted) {
+                            resolved_series = pair.second;
+                            have_series = true;
+                            break;
+                        }
+                    }
+                }
+                if (have_series) {
+                    const reddmedia::LibraryNode series = resolved_series;
+                    std::vector<reddmedia::LibraryNode> seasons;
+                    std::string season_error;
+                    if (client->load_library_children(series, seasons, season_error)) {
+                        for (auto season : seasons) {
+                            if (season.kind != reddmedia::LibraryNodeKind::Season ||
+                                (record.season_number > 0 && season.season_number != record.season_number)) continue;
+
+                            // Exact episode Primary/still art is first choice when
+                            // Jellyfin can map the resumed path back to the episode.
+                            std::vector<reddmedia::LibraryNode> episodes;
+                            std::string episode_error;
+                            if (!have_art && client->load_library_children(season, episodes, episode_error)) {
+                                for (const auto& episode : episodes) {
+                                    if (episode.kind != reddmedia::LibraryNodeKind::Episode) continue;
+                                    const bool same_path = !record.path.empty() && episode.path == record.path;
+                                    const bool same_id = !record.item_id.empty() && episode.id == record.item_id;
+                                    if ((same_path || same_id) && has_local_art(episode)) {
+                                        art = episode;
+                                        have_art = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (engine->external_credential_available() && !series.tmdb_id.empty()) {
+                                std::string tmdb_error;
+                                engine->load_tv_poster_path(series.tmdb_id, season.season_number,
+                                                            season.tmdb_poster_path, tmdb_error);
+                            }
+                            // At minimum a TV episode gets its matching season poster
+                            // when an episode still is unavailable; series art is last.
+                            if (!have_art && has_local_art(season)) { art = std::move(season); have_art = true; }
+                            if (record.season_number > 0) break;
+                        }
+                    }
+                    if (!have_art && has_local_art(series)) { art = series; have_art = true; }
+                }
+                if (!have_art) {
+                    art = art_from_record(record);
                     art.poster_item_id = record.item_id;
                     art.poster_image_tag = record.primary_image_tag;
-                    art.tmdb_id = record.tmdb_id;
+                    art.primary_image_tag = record.primary_image_tag;
                     art.series_tmdb_id = record.series_tmdb_id;
-                    art.kind = static_cast<reddmedia::LibraryNodeKind>(record.kind);
                     if (engine->external_credential_available()) {
                         std::string tmdb_error;
                         if (!record.series_tmdb_id.empty() && record.season_number > 0) {
@@ -4339,14 +4714,14 @@ public:
                 bool good = false;
                 if (!node.tmdb_poster_path.empty()) {
                     if (engine->load_external_poster_bmp(node.tmdb_poster_path, 480, 720, bytes, image_error) &&
-                        reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && poster_quality_ok(poster)) {
+                        reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && home_artwork_quality_ok(poster)) {
                         good = true;
                     }
                 }
                 if (!good && !item_id.empty() && !tag.empty()) {
                     bytes.clear(); image_error.clear(); poster = reddmedia::LibraryPoster{};
                     if (client->load_primary_image_bmp(item_id, tag, 480, 720, bytes, image_error) &&
-                        reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && poster_quality_ok(poster)) {
+                        reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && home_artwork_quality_ok(poster)) {
                         good = true;
                     }
                 }
@@ -4513,9 +4888,10 @@ public:
             if (found != homeState->artwork.end()) { poster = found->second; available = true; }
         }
         if (available) {
-            // Home rests on the complete portrait poster.  Do not crop a 2:3
-            // poster into a 16:9 still; letterbox it inside the card instead.
-            draw_contain_pixels_top_rounded(target, area, poster, radius, backdrop);
+            // v0.0.29 keeps poster/still identity but fills the artwork region.
+            // Preserve aspect ratio and crop only the excess instead of shrinking
+            // a portrait movie poster into a postage stamp inside a wide card.
+            draw_cover_pixels_top_rounded(target, area, poster, radius);
         } else {
             const std::string label = node.name.empty() ? "NO POSTER" : head_to_width(node.name, area.w - 20);
             metadata_text(target, area.x + 10, area.y + area.h / 2, label, rgb8(226, 214, 226));
@@ -7238,7 +7614,7 @@ public:
             &discoverExternalTvBtn,&discoverTmdbTestBtn,&discoverTmdbReplaceBtn,&discoverTmdbClearBtn,&discoverMyServicesBtn,
             &debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugServerBtn,&debugLogsBtn,&debugCopyBtn,
             &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn,
-            &streamYoutubeTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab,
+            &streamYoutubeTab,&streamVimeoTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab,
             &ytdlpDownloadBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn,
             &p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn
         };
@@ -7250,6 +7626,9 @@ public:
 
     bool handle_wheel(Window target, int x, int y, unsigned int button) {
         int delta = (button == Button4) ? -40 : 40;
+        // Header routing always wins. Home's page/shelf wheel handlers must not
+        // swallow wheel events intended for the top navigation strip.
+        if (target == win && y < 26) { scroll_top_navigation(delta); return true; }
         if (currentView == ViewMode::Home && target == win) {
             if (homeContinueArea.contains(x,y)) {
                 homeContinueScrollX = std::max(0, homeContinueScrollX + (button == Button4 ? -120 : 120));
@@ -7261,7 +7640,6 @@ public:
             redraw();
             return true;
         }
-        if (target == win && y < 26) { scroll_top_navigation(delta); return true; }
         if (target == win && y >= 70 && y < 110) {
             if (currentView == ViewMode::Library) { scroll_button_row(libraryButtonsScrollX,9,delta); return true; }
             if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,10,delta); return true; }
@@ -7270,7 +7648,7 @@ public:
         if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,4,delta); return true; }
         if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && y >= 224 && y < 266) { scroll_button_row(p2pButtonsScrollX,4,delta); return true; }
         if (currentView == ViewMode::Stream && target == win && y >= 54 && y < 82) {
-            scroll_button_row(streamSourceScrollX,5,delta);
+            scroll_button_row(streamSourceScrollX,6,delta);
             return true;
         }
         if (currentView == ViewMode::Library && target == win && libraryListBox.contains(x,y)) {
@@ -7605,6 +7983,7 @@ public:
         }
         if (currentView == ViewMode::Stream) {
             if (streamYoutubeTab.contains(x,y)) { select_stream_platform(StreamPlatform::YouTube); return; }
+            if (streamVimeoTab.contains(x,y)) { select_stream_platform(StreamPlatform::Vimeo); return; }
             if (streamRumbleTab.contains(x,y)) { select_stream_platform(StreamPlatform::Rumble); return; }
             if (streamRutubeTab.contains(x,y)) { select_stream_platform(StreamPlatform::RuTube); return; }
             if (streamVkTab.contains(x,y)) { select_stream_platform(StreamPlatform::VK); return; }
@@ -7986,7 +8365,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.28\n");
+        printf("Nougat Media Suite v0.0.29\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -7994,6 +8373,7 @@ int main(int argc, char** argv) {
         struct ExpectedTint { StreamPlatform platform; unsigned char r,g,b; unsigned blend; };
         const ExpectedTint expected[] = {
             {StreamPlatform::YouTube,205,76,67,22},
+            {StreamPlatform::Vimeo,23,213,255,22},
             {StreamPlatform::Rumble,128,154,79,22},
             {StreamPlatform::RuTube,168,107,178,20},
             {StreamPlatform::VK,91,142,174,20},
@@ -8020,7 +8400,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr,"Nougat v0.0.25 Discover dual-selection state FAIL.\n");
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.28 UI state PASS: provider quilts and dual Discover selectors.\n");
+        std::printf("Nougat Media Suite v0.0.29 UI state PASS: provider quilts and dual Discover selectors.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v28-ui-state-self-test") {
@@ -8094,6 +8474,79 @@ int main(int argc, char** argv) {
             return 1;
         }
         std::printf("Nougat Media Suite Discover local-play resolver PASS: %s\n",playable.path.c_str());
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v29-tv-reliability-self-test") {
+        const std::string base = "/tmp/nougat-v29-up-next-" + std::to_string(static_cast<long long>(getpid()));
+        const std::string series_dir = base + "/Show Name";
+        const std::string season_dir = series_dir + "/Season 01";
+        mkdir(base.c_str(), 0700);
+        mkdir(series_dir.c_str(), 0700);
+        mkdir(season_dir.c_str(), 0700);
+        const std::string e13 = season_dir + "/Show.Name.S01E13.mkv";
+        const std::string e14 = season_dir + "/Show.Name.S01E14.mkv";
+        const std::string e22 = season_dir + "/Show.Name.S01E22.mkv";
+        { std::ofstream(e13).put('\0'); std::ofstream(e14).put('\0'); std::ofstream(e22).put('\0'); }
+
+        App app;
+        reddmedia::LibraryNode current = app.inferred_episode_node_for_path(e13);
+        std::vector<reddmedia::LibraryNode> queue;
+        int index = -1;
+        const bool folder_ok = app.build_same_folder_episode_queue(current, queue, index);
+        const bool order_ok = folder_ok && index >= 0 && index + 1 < static_cast<int>(queue.size()) &&
+            queue[static_cast<std::size_t>(index + 1)].path == e14;
+        const bool series_ok = current.series_name == "Show Name";
+
+        // Exercise the actual Up Next overlay state machine without an X11 draw.
+        app.tvAutoplayQueue = queue;
+        app.tvAutoplayIndex = index;
+        app.tvAutoplayArmed = folder_ok;
+        app.show_up_next_overlay(false);
+        const int countdown = app.up_next_seconds_remaining();
+        const bool overlay_ok = app.upNextVisible && app.upNextHasEpisode &&
+            app.upNextTargetIndex == index + 1 && app.upNextEpisode.path == e14 &&
+            countdown >= 9 && countdown <= 10 &&
+            app.upNextMessage == "Playing automatically in 10 seconds.";
+
+        int season = 0, episode = 0;
+        const bool parse_ok = parse_episode_code(e13, season, episode) && season == 1 && episode == 13;
+
+        // Natural filename fallback remains available for catalog-confirmed Episode
+        // nodes even when SxxExx/1xNN tokens are absent.
+        const std::string natural_dir = base + "/Natural";
+        mkdir(natural_dir.c_str(), 0700);
+        const std::string n2 = natural_dir + "/Episode 2.mkv";
+        const std::string n10 = natural_dir + "/Episode 10.mkv";
+        { std::ofstream(n2).put('\0'); std::ofstream(n10).put('\0'); }
+        reddmedia::LibraryNode natural_current;
+        natural_current.kind = reddmedia::LibraryNodeKind::Episode;
+        natural_current.path = n2;
+        natural_current.name = "Episode 2";
+        std::vector<reddmedia::LibraryNode> natural_queue;
+        int natural_index = -1;
+        const bool natural_ok = app.build_same_folder_episode_queue(natural_current, natural_queue, natural_index) &&
+            natural_index >= 0 && natural_index + 1 < static_cast<int>(natural_queue.size()) &&
+            natural_queue[static_cast<std::size_t>(natural_index + 1)].path == n10;
+
+        const bool vimeo_ok = App::stream_platform_index(StreamPlatform::YouTube) == 0 &&
+            App::stream_platform_index(StreamPlatform::Vimeo) == 1 &&
+            std::string(app.stream_platform_name(StreamPlatform::Vimeo)) == "Vimeo" &&
+            app.stream_platform_home(StreamPlatform::Vimeo) == "https://vimeo.com/";
+        const bool art_ok = [](){
+            reddmedia::LibraryPoster portrait; portrait.width=480; portrait.height=720; portrait.rgb.push_back(0);
+            reddmedia::LibraryPoster still; still.width=640; still.height=360; still.rgb.push_back(0);
+            return App::home_artwork_quality_ok(portrait) && App::home_artwork_quality_ok(still);
+        }();
+
+        unlink(e13.c_str()); unlink(e14.c_str()); unlink(e22.c_str());
+        unlink(n2.c_str()); unlink(n10.c_str());
+        rmdir(natural_dir.c_str()); rmdir(season_dir.c_str()); rmdir(series_dir.c_str()); rmdir(base.c_str());
+        if (!parse_ok || !order_ok || !series_ok || !overlay_ok || !natural_ok || !vimeo_ok || !art_ok) {
+            std::fprintf(stderr, "Nougat v0.0.29 TV/UI reliability self-test FAIL. parse=%d order=%d series=%d overlay=%d natural=%d vimeo=%d art=%d\n",
+                         parse_ok, order_ok, series_ok, overlay_ok, natural_ok, vimeo_ok, art_ok);
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.29 TV/UI reliability PASS: same-folder Up Next, 10-second overlay, natural fallback, Vimeo, and Home artwork.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {
