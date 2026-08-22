@@ -9,7 +9,7 @@
 - Keep N/name, Server status/dot, and version fixed beneath the horizontally scrolling top tabs so tabs roll over them cleanly.
 - At natural TV episode end, resolve the actual next episode and show an Up Next overlay with a visible 10-second autoplay countdown, Play Next, Back to Series, and Replay. If resolution fails, show an explicit message rather than silently stopping.
 
-## v0.0.27 candidate — Home, resume history, player polish, and seek previews
+## v0.0.27 accepted — Home, resume history, player polish, and seek previews
 - Add Home as the first/default tab. Continue Watching is the only horizontal shelf; the mouse wheel moves it left/right while hovered and scrolls Home vertically everywhere else. No arrow buttons.
 - Keep every useful unfinished local movie/episode in Continue Watching with a caramel progress bar and persistent resume position.
 - Under `LOCAL`, show mixed movies/TV as a normal vertically scrolling card wall organized by useful genre/category groups plus watch-history-informed recommendations.
@@ -21,22 +21,32 @@
 - Repair mouse-motion flicker at the repaint source, repair the selected-tab notch/header divider layering, and remove the redundant Discover/Stream/Diagnostic headings.
 - Preserve accepted v0.0.26 behavior outside this scope.
 
-## Owner-approved later visual proposal — version assignment pending
-- This proposal is **not part of v0.0.27** and must not displace the focused v0.0.28 P2P expansion without a later owner decision.
-- Make the **main page background** carry most of each native tab's identity instead of keeping the same cream background everywhere.
-- **Home:** purple main background with only one or two supporting purple/berry tones; retain cream selectively for readable trim/text/panels.
-- **Video Player:** cocoa/chocolate/caramel main background family; brown/chocolate and caramel remain the candy-bar anchor.
-- **Library:** green main background with one or two supporting forest/olive/sage tones.
-- **Discover:** red main background with one or two supporting wine/cherry/raspberry tones.
-- **Search:** the only native page whose main background stays cream, supported by honey/mustard/butterscotch accents.
-- **Stream:** keep provider-reactive identity. Outside providers retain their own recognizable colors (for example YouTube red, Rumble green, VK blue, OK orange) instead of being forced into Nougat-native page colors.
-- **Debug:** dark charcoal/licorice background family.
-- Cream remains part of the Nougat candy-bar identity on non-Search pages as selective text, trim, panels, tracks, and highlights rather than the full page background.
-- Replace the bright light frame around windowed video with a better-blended dark chocolate/charcoal theater matte, optionally using a very thin caramel accent and soft outer shadow; true fullscreen remains edge-to-edge and square.
-- Prefer **2–3 coordinated colors per page**, not four; the background color should do most of the visual differentiation.
+## v0.0.28 candidate — Candy Palette, Artwork, and UI State Polish
+- Make the main page background carry each native area identity: purple Home, cocoa/chocolate Video Player, green Library, red Discover, cream Search, provider-reactive Stream, and charcoal/licorice Debug. Use roughly 2–3 coordinated colors per page; the background does most of the differentiation while cream remains selective trim/text/panel material.
+- Replace the remaining light/white halo around windowed video with a cocoa/chocolate theater surround and restrained caramel trim. Preserve true fullscreen as edge-to-edge and square.
+- Keep Home loaded when switching tabs. Returning to Home preserves its recommendation results, Continue Watching shelf, artwork, and scroll positions instead of rebuilding the page; reload only when watch/library data changed or the owner explicitly refreshes.
+- Make Home cards poster-first at rest. Movies use their proper movie poster; TV Continue Watching resolves the matching season poster first and series poster as fallback. Silent hover video previews remain one-at-a-time and restore the poster when the pointer leaves.
+- Repair the rounded-card clipping path so artwork and silent hover frames obey the top-left/top-right rounded mask instead of square pixels protruding through the curved border.
+- Increase Home section/category and metadata readability and make the ordinary LOCAL recommendation wall responsive. At the owner's half-screen width around 650 px, at least three recommendation cards fit on each row; wider windows fit more automatically. Continue Watching remains its separate horizontal shelf.
+- Repair the legacy X11 metadata separator path so intended bullets render cleanly instead of mojibake such as `â€¢`/a-cent glyphs.
+- Upgrade Library poster sourcing and presentation: exact catalog TMDb IDs may supply a preferred high-resolution poster, Jellyfin Primary remains the local fallback, portrait-quality gating rejects tiny/landscape art, poster aspect is preserved, and missing acceptable art uses a deliberate `NO POSTER` state instead of stretching garbage.
+- Remove the redundant standalone `SEARCH` page heading while retaining `Search | Crawler | P2P` and reclaim the vertical space.
+- Preserve accepted v0.0.27 playback, resume, seek-preview, Discover, Search/P2P, diagnostics, licensing, and N identity outside this visual/state scope.
+
+## v0.0.29 planned — TV Playback and Navigation Reliability
+- Repair the owner-observed v0.0.27 Up Next regression as a focused playback build rather than mixing it into v0.0.28.
+- Resolve the next local episode from the current playback file's folder regardless of whether playback began from Home, Library, Open File, or another local path. Prefer parsed/verified season+episode identity, with natural filename order as fallback.
+- Resolve/cache the next episode before end-of-media so the Up Next overlay appears immediately, identifies the actual next episode, visibly counts down from 10 seconds, and autoplays unless the user chooses another action.
+- `Back to Series` returns to the actual series/season context rather than the generic Library root when that identity can be resolved.
+- Add real end-of-media regression coverage so source-token presence cannot falsely report Up Next healthy when the runtime path is broken.
+
+## v0.0.30 planned — P2P expansion
+- Resume the deferred P2P work as its own focused build.
+- Target a BitTorrent Pro-class management experience: active transfer list, progress/speeds/peers/seeds/ETA/ratio/status, per-transfer pause/resume/remove, optional data removal with confirmation, file selection/priorities, global/per-transfer limits, queue ordering, seeding/ratio controls, tracker status/reannounce, peer information, and durable resume state.
+- Keep playback integrated in Nougat and preserve the Search > P2P architecture.
 
 ## Future platform proposal — native web player and free provider adapters, version assignment pending
-- This proposal is **not part of v0.0.27** and must not displace the focused v0.0.28 P2P expansion without a later owner decision.
+- This future platform proposal is not part of v0.0.28 or v0.0.29 and must not displace the focused v0.0.30 P2P expansion without a later owner decision.
 - Add a first-party Nougat web client/player so browser playback uses Nougat controls, Home, watch history, resume state, subtitles/audio selection, fullscreen, seek previews, and Up Next instead of exposing the Jellyfin web UI.
 - Prefer direct browser playback of the original media when the browser supports it; use Nougat-controlled FFmpeg delivery/transcoding only when required by browser codec/container support.
 - Keep future external-provider support behind a generic provider adapter rather than hard-coding one company into Home. Provider sections may appear beneath LOCAL as source headings, with mixed movie/TV cards and no redundant Movies/TV subheadings.
@@ -45,12 +55,6 @@
 - Outside providers retain recognizable brand colors when active instead of being forced into Nougat-native tab colors.
 - Xumo, Tubi, Pluto, or similar FAST/AVOD services are examples to research individually, not promised integrations.
 - The Xumo-style genre/category browsing concept is independent of Xumo itself and may be used for LOCAL organization even if no external provider is ever integrated.
-
-## v0.0.28 planned — P2P expansion
-- Resume the deferred P2P work as its own focused build.
-- Target a BitTorrent Pro-class management experience: active transfer list, progress/speeds/peers/seeds/ETA/ratio/status, per-transfer pause/resume/remove, optional data removal with confirmation, file selection/priorities, global/per-transfer limits, queue ordering, seeding/ratio controls, tracker status/reannounce, peer information, and durable resume state.
-- Keep playback integrated in Nougat and preserve the Search > P2P architecture.
-
 
 ## v0.0.25 candidate - Stream Provider Theme, Persistent Selection, and Discover Native Play
 

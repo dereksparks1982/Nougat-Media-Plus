@@ -690,10 +690,12 @@ struct HomeUiState {
     std::vector<ResumeRecord> continue_watching;
     std::vector<HomeSection> sections;
     std::map<std::string, reddmedia::LibraryPoster> artwork;
+    std::map<std::string, reddmedia::LibraryNode> continue_artwork_nodes;
     std::set<std::string> artwork_failed;
     std::string status = "Loading your local Home feed...";
     bool busy = false;
     bool updated = false;
+    bool loaded = false;
     double progress = 0.0;
 };
 
@@ -718,7 +720,7 @@ struct FramePreviewState {
 };
 class App {
 public:
-    Display* d=nullptr; int screen=0; Window win=0, video=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr;
+    Display* d=nullptr; int screen=0; Window win=0, video=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr; XFontStruct* sectionFontInfo=nullptr; XFontStruct* metadataFontInfo=nullptr;
     Pixmap quiltTiles[8] = {};
     Pixmap streamQuiltTiles[5] = {};
     int W=1000,H=650;
@@ -850,6 +852,7 @@ public:
     long long lastFullscreenOverlayMotionMs = 0;
     std::shared_ptr<HomeUiState> homeState = std::make_shared<HomeUiState>();
     std::thread homeWorker;
+    std::atomic<bool> homeNeedsRefresh{false};
     int homePageScroll = 0;
     int homeContentHeight = 0;
     int homeContinueScrollX = 0;
@@ -942,13 +945,50 @@ public:
         XColor color; color.red=r; color.green=g; color.blue=b; color.flags=DoRed|DoGreen|DoBlue;
         XAllocColor(d, DefaultColormap(d, screen), &color); return color.pixel;
     }
+    static std::string x11_safe_text(const std::string& input) {
+        // XDrawString consumes the active legacy X11 font encoding rather than UTF-8.
+        // Translate the metadata bullet to a single-byte middle dot so the UI never
+        // exposes the UTF-8 bytes as mojibake (the reported "a/cents" glyphs).
+        std::string output;
+        output.reserve(input.size());
+        for (std::size_t i = 0; i < input.size(); ++i) {
+            const unsigned char c = static_cast<unsigned char>(input[i]);
+            if (c == 0xE2U && i + 2U < input.size() &&
+                static_cast<unsigned char>(input[i + 1U]) == 0x80U &&
+                static_cast<unsigned char>(input[i + 2U]) == 0xA2U) {
+                output.push_back(static_cast<char>(0xB7U));
+                i += 2U;
+                continue;
+            }
+            output.push_back(input[i]);
+        }
+        return output;
+    }
+    void text_with_font(Drawable target, int x, int y, const std::string& raw,
+                        unsigned long c, XFontStruct* chosen) {
+        const std::string s = x11_safe_text(raw);
+        XSetForeground(d, gc, c);
+        if (chosen) XSetFont(d, gc, chosen->fid);
+        XDrawString(d, target, gc, x, y, s.c_str(), static_cast<int>(s.size()));
+        if (fontInfo && chosen != fontInfo) XSetFont(d, gc, fontInfo->fid);
+    }
     void text(Drawable target, int x, int y, const std::string& s, unsigned long c) {
-        XSetForeground(d, gc, c); XDrawString(d, target, gc, x, y, s.c_str(), (int)s.size());
+        text_with_font(target, x, y, s, c, fontInfo);
+    }
+    void section_text(Drawable target, int x, int y, const std::string& s, unsigned long c) {
+        text_with_font(target, x, y, s, c, sectionFontInfo ? sectionFontInfo : fontInfo);
+    }
+    void metadata_text(Drawable target, int x, int y, const std::string& s, unsigned long c) {
+        text_with_font(target, x, y, s, c, metadataFontInfo ? metadataFontInfo : fontInfo);
+    }
+    int text_width_for_font(const std::string& raw, XFontStruct* chosen) {
+        const std::string s = x11_safe_text(raw);
+        if (s.empty()) return 0;
+        if (chosen) return XTextWidth(chosen, s.c_str(), static_cast<int>(s.size()));
+        return static_cast<int>(s.size()) * 8;
     }
     int text_width(const std::string& s) {
-        if (s.empty()) return 0;
-        if (fontInfo) return XTextWidth(fontInfo, s.c_str(), (int)s.size());
-        return (int)s.size() * 8;
+        return text_width_for_font(s, fontInfo);
     }
     std::string tail_to_width(const std::string& s, int maxPixels) {
         if (maxPixels <= 0) return "";
@@ -1111,14 +1151,17 @@ public:
             }
         }
         switch (view) {
-            case ViewMode::Home:        r=170; g=128; b=185; blendPercent=13; break;
-            case ViewMode::VideoPlayer: r=196; g=142; b=84;  blendPercent=18; break;
-            case ViewMode::Library:     r=143; g=170; b=119; blendPercent=18; break;
-            case ViewMode::Discover:    r=185; g=132; b=199; blendPercent=16; break;
-            case ViewMode::Nougat:      r=208; g=161; b=102; blendPercent=5;  break;
+            // v0.0.28: the page background carries the tab identity.  Keep the
+            // exact quilt material, but dye it strongly enough that each page
+            // reads as its own candy-wrapper color family rather than cream.
+            case ViewMode::Home:        r=91;  g=58;  b=134; blendPercent=58; break; // blackberry/grape
+            case ViewMode::VideoPlayer: r=91;  g=52;  b=31;  blendPercent=62; break; // cocoa/chocolate
+            case ViewMode::Library:     r=77;  g=120; b=61;  blendPercent=56; break; // forest/candy green
+            case ViewMode::Discover:    r=158; g=51;  b=68;  blendPercent=56; break; // cherry/wine red
+            case ViewMode::Nougat:      r=241; g=227; b=194; blendPercent=8;  break; // Search stays cream
             case ViewMode::Stream:      r=205; g=76;  b=67;  blendPercent=22; break;
             case ViewMode::P2P:         r=105; g=160; b=192; blendPercent=17; break;
-            case ViewMode::Debug:       r=120; g=110; b=102; blendPercent=20; break;
+            case ViewMode::Debug:       r=41;  g=40;  b=48;  blendPercent=70; break; // licorice/charcoal
         }
     }
 
@@ -1206,16 +1249,8 @@ public:
             : quiltTiles[quilt_view_index(view)];
         if (!tile) {
             // Safe fallback only if X11 could not allocate the exact concept tile.
-            unsigned long fallback = rgb8(246,234,216);
-            if (view == ViewMode::Stream) {
-                switch (streamPlatform) {
-                    case StreamPlatform::YouTube: fallback=rgb8(244,224,221); break;
-                    case StreamPlatform::Rumble:  fallback=rgb8(229,237,218); break;
-                    case StreamPlatform::RuTube:  fallback=rgb8(239,224,241); break;
-                    case StreamPlatform::VK:      fallback=rgb8(222,233,241); break;
-                    case StreamPlatform::OK:      fallback=rgb8(246,231,210); break;
-                }
-            }
+            unsigned long fallback = palette_for(view).background;
+            if (view == ViewMode::Stream) fallback = stream_palette_for(streamPlatform).background;
             fill(target, area, fallback);
             return;
         }
@@ -1305,45 +1340,44 @@ public:
     }
 
     ViewPalette palette_for(ViewMode view) {
+        const unsigned long cream = rgb8(244, 232, 205);
+        const unsigned long darkText = rgb8(54, 36, 28);
         if (view == ViewMode::Home) return {
-            rgb8(244,234,241), rgb8(238,222,235), rgb8(252,247,239),
-            rgb8(130,88,139), rgb8(61,42,61), rgb8(116,88,113),
-            rgb8(174,117,178), rgb8(181,143,177), rgb8(106,70,112),
-            rgb8(216,181,210), rgb8(61,42,61), rgb8(184,111,43)};
+            rgb8(91,58,134), rgb8(112,74,151), rgb8(244,232,205),
+            rgb8(58,35,88), cream, rgb8(220,202,230),
+            rgb8(128,91,168), rgb8(108,72,148), rgb8(57,34,86),
+            rgb8(145,105,181), cream, rgb8(199,126,58)};
         if (view == ViewMode::VideoPlayer) return {
-            rgb8(245,231,210), rgb8(238,219,194), rgb8(252,247,239),
-            rgb8(167,116,66), rgb8(68,42,28), rgb8(126,100,78),
-            rgb8(191,130,61), rgb8(206,161,102), rgb8(116,63,23),
-            rgb8(232,194,137), rgb8(66,34,17), rgb8(184,111,43)};
+            rgb8(65,37,24), rgb8(91,52,31), rgb8(244,232,205),
+            rgb8(49,28,19), cream, rgb8(214,190,166),
+            rgb8(144,82,39), rgb8(111,62,32), rgb8(54,30,19),
+            rgb8(199,126,58), cream, rgb8(199,126,58)};
         if (view == ViewMode::Library) return {
-            rgb8(239,235,215), rgb8(232,229,205), rgb8(250,247,235),
-            rgb8(112,126,70), rgb8(55,50,31), rgb8(108,105,77),
-            rgb8(134,151,84), rgb8(144,148,89), rgb8(82,91,48),
-            rgb8(188,196,127), rgb8(48,45,27), rgb8(116,132,65)};
+            rgb8(61,94,49), rgb8(77,120,61), rgb8(244,232,205),
+            rgb8(42,67,35), cream, rgb8(215,228,204),
+            rgb8(107,142,83), rgb8(83,127,66), rgb8(44,70,37),
+            rgb8(132,160,101), cream, rgb8(198,151,58)};
         if (view == ViewMode::Discover) return {
-            rgb8(243,231,238), rgb8(237,219,233), rgb8(251,245,249),
-            rgb8(139,91,144), rgb8(61,42,61), rgb8(119,91,118),
-            rgb8(166,112,171), rgb8(181,143,177), rgb8(111,73,114),
-            rgb8(211,177,210), rgb8(61,42,61), rgb8(149,99,154)};
-        if (view == ViewMode::Stream) return {
-            rgb8(232,236,235), rgb8(225,232,229), rgb8(250,247,239),
-            rgb8(92,122,141), rgb8(55,50,43), rgb8(108,105,98),
-            rgb8(112,146,165), rgb8(112,146,165), rgb8(77,100,117),
-            rgb8(176,194,203), rgb8(44,55,61), rgb8(91,133,157)};
+            rgb8(126,38,53), rgb8(158,51,68), rgb8(244,232,205),
+            rgb8(91,28,39), cream, rgb8(235,205,211),
+            rgb8(184,69,86), rgb8(160,52,69), rgb8(91,28,39),
+            rgb8(203,92,108), cream, rgb8(211,144,55)};
+        if (view == ViewMode::Stream) return stream_palette_for(streamPlatform);
         if (view == ViewMode::P2P) return {
             rgb8(225,233,240), rgb8(213,226,237), rgb8(248,250,252),
             rgb8(85,122,150), rgb8(43,58,70), rgb8(101,122,138),
             rgb8(91,133,157), rgb8(112,146,165), rgb8(77,100,117),
             rgb8(176,194,203), rgb8(44,55,61), rgb8(91,133,157)};
         if (view == ViewMode::Debug) return {
-            rgb8(236,230,220), rgb8(226,218,207), rgb8(248,244,237),
-            rgb8(126,105,89), rgb8(67,52,42), rgb8(119,106,94),
-            rgb8(139,111,87), rgb8(119,102,88), rgb8(61,48,39),
-            rgb8(154,136,117), rgb8(248,239,224), rgb8(147,105,59)};
+            rgb8(41,40,48), rgb8(57,55,64), rgb8(78,75,83),
+            rgb8(22,21,26), rgb8(244,232,205), rgb8(194,187,177),
+            rgb8(86,82,91), rgb8(70,67,76), rgb8(27,26,32),
+            rgb8(102,97,108), rgb8(244,232,205), rgb8(199,126,58)};
+        // Search is the one native page whose main background remains Nougat cream.
         return {
-            rgb8(246,234,216), rgb8(239,224,202), rgb8(252,247,239),
-            rgb8(166,112,56), rgb8(68,42,28), rgb8(124,95,71),
-            rgb8(191,130,61), rgb8(219,190,147), rgb8(144,91,37),
+            rgb8(241,227,194), rgb8(236,216,179), rgb8(252,247,239),
+            rgb8(166,112,56), darkText, rgb8(124,95,71),
+            rgb8(202,158,62), rgb8(219,190,147), rgb8(144,91,37),
             rgb8(238,210,168), rgb8(72,39,20), rgb8(191,122,46)};
     }
 
@@ -1476,6 +1510,9 @@ public:
         XSetWMProtocols(d, win, &wmDelete, 1);
         gc = XCreateGC(d, win, 0, nullptr);
         fontInfo = XLoadQueryFont(d, "fixed");
+        sectionFontInfo = XLoadQueryFont(d, "9x15bold");
+        if (!sectionFontInfo) sectionFontInfo = XLoadQueryFont(d, "9x15");
+        metadataFontInfo = XLoadQueryFont(d, "7x14");
         if (fontInfo) XSetFont(d, gc, fontInfo->fid);
         init_quilt_tiles();
         layout();
@@ -1611,28 +1648,28 @@ public:
         p2pOutputRect = {28, 188, std::max(240, W-56), 28};
         layout_button_row({&p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn}, 230, p2pButtonsScrollX);
 
-        nougatSearchPanelTab = {28,54,kCompactButtonW,kCompactButtonH};
-        nougatCrawlerPanelTab = {28+kCompactButtonW,54,kCompactButtonW,kCompactButtonH};
-        nougatP2PPanelTab = {28+kCompactButtonW*2,54,kCompactButtonW,kCompactButtonH};
+        nougatSearchPanelTab = {28,40,kCompactButtonW,kCompactButtonH};
+        nougatCrawlerPanelTab = {28+kCompactButtonW,40,kCompactButtonW,kCompactButtonH};
+        nougatP2PPanelTab = {28+kCompactButtonW*2,40,kCompactButtonW,kCompactButtonH};
         const int nougatRightColumnX = std::max(500, W-144);
-        nougatNetworkAdvancedBtn = {nougatRightColumnX,54,kCompactButtonW,kCompactButtonH};
-        nougatSearchRect = {28, 104, std::max(220, W-400), 30};
-        nougatRawBtn = {std::max(260, W-360),104,kCompactButtonW,kCompactButtonH};
-        nougatPeersToggleBtn = {std::max(380, W-240),104,kCompactButtonW,kCompactButtonH};
-        nougatSearchBtn = {nougatRightColumnX,104,kCompactButtonW,kCompactButtonH};
-        nougatResultsBox = {28, 166, std::max(240, W-56), std::max(120, H-194)};
-        nougatCrawlSeedRect = {28, 104, std::max(240, W-300), 30};
-        nougatCrawlMinusBtn = {std::max(320, W-260),104,36,26};
-        nougatCrawlPlusBtn = {std::max(364, W-216),104,36,26};
-        nougatSameDomainBtn = {28, 146, kCompactButtonW, kCompactButtonH};
-        nougatStartCrawlBtn = {28+kCompactButtonW, 146, kCompactButtonW, kCompactButtonH};
-        nougatCrawlLogBox = {28, 208, std::max(240, W-56), std::max(120, H-236)};
-        nougatPeerEntryRect = {28, 120, std::max(220, W-520), 30};
-        nougatAddPeerBtn = {std::max(300, W-480),120,kCompactButtonW,kCompactButtonH};
-        nougatRemovePeerBtn = {std::max(420, W-360),120,kCompactButtonW,kCompactButtonH};
-        nougatNodeBtn = {std::max(540, W-240),120,kCompactButtonW,kCompactButtonH};
-        nougatPeersToggleBtn = {std::max(660, W-120),120,kCompactButtonW,kCompactButtonH};
-        nougatPeerListBox = {28, 170, std::max(240, W-56), std::max(120, H-198)};
+        nougatNetworkAdvancedBtn = {nougatRightColumnX,40,kCompactButtonW,kCompactButtonH};
+        nougatSearchRect = {28, 90, std::max(220, W-400), 30};
+        nougatRawBtn = {std::max(260, W-360),90,kCompactButtonW,kCompactButtonH};
+        nougatPeersToggleBtn = {std::max(380, W-240),90,kCompactButtonW,kCompactButtonH};
+        nougatSearchBtn = {nougatRightColumnX,90,kCompactButtonW,kCompactButtonH};
+        nougatResultsBox = {28, 148, std::max(240, W-56), std::max(120, H-176)};
+        nougatCrawlSeedRect = {28, 90, std::max(240, W-300), 30};
+        nougatCrawlMinusBtn = {std::max(320, W-260),90,36,26};
+        nougatCrawlPlusBtn = {std::max(364, W-216),90,36,26};
+        nougatSameDomainBtn = {28, 132, kCompactButtonW, kCompactButtonH};
+        nougatStartCrawlBtn = {28+kCompactButtonW, 132, kCompactButtonW, kCompactButtonH};
+        nougatCrawlLogBox = {28, 190, std::max(240, W-56), std::max(120, H-218)};
+        nougatPeerEntryRect = {28, 104, std::max(220, W-520), 30};
+        nougatAddPeerBtn = {std::max(300, W-480),104,kCompactButtonW,kCompactButtonH};
+        nougatRemovePeerBtn = {std::max(420, W-360),104,kCompactButtonW,kCompactButtonH};
+        nougatNodeBtn = {std::max(540, W-240),104,kCompactButtonW,kCompactButtonH};
+        nougatPeersToggleBtn = {std::max(660, W-120),104,kCompactButtonW,kCompactButtonH};
+        nougatPeerListBox = {28, 154, std::max(240, W-56), std::max(120, H-182)};
 
         // The Library tab already establishes context. Put the view-mode
         // controls at the far left and reserve the heading only for a nested
@@ -1850,15 +1887,18 @@ public:
         const long long duration = playback_length_ms();
         if (playbackEndHandled && duration > 0 && position >= std::max<long long>(0, duration - 1500)) {
             resumeStore.mark_completed(currentPath);
+            homeNeedsRefresh.store(true);
             return;
         }
         ResumeRecord record = current_resume_record(position, duration);
         resumeStore.update(record);
+        homeNeedsRefresh.store(true);
     }
 
     void mark_current_resume_completed() {
         if (!currentPath.empty() && !currentMediaIsNetwork && !currentMediaIsP2P && !currentMediaIsYtDlpStream) {
             resumeStore.mark_completed(currentPath);
+            homeNeedsRefresh.store(true);
         }
     }
 
@@ -1917,6 +1957,7 @@ public:
         activeLibraryItem.path = record.path;
         activeLibraryItemValid = true;
         resumeStore.clear_position(record.path);
+        homeNeedsRefresh.store(true);
         resumePromptVisible = false;
         open_media(record.path, 0);
     }
@@ -2592,7 +2633,7 @@ public:
         // scrolling tab strip is intentionally painted afterward so tabs can
         // roll over the N/name, Server status/dot, and version number without
         // those fixed elements being redrawn on top of the buttons.
-        const std::string versionLabel = "v0.0.27";
+        const std::string versionLabel = "v0.0.28";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -2990,7 +3031,12 @@ public:
     void draw_controls(Drawable target) {
         draw_top_bar(target);
         if (currentView != ViewMode::VideoPlayer) return;
-        draw_quilted_background(target, {0, std::max(26, H-38), W, std::max(0, H-std::max(26, H-38))}, ViewMode::VideoPlayer);
+        // v0.0.28 theater surround: the windowed video child sits inside this
+        // cocoa matte.  This replaces the pale/white halo visible around v27.
+        fill(target, {0, 34, W, std::max(1, H - 34)}, rgb8(47, 27, 19));
+        fill_round(target, {6, 38, std::max(1, W - 12), std::max(1, H - 158)}, 16, rgb8(68, 39, 24));
+        outline_round(target, {7, 39, std::max(1, W - 14), std::max(1, H - 160)}, 15, rgb8(154, 91, 42));
+        draw_quilted_background(target, {0, std::max(26, H-138), W, std::max(0, H-std::max(26, H-138))}, ViewMode::VideoPlayer);
         button_on(target, openBtn, "Open");
         button_on(target, rewindBtn, "Rewind 10s");
         button_on(target, playBtn, "Play/Pause");
@@ -3428,6 +3474,7 @@ public:
             std::lock_guard<std::mutex> lock(libraryState->mutex);
             if (libraryState->busy) return;
         }
+        if (operation == 1 || operation == 2 || operation == 3) homeNeedsRefresh.store(true);
         if (libraryWorker.joinable()) libraryWorker.join();
         {
             std::lock_guard<std::mutex> lock(libraryState->mutex);
@@ -3490,17 +3537,23 @@ public:
                             if (node.overview.empty()) node.overview = overview;
                         }
                     }
-                    if (node.poster_item_id.empty() && node.tmdb_poster_path.empty() &&
-                        !node.series_tmdb_id.empty()) {
-                        engine->load_tv_poster_path(node.series_tmdb_id,
-                            node.kind == reddmedia::LibraryNodeKind::Series ? 0 : node.season_number,
-                            node.tmdb_poster_path, fallback_error);
-                    } else if (node.kind == reddmedia::LibraryNodeKind::Movie &&
-                               node.poster_item_id.empty() && node.tmdb_poster_path.empty() &&
-                               !node.tmdb_id.empty()) {
+                    // Artwork quality pass: when an exact provider ID exists,
+                    // ask TMDb for its proper poster even if Jellyfin also has a
+                    // Primary image.  Never title-search or guess an ID here.
+                    if (node.kind == reddmedia::LibraryNodeKind::Movie && !node.tmdb_id.empty()) {
                         engine->load_movie_poster_path(node.tmdb_id,
                                                       node.tmdb_poster_path,
                                                       fallback_error);
+                    } else if (node.kind == reddmedia::LibraryNodeKind::Series && !node.tmdb_id.empty()) {
+                        node.series_tmdb_id = node.tmdb_id;
+                        engine->load_tv_poster_path(node.tmdb_id, 0,
+                                                   node.tmdb_poster_path,
+                                                   fallback_error);
+                    } else if (!node.series_tmdb_id.empty()) {
+                        engine->load_tv_poster_path(node.series_tmdb_id,
+                                                   std::max(0, node.season_number),
+                                                   node.tmdb_poster_path,
+                                                   fallback_error);
                     }
                     set_progress(0.62 + 0.27 * static_cast<double>(index + 1U) /
                         static_cast<double>(std::max<std::size_t>(1U, nodes.size())));
@@ -3945,22 +3998,37 @@ public:
     }
 
     std::string library_poster_key(const reddmedia::LibraryNode& node) const {
+        // v0.0.28 prefers an exact-ID TMDb poster when the catalog already knows
+        // the provider ID.  Jellyfin Primary remains the local fallback.
+        if (!node.tmdb_poster_path.empty()) return "tmdb:" + node.tmdb_poster_path;
         if (!node.poster_item_id.empty()) {
             return "jellyfin:" + node.poster_item_id + ":" + node.poster_image_tag;
         }
-        if (!node.tmdb_poster_path.empty()) return "tmdb:" + node.tmdb_poster_path;
         return "";
     }
 
     std::string home_artwork_key(const reddmedia::LibraryNode& node) const {
-        if (!node.id.empty() && !node.backdrop_image_tag.empty()) {
-            return "backdrop:" + node.id + ":" + node.backdrop_image_tag;
-        }
+        // v0.0.28 Home rests on poster art, never a backdrop/still by preference.
+        // Exact TMDb IDs are used when available; Jellyfin Primary is the local fallback.
+        if (!node.tmdb_poster_path.empty()) return "tmdb:" + node.tmdb_poster_path;
         const std::string item_id = !node.poster_item_id.empty() ? node.poster_item_id : node.id;
         const std::string tag = !node.poster_image_tag.empty() ? node.poster_image_tag : node.primary_image_tag;
         if (!item_id.empty() && !tag.empty()) return "primary:" + item_id + ":" + tag;
-        if (!node.tmdb_poster_path.empty()) return "tmdb:" + node.tmdb_poster_path;
         return {};
+    }
+
+    static bool poster_quality_ok(const reddmedia::LibraryPoster& poster) {
+        if (poster.width < 240 || poster.height < 320 || poster.rgb.empty()) return false;
+        const double aspect = static_cast<double>(poster.width) / static_cast<double>(poster.height);
+        return aspect >= 0.52 && aspect <= 0.82;
+    }
+
+    static int home_grid_columns_for_width(int width) {
+        const int available = std::max(1, width - 56);
+        // At the owner's half-screen width (~650px), three cards must fit.
+        if (width >= 600) return std::max(3, available / 184);
+        if (width >= 430) return 2;
+        return 1;
     }
 
     static std::string joined_genres(const std::vector<std::string>& genres, std::size_t limit=2U) {
@@ -4017,10 +4085,16 @@ public:
     }
 
     void start_home_task() {
+        bool already_loaded = false;
         {
             std::lock_guard<std::mutex> lock(homeState->mutex);
             if (homeState->busy) return;
+            already_loaded = homeState->loaded;
         }
+        // Returning to Home is instant.  A reload only starts when Home has never
+        // loaded, watch/library data changed, or the owner explicitly refreshes it.
+        if (already_loaded && !homeNeedsRefresh.exchange(false)) return;
+        if (!already_loaded) homeNeedsRefresh.store(false);
         if (homeWorker.joinable()) homeWorker.join();
         const std::vector<ResumeRecord> continue_records = resumeStore.unfinished();
         {
@@ -4028,30 +4102,35 @@ public:
             homeState->busy = true;
             homeState->updated = false;
             homeState->progress = 0.02;
-            homeState->status = "Loading your local Home feed...";
             homeState->continue_watching = continue_records;
-            homeState->sections.clear();
+            if (!homeState->loaded) {
+                homeState->status = "Loading your local Home feed...";
+                homeState->sections.clear();
+                homeState->artwork.clear();
+                homeState->continue_artwork_nodes.clear();
+                homeState->artwork_failed.clear();
+            }
         }
         const std::shared_ptr<HomeUiState> state = homeState;
         const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
         const std::shared_ptr<reddmedia::RecommendationEngine> engine = recommendationEngine;
         homeWorker = std::thread([state, client, engine, continue_records]() {
-            std::string error;
-            if (!client->initialize(error)) {
+            const auto fail_refresh = [state](const std::string& message) {
                 std::lock_guard<std::mutex> lock(state->mutex);
                 state->busy = false;
                 state->updated = true;
                 state->progress = 1.0;
-                state->status = "LOCAL is waiting for the Nougat media server: " + error;
+                if (!state->loaded) state->status = message;
+            };
+
+            std::string error;
+            if (!client->initialize(error)) {
+                fail_refresh("LOCAL is waiting for the Nougat media server: " + error);
                 return;
             }
             std::vector<reddmedia::LibraryNode> nodes;
             if (!client->load_all_recommendation_items(nodes, error)) {
-                std::lock_guard<std::mutex> lock(state->mutex);
-                state->busy = false;
-                state->updated = true;
-                state->progress = 1.0;
-                state->status = "Could not load LOCAL media: " + error;
+                fail_refresh("Could not load LOCAL media: " + error);
                 return;
             }
             nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [](const auto& node) {
@@ -4059,8 +4138,29 @@ public:
                        node.kind != reddmedia::LibraryNodeKind::Series;
             }), nodes.end());
 
+            // Exact TMDb provider IDs from Jellyfin may provide a cleaner/high-res
+            // poster.  This is not title guessing: the existing catalog ID is used.
+            if (engine->external_credential_available()) {
+                for (auto& node : nodes) {
+                    std::string poster_error;
+                    if (node.kind == reddmedia::LibraryNodeKind::Movie && !node.tmdb_id.empty()) {
+                        engine->load_movie_poster_path(node.tmdb_id, node.tmdb_poster_path, poster_error);
+                    } else if (node.kind == reddmedia::LibraryNodeKind::Series && !node.tmdb_id.empty()) {
+                        node.series_tmdb_id = node.tmdb_id;
+                        engine->load_tv_poster_path(node.tmdb_id, 0, node.tmdb_poster_path, poster_error);
+                    }
+                }
+            }
+
+            std::map<std::string, reddmedia::LibraryNode> series_by_id;
+            std::map<std::string, reddmedia::LibraryNode> item_by_id;
+            for (const auto& node : nodes) {
+                item_by_id[node.id] = node;
+                if (node.kind == reddmedia::LibraryNodeKind::Series) series_by_id[node.id] = node;
+            }
+
             // Resolve one real episode path for series cards so a series can provide
-            // a silent hover preview without changing the card's series identity.
+            // a silent hover preview without changing the card's poster identity.
             for (auto& node : nodes) {
                 if (node.kind != reddmedia::LibraryNodeKind::Series || home_node_is_playable_file(node)) continue;
                 std::vector<reddmedia::LibraryNode> seasons;
@@ -4091,6 +4191,58 @@ public:
                 }
             }
 
+            // Continue Watching TV cards rest on that season's poster.  If a season
+            // has none, load_library_children already carries the series Primary as
+            // its fallback.  Movies use their movie poster.
+            std::map<std::string, reddmedia::LibraryNode> continue_artwork_nodes;
+            for (const auto& record : continue_records) {
+                reddmedia::LibraryNode art;
+                const auto exact_item = item_by_id.find(record.item_id);
+                if (exact_item != item_by_id.end()) art = exact_item->second;
+                if (!record.series_id.empty()) {
+                    const auto series_it = series_by_id.find(record.series_id);
+                    if (series_it != series_by_id.end()) {
+                        const reddmedia::LibraryNode series = series_it->second;
+                        art = series;
+                        std::vector<reddmedia::LibraryNode> seasons;
+                        std::string season_error;
+                        if (client->load_library_children(series, seasons, season_error)) {
+                            for (auto season : seasons) {
+                                if (season.kind != reddmedia::LibraryNodeKind::Season ||
+                                    season.season_number != record.season_number) continue;
+                                if (engine->external_credential_available() && !series.tmdb_id.empty()) {
+                                    std::string tmdb_error;
+                                    engine->load_tv_poster_path(series.tmdb_id, season.season_number,
+                                                                season.tmdb_poster_path, tmdb_error);
+                                }
+                                art = std::move(season);
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (art.id.empty()) {
+                    art.id = record.item_id;
+                    art.name = record.title;
+                    art.primary_image_tag = record.primary_image_tag;
+                    art.poster_item_id = record.item_id;
+                    art.poster_image_tag = record.primary_image_tag;
+                    art.tmdb_id = record.tmdb_id;
+                    art.series_tmdb_id = record.series_tmdb_id;
+                    art.kind = static_cast<reddmedia::LibraryNodeKind>(record.kind);
+                    if (engine->external_credential_available()) {
+                        std::string tmdb_error;
+                        if (!record.series_tmdb_id.empty() && record.season_number > 0) {
+                            engine->load_tv_poster_path(record.series_tmdb_id, record.season_number,
+                                                        art.tmdb_poster_path, tmdb_error);
+                        } else if (!record.tmdb_id.empty()) {
+                            engine->load_movie_poster_path(record.tmdb_id, art.tmdb_poster_path, tmdb_error);
+                        }
+                    }
+                }
+                continue_artwork_nodes[record.path] = std::move(art);
+            }
+
             std::map<std::string, double> genre_weights;
             auto learn_history = [&genre_weights](const std::vector<reddmedia::ViewingRecord>& history) {
                 const long long now = static_cast<long long>(std::time(nullptr));
@@ -4119,7 +4271,7 @@ public:
             std::vector<std::pair<double, reddmedia::LibraryNode>> ranked;
             ranked.reserve(nodes.size());
             for (const auto& node : nodes) {
-                double score = noise(rng) * 2.0; // retain discovery variety.
+                double score = noise(rng) * 2.0;
                 for (const auto& genre : node.genres) {
                     const auto found = genre_weights.find(normalized_genre(genre));
                     if (found != genre_weights.end()) score += found->second;
@@ -4163,69 +4315,56 @@ public:
                 for (const auto& genre : node.genres) append_genre(genre);
             }
 
-            // Load wide, higher-resolution artwork. Prefer Jellyfin backdrops;
-            // fall back to primary/TMDb artwork rather than stretching tiny UI thumbnails.
+            // Load portrait poster artwork at a display-useful resolution.  Reject
+            // tiny or landscape sources instead of stretching them into mush.
             std::map<std::string, reddmedia::LibraryPoster> artwork;
             std::set<std::string> failed;
             std::vector<reddmedia::LibraryNode> artwork_nodes;
-            artwork_nodes.reserve(continue_records.size() + nodes.size());
-            for (const auto& record : continue_records) {
-                reddmedia::LibraryNode node;
-                node.id = record.item_id;
-                node.name = record.title;
-                node.path = record.path;
-                node.primary_image_tag = record.primary_image_tag;
-                node.backdrop_image_tag = record.backdrop_image_tag;
-                node.poster_item_id = record.item_id;
-                node.poster_image_tag = record.primary_image_tag;
-                node.tmdb_id = record.tmdb_id;
-                node.kind = static_cast<reddmedia::LibraryNodeKind>(record.kind);
-                artwork_nodes.push_back(std::move(node));
-            }
+            artwork_nodes.reserve(continue_artwork_nodes.size() + nodes.size());
+            for (const auto& entry : continue_artwork_nodes) artwork_nodes.push_back(entry.second);
             for (const auto& node : nodes) artwork_nodes.push_back(node);
             std::set<std::string> seen;
             std::size_t done = 0;
             for (const auto& node : artwork_nodes) {
+                const std::string item_id = !node.poster_item_id.empty() ? node.poster_item_id : node.id;
+                const std::string tag = !node.poster_image_tag.empty() ? node.poster_image_tag : node.primary_image_tag;
                 std::string key;
-                if (!node.id.empty() && !node.backdrop_image_tag.empty()) key = "backdrop:" + node.id + ":" + node.backdrop_image_tag;
-                else {
-                    const std::string item_id = !node.poster_item_id.empty() ? node.poster_item_id : node.id;
-                    const std::string tag = !node.poster_image_tag.empty() ? node.poster_image_tag : node.primary_image_tag;
-                    if (!item_id.empty() && !tag.empty()) key = "primary:" + item_id + ":" + tag;
-                    else if (!node.tmdb_poster_path.empty()) key = "tmdb:" + node.tmdb_poster_path;
-                }
+                if (!node.tmdb_poster_path.empty()) key = "tmdb:" + node.tmdb_poster_path;
+                else if (!item_id.empty() && !tag.empty()) key = "primary:" + item_id + ":" + tag;
                 if (key.empty() || !seen.insert(key).second) continue;
+
                 std::string bytes;
                 std::string image_error;
-                bool loaded = false;
-                if (!node.id.empty() && !node.backdrop_image_tag.empty()) {
-                    loaded = client->load_backdrop_image_bmp(node.id, node.backdrop_image_tag, 640, 360, bytes, image_error);
-                }
-                if (!loaded) {
-                    const std::string item_id = !node.poster_item_id.empty() ? node.poster_item_id : node.id;
-                    const std::string tag = !node.poster_image_tag.empty() ? node.poster_image_tag : node.primary_image_tag;
-                    if (!item_id.empty() && !tag.empty()) {
-                        loaded = client->load_primary_image_bmp(item_id, tag, 640, 360, bytes, image_error);
-                    } else if (!node.tmdb_poster_path.empty()) {
-                        loaded = engine->load_external_poster_bmp(node.tmdb_poster_path, 640, 360, bytes, image_error);
+                reddmedia::LibraryPoster poster;
+                bool good = false;
+                if (!node.tmdb_poster_path.empty()) {
+                    if (engine->load_external_poster_bmp(node.tmdb_poster_path, 480, 720, bytes, image_error) &&
+                        reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && poster_quality_ok(poster)) {
+                        good = true;
                     }
                 }
-                reddmedia::LibraryPoster poster;
-                if (loaded && reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && poster.width >= 160 && poster.height >= 90) {
-                    artwork[key] = std::move(poster);
-                } else {
-                    failed.insert(key);
+                if (!good && !item_id.empty() && !tag.empty()) {
+                    bytes.clear(); image_error.clear(); poster = reddmedia::LibraryPoster{};
+                    if (client->load_primary_image_bmp(item_id, tag, 480, 720, bytes, image_error) &&
+                        reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && poster_quality_ok(poster)) {
+                        good = true;
+                    }
                 }
+                if (good) artwork[key] = std::move(poster);
+                else failed.insert(key);
+
                 ++done;
                 if ((done % 3U) == 0U) {
                     std::lock_guard<std::mutex> lock(state->mutex);
-                    state->progress = std::min(0.95, 0.25 + static_cast<double>(done) / std::max<std::size_t>(1U, seen.size() + artwork_nodes.size()) * 0.7);
+                    state->progress = std::min(0.95, 0.25 + static_cast<double>(done) /
+                        static_cast<double>(std::max<std::size_t>(1U, artwork_nodes.size())) * 0.7);
                 }
             }
 
             {
                 std::lock_guard<std::mutex> lock(state->mutex);
                 state->continue_watching = continue_records;
+                state->continue_artwork_nodes = std::move(continue_artwork_nodes);
                 state->sections = std::move(sections);
                 state->artwork = std::move(artwork);
                 state->artwork_failed = std::move(failed);
@@ -4233,6 +4372,7 @@ public:
                 state->progress = 1.0;
                 state->busy = false;
                 state->updated = true;
+                state->loaded = true;
             }
         });
     }
@@ -4293,8 +4433,77 @@ public:
         XDestroyImage(image);
     }
 
+    void fill_top_round(Drawable target, const Rect& raw, int radius, unsigned long c) {
+        if (raw.w <= 0 || raw.h <= 0) return;
+        Rect r = raw;
+        radius = std::max(0, std::min(radius, std::min(r.w / 2, r.h)));
+        if (radius <= 0) { fill(target, r, c); return; }
+        XSetForeground(d, gc, c);
+        XFillRectangle(d, target, gc, r.x, r.y + radius,
+                       static_cast<unsigned>(r.w), static_cast<unsigned>(std::max(0, r.h - radius)));
+        XFillRectangle(d, target, gc, r.x + radius, r.y,
+                       static_cast<unsigned>(std::max(0, r.w - radius * 2)), static_cast<unsigned>(radius));
+        const int diameter = radius * 2;
+        XFillArc(d, target, gc, r.x, r.y, diameter, diameter, 90 * 64, 90 * 64);
+        XFillArc(d, target, gc, r.x + r.w - diameter, r.y, diameter, diameter, 0, 90 * 64);
+    }
+
+    int rounded_top_inset_for_row(int row, int radius) const {
+        if (radius <= 0 || row >= radius) return 0;
+        const double rr = static_cast<double>(radius);
+        const double dy = rr - (static_cast<double>(row) + 0.5);
+        const double inside = std::max(0.0, rr * rr - dy * dy);
+        return std::max(0, static_cast<int>(std::ceil(rr - std::sqrt(inside))));
+    }
+
+    void copy_pixmap_top_rounded(Pixmap source, Drawable target, const Rect& area, int radius) {
+        for (int y = 0; y < area.h; ++y) {
+            const int inset = std::min(area.w / 2, rounded_top_inset_for_row(y, radius));
+            const int width = area.w - inset * 2;
+            if (width <= 0) continue;
+            XCopyArea(d, source, target, gc, inset, y, static_cast<unsigned>(width), 1,
+                      area.x + inset, area.y + y);
+        }
+    }
+
+    void draw_cover_pixels_top_rounded(Drawable target, const Rect& area,
+                                       const reddmedia::LibraryPoster& poster, int radius) {
+        if (area.w <= 0 || area.h <= 0) return;
+        Pixmap tmp = XCreatePixmap(d, win, static_cast<unsigned>(area.w),
+                                   static_cast<unsigned>(area.h), DefaultDepth(d, screen));
+        if (!tmp) return;
+        draw_cover_pixels(tmp, {0, 0, area.w, area.h}, poster);
+        copy_pixmap_top_rounded(tmp, target, area, radius);
+        XFreePixmap(d, tmp);
+    }
+
+    void draw_contain_pixels_top_rounded(Drawable target, const Rect& area,
+                                         const reddmedia::LibraryPoster& poster, int radius,
+                                         unsigned long background) {
+        if (area.w <= 0 || area.h <= 0 || poster.width <= 0 || poster.height <= 0) return;
+        Pixmap tmp = XCreatePixmap(d, win, static_cast<unsigned>(area.w),
+                                   static_cast<unsigned>(area.h), DefaultDepth(d, screen));
+        if (!tmp) return;
+        fill(tmp, {0, 0, area.w, area.h}, background);
+        const double source_aspect = static_cast<double>(poster.width) / static_cast<double>(poster.height);
+        const double target_aspect = static_cast<double>(area.w) / static_cast<double>(area.h);
+        Rect dest{0,0,area.w,area.h};
+        if (source_aspect < target_aspect) {
+            dest.w = std::max(1, static_cast<int>(area.h * source_aspect));
+            dest.x = (area.w - dest.w) / 2;
+        } else if (source_aspect > target_aspect) {
+            dest.h = std::max(1, static_cast<int>(area.w / source_aspect));
+            dest.y = (area.h - dest.h) / 2;
+        }
+        draw_poster_pixels(tmp, dest, poster);
+        copy_pixmap_top_rounded(tmp, target, area, radius);
+        XFreePixmap(d, tmp);
+    }
+
     void draw_home_artwork(Drawable target, const Rect& area, const reddmedia::LibraryNode& node) {
-        fill(target, area, rgb8(26, 20, 29));
+        const int radius = 10;
+        const unsigned long backdrop = rgb8(26, 20, 29);
+        fill_top_round(target, area, radius, backdrop);
         reddmedia::LibraryPoster poster;
         bool available = false;
         const std::string key = home_artwork_key(node);
@@ -4303,22 +4512,28 @@ public:
             const auto found = homeState->artwork.find(key);
             if (found != homeState->artwork.end()) { poster = found->second; available = true; }
         }
-        if (available) draw_cover_pixels(target, area, poster);
-        else {
-            const std::string label = node.name.empty() ? "NO ARTWORK" : head_to_width(node.name, area.w - 20);
-            text(target, area.x + 10, area.y + area.h / 2, label, rgb8(226, 214, 226));
+        if (available) {
+            // Home rests on the complete portrait poster.  Do not crop a 2:3
+            // poster into a 16:9 still; letterbox it inside the card instead.
+            draw_contain_pixels_top_rounded(target, area, poster, radius, backdrop);
+        } else {
+            const std::string label = node.name.empty() ? "NO POSTER" : head_to_width(node.name, area.w - 20);
+            metadata_text(target, area.x + 10, area.y + area.h / 2, label, rgb8(226, 214, 226));
         }
     }
 
     void draw_home_card(Drawable target, const Rect& card, const reddmedia::LibraryNode& node,
                         const std::string& subtitle, bool continue_card, long long resume_ms=0, long long duration_ms=0) {
         const ViewPalette palette = palette_for(ViewMode::Home);
-        const Rect image{card.x, card.y, card.w, std::max(70, card.h - 45)};
+        const unsigned long cardText = rgb8(55, 36, 49);
+        const unsigned long cardMuted = rgb8(101, 76, 87);
+        const Rect image{card.x, card.y, card.w, std::max(70, card.h - 50)};
         fill_round(target, {card.x, card.y + 2, card.w, card.h}, 10, palette.buttonDark);
         fill_round(target, card, 10, rgb8(246, 238, 225));
         draw_home_artwork(target, image, node);
 
-        // Replace artwork with the live silent hover frame when this is the hovered playable card.
+        // Replace poster with the live silent hover frame.  The preview is clipped
+        // through the same rounded top mask so square pixels never protrude.
         if (!node.path.empty() && node.path == homeHoveredPath) {
             reddmedia::LibraryPoster frame;
             bool has_frame = false;
@@ -4327,15 +4542,19 @@ public:
                 has_frame = homePreviewState->has_frame && homePreviewState->path == node.path;
                 if (has_frame) frame = homePreviewState->frame;
             }
-            if (has_frame) draw_cover_pixels(target, image, frame);
+            if (has_frame) draw_cover_pixels_top_rounded(target, image, frame, 10);
         }
         if (continue_card && duration_ms > 0) {
             const double fraction = std::max(0.0, std::min(1.0, static_cast<double>(resume_ms) / static_cast<double>(duration_ms)));
             fill(target, {image.x, image.y + image.h - 5, image.w, 5}, rgb8(109, 89, 75));
             fill(target, {image.x, image.y + image.h - 5, std::max(1, static_cast<int>(image.w * fraction)), 5}, rgb8(194, 122, 48));
         }
-        text(target, card.x + 4, image.y + image.h + 17, head_to_width(node.name, card.w - 8), palette.text);
-        if (!subtitle.empty()) text(target, card.x + 4, image.y + image.h + 34, head_to_width(subtitle, card.w - 8), rgb8(101, 76, 87));
+        metadata_text(target, card.x + 5, image.y + image.h + 18,
+                      head_to_width(node.name, card.w - 10), cardText);
+        if (!subtitle.empty()) {
+            metadata_text(target, card.x + 5, image.y + image.h + 38,
+                          head_to_width(subtitle, card.w - 10), cardMuted);
+        }
         outline_round(target, card, 10, palette.buttonDark);
     }
 
@@ -4347,26 +4566,31 @@ public:
         const int viewport_bottom = H - 12;
         const int content_y0 = viewport_top - homePageScroll;
         int y = content_y0;
-        const int gap = 14;
-        const int card_w = std::max(210, std::min(300, (W - 70) / 3));
-        const int image_h = card_w * 9 / 16;
-        const int card_h = image_h + 45;
+        const int gap = 12;
+        const int columns = home_grid_columns_for_width(W);
+        const int grid_width = std::max(1, W - 56);
+        const int card_w = std::max(145, std::min(240,
+            (grid_width - (columns - 1) * gap) / std::max(1, columns)));
+        const int image_h = std::max(86, card_w * 9 / 16);
+        const int card_h = image_h + 50;
 
         std::vector<ResumeRecord> continues;
         std::vector<HomeSection> sections;
+        std::map<std::string, reddmedia::LibraryNode> continue_artwork_nodes;
         std::string status;
         bool busy = false;
         {
             std::lock_guard<std::mutex> lock(homeState->mutex);
             continues = homeState->continue_watching;
             sections = homeState->sections;
+            continue_artwork_nodes = homeState->continue_artwork_nodes;
             status = homeState->status;
             busy = homeState->busy;
         }
 
         if (!continues.empty()) {
-            text(target, 28, y + 18, "CONTINUE WATCHING", palette.text);
-            y += 30;
+            section_text(target, 28, y + 20, "CONTINUE WATCHING", palette.text);
+            y += 34;
             homeContinueArea = {20, y, std::max(1, W - 40), card_h};
             const int total_w = static_cast<int>(continues.size()) * (card_w + gap) - gap;
             const int max_scroll = std::max(0, total_w - homeContinueArea.w);
@@ -4379,26 +4603,38 @@ public:
                     reddmedia::LibraryNode node = node_from_resume_record(record);
                     if (!record.series_name.empty()) node.name = record.series_name;
                     else if (node.name.empty()) node.name = record.title;
-                    draw_home_card(target, card, node, home_continue_subtitle(record), true, record.position_ms, record.duration_ms);
+
+                    // Playback identity remains the episode/movie file, while the
+                    // resting artwork comes from the resolved season/movie poster.
+                    const auto art_it = continue_artwork_nodes.find(record.path);
+                    if (art_it != continue_artwork_nodes.end()) {
+                        const auto& art = art_it->second;
+                        node.poster_item_id = art.poster_item_id;
+                        node.poster_image_tag = art.poster_image_tag;
+                        node.primary_image_tag = art.primary_image_tag;
+                        node.tmdb_poster_path = art.tmdb_poster_path;
+                    }
+                    draw_home_card(target, card, node, home_continue_subtitle(record), true,
+                                   record.position_ms, record.duration_ms);
                     homeCardHitboxes.push_back({card, node, true, record.position_ms});
                 }
                 x += card_w + gap;
             }
-            y += card_h + 30;
+            y += card_h + 34;
         } else {
             homeContinueArea = {0,0,0,0};
         }
 
-        text(target, 28, y + 18, "LOCAL", palette.text);
-        y += 34;
+        section_text(target, 28, y + 20, "LOCAL", palette.text);
+        y += 38;
         if (sections.empty()) {
-            text(target, 28, y + 20, busy ? "Loading your movies and TV..." : status, palette.text);
-            y += 46;
+            metadata_text(target, 28, y + 22,
+                          busy ? "Loading your movies and TV..." : status, palette.text);
+            y += 48;
         }
         for (const auto& section : sections) {
-            text(target, 28, y + 18, section.title, palette.text);
-            y += 30;
-            const int columns = std::max(1, (W - 56 + gap) / (card_w + gap));
+            section_text(target, 28, y + 20, section.title, palette.text);
+            y += 34;
             int column = 0;
             for (const auto& node : section.items) {
                 const int x = 28 + column * (card_w + gap);
@@ -4411,7 +4647,7 @@ public:
                 if (column >= columns) { column = 0; y += card_h + gap; }
             }
             if (column != 0) y += card_h + gap;
-            y += 18;
+            y += 20;
         }
         homeContentHeight = std::max(H, y + homePageScroll + 20);
         const int max_page_scroll = std::max(0, homeContentHeight - H);
@@ -4547,15 +4783,14 @@ public:
         posterWorker = std::thread([posters, client, engine, nodes]() {
             std::size_t total = 0;
             for (const auto& node : nodes) {
-                if (!node.poster_item_id.empty() || !node.tmdb_poster_path.empty()) ++total;
+                if (!node.tmdb_poster_path.empty() || !node.poster_item_id.empty()) ++total;
             }
             std::size_t completed = 0;
             for (const auto& node : nodes) {
                 std::string key;
-                if (!node.poster_item_id.empty()) {
+                if (!node.tmdb_poster_path.empty()) key = "tmdb:" + node.tmdb_poster_path;
+                else if (!node.poster_item_id.empty()) {
                     key = "jellyfin:" + node.poster_item_id + ":" + node.poster_image_tag;
-                } else if (!node.tmdb_poster_path.empty()) {
-                    key = "tmdb:" + node.tmdb_poster_path;
                 }
                 if (key.empty()) continue;
                 bool needed = true;
@@ -4567,13 +4802,29 @@ public:
                     std::string bytes;
                     std::string error;
                     reddmedia::LibraryPoster poster;
-                    const bool source_loaded = !node.poster_item_id.empty()
-                        ? client->load_primary_image_bmp(node.poster_item_id,
-                            node.poster_image_tag, 132, 158, bytes, error)
-                        : engine->load_external_poster_bmp(node.tmdb_poster_path,
-                            132, 158, bytes, error);
-                    const bool loaded = source_loaded &&
-                        reddmedia::decode_library_poster_bmp(bytes, poster, error);
+                    bool loaded = false;
+
+                    // Exact-ID TMDb poster first.  If it cannot be loaded, fall
+                    // back to Jellyfin Primary.  Both are requested at a useful
+                    // portrait size; tiny/landscape results are rejected.
+                    if (!node.tmdb_poster_path.empty()) {
+                        if (engine->load_external_poster_bmp(node.tmdb_poster_path,
+                                                             480, 720, bytes, error) &&
+                            reddmedia::decode_library_poster_bmp(bytes, poster, error) &&
+                            poster_quality_ok(poster)) {
+                            loaded = true;
+                        }
+                    }
+                    if (!loaded && !node.poster_item_id.empty()) {
+                        bytes.clear(); error.clear(); poster = reddmedia::LibraryPoster{};
+                        if (client->load_primary_image_bmp(node.poster_item_id,
+                                                           node.poster_image_tag,
+                                                           480, 720, bytes, error) &&
+                            reddmedia::decode_library_poster_bmp(bytes, poster, error) &&
+                            poster_quality_ok(poster)) {
+                            loaded = true;
+                        }
+                    }
                     std::lock_guard<std::mutex> lock(posters->mutex);
                     if (loaded) posters->cache[key] = std::move(poster);
                     else posters->failed.insert(key);
@@ -4641,14 +4892,34 @@ public:
         XDestroyImage(image);
     }
 
+    void draw_contain_poster_pixels(Drawable target,
+                                    const Rect& area,
+                                    const reddmedia::LibraryPoster& poster,
+                                    unsigned long background) {
+        if (area.w <= 0 || area.h <= 0 || poster.width <= 0 || poster.height <= 0 || poster.rgb.empty()) return;
+        fill(target, area, background);
+        const double source_aspect = static_cast<double>(poster.width) / static_cast<double>(poster.height);
+        const double target_aspect = static_cast<double>(area.w) / static_cast<double>(area.h);
+        Rect dest = area;
+        if (source_aspect < target_aspect) {
+            dest.w = std::max(1, static_cast<int>(area.h * source_aspect));
+            dest.x = area.x + (area.w - dest.w) / 2;
+        } else if (source_aspect > target_aspect) {
+            dest.h = std::max(1, static_cast<int>(area.w / source_aspect));
+            dest.y = area.y + (area.h - dest.h) / 2;
+        }
+        draw_poster_pixels(target, dest, poster);
+    }
+
     void draw_library_poster(Drawable target,
                              const Rect& area,
                              const reddmedia::LibraryNode& node) {
-        fill(target, area, col(0x0808,0x0808,0x0808));
+        const unsigned long background = rgb8(20, 24, 18);
+        fill(target, area, background);
         const std::string key = library_poster_key(node);
         if (key.empty()) {
-            text(target, area.x + 12, area.y + area.h / 2, "NO POSTER",
-                 col(0x9999,0x9999,0x9999));
+            metadata_text(target, area.x + 12, area.y + area.h / 2, "NO POSTER",
+                          rgb8(188, 202, 178));
             return;
         }
         reddmedia::LibraryPoster poster;
@@ -4663,10 +4934,10 @@ public:
             }
             loading = posterState->busy;
         }
-        if (available) draw_poster_pixels(target, area, poster);
-        else text(target, area.x + 12, area.y + area.h / 2,
-                  loading ? "LOADING..." : "NO POSTER",
-                  col(0x9999,0x9999,0x9999));
+        if (available) draw_contain_poster_pixels(target, area, poster, background);
+        else metadata_text(target, area.x + 12, area.y + area.h / 2,
+                           loading ? "LOADING..." : "NO POSTER",
+                           rgb8(188, 202, 178));
     }
 
     std::string library_view_modes_file() const {
@@ -4719,13 +4990,18 @@ public:
             metrics.visibleItems = metrics.rows;
             return metrics;
         }
-        metrics.columns = std::max(1, (inner_width + metrics.gap) / (140 + metrics.gap));
-        metrics.rows = std::max(1, (inner_height + metrics.gap) / (180 + metrics.gap));
-        metrics.tileWidth = std::max(108,
+
+        // Poster grid is truly portrait.  v27 forced arbitrary poster sources into
+        // a squat cell and visibly distorted them.  v28 keeps a 2:3 art region.
+        const int preferred_width = 150;
+        metrics.columns = std::max(1, (inner_width + metrics.gap) /
+                                      (preferred_width + metrics.gap));
+        metrics.tileWidth = std::max(112,
             (inner_width - (metrics.columns - 1) * metrics.gap) / metrics.columns);
-        metrics.tileHeight = std::max(170,
-            (inner_height - (metrics.rows - 1) * metrics.gap) / metrics.rows);
-        metrics.posterHeight = std::max(118, metrics.tileHeight - 50);
+        metrics.posterHeight = std::max(168, metrics.tileWidth * 3 / 2);
+        metrics.tileHeight = metrics.posterHeight + 50;
+        metrics.rows = std::max(1, (inner_height + metrics.gap) /
+                                   (metrics.tileHeight + metrics.gap));
         metrics.visibleItems = metrics.columns * metrics.rows;
         return metrics;
     }
@@ -5139,7 +5415,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.27";
+        input.app_version = "Nougat Media Suite v0.0.28";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -5805,12 +6081,11 @@ public:
     void draw_nougat_screen(Drawable target) {
         draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Nougat);
         const ViewPalette searchPalette = palette_for(ViewMode::Nougat);
-        text(target, 28, 44, "SEARCH", searchPalette.text);
         std::string node;
         std::string status;
         bool search_busy=false, crawl_busy=false;
         { std::lock_guard<std::mutex> lock(nougatState->mutex); node=nougatState->node_id; status=nougatState->status; search_busy=nougatState->search_busy; crawl_busy=nougatState->crawl_busy; }
-        if (!node.empty()) text(target, std::max(500,W-220), 44, "Node " + node, nougat_light());
+        if (!node.empty()) text(target, std::max(500,W-220), 55, "Node " + node, nougat_light());
         nougat_tab_button(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search && !nougatNetworkAdvanced);
         nougat_tab_button(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler);
         nougat_tab_button(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P);
@@ -7114,6 +7389,7 @@ public:
                 }
                 if (videoRestartBtn.contains(x,y)) {
                     resumeStore.clear_position(currentPath);
+                    homeNeedsRefresh.store(true);
                     stoppedPlaybackVisible = false;
                     open_media(currentPath, 0);
                     return;
@@ -7464,7 +7740,7 @@ public:
                         pointerWindowX = e.xmotion.x;
                         pointerWindowY = e.xmotion.y;
                         if (moved && !fullscreen) {
-                            // v0.0.27 flicker repair: raw X11 pointer motion no longer
+                            // v0.0.27 flicker repair retained in v0.0.28: raw X11 pointer motion no longer
                             // schedules a full-window repaint. Repaint only when the
                             // pointer crosses a real hover target; dedicated Home and
                             // seek-preview paths update their own state separately.
@@ -7700,6 +7976,9 @@ public:
         if (seekPreviewWindow && d) { XDestroyWindow(d, seekPreviewWindow); seekPreviewWindow = 0; }
         if (xextHandle) { dlclose(xextHandle); xextHandle = nullptr; xShapeCombineMask = nullptr; }
         free_quilt_tiles();
+        if (d && metadataFontInfo) { XFreeFont(d, metadataFontInfo); metadataFontInfo = nullptr; }
+        if (d && sectionFontInfo) { XFreeFont(d, sectionFontInfo); sectionFontInfo = nullptr; }
+        if (d && fontInfo) { XFreeFont(d, fontInfo); fontInfo = nullptr; }
         if (d) XCloseDisplay(d);
         d=nullptr;
     }
@@ -7707,7 +7986,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.27\n");
+        printf("Nougat Media Suite v0.0.28\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -7741,7 +8020,51 @@ int main(int argc, char** argv) {
             std::fprintf(stderr,"Nougat v0.0.25 Discover dual-selection state FAIL.\n");
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.27 UI state PASS: provider quilts and dual Discover selectors.\n");
+        std::printf("Nougat Media Suite v0.0.28 UI state PASS: provider quilts and dual Discover selectors.\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v28-ui-state-self-test") {
+        App app;
+        if (App::home_grid_columns_for_width(650) < 3 ||
+            App::home_grid_columns_for_width(430) < 2) {
+            std::fprintf(stderr, "Nougat v0.0.28 responsive Home grid FAIL.\n");
+            return 1;
+        }
+        reddmedia::LibraryPoster good;
+        good.width = 480; good.height = 720; good.rgb.push_back(0);
+        reddmedia::LibraryPoster tiny;
+        tiny.width = 120; tiny.height = 180; tiny.rgb.push_back(0);
+        reddmedia::LibraryPoster landscape;
+        landscape.width = 640; landscape.height = 360; landscape.rgb.push_back(0);
+        if (!App::poster_quality_ok(good) || App::poster_quality_ok(tiny) ||
+            App::poster_quality_ok(landscape)) {
+            std::fprintf(stderr, "Nougat v0.0.28 poster quality gate FAIL.\n");
+            return 1;
+        }
+        const std::string metadata = App::x11_safe_text("2012 \xE2\x80\xA2 Comedy \xE2\x80\xA2 Romance");
+        if (metadata.find("\xE2\x80\xA2") != std::string::npos ||
+            metadata.find(static_cast<char>(0xB7)) == std::string::npos) {
+            std::fprintf(stderr, "Nougat v0.0.28 metadata encoding repair FAIL.\n");
+            return 1;
+        }
+        struct PageTint { ViewMode view; unsigned char r,g,b; unsigned blend; };
+        const PageTint expected[] = {
+            {ViewMode::Home,91,58,134,58},
+            {ViewMode::VideoPlayer,91,52,31,62},
+            {ViewMode::Library,77,120,61,56},
+            {ViewMode::Discover,158,51,68,56},
+            {ViewMode::Nougat,241,227,194,8},
+            {ViewMode::Debug,41,40,48,70},
+        };
+        for (const auto& item : expected) {
+            unsigned char r=0,g=0,b=0; unsigned blend=0;
+            app.quilt_tint_for(item.view,r,g,b,blend);
+            if (r!=item.r || g!=item.g || b!=item.b || blend!=item.blend) {
+                std::fprintf(stderr, "Nougat v0.0.28 page palette FAIL.\n");
+                return 1;
+            }
+        }
+        std::printf("Nougat Media Suite v0.0.28 UI/artwork state PASS: palette, responsive grid, poster gate, metadata encoding.\n");
         return 0;
     }
     if (argc > 3 && std::string(argv[1]) == "--discover-local-resolver-self-test") {

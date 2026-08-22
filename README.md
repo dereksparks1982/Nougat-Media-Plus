@@ -1,7 +1,21 @@
-# Nougat Media Suite v0.0.27
+# Nougat Media Suite v0.0.28
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
 
+
+## v0.0.28 - Candy Palette, Artwork, and UI State Polish
+
+v0.0.28 builds on the owner-accepted/published v0.0.27 baseline. The main quilted page background now carries each native area identity instead of every page reading as cream: Home is purple, Video Player uses cocoa/chocolate/caramel, Library is green, Discover is red, Search remains the only cream-background native page, Stream stays provider-reactive, and Debug is charcoal/licorice. Each area stays restrained to roughly two or three coordinated colors with cream used selectively for readable trim, text, tracks, and panels.
+
+Home now behaves as a persistent desktop surface. Switching to another tab and returning does not rebuild the feed when its data is still current, preserving loaded recommendations, Continue Watching state, artwork, and scrolling. Home cards are poster-first at rest; movie cards use the movie poster, while TV Continue Watching resolves the matching season poster and then the series poster as fallback. The existing silent local hover preview remains and returns to poster art when the pointer leaves. Rounded card artwork and hover frames are clipped through the same top-corner mask so square image pixels cannot protrude through the curved border.
+
+The LOCAL wall uses larger section/category lettering and more readable card metadata. Its responsive layout guarantees at least three recommendation cards across at the owner's roughly 650-pixel half-screen width and fits more as the window widens. The legacy X11 text path translates metadata bullets safely so `2012 • Comedy • Romance` no longer becomes mojibake.
+
+Library poster presentation now prefers proper portrait artwork from an exact catalog TMDb ID when available, falls back to Jellyfin Primary artwork, requests display-useful poster resolution, rejects tiny or landscape results, and preserves portrait aspect instead of stretching arbitrary images into the tile. A deliberate `NO POSTER` state is used when no acceptable art exists.
+
+The Video Player replaces the remaining pale/white windowed-video halo with a dark cocoa/chocolate theater surround and restrained caramel trim. Search removes the redundant standalone `SEARCH` heading and moves its real controls upward while retaining `Search | Crawler | P2P`.
+
+The owner-observed TV Up Next/autoplay and `Back to Series` regressions are intentionally split into v0.0.29 so this release remains a UI/artwork/state build. The focused BitTorrent Pro-class P2P expansion follows in v0.0.30.
 
 ## v0.0.27 - Home, Resume History, Player Polish, and Seek Previews
 
@@ -13,7 +27,7 @@ Local playback now has durable resume state. Reopening unfinished media can offe
 
 The seek bar now supports an actual-frame hover preview with timestamp and real chapter name when real chapter metadata applies. Preview extraction runs separately from the active libVLC player and uses a bounded cache. The v0.0.26 pointer-motion flicker path is repaired by repainting only on meaningful hover-state changes instead of scheduling whole-window redraws for raw X11 motion packets. The selected top-tab notch now paints cleanly over the header divider. Redundant `DISCOVER USUAL / DISCOVER RANDOM`, `Direct Play URL`, and `DIAGNOSTIC CENTER` headings are removed; the Stream field placeholder is exactly `Paste URL Then Press Direct Watch / Rumble / RuTube / VK / OK`.
 
-The previously discussed full page-background palette redesign and darker theater-matte video surround are deliberately logged for a later release and are **not** part of v0.0.27. v0.0.28 remains the focused P2P expansion.
+The page-background/artwork/state polish discussed during owner testing is implemented in v0.0.28. The TV Up Next reliability repair is split into v0.0.29 and the focused P2P expansion into v0.0.30.
 
 
 ## v0.0.26 - Systems, Navigation, Diagnostics, and TV Up Next
@@ -26,7 +40,7 @@ Debug becomes the **Nougat Media Suite Diagnostic Center**. It gathers evidence 
 
 At natural TV episode completion, Nougat resolves the real next episode before presenting an **Up Next** overlay. The overlay shows a visible 10-second countdown and `Play Next`, `Back to Series`, and `Replay`; manual choices cancel the countdown, and an unresolved next episode produces an explicit message instead of silently dead-ending.
 
-v0.0.27 is reserved for seek-bar hover thumbnail previews while preserving aesthetic fallback chapter marks. The larger P2P-management expansion is deferred to v0.0.28.
+v0.0.27 added seek-bar hover thumbnail previews while preserving aesthetic fallback chapter marks. During owner testing, v0.0.28 was reassigned to UI/artwork/state polish, v0.0.29 to TV playback/navigation reliability, and the larger P2P-management expansion to v0.0.30.
 
 
 ## v0.0.25 - Stream Provider Theme, Persistent Selection, and Discover Native Play
@@ -541,4 +555,4 @@ This replacement v0.0.19 candidate includes the recommendation/viewing-history s
 
 ## v0.0.26 candidate
 
-This candidate adds internal mouse Back/Forward navigation, cleans the Library header and Nougat icon perimeter, upgrades Debug into an evidence-based Diagnostic Center with TXT/JSON/redacted support-bundle exports, cleans and centers the intentional 0-200% volume control, fixes top-header layering during horizontal tab scrolling, and adds a 10-second TV Up Next overlay with Play Next / Back to Series / Replay. P2P feature expansion is deliberately deferred to v0.0.28.
+This candidate adds internal mouse Back/Forward navigation, cleans the Library header and Nougat icon perimeter, upgrades Debug into an evidence-based Diagnostic Center with TXT/JSON/redacted support-bundle exports, cleans and centers the intentional 0-200% volume control, fixes top-header layering during horizontal tab scrolling, and adds a 10-second TV Up Next overlay with Play Next / Back to Series / Replay. P2P feature expansion was later moved to v0.0.30 after the owner split v0.0.28/v0.0.29 into UI/artwork and TV-reliability releases.

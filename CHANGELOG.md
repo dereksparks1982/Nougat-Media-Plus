@@ -1,4 +1,16 @@
-# Nougat Media Suite changelog
+# Changelog
+
+## v0.0.28 candidate — Candy Palette, Artwork, and UI State Polish
+
+- Page backgrounds now carry the Nougat candy identity: purple Home, cocoa/chocolate Video Player, green Library, red Discover, cream Search, provider-reactive Stream, and charcoal Debug, with restrained supporting colors.
+- Home remains loaded across tab switches unless watch/library data changed or an explicit refresh is requested.
+- Home resting artwork is poster-first. TV Continue Watching resolves season poster then series poster fallback; silent hover previews are retained and top rounded-corner clipping prevents square pixels protruding through the card.
+- Home section/category and metadata text are more readable, the X11 metadata bullet path is repaired, and the LOCAL grid fits at least three cards per row around 650-pixel half-screen width.
+- Library poster loading prefers exact-ID TMDb artwork, falls back to Jellyfin Primary, requests 480x720 display-useful art, rejects tiny/landscape poster sources, and preserves portrait aspect instead of stretching.
+- Video Player removes the remaining pale/white windowed-video rim in favor of a cocoa/chocolate theater surround with caramel trim.
+- Search removes the redundant standalone `SEARCH` heading and reclaims the vertical space while keeping `Search | Crawler | P2P`.
+- TV Up Next/autoplay and Back-to-Series reliability are deliberately reserved for v0.0.29; the major P2P expansion moves to v0.0.30.
+- Accepted v0.0.27 Search/P2P implementation, licensing boundary, diagnostics, resume/player behavior, and N identity are preserved outside this scope.
 
 ## v0.0.27 - Home, Resume History, Player Polish, and Seek Previews
 
