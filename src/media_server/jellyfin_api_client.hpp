@@ -27,6 +27,7 @@ struct LibraryNode {
     std::string technical_details;
     std::vector<std::string> genres;
     std::string primary_image_tag;
+    std::string backdrop_image_tag;
     std::string poster_item_id;
     std::string poster_image_tag;
     std::string tmdb_poster_path;
@@ -74,6 +75,12 @@ public:
                                 int height,
                                 std::string& bytes,
                                 std::string& error);
+    bool load_backdrop_image_bmp(const std::string& item_id,
+                                 const std::string& image_tag,
+                                 int width,
+                                 int height,
+                                 std::string& bytes,
+                                 std::string& error);
     bool refresh_library(std::string& error);
     bool load_videos(std::vector<LibraryVideo>& videos, std::string& error);
     bool wait_for_video_in_folder(const std::string& folder,

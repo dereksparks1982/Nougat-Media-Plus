@@ -442,6 +442,8 @@ LibraryNode parse_library_node(const std::string& object) {
             node.poster_image_tag = node.primary_image_tag;
         }
     }
+    const std::vector<std::string> backdrop_tags = json_string_array(object, "BackdropImageTags");
+    if (!backdrop_tags.empty()) node.backdrop_image_tag = backdrop_tags.front();
     const std::size_t provider_ids = object.find("\"ProviderIds\"");
     if (provider_ids != std::string::npos) {
         node.tmdb_id = json_string_value(object.substr(provider_ids), "Tmdb");
@@ -452,7 +454,7 @@ LibraryNode parse_library_node(const std::string& object) {
 std::string common_item_fields() {
     return "Path%2CProductionYear%2COverview%2CGenres%2CProviderIds%2CParentId%2C"
            "SeriesId%2CSeasonId%2CSeriesName%2CIndexNumber%2CParentIndexNumber%2C"
-           "ChildCount%2CMediaStreams";
+           "ChildCount%2CMediaStreams%2CBackdropImageTags";
 }
 
 } // namespace
@@ -944,6 +946,42 @@ bool JellyfinApiClient::load_primary_image_bmp(const std::string& item_id,
     const HttpResponse response = request("GET", target, "", true, 30);
     if (response.status != 200 || response.body.empty()) {
         error = "No poster is available for this library item.";
+        return false;
+    }
+    if (!normalize_library_poster_bmp(response.body, bytes, error)) return false;
+    if (ensure_directory(cache_directory)) write_private_file(cache_path, bytes);
+    return true;
+}
+
+bool JellyfinApiClient::load_backdrop_image_bmp(const std::string& item_id,
+                                                const std::string& image_tag,
+                                                int width,
+                                                int height,
+                                                std::string& bytes,
+                                                std::string& error) {
+    if (!initialize(error)) return false;
+    if (item_id.empty() || image_tag.empty()) {
+        error = "No wide artwork is available for this library item.";
+        return false;
+    }
+    width = std::max(64, std::min(1600, width));
+    height = std::max(36, std::min(900, height));
+    const char* home = std::getenv("HOME");
+    const std::string cache_directory = std::string(home ? home : ".") +
+        "/.cache/reddmedia/posters/jellyfin";
+    const std::string cache_path = cache_directory + "/backdrop_" + safe_cache_component(item_id) +
+        "_" + safe_cache_component(image_tag) + "_" + std::to_string(width) + "x" +
+        std::to_string(height) + ".bmp";
+    if (read_binary_file(cache_path, bytes) && bytes.size() >= 2U &&
+        bytes[0] == 'B' && bytes[1] == 'M') {
+        return true;
+    }
+    const std::string target = "/Items/" + url_encode(item_id) +
+        "/Images/Backdrop/0?format=Jpg&maxWidth=" + std::to_string(width) +
+        "&maxHeight=" + std::to_string(height) + "&quality=92";
+    const HttpResponse response = request("GET", target, "", true, 30);
+    if (response.status != 200 || response.body.empty()) {
+        error = "No wide artwork is available for this library item.";
         return false;
     }
     if (!normalize_library_poster_bmp(response.body, bytes, error)) return false;

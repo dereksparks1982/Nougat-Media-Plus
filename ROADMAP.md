@@ -9,10 +9,42 @@
 - Keep N/name, Server status/dot, and version fixed beneath the horizontally scrolling top tabs so tabs roll over them cleanly.
 - At natural TV episode end, resolve the actual next episode and show an Up Next overlay with a visible 10-second autoplay countdown, Play Next, Back to Series, and Replay. If resolution fails, show an explicit message rather than silently stopping.
 
-## v0.0.27 planned — Seek hover previews
-- YouTube-style seek-bar hover preview popup with an actual frame thumbnail and timestamp.
-- Show a real chapter name in the hover preview when real chapter metadata is nearby.
-- Preserve the existing aesthetic fallback chapter marks when media has no real chapters.
+## v0.0.27 candidate — Home, resume history, player polish, and seek previews
+- Add Home as the first/default tab. Continue Watching is the only horizontal shelf; the mouse wheel moves it left/right while hovered and scrolls Home vertically everywhere else. No arrow buttons.
+- Keep every useful unfinished local movie/episode in Continue Watching with a caramel progress bar and persistent resume position.
+- Under `LOCAL`, show mixed movies/TV as a normal vertically scrolling card wall organized by useful genre/category groups plus watch-history-informed recommendations.
+- Prefer wide high-resolution Jellyfin backdrop artwork with verified fallbacks and provide one-at-a-time muted hover previews from the real local file.
+- Add persistent `Continue | Start Over | Cancel` reopen behavior and a stopped-player screen with `Resume | Restart | Load Different | Back to Library`.
+- Keep the current media identity visible below windowed/maximized video and temporarily overlay it in true fullscreen on mouse activity.
+- Round the video viewport in windowed/maximized mode while keeping true fullscreen square.
+- Add actual-frame seek hover previews with timestamp and real chapter name when real chapter metadata applies; do not seek the active libVLC player to create previews.
+- Repair mouse-motion flicker at the repaint source, repair the selected-tab notch/header divider layering, and remove the redundant Discover/Stream/Diagnostic headings.
+- Preserve accepted v0.0.26 behavior outside this scope.
+
+## Owner-approved later visual proposal — version assignment pending
+- This proposal is **not part of v0.0.27** and must not displace the focused v0.0.28 P2P expansion without a later owner decision.
+- Make the **main page background** carry most of each native tab's identity instead of keeping the same cream background everywhere.
+- **Home:** purple main background with only one or two supporting purple/berry tones; retain cream selectively for readable trim/text/panels.
+- **Video Player:** cocoa/chocolate/caramel main background family; brown/chocolate and caramel remain the candy-bar anchor.
+- **Library:** green main background with one or two supporting forest/olive/sage tones.
+- **Discover:** red main background with one or two supporting wine/cherry/raspberry tones.
+- **Search:** the only native page whose main background stays cream, supported by honey/mustard/butterscotch accents.
+- **Stream:** keep provider-reactive identity. Outside providers retain their own recognizable colors (for example YouTube red, Rumble green, VK blue, OK orange) instead of being forced into Nougat-native page colors.
+- **Debug:** dark charcoal/licorice background family.
+- Cream remains part of the Nougat candy-bar identity on non-Search pages as selective text, trim, panels, tracks, and highlights rather than the full page background.
+- Replace the bright light frame around windowed video with a better-blended dark chocolate/charcoal theater matte, optionally using a very thin caramel accent and soft outer shadow; true fullscreen remains edge-to-edge and square.
+- Prefer **2–3 coordinated colors per page**, not four; the background color should do most of the visual differentiation.
+
+## Future platform proposal — native web player and free provider adapters, version assignment pending
+- This proposal is **not part of v0.0.27** and must not displace the focused v0.0.28 P2P expansion without a later owner decision.
+- Add a first-party Nougat web client/player so browser playback uses Nougat controls, Home, watch history, resume state, subtitles/audio selection, fullscreen, seek previews, and Up Next instead of exposing the Jellyfin web UI.
+- Prefer direct browser playback of the original media when the browser supports it; use Nougat-controlled FFmpeg delivery/transcoding only when required by browser codec/container support.
+- Keep future external-provider support behind a generic provider adapter rather than hard-coding one company into Home. Provider sections may appear beneath LOCAL as source headings, with mixed movie/TV cards and no redundant Movies/TV subheadings.
+- External-provider integration must have a legitimate **no-cost** technical path. Do not plan paid provider partnerships, enterprise integration fees, commercial SDK costs, or licensing fees into Nougat.
+- Preserve every provider's required advertising, DRM, attribution, and playback rules; do not bypass DRM or strip provider ads. If a provider requires a paid/private commercial deal or has no legitimate third-party playback path, skip native integration.
+- Outside providers retain recognizable brand colors when active instead of being forced into Nougat-native tab colors.
+- Xumo, Tubi, Pluto, or similar FAST/AVOD services are examples to research individually, not promised integrations.
+- The Xumo-style genre/category browsing concept is independent of Xumo itself and may be used for LOCAL organization even if no external provider is ever integrated.
 
 ## v0.0.28 planned — P2P expansion
 - Resume the deferred P2P work as its own focused build.

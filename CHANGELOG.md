@@ -1,3 +1,31 @@
+# Nougat Media Suite changelog
+
+## v0.0.27 - Home, Resume History, Player Polish, and Seek Previews
+
+- Added **Home** as the first/default top-level tab.
+- Added persistent **Continue Watching** with all unfinished local movies/episodes, caramel progress bars, and horizontal mouse-wheel navigation only while hovering that shelf.
+- Added a normal vertically scrolling **LOCAL** card wall below Continue Watching, organized by genre/category and a watch-history-informed recommendation group.
+- Added wide 16:9 Home artwork selection preferring higher-resolution Jellyfin backdrops with verified fallbacks, plus one-at-a-time muted card hover previews extracted from the real local video.
+- Added persistent per-title resume history and `Continue | Start Over | Cancel` reopen behavior.
+- Added a stopped-playback overlay with `Resume | Restart | Load Different | Back to Library`.
+- Added permanent windowed/maximized now-playing identity below video and temporary true-fullscreen identity on mouse activity.
+- Added rounded video corners in windowed/maximized playback while preserving square true fullscreen.
+- Added seek-hover real-frame preview, timestamp, and real chapter label when available without seeking the active libVLC instance.
+- Repaired pointer-motion flicker by eliminating raw-motion whole-window repaint scheduling.
+- Repaired the header divider cutting through the selected tab notch.
+- Removed redundant Discover state heading, Stream `Direct Play URL` heading, and Debug `DIAGNOSTIC CENTER` heading.
+- Changed the Stream URL placeholder to exactly `Paste URL Then Press Direct Watch / Rumble / RuTube / VK / OK`.
+- Preserved the accepted v0.0.26 diagnostics, Up Next, Search/P2P, Stream, Library, Discover, licensing, icon identity, mouse Back/Forward, and 0-200% volume behavior.
+- Logged the owner-approved later palette/background and video-surround proposal without applying it to v0.0.27.
+
+### v0.0.27 same-version installer validation repair
+- First owner-machine v0.0.27 install attempt applied the candidate, then correctly rolled back to accepted v0.0.26 when the post-apply validation lane invoked the historical v0.0.26 release-identity test and reported `FAIL: CMake v26 identity missing`.
+- Removed only that contradictory post-apply `tools/test_nougat_media_suite_v26.py` invocation.
+- Kept `tools/test_nougat_media_suite_retained_v26.py` as the accepted-v26 compatibility gate under v0.0.27 identity.
+- Added an installer regression guard that rejects reintroducing the old v26 identity contract into the v27 post-apply source-test lane.
+- No Home, player, Library, Discover, Search, Stream, Debug, diagnostics, P2P, licensing, media-server, or runtime feature code changed in this same-version repair.
+
+
 # Changelog
 
 ## v0.0.26 — Candidate: Systems, Navigation, Diagnostics, and TV Up Next

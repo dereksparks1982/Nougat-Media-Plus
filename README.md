@@ -1,6 +1,19 @@
-# Nougat Media Suite v0.0.26
+# Nougat Media Suite v0.0.27
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+
+## v0.0.27 - Home, Resume History, Player Polish, and Seek Previews
+
+v0.0.27 builds on the accepted/published v0.0.26 baseline. A new **Home** tab is first in the top navigation and is the default landing page. Home starts with a horizontally scrollable **Continue Watching** shelf driven by persistent per-title resume history. The shelf uses the mouse wheel for left/right movement only while the pointer is over it, shows caramel progress bars, and keeps all unfinished movies/episodes available rather than limiting the list to only a few recent items. Below it, **LOCAL** presents mixed movies and TV in a normal vertically scrolling card wall organized into useful genre/category groups plus a personalized recommendation group that learns from local watch history.
+
+Home uses wide 16:9 cards and prefers higher-resolution Jellyfin backdrop artwork, with primary/TMDb artwork as fallback. Card hover waits for intentional pointer dwell, then shows one muted FFmpeg-extracted moving preview at a time; leaving the card restores its artwork.
+
+Local playback now has durable resume state. Reopening unfinished media can offer `Continue | Start Over | Cancel`, while **Stop** presents an intentional stopped state with `Resume | Restart | Load Different | Back to Library`. Resume positions persist across other files and application restarts and completed media is removed from Continue Watching. Windowed/maximized playback gets rounded video corners; true video fullscreen remains square. The current movie or TV identity is kept visible in the compact strip below windowed video and appears temporarily with mouse activity in true fullscreen.
+
+The seek bar now supports an actual-frame hover preview with timestamp and real chapter name when real chapter metadata applies. Preview extraction runs separately from the active libVLC player and uses a bounded cache. The v0.0.26 pointer-motion flicker path is repaired by repainting only on meaningful hover-state changes instead of scheduling whole-window redraws for raw X11 motion packets. The selected top-tab notch now paints cleanly over the header divider. Redundant `DISCOVER USUAL / DISCOVER RANDOM`, `Direct Play URL`, and `DIAGNOSTIC CENTER` headings are removed; the Stream field placeholder is exactly `Paste URL Then Press Direct Watch / Rumble / RuTube / VK / OK`.
+
+The previously discussed full page-background palette redesign and darker theater-matte video surround are deliberately logged for a later release and are **not** part of v0.0.27. v0.0.28 remains the focused P2P expansion.
 
 
 ## v0.0.26 - Systems, Navigation, Diagnostics, and TV Up Next
