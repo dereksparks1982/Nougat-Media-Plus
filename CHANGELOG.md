@@ -1,5 +1,20 @@
 # Nougat Media Suite Changelog
 
+## v0.0.25 - Stream Provider Theme, Persistent Selection, and Discover Native Play
+
+- Made the selected Stream provider drive the full Stream interior palette and exact concept-sheet quilt tint: YouTube red, Rumble green, RuTube purple, VK blue, and OK orange/caramel.
+- Made common Stream actions such as Download, Direct Watch, Open Webpage, and Clear Log inherit the selected provider palette.
+- Added the concept-sheet downward selected notch to the active Stream provider.
+- Added persistent Discover selection indicators for the independent `Usual | Random` mode group and `Local Movie | Local TV | External Movie | External TV` target group, allowing two active notches simultaneously.
+- Kept TMDb/service controls as momentary action buttons rather than persistent selectors.
+- Repaired local Discover `Play in Nougat...` so Jellyfin movie/series results resolve to a real playable local file before entering the native player.
+- Series-level local Discover play now chooses the most recently watched matching episode when available from local history, otherwise the first real episode in season/episode order.
+- Added deterministic provider-theme/selector-state tests plus a fake-Jellyfin behavior gate for local-series playback resolution.
+- Preserved the accepted v0.0.24 concept-sheet N, quilt source, Search engine/bridge behavior, protected licensing files, Crawler spacing, TV autoplay repair, and pointer-motion performance repair.
+- Same-version owner-test repair: removed the redundant `STREAM` / `Online video: <provider>` text above the provider row. The Stream top tab and selected provider downward notch already communicate both states, so the extra label is no longer rendered. Provider colors, quilt tinting, provider notches, Stream actions, Discover behavior, and playback logic remain unchanged.
+- Same-version owner-test repair: removed the now-unnecessary cream/white Stream provider container and border so the YouTube/Rumble/RuTube/VK/OK selectors render directly on the active provider-tinted concept-sheet quilt. Provider geometry, colors, selected notch, Stream actions, Discover behavior, and playback logic remain unchanged.
+
+
 ## v0.0.24 same-version installer repair - Legacy v23 launcher accepted and replaced
 
 - Repaired the exact-N app-wide installer preflight after owner testing found an existing untracked `NougatMediaSuite_v23.desktop` legacy launcher in the rejected v0.0.24 working tree.

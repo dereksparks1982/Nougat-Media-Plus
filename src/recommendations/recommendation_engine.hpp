@@ -18,6 +18,10 @@ public:
 
     bool record_started(const MediaDescriptor& item, std::string& error);
     bool record_completed(const MediaDescriptor& item, std::string& error);
+    bool recent_history(RecommendationMediaType type,
+                        std::vector<ViewingRecord>& records,
+                        std::string& error,
+                        int limit = 100);
     bool external_credential_available() const;
     std::string external_credential_label() const;
     bool test_external_credential(std::string& error) const;

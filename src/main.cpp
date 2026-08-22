@@ -475,6 +475,7 @@ class App {
 public:
     Display* d=nullptr; int screen=0; Window win=0, video=0; GC gc=0; XFontStruct* fontInfo=nullptr;
     Pixmap quiltTiles[7] = {};
+    Pixmap streamQuiltTiles[5] = {};
     int W=1000,H=650;
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
@@ -610,6 +611,9 @@ public:
     std::shared_ptr<DebugUiState> debugState = std::make_shared<DebugUiState>();
     std::thread debugWorker;
     reddmedia::RecommendationMode discoverMode = reddmedia::RecommendationMode::Usual;
+    reddmedia::RecommendationSource discoverSource = reddmedia::RecommendationSource::Local;
+    reddmedia::RecommendationMediaType discoverMediaType = reddmedia::RecommendationMediaType::Movie;
+    bool discoverTargetSelected = false;
     bool discoverServiceSettings = false;
     int discoverDetailsScroll = 0;
     int discoverServicesScroll = 0;
@@ -795,23 +799,44 @@ public:
         return 3;
     }
 
+    static int stream_platform_index(StreamPlatform platform) {
+        switch (platform) {
+            case StreamPlatform::YouTube: return 0;
+            case StreamPlatform::Rumble: return 1;
+            case StreamPlatform::RuTube: return 2;
+            case StreamPlatform::VK: return 3;
+            case StreamPlatform::OK: return 4;
+        }
+        return 0;
+    }
+
     void quilt_tint_for(ViewMode view, unsigned char& r, unsigned char& g,
-                        unsigned char& b, unsigned& blendPercent) const {
+                        unsigned char& b, unsigned& blendPercent,
+                        StreamPlatform provider=StreamPlatform::YouTube) const {
         // Exact quilt material comes from the owner-approved concept sheet.
-        // Only its dye/tint changes with the active area so every page keeps
-        // the same upholstered Nougat material while matching its tab family.
+        // The active area dyes that material. Stream is provider-reactive, so
+        // the selected service owns the whole Stream quilt tint.
+        if (view == ViewMode::Stream) {
+            switch (provider) {
+                case StreamPlatform::YouTube: r=205; g=76;  b=67;  blendPercent=22; return;
+                case StreamPlatform::Rumble:  r=128; g=154; b=79;  blendPercent=22; return;
+                case StreamPlatform::RuTube:  r=168; g=107; b=178; blendPercent=20; return;
+                case StreamPlatform::VK:      r=91;  g=142; b=174; blendPercent=20; return;
+                case StreamPlatform::OK:      r=211; g=135; b=48;  blendPercent=22; return;
+            }
+        }
         switch (view) {
             case ViewMode::VideoPlayer: r=196; g=142; b=84;  blendPercent=18; break;
             case ViewMode::Library:     r=143; g=170; b=119; blendPercent=18; break;
             case ViewMode::Discover:    r=185; g=132; b=199; blendPercent=16; break;
             case ViewMode::Nougat:      r=208; g=161; b=102; blendPercent=5;  break;
-            case ViewMode::Stream:      r=105; g=160; b=192; blendPercent=17; break;
+            case ViewMode::Stream:      r=205; g=76;  b=67;  blendPercent=22; break;
             case ViewMode::P2P:         r=105; g=160; b=192; blendPercent=17; break;
             case ViewMode::Debug:       r=120; g=110; b=102; blendPercent=20; break;
         }
     }
 
-    Pixmap create_quilt_tile(ViewMode view) {
+    Pixmap create_quilt_tile(ViewMode view, StreamPlatform provider=StreamPlatform::YouTube) {
         constexpr int sourceSize = nougat_quilt_texture::kSourceSize;
         constexpr int tileSize = sourceSize * 2;
         const int depth = DefaultDepth(d, screen);
@@ -823,7 +848,7 @@ public:
 
         unsigned char tintR=255, tintG=255, tintB=255;
         unsigned blend=0;
-        quilt_tint_for(view, tintR, tintG, tintB, blend);
+        quilt_tint_for(view, tintR, tintG, tintB, blend, provider);
         const unsigned keep = 100U - blend;
 
         for (int y=0; y<tileSize; ++y) {
@@ -867,6 +892,13 @@ public:
             ViewMode::Nougat, ViewMode::Stream, ViewMode::P2P, ViewMode::Debug
         };
         for (int i=0; i<7; ++i) quiltTiles[i] = create_quilt_tile(views[i]);
+        const StreamPlatform providers[5] = {
+            StreamPlatform::YouTube, StreamPlatform::Rumble, StreamPlatform::RuTube,
+            StreamPlatform::VK, StreamPlatform::OK
+        };
+        for (int i=0; i<5; ++i) {
+            streamQuiltTiles[i] = create_quilt_tile(ViewMode::Stream, providers[i]);
+        }
     }
 
     void free_quilt_tiles() {
@@ -875,14 +907,30 @@ public:
             if (tile) XFreePixmap(d, tile);
             tile = 0;
         }
+        for (Pixmap& tile : streamQuiltTiles) {
+            if (tile) XFreePixmap(d, tile);
+            tile = 0;
+        }
     }
 
     void draw_quilted_background(Drawable target, const Rect& area, ViewMode view) {
         if (area.w <= 0 || area.h <= 0) return;
-        const Pixmap tile = quiltTiles[quilt_view_index(view)];
+        const Pixmap tile = view == ViewMode::Stream
+            ? streamQuiltTiles[stream_platform_index(streamPlatform)]
+            : quiltTiles[quilt_view_index(view)];
         if (!tile) {
             // Safe fallback only if X11 could not allocate the exact concept tile.
-            fill(target, area, rgb8(246, 234, 216));
+            unsigned long fallback = rgb8(246,234,216);
+            if (view == ViewMode::Stream) {
+                switch (streamPlatform) {
+                    case StreamPlatform::YouTube: fallback=rgb8(244,224,221); break;
+                    case StreamPlatform::Rumble:  fallback=rgb8(229,237,218); break;
+                    case StreamPlatform::RuTube:  fallback=rgb8(239,224,241); break;
+                    case StreamPlatform::VK:      fallback=rgb8(222,233,241); break;
+                    case StreamPlatform::OK:      fallback=rgb8(246,231,210); break;
+                }
+            }
+            fill(target, area, fallback);
             return;
         }
         XSetFillStyle(d, gc, FillTiled);
@@ -1009,7 +1057,8 @@ public:
     }
 
     void button_on(Drawable target, const Rect& r, const std::string& label) {
-        const ViewPalette palette = palette_for(currentView);
+        const ViewPalette palette = currentView == ViewMode::Stream
+            ? stream_palette_for(streamPlatform) : palette_for(currentView);
         const bool hover = target == win && r.contains(pointerWindowX, pointerWindowY);
         const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
         Rect shadow{visual.x, visual.y + 2, visual.w, visual.h};
@@ -1986,7 +2035,7 @@ public:
         draw_tab(debugTab,"Debug",ViewMode::Debug);
         XSetClipMask(d, gc, None);
 
-        const std::string versionLabel = "v0.0.24";
+        const std::string versionLabel = "v0.0.25";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -2367,11 +2416,6 @@ public:
     void draw_stream_screen(Drawable target) {
         const ViewPalette palette = stream_palette_for(streamPlatform);
         draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Stream);
-        fill(target, {18,36,W-36,52}, palette.panel);
-        outline(target, {18,36,W-36,52}, palette.border);
-        text(target, 28, 58, "STREAM", palette.text);
-        text(target, 96, 58, std::string("Online video: ") + stream_platform_name(streamPlatform), palette.muted);
-
         const auto source_button = [&](const Rect& r, const char* label, StreamPlatform platform) {
             const bool selected = streamPlatform == platform;
             const bool hover = r.contains(pointerWindowX, pointerWindowY);
@@ -2383,7 +2427,23 @@ public:
             outline_round(target,visual,8,selected?own.accent:own.buttonDark);
             Rect stitch{visual.x+2,visual.y+2,std::max(1,visual.w-4),std::max(1,visual.h-4)};
             outline_round(target,stitch,6,own.buttonLight);
-            if (selected) fill_round(target,{visual.x+8,visual.y+visual.h-4,visual.w-16,3},1,own.accent);
+            if (selected) {
+                const int cx = visual.x + visual.w / 2;
+                XPoint outer[3] = {
+                    {static_cast<short>(cx-9), static_cast<short>(visual.y+visual.h-2)},
+                    {static_cast<short>(cx+9), static_cast<short>(visual.y+visual.h-2)},
+                    {static_cast<short>(cx), static_cast<short>(visual.y+visual.h+7)}
+                };
+                XSetForeground(d,gc,own.buttonDark);
+                XFillPolygon(d,target,gc,outer,3,Convex,CoordModeOrigin);
+                XPoint inner[3] = {
+                    {static_cast<short>(cx-7), static_cast<short>(visual.y+visual.h-2)},
+                    {static_cast<short>(cx+7), static_cast<short>(visual.y+visual.h-2)},
+                    {static_cast<short>(cx), static_cast<short>(visual.y+visual.h+5)}
+                };
+                XSetForeground(d,gc,hover?own.buttonLight:own.button);
+                XFillPolygon(d,target,gc,inner,3,Convex,CoordModeOrigin);
+            }
             text(target, visual.x + std::max(6,(visual.w-text_width(label))/2), visual.y+17, label, own.buttonText);
         };
         source_button(streamYoutubeTab,"YouTube",StreamPlatform::YouTube);
@@ -3355,6 +3415,9 @@ public:
 
     void start_discover_task(reddmedia::RecommendationSource source,
                              reddmedia::RecommendationMediaType media_type) {
+        discoverSource = source;
+        discoverMediaType = media_type;
+        discoverTargetSelected = true;
         {
             std::lock_guard<std::mutex> lock(discoverState->mutex);
             if (discoverState->busy) return;
@@ -4334,6 +4397,130 @@ public:
         }
     }
 
+    bool discover_mode_selected(reddmedia::RecommendationMode mode) const {
+        return discoverMode == mode;
+    }
+
+    bool discover_target_selected(reddmedia::RecommendationSource source,
+                                  reddmedia::RecommendationMediaType media_type) const {
+        return discoverTargetSelected && discoverSource == source && discoverMediaType == media_type;
+    }
+
+    void draw_discover_selector(Drawable target, const Rect& r, const std::string& label,
+                                bool active) {
+        const ViewPalette palette = palette_for(ViewMode::Discover);
+        const bool hover = r.contains(pointerWindowX, pointerWindowY);
+        const Rect visual{r.x+2,r.y+1,std::max(1,r.w-4),std::max(1,r.h-4)};
+        Rect shadow{visual.x,visual.y+2,visual.w,visual.h};
+        fill_round(target,shadow,8,palette.buttonDark);
+        fill_round(target,visual,8,hover?palette.buttonLight:palette.button);
+        outline_round(target,visual,8,palette.buttonDark);
+        Rect stitch{visual.x+2,visual.y+2,std::max(1,visual.w-4),std::max(1,visual.h-4)};
+        outline_round(target,stitch,6,palette.buttonLight);
+        line(target,visual.x+8,visual.y+2,visual.x+visual.w-9,visual.y+2,rgb8(255,235,198));
+        if (active) {
+            const int cx=visual.x+visual.w/2;
+            XPoint outer[3] = {
+                {static_cast<short>(cx-9),static_cast<short>(visual.y+visual.h-2)},
+                {static_cast<short>(cx+9),static_cast<short>(visual.y+visual.h-2)},
+                {static_cast<short>(cx),static_cast<short>(visual.y+visual.h+7)}
+            };
+            XSetForeground(d,gc,palette.buttonDark);
+            XFillPolygon(d,target,gc,outer,3,Convex,CoordModeOrigin);
+            XPoint inner[3] = {
+                {static_cast<short>(cx-7),static_cast<short>(visual.y+visual.h-2)},
+                {static_cast<short>(cx+7),static_cast<short>(visual.y+visual.h-2)},
+                {static_cast<short>(cx),static_cast<short>(visual.y+visual.h+5)}
+            };
+            XSetForeground(d,gc,hover?palette.buttonLight:palette.button);
+            XFillPolygon(d,target,gc,inner,3,Convex,CoordModeOrigin);
+        }
+        text(target,visual.x+std::max(5,(visual.w-text_width(label))/2),
+             visual.y+visual.h/2+5,label,palette.buttonText);
+    }
+
+    bool resolve_discover_local_play_target(const reddmedia::RecommendationResult& result,
+                                            reddmedia::LibraryNode& playable,
+                                            std::string& error) {
+        std::vector<reddmedia::LibraryNode> roots;
+        if (!libraryClient->load_all_recommendation_items(roots,error)) return false;
+        auto match = std::find_if(roots.begin(),roots.end(),[&result](const auto& node) {
+            return node.id == result.item.id;
+        });
+        if (match == roots.end()) {
+            error = "That Local recommendation is no longer in the Jellyfin catalog. Refresh Library.";
+            return false;
+        }
+        const reddmedia::LibraryNode root = *match;
+        if (root.kind == reddmedia::LibraryNodeKind::Movie) {
+            if (root.path.empty() || !exists_file(root.path)) {
+                error = "That Local movie file is unavailable. Refresh Library.";
+                return false;
+            }
+            playable = root;
+            return true;
+        }
+        if (root.kind != reddmedia::LibraryNodeKind::Series) {
+            error = "That Local TV recommendation did not resolve to a series.";
+            return false;
+        }
+
+        std::vector<reddmedia::LibraryNode> seasons;
+        if (!libraryClient->load_library_children(root,seasons,error)) return false;
+        std::sort(seasons.begin(),seasons.end(),[](const auto& a,const auto& b) {
+            if (a.season_number != b.season_number) return a.season_number < b.season_number;
+            return a.name < b.name;
+        });
+        std::vector<reddmedia::LibraryNode> episodes;
+        for (const auto& season : seasons) {
+            if (season.kind != reddmedia::LibraryNodeKind::Season) continue;
+            std::vector<reddmedia::LibraryNode> children;
+            std::string child_error;
+            if (!libraryClient->load_library_children(season,children,child_error)) continue;
+            std::sort(children.begin(),children.end(),[](const auto& a,const auto& b) {
+                if (a.season_number != b.season_number) return a.season_number < b.season_number;
+                if (a.episode_number != b.episode_number) return a.episode_number < b.episode_number;
+                return a.name < b.name;
+            });
+            for (auto& episode : children) {
+                if (episode.kind == reddmedia::LibraryNodeKind::Episode &&
+                    !episode.path.empty() && exists_file(episode.path)) {
+                    episodes.push_back(std::move(episode));
+                }
+            }
+        }
+        if (episodes.empty()) {
+            error = "That Local TV series has no playable episode in the Jellyfin catalog.";
+            return false;
+        }
+
+        // At show level, resume from the most recently watched episode when
+        // history can identify one inside this series folder. Otherwise start
+        // with the first real episode.
+        std::vector<reddmedia::ViewingRecord> history;
+        std::string history_error;
+        if (recommendationEngine->recent_history(reddmedia::RecommendationMediaType::Television,
+                                                 history,history_error,200)) {
+            for (const auto& record : history) {
+                if (record.item.local_path.empty()) continue;
+                auto watched = std::find_if(episodes.begin(),episodes.end(),[&record](const auto& episode) {
+                    return (!record.item.id.empty() && episode.id == record.item.id) ||
+                           episode.path == record.item.local_path;
+                });
+                if (watched != episodes.end()) {
+                    playable = *watched;
+                    libraryParents.clear();
+                    libraryParents.push_back(root);
+                    return true;
+                }
+            }
+        }
+        playable = episodes.front();
+        libraryParents.clear();
+        libraryParents.push_back(root);
+        return true;
+    }
+
     void open_discover_result() {
         reddmedia::RecommendationResult result;
         {
@@ -4363,19 +4550,25 @@ public:
             redraw();
             return;
         }
-        if (!exists_file(result.item.local_path)) {
-            {
-                std::lock_guard<std::mutex> lock(discoverState->mutex);
-                discoverState->status = "That Local media file is unavailable. Refresh the Library.";
-            }
+        reddmedia::LibraryNode playable;
+        std::string resolve_error;
+        if (!resolve_discover_local_play_target(result, playable, resolve_error)) {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            discoverState->status = resolve_error;
             redraw();
             return;
         }
+        if (playable.kind == reddmedia::LibraryNodeKind::Episode) prepare_tv_autoplay(playable);
+        else cancel_tv_autoplay();
         std::string history_error;
-        recommendationEngine->record_started(result.item, history_error);
-        cancel_tv_autoplay();
+        recommendationEngine->record_started(descriptor_for_node(playable), history_error);
+        if (!open_media(playable.path, 0)) {
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            discoverState->status = "Nougat could not start that Local media file in the native player.";
+            redraw();
+            return;
+        }
         switch_view(ViewMode::VideoPlayer);
-        open_media(result.item.local_path, 0);
     }
 
     void draw_discover_screen(Drawable target) {
@@ -4437,12 +4630,22 @@ public:
              discoverMode == reddmedia::RecommendationMode::Usual
                  ? "DISCOVER USUAL" : "DISCOVER RANDOM",
              dark);
-        button_on(target, discoverUsualTab, "Usual");
-        button_on(target, discoverRandomTab, "Random");
-        button_on(target, discoverLocalMovieBtn, "Local Movie");
-        button_on(target, discoverLocalTvBtn, "Local TV");
-        button_on(target, discoverExternalMovieBtn, "External Movie");
-        button_on(target, discoverExternalTvBtn, "External TV");
+        draw_discover_selector(target, discoverUsualTab, "Usual",
+                               discover_mode_selected(reddmedia::RecommendationMode::Usual));
+        draw_discover_selector(target, discoverRandomTab, "Random",
+                               discover_mode_selected(reddmedia::RecommendationMode::Random));
+        draw_discover_selector(target, discoverLocalMovieBtn, "Local Movie",
+                               discover_target_selected(reddmedia::RecommendationSource::Local,
+                                                        reddmedia::RecommendationMediaType::Movie));
+        draw_discover_selector(target, discoverLocalTvBtn, "Local TV",
+                               discover_target_selected(reddmedia::RecommendationSource::Local,
+                                                        reddmedia::RecommendationMediaType::Television));
+        draw_discover_selector(target, discoverExternalMovieBtn, "External Movie",
+                               discover_target_selected(reddmedia::RecommendationSource::External,
+                                                        reddmedia::RecommendationMediaType::Movie));
+        draw_discover_selector(target, discoverExternalTvBtn, "External TV",
+                               discover_target_selected(reddmedia::RecommendationSource::External,
+                                                        reddmedia::RecommendationMediaType::Television));
         button_on(target, discoverTmdbTestBtn, "Test TMDb");
         button_on(target, discoverTmdbReplaceBtn, "Save / Replace");
         button_on(target, discoverTmdbClearBtn, "Clear TMDb");
@@ -5703,7 +5906,70 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.24\n");
+        printf("Nougat Media Suite v0.0.25\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
+        App app;
+        struct ExpectedTint { StreamPlatform platform; unsigned char r,g,b; unsigned blend; };
+        const ExpectedTint expected[] = {
+            {StreamPlatform::YouTube,205,76,67,22},
+            {StreamPlatform::Rumble,128,154,79,22},
+            {StreamPlatform::RuTube,168,107,178,20},
+            {StreamPlatform::VK,91,142,174,20},
+            {StreamPlatform::OK,211,135,48,22},
+        };
+        for (const auto& item : expected) {
+            unsigned char r=0,g=0,b=0; unsigned blend=0;
+            app.quilt_tint_for(ViewMode::Stream,r,g,b,blend,item.platform);
+            if (r!=item.r || g!=item.g || b!=item.b || blend!=item.blend) {
+                std::fprintf(stderr,"Nougat v0.0.25 Stream provider tint FAIL.\n");
+                return 1;
+            }
+        }
+        app.discoverMode = reddmedia::RecommendationMode::Random;
+        app.discoverSource = reddmedia::RecommendationSource::Local;
+        app.discoverMediaType = reddmedia::RecommendationMediaType::Movie;
+        app.discoverTargetSelected = true;
+        if (!app.discover_mode_selected(reddmedia::RecommendationMode::Random) ||
+            !app.discover_target_selected(reddmedia::RecommendationSource::Local,
+                                          reddmedia::RecommendationMediaType::Movie) ||
+            app.discover_mode_selected(reddmedia::RecommendationMode::Usual) ||
+            app.discover_target_selected(reddmedia::RecommendationSource::External,
+                                         reddmedia::RecommendationMediaType::Movie)) {
+            std::fprintf(stderr,"Nougat v0.0.25 Discover dual-selection state FAIL.\n");
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.25 UI state PASS: provider quilts and dual Discover selectors.\n");
+        return 0;
+    }
+    if (argc > 3 && std::string(argv[1]) == "--discover-local-resolver-self-test") {
+        App app;
+        reddmedia::RecommendationResult result;
+        result.item.id = argv[2];
+        result.item.title = "Resolver test";
+        result.item.local_path = "catalog-entry";
+        result.item.media_type = reddmedia::RecommendationMediaType::Television;
+        if (argc > 4) {
+            reddmedia::MediaDescriptor watched;
+            watched.id = "episode-watched";
+            watched.title = "Watched episode";
+            watched.local_path = argv[4];
+            watched.media_type = reddmedia::RecommendationMediaType::Television;
+            std::string history_error;
+            if (!app.recommendationEngine->record_started(watched,history_error)) {
+                std::fprintf(stderr,"Nougat Media Suite Discover resolver history setup FAIL: %s\n",history_error.c_str());
+                return 1;
+            }
+        }
+        reddmedia::LibraryNode playable;
+        std::string error;
+        if (!app.resolve_discover_local_play_target(result,playable,error) ||
+            playable.kind != reddmedia::LibraryNodeKind::Episode || playable.path != argv[3]) {
+            std::fprintf(stderr,"Nougat Media Suite Discover local-play resolver FAIL: %s\n",error.c_str());
+            return 1;
+        }
+        std::printf("Nougat Media Suite Discover local-play resolver PASS: %s\n",playable.path.c_str());
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {

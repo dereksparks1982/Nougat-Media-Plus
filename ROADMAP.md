@@ -1,5 +1,18 @@
 # Nougat Media Suite Roadmap
 
+## v0.0.25 candidate - Stream Provider Theme, Persistent Selection, and Discover Native Play
+
+- Build directly on accepted v0.0.24 commit `f66d35b671c9bceee6151dc63003dc3ec24578e8`.
+- Make the selected Stream provider control the Stream interior buttons/accents and tint the exact concept-sheet quilt: YouTube red, Rumble green, RuTube purple, VK blue, OK orange/caramel.
+- Give the selected Stream provider the same downward active notch language used by the selected top-level tab.
+- Give Discover two independent persistent selector groups: `Usual | Random` and `Local Movie | Local TV | External Movie | External TV`; one selection in each group may remain notched simultaneously.
+- Keep TMDb/service operations as ordinary action buttons without persistent selected notches.
+- Repair local Discover `Play in Nougat...` so local movie/TV recommendations resolve through the Jellyfin catalog to an actual playable native-player target.
+- For a local TV series recommendation, resume the most recently watched matching episode when history identifies one; otherwise begin with the first real episode.
+- Preserve the accepted v0.0.24 literal concept-sheet N, exact quilt source, Search behavior, licensing, Library/P2P behavior, Crawler spacing, TV autoplay, and pointer-motion performance work.
+- Richer diagnostic export remains planned for v0.0.26 unless the owner changes scope.
+
+
 ## v0.0.24 same-version replacement repair - Exact Master Art
 
 - Current v0.0.24 candidate remains rejected until the owner visually accepts this replacement.

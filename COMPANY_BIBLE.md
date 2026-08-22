@@ -251,3 +251,13 @@ Only the owner decides whether the candidate is accepted.
 - Search fields, results, peer lists, crawl logs, and embedded P2P surfaces use the approved cream/caramel/chocolate concept family rather than the legacy flat dark slab.
 - The GNOME launcher/running-window identity must resolve to the approved Nougat N, not a generic gear fallback.
 
+## 20. v0.0.25 persistent selection, Stream theme, and Discover playback law
+
+- Persistent selector-style choices use the concept-sheet downward point/notch to expose current state. Momentary action buttons do not retain a selected notch.
+- Independent selector groups may show independent active notches simultaneously. In Discover, `Usual | Random` is one group and `Local Movie | Local TV | External Movie | External TV` is a second group.
+- Within Stream, the selected provider drives the Stream interior palette and the tint applied to the exact accepted quilt material: YouTube red, Rumble green, RuTube purple, VK blue, and OK orange/caramel. The top-level Stream tab may retain its suite-level blue identity.
+- Stream provider selection must be visible both by its provider color and by the downward active notch.
+- Local Discover `Play in Nougat...` must resolve the recommendation through the real Jellyfin catalog to an actual playable local movie or episode and must use the native Nougat player.
+- A local TV series-level recommendation resolves to a real episode. If private local viewing history identifies a matching most-recently watched episode, use it; otherwise start with the first real episode in season/episode order.
+- A failed native-player start remains an explicit failure state; it must not silently switch to an external player or pretend playback started.
+

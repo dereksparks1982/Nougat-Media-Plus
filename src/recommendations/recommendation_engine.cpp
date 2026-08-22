@@ -83,6 +83,13 @@ bool RecommendationEngine::record_completed(const MediaDescriptor& item, std::st
     return history_.record_completed(item, error);
 }
 
+bool RecommendationEngine::recent_history(RecommendationMediaType type,
+                                          std::vector<ViewingRecord>& records,
+                                          std::string& error,
+                                          int limit) {
+    return history_.recent(type, records, error, limit);
+}
+
 bool RecommendationEngine::external_credential_available() const {
     return tmdb_.has_credential();
 }

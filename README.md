@@ -1,6 +1,15 @@
-# Nougat Media Suite v0.0.24
+# Nougat Media Suite v0.0.25
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+
+## v0.0.25 - Stream Provider Theme, Persistent Selection, and Discover Native Play
+
+v0.0.25 builds directly on the owner-accepted v0.0.24 release. The selected Stream provider now drives the entire Stream interior: provider-colored controls, accents, and the exact concept-sheet quilt tinted to YouTube red, Rumble green, RuTube purple, VK blue, or OK orange/caramel. The selected provider also receives the concept-sheet downward active notch.
+
+Discover now exposes its persistent state visually. `Usual | Random` is one selector group and `Local Movie | Local TV | External Movie | External TV` is a second independent group, so one active notch from each group may appear at the same time. Action controls such as TMDb tests and credential/service actions remain ordinary buttons.
+
+`Play in Nougat...` for local Discover results now resolves the selected Jellyfin catalog entry to a real playable local movie or episode before starting the native Nougat player. A series-level TV result resumes the most recently watched matching episode when local history identifies one; otherwise it starts the first real episode in season/episode order.
 
 
 ## v0.0.24 - Search Page UI Polish
