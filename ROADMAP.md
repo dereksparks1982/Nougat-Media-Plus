@@ -1,5 +1,25 @@
 # Nougat Media Suite Roadmap
 
+## v0.0.26 candidate — Systems, navigation, diagnostics, and TV end-of-episode UX
+- Mouse side Button 8/9 navigate Back/Forward through Nougat internal history.
+- Library removes the redundant root “MEDIA LIBRARY” label and places List/Grid controls at the far left.
+- Clean the approved N icon perimeter app-wide so the tiny lower-edge light sliver is transparent.
+- Upgrade Debug into the Nougat Media Suite Diagnostic Center with evidence-backed app/system/Jellyfin/library/playback/Search/current-P2P/AI/TMDb/Stream checks plus TXT, JSON, and redacted support-bundle export.
+- Center the existing Volume label + 0-200% control + single correct percentage; remove the duplicate percentage and rejected speaker-square/triangle glyphs without changing the gain range.
+- Keep N/name, Server status/dot, and version fixed beneath the horizontally scrolling top tabs so tabs roll over them cleanly.
+- At natural TV episode end, resolve the actual next episode and show an Up Next overlay with a visible 10-second autoplay countdown, Play Next, Back to Series, and Replay. If resolution fails, show an explicit message rather than silently stopping.
+
+## v0.0.27 planned — Seek hover previews
+- YouTube-style seek-bar hover preview popup with an actual frame thumbnail and timestamp.
+- Show a real chapter name in the hover preview when real chapter metadata is nearby.
+- Preserve the existing aesthetic fallback chapter marks when media has no real chapters.
+
+## v0.0.28 planned — P2P expansion
+- Resume the deferred P2P work as its own focused build.
+- Target a BitTorrent Pro-class management experience: active transfer list, progress/speeds/peers/seeds/ETA/ratio/status, per-transfer pause/resume/remove, optional data removal with confirmation, file selection/priorities, global/per-transfer limits, queue ordering, seeding/ratio controls, tracker status/reannounce, peer information, and durable resume state.
+- Keep playback integrated in Nougat and preserve the Search > P2P architecture.
+
+
 ## v0.0.25 candidate - Stream Provider Theme, Persistent Selection, and Discover Native Play
 
 - Build directly on accepted v0.0.24 commit `f66d35b671c9bceee6151dc63003dc3ec24578e8`.
@@ -10,7 +30,6 @@
 - Repair local Discover `Play in Nougat...` so local movie/TV recommendations resolve through the Jellyfin catalog to an actual playable native-player target.
 - For a local TV series recommendation, resume the most recently watched matching episode when history identifies one; otherwise begin with the first real episode.
 - Preserve the accepted v0.0.24 literal concept-sheet N, exact quilt source, Search behavior, licensing, Library/P2P behavior, Crawler spacing, TV autoplay, and pointer-motion performance work.
-- Richer diagnostic export remains planned for v0.0.26 unless the owner changes scope.
 
 
 ## v0.0.24 same-version replacement repair - Exact Master Art

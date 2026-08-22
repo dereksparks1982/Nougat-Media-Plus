@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
     const reddmedia::DiagnosticReport healthy = diagnostics.evaluate(diagnostic);
     if (healthy.overall != reddmedia::DiagnosticSeverity::Information) return 18;
     const std::string report = reddmedia::DiagnosticEngine::report_text(healthy, diagnostic);
-    if (report.find("ReddMedia Diagnostic Report") == std::string::npos ||
+    if (report.find("Nougat Media Suite Diagnostic Report") == std::string::npos ||
         report.find("0123456789abcdef") != std::string::npos) return 19;
 
     std::printf("watch-providers=pass my-services=pass episode-identity=pass "

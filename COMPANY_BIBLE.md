@@ -261,3 +261,10 @@ Only the owner decides whether the candidate is accepted.
 - A local TV series-level recommendation resolves to a real episode. If private local viewing history identifies a matching most-recently watched episode, use it; otherwise start with the first real episode in season/episode order.
 - A failed native-player start remains an explicit failure state; it must not silently switch to an external player or pretend playback started.
 
+
+### v0.0.26 durable interaction laws
+- Mouse side buttons map to Nougat internal navigation history: Button 8 = Back and Button 9 = Forward.
+- Fixed header identity/status elements (N/name, Server status dot, version) remain anchored while the top tab strip scrolls in the foreground over them.
+- The Video Player volume control remains a deliberate 0-200% gain control. 100% is normal level; 101-200% remains available for quiet media even if amplification can distort.
+- TV episode completion must never silently dead-end when a next episode can be resolved. Nougat shows an Up Next overlay with a visible 10-second countdown plus Play Next, Back to Series, and Replay.
+- Diagnostic Green means a check returned healthy evidence. Unknown means the check could not establish evidence and must never be promoted to Green by assumption. Diagnostic exports redact credentials, tokens, authorization headers, cookies, passwords, and API keys.

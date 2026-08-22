@@ -68,6 +68,7 @@ typedef long long (*fn_libvlc_media_player_get_length)(libvlc_media_player_t*);
 typedef int (*fn_libvlc_audio_get_volume)(libvlc_media_player_t*);
 typedef int (*fn_libvlc_audio_set_volume)(libvlc_media_player_t*, int);
 typedef int (*fn_libvlc_media_player_get_state)(libvlc_media_player_t*);
+typedef const char* (*fn_libvlc_get_version)(void);
 
 struct libvlc_track_description_t {
     int i_id;
@@ -117,6 +118,7 @@ struct VlcApi {
     fn_libvlc_audio_get_volume get_volume = nullptr;
     fn_libvlc_audio_set_volume set_volume = nullptr;
     fn_libvlc_media_player_get_state get_state = nullptr;
+    fn_libvlc_get_version get_version = nullptr;
     fn_libvlc_audio_get_track_description audio_get_track_description = nullptr;
     fn_libvlc_audio_get_track audio_get_track = nullptr;
     fn_libvlc_audio_set_track audio_set_track = nullptr;
@@ -162,6 +164,7 @@ struct VlcApi {
 #undef LOAD_SYM
 #define LOAD_OPTIONAL(field, name) do { field = (decltype(field))dlsym(handle, name); } while(0)
         LOAD_OPTIONAL(get_state, "libvlc_media_player_get_state");
+        LOAD_OPTIONAL(get_version, "libvlc_get_version");
         LOAD_OPTIONAL(audio_get_track_description, "libvlc_audio_get_track_description");
         LOAD_OPTIONAL(audio_get_track, "libvlc_audio_get_track");
         LOAD_OPTIONAL(audio_set_track, "libvlc_audio_set_track");
@@ -265,6 +268,22 @@ static std::string run_command_capture(const std::string& cmd) {
     pclose(f);
     while (!out.empty() && (out.back() == '\n' || out.back() == '\r')) out.pop_back();
     return out;
+}
+static std::string shell_quote(const std::string& value) {
+    std::string out = "'";
+    for (char c : value) {
+        if (c == '\'') out += "'\"'\"'";
+        else out.push_back(c);
+    }
+    out += "'";
+    return out;
+}
+static std::string resolved_executable_path() {
+    char buf[PATH_MAX];
+    const ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf)-1);
+    if (n <= 0) return "Unknown";
+    buf[n] = 0;
+    return std::string(buf);
 }
 static std::string choose_file_dialog() {
     std::string p;
@@ -395,6 +414,22 @@ enum class StreamPlatform { YouTube, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
 enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
 enum class YtDlpJob { Idle, Download };
+struct NavigationSnapshot {
+    ViewMode view = ViewMode::VideoPlayer;
+    bool library_type_chosen = false;
+    reddmedia::LibraryMediaType library_media_type = reddmedia::LibraryMediaType::Movies;
+    std::vector<reddmedia::LibraryNode> library_parents;
+    int library_selected = -1;
+    int library_scroll = 0;
+    bool discover_service_settings = false;
+    reddmedia::RecommendationMode discover_mode = reddmedia::RecommendationMode::Usual;
+    reddmedia::RecommendationSource discover_source = reddmedia::RecommendationSource::Local;
+    reddmedia::RecommendationMediaType discover_media_type = reddmedia::RecommendationMediaType::Movie;
+    bool discover_target_selected = false;
+    NougatPanel nougat_panel = NougatPanel::Search;
+    bool nougat_network_advanced = false;
+    StreamPlatform stream_platform = StreamPlatform::YouTube;
+};
 struct MenuItem {
     std::string label;
     MenuAction action = MenuAction::NoAction;
@@ -479,7 +514,7 @@ public:
     int W=1000,H=650;
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
-    Rect videoResumeBtn, videoLoadBtn;
+    Rect videoResumeBtn, videoLoadBtn, videoUpNextPlayBtn, videoUpNextSeriesBtn, videoUpNextReplayBtn;
     Rect videoPlayerTab, libraryTab, discoverTab, nougatTab, ytdlpTab, debugTab;
     Rect libraryMoviesBtn, libraryTvBtn, libraryGridBtn, libraryListViewBtn, libraryAddFolderBtn, libraryUnlinkFolderBtn;
     Rect libraryRefreshBtn, libraryBackBtn, libraryListBox;
@@ -490,7 +525,7 @@ public:
     Rect discoverResultBox, discoverOpenBtn, discoverWatchBtn, discoverMyServicesBtn;
     Rect discoverServicesBackBtn;
     Rect debugRunBtn, debugRetryBtn, debugMetadataBtn, debugTmdbBtn;
-    Rect debugServerBtn, debugLogsBtn, debugCopyBtn, debugListBox;
+    Rect debugServerBtn, debugLogsBtn, debugCopyBtn, debugExportTextBtn, debugExportJsonBtn, debugBundleBtn, debugListBox;
     Rect streamYoutubeTab, streamRumbleTab, streamRutubeTab, streamVkTab, streamOkTab;
     Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpDirectWatchBtn, ytdlpWebpageBtn, ytdlpClearBtn, ytdlpFolderBtn;
     Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn;
@@ -581,6 +616,16 @@ public:
     long long tvAutoplayRetryAtMs = 0;
     long long lastLocalPlaybackPositionMs = 0;
     long long lastLocalPlaybackLengthMs = 0;
+    bool upNextVisible = false;
+    bool upNextHasEpisode = false;
+    int upNextTargetIndex = -1;
+    long long upNextDeadlineMs = 0;
+    int upNextLastDisplayedSeconds = -1;
+    std::string upNextMessage;
+    reddmedia::LibraryNode upNextEpisode;
+    std::vector<NavigationSnapshot> navigationBackStack;
+    std::vector<NavigationSnapshot> navigationForwardStack;
+    bool navigationRestoring = false;
     reddmedia::LibraryNode activeLibraryItem;
     bool activeLibraryItemValid = false;
     P2PEngine p2p;
@@ -1286,14 +1331,16 @@ public:
         const int seekRightPad = totalTimeWidth + 20;
         seekRect = {seekX, seekY, std::max(220, W-seekX-seekRightPad), 18};
 
-        // The approved concept sheet uses a compact volume control, distinctly
-        // shorter than the seek bar, with a clean right-side percentage readout.
+        // Keep the accepted 0-200% volume control size behavior, but center the
+        // Volume label + existing control + percentage readout as one group.
         const int volumeTrackW = std::max(150, std::min(280, W / 3));
         const int volumeReadoutW = 54;
         const int volumeHousingPad = 28;
-        const int volumeRightInset = 22;
         const int volumeHousingW = volumeTrackW + volumeHousingPad * 2;
-        const int volumeHousingX = std::max(94, W - volumeRightInset - volumeReadoutW - volumeHousingW);
+        const int volumeLabelW = text_width("Volume");
+        const int volumeGroupW = volumeLabelW + 12 + volumeHousingW + 8 + volumeReadoutW;
+        const int volumeGroupX = std::max(10, (W - volumeGroupW) / 2);
+        const int volumeHousingX = volumeGroupX + volumeLabelW + 12;
         volRect = {volumeHousingX + volumeHousingPad, volumeY + 4, volumeTrackW, 10};
 
         const int promptX = std::max(20, W/2-kCompactButtonW);
@@ -1335,8 +1382,10 @@ public:
         nougatPeersToggleBtn = {std::max(660, W-120),120,kCompactButtonW,kCompactButtonH};
         nougatPeerListBox = {28, 170, std::max(240, W-56), std::max(120, H-198)};
 
-        const std::string libraryHeading = libraryParents.empty() ? "MEDIA LIBRARY" : libraryParents.back().name;
-        const int libraryViewX = std::min(std::max(150, 28 + text_width(libraryHeading) + 12), std::max(150, W - 82));
+        // The Library tab already establishes context. Put the view-mode
+        // controls at the far left and reserve the heading only for a nested
+        // collection/series/season name.
+        const int libraryViewX = 28;
         libraryListViewBtn = {libraryViewX, 38, 32, kCompactButtonH};
         libraryGridBtn = {libraryViewX + 36, 38, 32, kCompactButtonH};
         layout_button_row({&libraryMoviesBtn,&libraryTvBtn,
@@ -1354,7 +1403,8 @@ public:
         discoverWatchBtn = {28+kCompactButtonW, H-66, kCompactButtonW, kCompactButtonH};
         discoverServicesBackBtn = {28,76,kCompactButtonW,kCompactButtonH};
 
-        layout_button_row({&debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugServerBtn,&debugLogsBtn,&debugCopyBtn},
+        layout_button_row({&debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugServerBtn,&debugLogsBtn,&debugCopyBtn,
+                           &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn},
                           76, debugButtonsScrollX);
         debugListBox = {28, 126, std::max(240, W-56), std::max(150, H-154)};
         update_video_prompt_layout();
@@ -1364,6 +1414,13 @@ public:
         const int promptY = std::max(88, videoH/2+36);
         videoResumeBtn = {promptX, promptY, kCompactButtonW, kCompactButtonH};
         videoLoadBtn = {promptX+kCompactButtonW, promptY, kCompactButtonW, kCompactButtonH};
+
+        const int upNextTotalW = kCompactButtonW * 3;
+        const int upNextX = std::max(12, (videoW - upNextTotalW) / 2);
+        const int upNextY = std::max(122, videoH / 2 + 42);
+        videoUpNextPlayBtn = {upNextX, upNextY, kCompactButtonW, kCompactButtonH};
+        videoUpNextSeriesBtn = {upNextX + kCompactButtonW, upNextY, kCompactButtonW, kCompactButtonH};
+        videoUpNextReplayBtn = {upNextX + kCompactButtonW * 2, upNextY, kCompactButtonW, kCompactButtonH};
     }
     void apply_video_layout() {
         if (!video) return;
@@ -1741,6 +1798,12 @@ public:
         tvAutoplayRetryAtMs=0;
         lastLocalPlaybackPositionMs=0;
         lastLocalPlaybackLengthMs=0;
+        upNextVisible=false;
+        upNextHasEpisode=false;
+        upNextTargetIndex=-1;
+        upNextDeadlineMs=0;
+        upNextLastDisplayedSeconds=-1;
+        upNextMessage.clear();
         activeLibraryItemValid=false;
         playbackEndHandled=false;
     }
@@ -1944,6 +2007,36 @@ public:
         redraw();
     }
     void draw_video_message() {
+        if (upNextVisible) {
+            XClearWindow(d, video);
+            const int cardW = std::max(360, std::min(680, videoW - 40));
+            const int cardH = 164;
+            const int cardX = std::max(12, (videoW - cardW) / 2);
+            const int cardY = std::max(26, (videoH - cardH) / 2 - 12);
+            const Rect card{cardX, cardY, cardW, cardH};
+            fill_round(video, card, 12, rgb8(55,34,22));
+            outline_round(video, card, 12, rgb8(201,130,44));
+            Rect inset{card.x+3, card.y+3, card.w-6, card.h-6};
+            outline_round(video, inset, 9, rgb8(244,229,205));
+
+            if (upNextHasEpisode) {
+                const std::string title = "Up Next: " + library_display_title(upNextEpisode);
+                text(video, card.x + 20, card.y + 36, head_to_width(title, card.w - 40), rgb8(248,235,214));
+                text(video, card.x + 20, card.y + 64,
+                     upNextMessage.empty() ? "Playing automatically in 10 seconds." : upNextMessage,
+                     rgb8(224,188,132));
+                button_on(video, videoUpNextPlayBtn, "Play Next");
+            } else {
+                text(video, card.x + 20, card.y + 40, "Up Next", rgb8(248,235,214));
+                text(video, card.x + 20, card.y + 70,
+                     head_to_width(upNextMessage.empty() ? "No next episode found." : upNextMessage, card.w - 40),
+                     rgb8(224,188,132));
+            }
+            button_on(video, videoUpNextSeriesBtn, "Back to Series");
+            button_on(video, videoUpNextReplayBtn, "Replay");
+            return;
+        }
+
         if (hasMedia && !needResumePrompt && vlcErr.empty()) return;
         XClearWindow(d, video);
         if (!vlcErr.empty()) {
@@ -1984,6 +2077,31 @@ public:
         // duplicate N badge.
         draw_suite_badge(target, 8, 5, 0xf6, 0xea, 0xd8);
         text(target, 28, 17, "NOUGAT MEDIA SUITE", topText);
+
+        // Fixed header identity/status is painted first. The horizontally
+        // scrolling tab strip is intentionally painted afterward so tabs can
+        // roll over the N/name, Server status/dot, and version number without
+        // those fixed elements being redrawn on top of the buttons.
+        const std::string versionLabel = "v0.0.26";
+        const int versionWidth = text_width(versionLabel);
+        const int versionX = W - 10 - versionWidth;
+        bool serverBusy = false;
+        reddmedia::MediaServerState serverStateValue = reddmedia::MediaServerState::Stopped;
+        {
+            std::lock_guard<std::mutex> lock(serverState->mutex);
+            serverBusy = serverState->busy;
+            serverStateValue = serverState->state;
+        }
+        unsigned long light = rgb8(190, 75, 67);
+        if (serverStateValue == reddmedia::MediaServerState::Ready && !serverBusy) light = rgb8(134,151,84);
+        else if (serverStateValue == reddmedia::MediaServerState::Starting || serverBusy) light = rgb8(201,145,73);
+        const std::string serverLabel = "Server:";
+        const int serverX = versionX - 34 - text_width(serverLabel);
+        if (serverX > 4) {
+            text(target, serverX, 17, serverLabel, topText);
+            fill_circle(target, serverX + text_width(serverLabel) + 7, 8, 10, light);
+        }
+        text(target, versionX, 17, versionLabel, topText);
 
         const int navClipX = std::max(0, std::min(videoPlayerTab.x, W));
         const int navClipRight = std::max(navClipX + 1, std::min(W, debugTab.x + debugTab.w));
@@ -2035,26 +2153,6 @@ public:
         draw_tab(debugTab,"Debug",ViewMode::Debug);
         XSetClipMask(d, gc, None);
 
-        const std::string versionLabel = "v0.0.25";
-        const int versionWidth = text_width(versionLabel);
-        const int versionX = W - 10 - versionWidth;
-        bool serverBusy = false;
-        reddmedia::MediaServerState serverStateValue = reddmedia::MediaServerState::Stopped;
-        {
-            std::lock_guard<std::mutex> lock(serverState->mutex);
-            serverBusy = serverState->busy;
-            serverStateValue = serverState->state;
-        }
-        unsigned long light = rgb8(190, 75, 67);
-        if (serverStateValue == reddmedia::MediaServerState::Ready && !serverBusy) light = rgb8(134,151,84);
-        else if (serverStateValue == reddmedia::MediaServerState::Starting || serverBusy) light = rgb8(201,145,73);
-        const std::string serverLabel = "Server:";
-        const int serverX = versionX - 34 - text_width(serverLabel);
-        if (serverX > debugTab.x + debugTab.w + 6) {
-            text(target, serverX, 17, serverLabel, topText);
-            fill_circle(target, serverX + text_width(serverLabel) + 7, 8, 10, light);
-        }
-        text(target, versionX, 17, versionLabel, topText);
         line(target, 0, 25, W, 25, divider);
     }
 
@@ -2232,11 +2330,11 @@ public:
         XSetForeground(d,gc,trackBorder);
         XDrawArc(d,target,gc,knobX,knobY,knobD,knobD,0,360*64);
 
-        draw_speaker_icon(target,housing.x+8,housing.y+3,false,palette.text);
-        draw_speaker_icon(target,housing.x+housing.w-22,housing.y+3,true,palette.text);
-        text(target,10,volRect.y+9,"Volume",palette.text);
+        // The owner rejected the small speaker glyphs as stray square/triangle
+        // shapes. Keep the track, 0-200% gain range and rounded knob unchanged.
+        const int volumeLabelX = housing.x - 12 - text_width("Volume");
+        text(target,volumeLabelX,volRect.y+9,"Volume",palette.text);
         text(target,housing.x+housing.w+8,volRect.y+9,std::to_string(vol)+"%",palette.text);
-        text(target,normalX-14,volRect.y-7,"100%",palette.muted);
     }
 
     void draw_controls(Drawable target) {
@@ -2382,6 +2480,7 @@ public:
     }
 
     void select_stream_platform(StreamPlatform platform) {
+        if (streamPlatform != platform) push_navigation_history();
         streamPlatform = platform;
         urlFocused = false;
         urlSelectAll = false;
@@ -2808,6 +2907,7 @@ public:
             std::lock_guard<std::mutex> lock(libraryState->mutex);
             if (libraryState->busy) return;
         }
+        if (!libraryTypeChosen || libraryMediaType != media_type || !libraryParents.empty()) push_navigation_history();
         libraryMediaType = media_type;
         libraryTypeChosen = true;
         libraryParents.clear();
@@ -2951,6 +3051,116 @@ public:
         return true;
     }
 
+    int up_next_seconds_remaining() const {
+        if (!upNextVisible || !upNextHasEpisode || upNextDeadlineMs <= 0) return -1;
+        const long long remaining = std::max<long long>(0, upNextDeadlineMs - now_ms());
+        return static_cast<int>((remaining + 999) / 1000);
+    }
+
+    void clear_up_next_overlay() {
+        upNextVisible = false;
+        upNextHasEpisode = false;
+        upNextTargetIndex = -1;
+        upNextDeadlineMs = 0;
+        upNextLastDisplayedSeconds = -1;
+        upNextMessage.clear();
+    }
+
+    void show_up_next_overlay() {
+        clear_up_next_overlay();
+        if (!tvAutoplayArmed || tvAutoplayIndex < 0) {
+            upNextVisible = true;
+            upNextMessage = "No next episode was resolved for this playback.";
+            draw_video_message();
+            return;
+        }
+        const int next = tvAutoplayIndex + 1;
+        if (next >= static_cast<int>(tvAutoplayQueue.size())) {
+            upNextVisible = true;
+            upNextMessage = "No next episode found. You reached the end of the available series queue.";
+            draw_video_message();
+            return;
+        }
+        const reddmedia::LibraryNode candidate = tvAutoplayQueue[static_cast<std::size_t>(next)];
+        if (!exists_file(candidate.path)) {
+            upNextVisible = true;
+            upNextMessage = "The next episode was identified, but its media file is unavailable.";
+            draw_video_message();
+            return;
+        }
+        upNextVisible = true;
+        upNextHasEpisode = true;
+        upNextTargetIndex = next;
+        upNextEpisode = candidate;
+        upNextDeadlineMs = now_ms() + 10000;
+        upNextLastDisplayedSeconds = 10;
+        upNextMessage = "Playing automatically in 10 seconds.";
+        draw_video_message();
+    }
+
+    void play_up_next_now() {
+        if (!upNextVisible || !upNextHasEpisode || upNextTargetIndex < 0) return;
+        const int target = upNextTargetIndex;
+        clear_up_next_overlay();
+        if (!start_tv_autoplay_index(target)) {
+            upNextVisible = true;
+            upNextMessage = "Nougat could not start the next episode yet. Automatic retry is active.";
+            draw_video_message();
+        }
+    }
+
+    void replay_active_episode() {
+        if (!activeLibraryItemValid || activeLibraryItem.path.empty() || !exists_file(activeLibraryItem.path)) return;
+        clear_up_next_overlay();
+        playbackEndHandled = false;
+        const reddmedia::LibraryNode replay = activeLibraryItem;
+        if (open_media(replay.path, 0)) {
+            activeLibraryItem = replay;
+            activeLibraryItemValid = true;
+            std::string history_error;
+            recommendationEngine->record_started(descriptor_for_node(replay), history_error);
+        }
+    }
+
+    void back_to_series_from_up_next() {
+        reddmedia::LibraryNode episode = activeLibraryItemValid ? activeLibraryItem : upNextEpisode;
+        clear_up_next_overlay();
+        tvAutoplayArmed = false;
+        tvAutoplayRetryIndex = -1;
+        tvAutoplayRetryAttempts = 0;
+        tvAutoplayRetryAtMs = 0;
+        if (episode.series_id.empty()) {
+            switch_view(ViewMode::Library);
+            return;
+        }
+        reddmedia::LibraryNode series;
+        series.id = episode.series_id;
+        series.name = episode.series_name.empty() ? "Series" : episode.series_name;
+        series.kind = reddmedia::LibraryNodeKind::Series;
+        series.tmdb_id = episode.series_tmdb_id;
+        series.series_tmdb_id = episode.series_tmdb_id;
+        libraryMediaType = reddmedia::LibraryMediaType::Television;
+        libraryTypeChosen = true;
+        libraryParents.clear();
+        libraryParents.push_back(series);
+        librarySelected = -1;
+        libraryScroll = 0;
+        switch_view(ViewMode::Library);
+        start_library_task(5, {}, series);
+    }
+
+    void poll_up_next_overlay() {
+        if (!upNextVisible || !upNextHasEpisode || upNextDeadlineMs <= 0) return;
+        const int seconds = up_next_seconds_remaining();
+        if (seconds != upNextLastDisplayedSeconds) {
+            upNextLastDisplayedSeconds = seconds;
+            upNextMessage = "Playing automatically in " + std::to_string(seconds) +
+                (seconds == 1 ? " second." : " seconds.");
+            if (currentView == ViewMode::VideoPlayer) draw_video_message();
+        }
+        if (now_ms() >= upNextDeadlineMs) play_up_next_now();
+    }
+
     void mark_active_episode_completed() {
         if (!activeLibraryItemValid) return;
         std::string error;
@@ -2960,6 +3170,7 @@ public:
     bool start_tv_autoplay_index(int index) {
         if (!tvAutoplayArmed || index < 0 || index >= static_cast<int>(tvAutoplayQueue.size())) return false;
         const reddmedia::LibraryNode candidate = tvAutoplayQueue[static_cast<std::size_t>(index)];
+        clear_up_next_overlay();
         if (!exists_file(candidate.path) || !open_media(candidate.path, 0)) {
             tvAutoplayRetryIndex = index;
             ++tvAutoplayRetryAttempts;
@@ -2994,6 +3205,10 @@ public:
         if (tvAutoplayRetryAttempts >= 3) {
             tvAutoplayArmed = false;
             tvAutoplayRetryIndex = -1;
+            upNextVisible = true;
+            upNextHasEpisode = false;
+            upNextMessage = "Nougat could not start the resolved next episode after three attempts.";
+            if (currentView == ViewMode::VideoPlayer) draw_video_message();
             return;
         }
         start_tv_autoplay_index(retry_index);
@@ -3019,13 +3234,15 @@ public:
         if (!ended) return;
         playbackEndHandled = true;
         mark_active_episode_completed();
-        if (!play_next_tv_episode() && tvAutoplayRetryIndex < 0 && !fullscreen) redraw();
+        show_up_next_overlay();
+        if (!fullscreen) redraw();
     }
 
     void open_library_node(const reddmedia::LibraryNode& selected) {
         if (selected.kind == reddmedia::LibraryNodeKind::MovieCollection ||
             selected.kind == reddmedia::LibraryNodeKind::Series ||
             selected.kind == reddmedia::LibraryNodeKind::Season) {
+            push_navigation_history();
             libraryParents.push_back(selected);
             librarySelected = -1;
             libraryScroll = 0;
@@ -3060,6 +3277,7 @@ public:
 
     void library_back() {
         if (libraryParents.empty()) return;
+        push_navigation_history();
         libraryParents.pop_back();
         librarySelected = -1;
         libraryScroll = 0;
@@ -3332,7 +3550,7 @@ public:
     void draw_library_screen(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::Library);
         draw_quilted_background(target,{0,32,W,H-32},ViewMode::Library);
-        text(target,28,58,libraryParents.empty()?"MEDIA LIBRARY":libraryParents.back().name,palette.text);
+        if (!libraryParents.empty()) text(target,104,58,head_to_width(libraryParents.back().name,W-132),palette.text);
         draw_library_view_button(target,libraryListViewBtn,LibraryDisplayMode::List,current_library_display_mode()==LibraryDisplayMode::List);
         draw_library_view_button(target,libraryGridBtn,LibraryDisplayMode::Grid,current_library_display_mode()==LibraryDisplayMode::Grid);
         button_on(target,libraryMoviesBtn,"Movies");
@@ -3415,13 +3633,14 @@ public:
 
     void start_discover_task(reddmedia::RecommendationSource source,
                              reddmedia::RecommendationMediaType media_type) {
-        discoverSource = source;
-        discoverMediaType = media_type;
-        discoverTargetSelected = true;
         {
             std::lock_guard<std::mutex> lock(discoverState->mutex);
             if (discoverState->busy) return;
         }
+        if (!discoverTargetSelected || discoverSource != source || discoverMediaType != media_type) push_navigation_history();
+        discoverSource = source;
+        discoverMediaType = media_type;
+        discoverTargetSelected = true;
         if (source == reddmedia::RecommendationSource::External &&
             !recommendationEngine->external_credential_available()) {
             {
@@ -3662,8 +3881,39 @@ public:
         }
     }
 
+    std::string current_view_name() const {
+        switch (currentView) {
+        case ViewMode::VideoPlayer: return "Video Player";
+        case ViewMode::Library: return "Library";
+        case ViewMode::Discover: return "Discover";
+        case ViewMode::Nougat: return "Search";
+        case ViewMode::Stream: return "Stream";
+        case ViewMode::P2P: return "P2P";
+        case ViewMode::Debug: return "Debug";
+        }
+        return "Unknown";
+    }
+
+    static std::string playback_state_name(int state) {
+        switch (state) {
+        case 0: return "Nothing special";
+        case 1: return "Opening";
+        case 2: return "Buffering";
+        case 3: return "Playing";
+        case 4: return "Paused";
+        case 5: return "Stopped";
+        case 6: return "Ended";
+        case 7: return "Error";
+        default: return "Unknown";
+        }
+    }
+
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
+        input.app_version = "Nougat Media Suite v0.0.26";
+        input.executable_path = resolved_executable_path();
+        input.project_root = exe_dir();
+        input.current_view = current_view_name();
         input.runtime_path = mediaServer.runtime_path();
         input.data_path = mediaServer.data_path();
         input.config_path = mediaServer.config_path();
@@ -3679,6 +3929,7 @@ public:
         }
         {
             std::lock_guard<std::mutex> lock(libraryState->mutex);
+            input.library_folders = libraryState->folders;
             input.library_nodes = libraryState->nodes;
             input.library_status = libraryState->status;
             if (libraryState->busy) input.active_operation = libraryState->status;
@@ -3693,10 +3944,61 @@ public:
             input.tmdb_status = discoverState->status;
             if (discoverState->busy) input.active_operation = discoverState->status;
         }
+        input.vlc_probe_attempted = true;
+        input.vlc_loaded = api.handle != nullptr;
+        input.vlc_version = api.get_version ? api.get_version() : (api.handle ? "Loaded; version symbol unavailable" : "Unavailable");
+        input.vlc_error = vlcErr;
+        input.playback_active = mp != nullptr && hasMedia;
+        input.playback_path = currentPath.empty() ? (activeLibraryItemValid ? activeLibraryItem.path : std::string()) : currentPath;
+        input.playback_state = (mp && api.get_state) ? playback_state_name(api.get_state(mp)) : (mp ? "Player active; state unavailable" : "Idle");
+        input.playback_position_ms = mp && api.get_time ? api.get_time(mp) : 0;
+        input.playback_length_ms = mp && api.get_length ? api.get_length(mp) : 0;
+        input.volume_percent = volumePercent;
+        input.tv_autoplay_armed = tvAutoplayArmed;
+        input.up_next_visible = upNextVisible;
+        input.up_next_seconds = up_next_seconds_remaining();
+        input.up_next_title = upNextVisible ? library_display_title(upNextEpisode) : "None";
+        input.search_data_dir = nougat.data_directory();
+        input.search_node_running = nougat.node_running();
+        input.search_node_port = nougat.node_port();
+        {
+            std::lock_guard<std::mutex> lock(nougatState->mutex);
+            input.search_node_id = nougatState->node_id;
+            input.search_peer_count = nougatState->peers.size();
+            input.search_probe_error = nougatState->status;
+        }
+        const P2PStatus p2p_status = p2p.status();
+        input.p2p_version = p2p.libtorrent_version();
+        input.p2p_active = p2p_status.active;
+        input.p2p_metadata_ready = p2p_status.metadata_ready;
+        input.p2p_seeding = p2p_status.seeding;
+        input.p2p_paused = p2p_status.paused;
+        input.p2p_progress = p2p_status.progress;
+        input.p2p_downloaded = p2p_status.downloaded;
+        input.p2p_total = p2p_status.total;
+        input.p2p_download_rate = p2p_status.download_rate;
+        input.p2p_upload_rate = p2p_status.upload_rate;
+        input.p2p_peers = p2p_status.peers;
+        input.p2p_seeds = p2p_status.seeds;
+        input.p2p_name = p2p_status.name;
+        input.p2p_state = p2p_status.state;
+        input.p2p_error = p2p_status.error;
+        input.p2p_save_path = p2p_status.save_path;
         input.tmdb_configured = recommendationEngine->external_credential_available();
-        input.ai_model_path = exe_dir() +
-            "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf";
+        input.ai_model_path = exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf";
         input.ai_runtime_path = exe_dir() + "/components/ai/runtime";
+        if (exists_file(input.ai_model_path)) {
+            const std::string hash_line = run_command_capture("sha256sum " + shell_quote(input.ai_model_path) + " 2>/dev/null");
+            const std::size_t space = hash_line.find(' ');
+            if (space != std::string::npos) input.ai_model_sha256 = hash_line.substr(0, space);
+        }
+        input.stream_engine_path = ytdlp_engine_path();
+        if (exists_file(input.stream_engine_path)) {
+            input.stream_engine_version = run_command_capture(shell_quote(input.stream_engine_path) + " --version 2>/dev/null");
+        }
+        input.stream_provider = stream_platform_name(streamPlatform);
+        input.stream_status = ytdlpStatus;
+        input.stream_process_running = ytdlpPid > 0 || ytdlpStream.running();
         return input;
     }
 
@@ -3706,7 +4008,7 @@ public:
             if (debugState->busy) return;
         }
         if (debugWorker.joinable()) debugWorker.join();
-        const reddmedia::DiagnosticInput input = diagnostic_input();
+        reddmedia::DiagnosticInput input = diagnostic_input();
         {
             std::lock_guard<std::mutex> lock(debugState->mutex);
             debugState->busy = true;
@@ -3716,11 +4018,27 @@ public:
         }
         redraw();
         const std::shared_ptr<DebugUiState> state = debugState;
+        const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
         const reddmedia::DiagnosticEngine engine = diagnosticEngine;
-        debugWorker = std::thread([state, engine, input]() {
+        debugWorker = std::thread([state, client, engine, input]() mutable {
             {
                 std::lock_guard<std::mutex> lock(state->mutex);
-                state->progress = 0.45;
+                state->progress = 0.35;
+            }
+            std::string library_error;
+            if (client && client->initialize(library_error)) {
+                std::vector<reddmedia::MediaFolder> folders;
+                std::vector<reddmedia::LibraryNode> nodes;
+                if (client->load_media_folders(folders, library_error) &&
+                    client->load_all_recommendation_items(nodes, library_error)) {
+                    input.library_folders = std::move(folders);
+                    input.library_nodes = std::move(nodes);
+                    input.library_full_scan = true;
+                } else input.library_scan_error = library_error;
+            } else input.library_scan_error = library_error;
+            {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->progress = 0.65;
             }
             reddmedia::DiagnosticReport report = engine.evaluate(input);
             std::lock_guard<std::mutex> lock(state->mutex);
@@ -3795,6 +4113,42 @@ public:
             debugState->status = "Diagnostic report copied with credentials redacted.";
         }
         own_clipboard_text(reddmedia::DiagnosticEngine::report_text(report, input));
+        redraw();
+    }
+
+    std::string diagnostic_export_path(const std::string& suffix) const {
+        const std::time_t now = std::time(nullptr);
+        std::tm local {};
+        localtime_r(&now, &local);
+        char stamp[32];
+        std::strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", &local);
+        return home_dir() + "/Downloads/Nougat_Media_Suite_Diagnostic_" + stamp + suffix;
+    }
+
+    void export_debug_report(int mode) {
+        reddmedia::DiagnosticReport report;
+        reddmedia::DiagnosticInput input;
+        {
+            std::lock_guard<std::mutex> lock(debugState->mutex);
+            if (!debugState->hasReport) {
+                debugState->status = "Run Checks before exporting diagnostics.";
+                redraw();
+                return;
+            }
+            report = debugState->report;
+            input = debugState->input;
+        }
+        const std::string suffix = mode == 1 ? ".txt" : (mode == 2 ? ".json" : "_Support_Bundle.tar.gz");
+        const std::string path = diagnostic_export_path(suffix);
+        std::string error;
+        bool ok = false;
+        if (mode == 1) ok = reddmedia::DiagnosticEngine::write_text_report(report, input, path, error);
+        else if (mode == 2) ok = reddmedia::DiagnosticEngine::write_json_report(report, input, path, error);
+        else ok = reddmedia::DiagnosticEngine::write_support_bundle(report, input, path, error);
+        {
+            std::lock_guard<std::mutex> lock(debugState->mutex);
+            debugState->status = ok ? ("Diagnostic export saved: " + path) : ("Diagnostic export failed: " + error);
+        }
         redraw();
     }
 
@@ -4148,19 +4502,23 @@ public:
 
     void handle_nougat_click(int x, int y) {
         if (nougatSearchPanelTab.contains(x,y)) {
+            if (nougatPanel != NougatPanel::Search || nougatNetworkAdvanced) push_navigation_history();
             nougatPanel=NougatPanel::Search; nougatNetworkAdvanced=false;
             nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; p2pMagnetFocused=false;
             redraw(); return;
         }
         if (nougatCrawlerPanelTab.contains(x,y)) {
+            if (nougatPanel != NougatPanel::Crawler || nougatNetworkAdvanced) push_navigation_history();
             nougatPanel=NougatPanel::Crawler; nougatNetworkAdvanced=false;
             nougatInputFocus=NougatInputFocus::NoFocus; p2pMagnetFocused=false; redraw(); return;
         }
         if (nougatP2PPanelTab.contains(x,y)) {
+            if (nougatPanel != NougatPanel::P2P || nougatNetworkAdvanced) push_navigation_history();
             nougatPanel=NougatPanel::P2P; nougatNetworkAdvanced=false;
             nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; redraw(); return;
         }
         if (nougatPanel == NougatPanel::Search && nougatNetworkAdvancedBtn.contains(x,y)) {
+            push_navigation_history();
             nougatNetworkAdvanced=!nougatNetworkAdvanced;
             nougatInputFocus=NougatInputFocus::NoFocus;
             if (nougatNetworkAdvanced) refresh_nougat_peers();
@@ -4324,7 +4682,7 @@ public:
         const unsigned long dark = palette.text;
         const unsigned long border = palette.border;
         draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Debug);
-        text(target, 28, 58, "DEBUG AND SYSTEM HEALTH", dark);
+        text(target, 28, 58, "DIAGNOSTIC CENTER", dark);
         button_on(target, debugRunBtn, "Run Checks");
         button_on(target, debugRetryBtn, "Retry");
         button_on(target, debugMetadataBtn, "Refresh Metadata");
@@ -4332,6 +4690,9 @@ public:
         button_on(target, debugServerBtn, "Refresh Server");
         button_on(target, debugLogsBtn, "Open Logs");
         button_on(target, debugCopyBtn, "Copy Report");
+        button_on(target, debugExportTextBtn, "Export TXT");
+        button_on(target, debugExportJsonBtn, "Export JSON");
+        button_on(target, debugBundleBtn, "Support Bundle");
 
         reddmedia::DiagnosticReport report;
         std::string status;
@@ -4351,7 +4712,7 @@ public:
         debugIssueRows.clear();
         if (!has_report) {
             text(target, debugListBox.x + 14, debugListBox.y + 30,
-                 "Run Checks to inspect the server, metadata, TMDb, AI runtime, and local paths.",
+                 "Run Checks to inspect Nougat, server, library, playback, Search, P2P, AI, Stream, and system evidence.",
                  palette.muted);
             return;
         }
@@ -5056,8 +5417,120 @@ public:
         start_ytdlp_cache_playback_at(0);
     }
 
+    NavigationSnapshot capture_navigation_snapshot() const {
+        NavigationSnapshot snapshot;
+        snapshot.view = currentView;
+        snapshot.library_type_chosen = libraryTypeChosen;
+        snapshot.library_media_type = libraryMediaType;
+        snapshot.library_parents = libraryParents;
+        snapshot.library_selected = librarySelected;
+        snapshot.library_scroll = libraryScroll;
+        snapshot.discover_service_settings = discoverServiceSettings;
+        snapshot.discover_mode = discoverMode;
+        snapshot.discover_source = discoverSource;
+        snapshot.discover_media_type = discoverMediaType;
+        snapshot.discover_target_selected = discoverTargetSelected;
+        snapshot.nougat_panel = nougatPanel;
+        snapshot.nougat_network_advanced = nougatNetworkAdvanced;
+        snapshot.stream_platform = streamPlatform;
+        return snapshot;
+    }
+
+    bool same_navigation_snapshot(const NavigationSnapshot& a, const NavigationSnapshot& b) const {
+        if (a.view != b.view ||
+            a.library_type_chosen != b.library_type_chosen ||
+            a.library_media_type != b.library_media_type ||
+            a.library_selected != b.library_selected ||
+            a.library_scroll != b.library_scroll ||
+            a.discover_service_settings != b.discover_service_settings ||
+            a.discover_mode != b.discover_mode ||
+            a.discover_source != b.discover_source ||
+            a.discover_media_type != b.discover_media_type ||
+            a.discover_target_selected != b.discover_target_selected ||
+            a.nougat_panel != b.nougat_panel ||
+            a.nougat_network_advanced != b.nougat_network_advanced ||
+            a.stream_platform != b.stream_platform ||
+            a.library_parents.size() != b.library_parents.size()) return false;
+        for (std::size_t i = 0; i < a.library_parents.size(); ++i) {
+            if (a.library_parents[i].id != b.library_parents[i].id ||
+                a.library_parents[i].kind != b.library_parents[i].kind) return false;
+        }
+        return true;
+    }
+
+    void push_navigation_history() {
+        if (navigationRestoring) return;
+        const NavigationSnapshot current = capture_navigation_snapshot();
+        if (navigationBackStack.empty() || !same_navigation_snapshot(navigationBackStack.back(), current)) {
+            navigationBackStack.push_back(current);
+            if (navigationBackStack.size() > 64U) navigationBackStack.erase(navigationBackStack.begin());
+        }
+        navigationForwardStack.clear();
+    }
+
+    void apply_navigation_snapshot(const NavigationSnapshot& snapshot) {
+        navigationRestoring = true;
+        currentView = snapshot.view;
+        libraryTypeChosen = snapshot.library_type_chosen;
+        libraryMediaType = snapshot.library_media_type;
+        libraryParents = snapshot.library_parents;
+        librarySelected = snapshot.library_selected;
+        libraryScroll = snapshot.library_scroll;
+        discoverServiceSettings = snapshot.discover_service_settings;
+        discoverMode = snapshot.discover_mode;
+        discoverSource = snapshot.discover_source;
+        discoverMediaType = snapshot.discover_media_type;
+        discoverTargetSelected = snapshot.discover_target_selected;
+        nougatPanel = snapshot.nougat_panel;
+        nougatNetworkAdvanced = snapshot.nougat_network_advanced;
+        streamPlatform = snapshot.stream_platform;
+        urlFocused = false;
+        urlSelectAll = false;
+        p2pMagnetFocused = false;
+        p2pMagnetSelectAll = false;
+        close_context_menu();
+        layout();
+        apply_video_layout();
+        navigationRestoring = false;
+
+        if (currentView == ViewMode::Library) {
+            if (!libraryTypeChosen) start_library_task(0);
+            else if (libraryParents.empty()) start_library_task(4);
+            else start_library_task(5, {}, libraryParents.back());
+        } else {
+            redraw();
+        }
+    }
+
+    void navigate_back() {
+        if (navigationBackStack.empty()) return;
+        const NavigationSnapshot current = capture_navigation_snapshot();
+        NavigationSnapshot target = navigationBackStack.back();
+        navigationBackStack.pop_back();
+        if (same_navigation_snapshot(target, current) && !navigationBackStack.empty()) {
+            target = navigationBackStack.back();
+            navigationBackStack.pop_back();
+        }
+        navigationForwardStack.push_back(current);
+        if (navigationForwardStack.size() > 64U) navigationForwardStack.erase(navigationForwardStack.begin());
+        apply_navigation_snapshot(target);
+    }
+
+    void navigate_forward() {
+        if (navigationForwardStack.empty()) return;
+        const NavigationSnapshot current = capture_navigation_snapshot();
+        const NavigationSnapshot target = navigationForwardStack.back();
+        navigationForwardStack.pop_back();
+        if (navigationBackStack.empty() || !same_navigation_snapshot(navigationBackStack.back(), current)) {
+            navigationBackStack.push_back(current);
+            if (navigationBackStack.size() > 64U) navigationBackStack.erase(navigationBackStack.begin());
+        }
+        apply_navigation_snapshot(target);
+    }
+
     void switch_view(ViewMode v) {
         if (currentView == v) return;
+        push_navigation_history();
         currentView = v;
         urlFocused = false;
         urlSelectAll = false;
@@ -5362,6 +5835,13 @@ public:
         if (target == video) {
             if (button == Button3) { show_context_menu(target, x, y); return; }
             if (button != Button1 && !(currentView == ViewMode::Stream && ytdlpUrlRect.contains(x,y) && button == Button3)) return;
+            if (upNextVisible) {
+                pendingVideoSingleClick = false;
+                if (upNextHasEpisode && videoUpNextPlayBtn.contains(x,y)) { play_up_next_now(); return; }
+                if (videoUpNextSeriesBtn.contains(x,y)) { back_to_series_from_up_next(); return; }
+                if (videoUpNextReplayBtn.contains(x,y)) { replay_active_episode(); return; }
+                return;
+            }
             if (needResumePrompt && videoResumeBtn.contains(x,y)) { pendingVideoSingleClick=false; open_media(sessionPath, sessionTime); return; }
             if (needResumePrompt && videoLoadBtn.contains(x,y)) { pendingVideoSingleClick=false; needResumePrompt=false; redraw(); do_open(); return; }
             if (lastClickTime && eventTime - lastClickTime < 350 && abs(x-lastClickX)<8 && abs(y-lastClickY)<8) {
@@ -5454,6 +5934,7 @@ public:
         if (currentView == ViewMode::Discover) {
             if (discoverServiceSettings) {
                 if (discoverServicesBackBtn.contains(x,y)) {
+                    push_navigation_history();
                     discoverServiceSettings = false;
                     redraw();
                     return;
@@ -5471,11 +5952,13 @@ public:
                 return;
             }
             if (discoverUsualTab.contains(x,y)) {
+                if (discoverMode != reddmedia::RecommendationMode::Usual) push_navigation_history();
                 discoverMode = reddmedia::RecommendationMode::Usual;
                 redraw();
                 return;
             }
             if (discoverRandomTab.contains(x,y)) {
+                if (discoverMode != reddmedia::RecommendationMode::Random) push_navigation_history();
                 discoverMode = reddmedia::RecommendationMode::Random;
                 redraw();
                 return;
@@ -5514,6 +5997,7 @@ public:
                 return;
             }
             if (discoverMyServicesBtn.contains(x,y)) {
+                push_navigation_history();
                 start_provider_catalog_task();
                 return;
             }
@@ -5541,6 +6025,9 @@ public:
             if (debugServerBtn.contains(x,y)) { start_server_task(3); return; }
             if (debugLogsBtn.contains(x,y)) { open_debug_logs(); return; }
             if (debugCopyBtn.contains(x,y)) { copy_debug_report(); return; }
+            if (debugExportTextBtn.contains(x,y)) { export_debug_report(1); return; }
+            if (debugExportJsonBtn.contains(x,y)) { export_debug_report(2); return; }
+            if (debugBundleBtn.contains(x,y)) { export_debug_report(3); return; }
             return;
         }
         if (currentView == ViewMode::Stream) {
@@ -5658,7 +6145,9 @@ public:
                 else if (e.type == ConfigureNotify && e.xconfigure.window == win) resize(e.xconfigure.width, e.xconfigure.height);
                 else if (e.type == ClientMessage) { shuttingDown=true; running=false; break; }
                 else if (e.type == ButtonPress) {
-                    if (e.xbutton.button == Button4 || e.xbutton.button == Button5) handle_wheel(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button);
+                    if (e.xbutton.button == 8U) navigate_back();
+                    else if (e.xbutton.button == 9U) navigate_forward();
+                    else if (e.xbutton.button == Button4 || e.xbutton.button == Button5) handle_wheel(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button);
                     else handle_button(e.xbutton.window, e.xbutton.x, e.xbutton.y, e.xbutton.button, e.xbutton.time);
                 }
                 else if (e.type == ButtonRelease) {
@@ -5795,6 +6284,7 @@ public:
             run_pending_video_click();
             tick_resume_seek();
             poll_natural_playback_end();
+            poll_up_next_overlay();
             poll_tv_autoplay_retry();
             poll_ytdlp_process();
             poll_nougat_workers();
@@ -5906,7 +6396,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.25\n");
+        printf("Nougat Media Suite v0.0.26\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -5940,7 +6430,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr,"Nougat v0.0.25 Discover dual-selection state FAIL.\n");
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.25 UI state PASS: provider quilts and dual Discover selectors.\n");
+        std::printf("Nougat Media Suite v0.0.26 UI state PASS: provider quilts and dual Discover selectors.\n");
         return 0;
     }
     if (argc > 3 && std::string(argv[1]) == "--discover-local-resolver-self-test") {

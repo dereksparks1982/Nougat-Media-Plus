@@ -1,6 +1,19 @@
-# Nougat Media Suite v0.0.25
+# Nougat Media Suite v0.0.26
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+
+## v0.0.26 - Systems, Navigation, Diagnostics, and TV Up Next
+
+v0.0.26 builds on the owner-accepted v0.0.25 release. Mouse side buttons now navigate Nougat's internal history (Button 8 Back, Button 9 Forward), the Library root header drops the redundant `MEDIA LIBRARY` label and places the List/Grid view controls at the far left, and the fixed header identity/status layer remains anchored beneath the horizontally scrolling top tabs.
+
+The approved Nougat N artwork receives a perimeter cleanup that removes the tiny lower-edge light sliver while preserving the approved emblem itself across the icon family and embedded window/header icon data. The Video Player keeps its intentional 0-200% volume range, but the Volume label, existing slider, and single correct percentage are centered as one group; the duplicate percentage and rejected square/triangle speaker glyphs are removed.
+
+Debug becomes the **Nougat Media Suite Diagnostic Center**. It gathers evidence from Nougat, the host system, Jellyfin, Library metadata/paths, libVLC playback, Search, the existing P2P core, local AI/TMDb, and Stream. Reports can be copied or exported as human-readable TXT, structured JSON, or a redacted support bundle. Green is reserved for checks that returned healthy evidence; missing or unavailable evidence is kept explicit rather than invented.
+
+At natural TV episode completion, Nougat resolves the real next episode before presenting an **Up Next** overlay. The overlay shows a visible 10-second countdown and `Play Next`, `Back to Series`, and `Replay`; manual choices cancel the countdown, and an unresolved next episode produces an explicit message instead of silently dead-ending.
+
+v0.0.27 is reserved for seek-bar hover thumbnail previews while preserving aesthetic fallback chapter marks. The larger P2P-management expansion is deferred to v0.0.28.
 
 
 ## v0.0.25 - Stream Provider Theme, Persistent Selection, and Discover Native Play
@@ -47,7 +60,7 @@ The application/window/launcher identity becomes **Nougat Media Suite**. The ver
 
 The suite-wide visual system is rebuilt around the candy identity. **Video Player is chocolate/cocoa/caramel**, Library is forest/sage, Discover is plum/lavender, Search is chocolate/nougat/caramel, and Debug is graphite/amber. The top navigation itself uses those area identities instead of one inherited ReddMedia-red strip. Stream is service-reactive: selecting **YouTube, Rumble, RuTube, VK, or OK** changes the Stream interior and its tab color to that service's recognizable palette.
 
-In Library, the old `Grid [x]` / `List [x]` text buttons are removed. Immediately after the **MEDIA LIBRARY** heading are two compact view icons: **three horizontal lines** for List and a **2x2 four-square grid** for Grid. Clicking either changes the actual Library layout and the selected icon is highlighted. Movie and TV view preferences remain independent and persistent.
+In Library, the old `Grid [x]` / `List [x]` text buttons are removed. At the far left of the Library page are two compact view icons: **three horizontal lines** for List and a **2x2 four-square grid** for Grid. Clicking either changes the actual Library layout and the selected icon is highlighted. Movie and TV view preferences remain independent and persistent.
 
 Existing Stream services remain exactly **YouTube | Rumble | RuTube | VK | OK** in v0.0.21. Vimeo, Dailymotion, Twitch, Kick, TikTok, Bilibili, and Niconico are deferred to v0.0.23. The approved nougat-specific UI polish, poster/artwork overhaul, rounded-corner polish, top-navigation centering, volume-bar geometry changes, the optional local Web Player, and Plex integration are also deferred.
 
@@ -511,3 +524,8 @@ See [`ROADMAP.md`](ROADMAP.md) for the next planned ReddMedia milestones.
 
 ### Viewing-history completion repair
 This replacement v0.0.19 candidate includes the recommendation/viewing-history source changes required by TV natural-end autoplay. Existing SQLite history databases are migrated in place by adding a `completed` column when needed.
+
+
+## v0.0.26 candidate
+
+This candidate adds internal mouse Back/Forward navigation, cleans the Library header and Nougat icon perimeter, upgrades Debug into an evidence-based Diagnostic Center with TXT/JSON/redacted support-bundle exports, cleans and centers the intentional 0-200% volume control, fixes top-header layering during horizontal tab scrolling, and adds a 10-second TV Up Next overlay with Play Next / Back to Series / Replay. P2P feature expansion is deliberately deferred to v0.0.28.

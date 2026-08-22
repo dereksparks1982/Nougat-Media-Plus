@@ -1,3 +1,15 @@
+# Changelog
+
+## v0.0.26 — Candidate: Systems, Navigation, Diagnostics, and TV Up Next
+- Added X11 mouse side-button Back/Forward navigation history.
+- Removed redundant Library root heading and moved List/Grid controls to the far left.
+- Cleaned the approved N icon lower perimeter and regenerated app-wide icon assets/embedded icon data.
+- Rebuilt Debug as an evidence-based Diagnostic Center with TXT, JSON, and redacted support-bundle exports.
+- Cleaned and centered the intentional 0-200% volume control, retaining only one percentage readout.
+- Fixed header z-order so scrolling top tabs cover fixed branding, server status/dot, and version text.
+- Added TV Up Next overlay with a visible 10-second countdown, Play Next, Back to Series, Replay, and explicit no-next/failure messaging.
+- P2P feature expansion remains deferred; v0.0.26 only reports current P2P evidence in diagnostics.
+
 # Nougat Media Suite Changelog
 
 ## v0.0.25 - Stream Provider Theme, Persistent Selection, and Discover Native Play

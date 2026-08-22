@@ -1,0 +1,309 @@
+{
+  "accepted_git_base": {
+    "branch": "main",
+    "commit": "c4d174466c2bb30c4eda8f04f09105e5d583040c",
+    "tag": "v0.0.25"
+  },
+  "base_files": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 421,
+      "sha256": "625383f118a05798b1c78b58cd52268b6379000a1a99972520e0c9c41d8d18d4"
+    },
+    "CHANGELOG.md": {
+      "bytes": 37305,
+      "sha256": "3a854fe5a9588c8819ea452f679bb14580c0f3e1c177c5ae4496ad0e52f18ae4"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2848,
+      "sha256": "d400f21fd1cd11c574c76dd4c1ca1c22b235aa2f556d6983bee28267a160cafa"
+    },
+    "COMPANY_BIBLE.md": {
+      "bytes": 19784,
+      "sha256": "c5ce5bd8060090bc2dd32fbcc583b8de785bad5f8e38b1b74631c3fda57879cc"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 439,
+      "sha256": "3a49831260b86c6066a6cd345d4a039791f3447ab990e8ef327aa60a4aa6c47e"
+    },
+    "NougatMediaSuite_v22.desktop": {
+      "bytes": 439,
+      "sha256": "3a49831260b86c6066a6cd345d4a039791f3447ab990e8ef327aa60a4aa6c47e"
+    },
+    "NougatMediaSuite_v23.desktop": {
+      "bytes": 439,
+      "sha256": "3a49831260b86c6066a6cd345d4a039791f3447ab990e8ef327aa60a4aa6c47e"
+    },
+    "NougatMediaSuite_v24.desktop": {
+      "bytes": 439,
+      "sha256": "3a49831260b86c6066a6cd345d4a039791f3447ab990e8ef327aa60a4aa6c47e"
+    },
+    "NougatMediaSuite_v25.desktop": {
+      "bytes": 439,
+      "sha256": "3a49831260b86c6066a6cd345d4a039791f3447ab990e8ef327aa60a4aa6c47e"
+    },
+    "README.md": {
+      "bytes": 37505,
+      "sha256": "bcc21d00071e91745239024885ea7fee1fd619c44c20a42dfaaa926af28687d6"
+    },
+    "ROADMAP.md": {
+      "bytes": 19517,
+      "sha256": "52f653ea8aec24ee54811cfa879572243dca94fa2f90f9a43db9a2b4315f9b38"
+    },
+    "assets/icons/nougat-media-suite-128.png": {
+      "bytes": 30716,
+      "sha256": "ba44f81c668d7ab83a32ea7d6e1d719dcbc2fd1c695ab6ea72d42c4c228a8b81"
+    },
+    "assets/icons/nougat-media-suite-14.png": {
+      "bytes": 751,
+      "sha256": "0225c7edfa314ef115236832e0b60ef03572137322a4a428dd99ef875f7c9bfd"
+    },
+    "assets/icons/nougat-media-suite-16.png": {
+      "bytes": 920,
+      "sha256": "c07c3788d7c6c64ef8defaf0e76cb763342088f5c3edc5f7fdaab7e830f4a275"
+    },
+    "assets/icons/nougat-media-suite-256.png": {
+      "bytes": 91243,
+      "sha256": "081fa0a3dabb93dc6f9c94fddea2f78ce3b565a1f15501c58d8e2576badaeecc"
+    },
+    "assets/icons/nougat-media-suite-32.png": {
+      "bytes": 2676,
+      "sha256": "d6f5b5d904906bb40bb75826311ad75fe03dd22ffa7a3cba681b5916637bf5fc"
+    },
+    "assets/icons/nougat-media-suite-48.png": {
+      "bytes": 5332,
+      "sha256": "81814a957a68de71727bc603f1e1b15f2bb43349355e047aad42158ef7adbd6f"
+    },
+    "assets/icons/nougat-media-suite-512.png": {
+      "bytes": 250814,
+      "sha256": "5d0239c7999a091bb4b60384b2953444a8e40a7644ca6e18dddac1cb69b00e66"
+    },
+    "assets/icons/nougat-media-suite-64.png": {
+      "bytes": 8924,
+      "sha256": "da727abe9d47d04566ca6df1beb8b061a1baa07faf0dc1a059980f658c14821d"
+    },
+    "assets/icons/nougat-media-suite-concept-sheet-v24.png": {
+      "bytes": 250814,
+      "sha256": "5d0239c7999a091bb4b60384b2953444a8e40a7644ca6e18dddac1cb69b00e66"
+    },
+    "assets/icons/nougat-media-suite.png": {
+      "bytes": 250814,
+      "sha256": "5d0239c7999a091bb4b60384b2953444a8e40a7644ca6e18dddac1cb69b00e66"
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 439,
+      "sha256": "3a49831260b86c6066a6cd345d4a039791f3447ab990e8ef327aa60a4aa6c47e"
+    },
+    "src/diagnostics/diagnostic_engine.cpp": {
+      "bytes": 10147,
+      "sha256": "721892ad40f9162db8ba360a00914ed44d48dc5247f41eae7d2bf178f46f5a69"
+    },
+    "src/diagnostics/diagnostic_engine.hpp": {
+      "bytes": 419,
+      "sha256": "65e0c8e2ab4d130c7434608575d389ca1a74fb6d363ee8a6df241f59b9eeab6d"
+    },
+    "src/diagnostics/diagnostic_types.hpp": {
+      "bytes": 1261,
+      "sha256": "6660e2c11a58cbe825ccee8f6c90a265c65dffd7f85bc7b732f3585d04d688ba"
+    },
+    "src/main.cpp": {
+      "bytes": 305448,
+      "sha256": "0e98515c908a921476b29877d9b6dfbd3328d70cda0775c32e049d301cb14ee5"
+    },
+    "src/nougat_media_suite_icon_data.hpp": {
+      "bytes": 75703,
+      "sha256": "0fa96e1b4d79369732eedd4d8da472a8e5f72f99b44ace3885fa724834907809"
+    },
+    "tools/test_nougat_media_suite_retained_v22.py": {
+      "bytes": 16907,
+      "sha256": "f3b22a70797cd18b1527c0141d211db06b8c3fa6ff726b82b2bdda1640f1b3f3"
+    }
+  },
+  "base_state": "accepted v0.0.25 clean worktree",
+  "package": "Nougat_Media_Suite_v0_0_26_SYSTEMS_NAV_DIAGNOSTICS_UP_NEXT_CHANGED_FILES_ONLY.zip",
+  "payload": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 359,
+      "sha256": "8bd42ebb2b8fe326ce086eccd623306d9cefccc678b671cd4540f0c5a068173b"
+    },
+    "CHANGELOG.md": {
+      "bytes": 38198,
+      "sha256": "3516bd3fd989c4cde51a181d9375e6a2ceaf73744faf2d5f4d664b9e7f8ba441"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2848,
+      "sha256": "9ed0d64e1d2a0880f71cee6a145e342fbc426654d933dbf3d64e9704925ee1a9"
+    },
+    "COMPANY_BIBLE.md": {
+      "bytes": 20725,
+      "sha256": "76484f7c6e063aec1761bbb7af112a905cb4bdea3dcc2905cb786cc598ccc6c6"
+    },
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_26.sh": {
+      "bytes": 24952,
+      "sha256": "742846b30228cbdeaab643ab79135b60ae112ac9d53f71cc8b7ea59031f81c17"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 439,
+      "sha256": "9c27af02a7a91e4260eb5a8b6f104452480b69427de994a7c393060a71656eb3"
+    },
+    "NougatMediaSuite_v22.desktop": {
+      "bytes": 439,
+      "sha256": "9c27af02a7a91e4260eb5a8b6f104452480b69427de994a7c393060a71656eb3"
+    },
+    "NougatMediaSuite_v23.desktop": {
+      "bytes": 439,
+      "sha256": "9c27af02a7a91e4260eb5a8b6f104452480b69427de994a7c393060a71656eb3"
+    },
+    "NougatMediaSuite_v24.desktop": {
+      "bytes": 439,
+      "sha256": "9c27af02a7a91e4260eb5a8b6f104452480b69427de994a7c393060a71656eb3"
+    },
+    "NougatMediaSuite_v25.desktop": {
+      "bytes": 439,
+      "sha256": "9c27af02a7a91e4260eb5a8b6f104452480b69427de994a7c393060a71656eb3"
+    },
+    "NougatMediaSuite_v26.desktop": {
+      "bytes": 439,
+      "sha256": "9c27af02a7a91e4260eb5a8b6f104452480b69427de994a7c393060a71656eb3"
+    },
+    "README.md": {
+      "bytes": 39847,
+      "sha256": "622f154573afca45ea1f95c4ba2725ca32342d41e720c84afac93d63670b77c2"
+    },
+    "ROADMAP.md": {
+      "bytes": 21436,
+      "sha256": "fd689ee69d479b439deb3dd686670a35b99f25fa634a5aa3d1a3aa72a7eda3e5"
+    },
+    "assets/icons/nougat-media-suite-128.png": {
+      "bytes": 30818,
+      "sha256": "ed0b04a915a9028a5aae8f7a2b7ef28393f1bb021c0a73a4e8184e0497a7c695"
+    },
+    "assets/icons/nougat-media-suite-14.png": {
+      "bytes": 754,
+      "sha256": "96526b6d4087ff6211832f3c0b081fce25be44524e8059cdab265305bf46b378"
+    },
+    "assets/icons/nougat-media-suite-16.png": {
+      "bytes": 922,
+      "sha256": "5f2070e753c3bc63eb206e6f6418d22e264923b3e7d8f76e398a8abf3f23ce82"
+    },
+    "assets/icons/nougat-media-suite-256.png": {
+      "bytes": 95697,
+      "sha256": "d22756e70737e7e1e068fb036863ba7cbded48b3f85ea0971404a19ca07da102"
+    },
+    "assets/icons/nougat-media-suite-32.png": {
+      "bytes": 2840,
+      "sha256": "411c304db0b4b44fbf463d76dcd47f43c8bbf9fea9befc6a87c774e9aef622f6"
+    },
+    "assets/icons/nougat-media-suite-48.png": {
+      "bytes": 5510,
+      "sha256": "7f8c94ff6033f24382efdb4bd7f29cb9155d3ce6e7af948a4192da5ff153d725"
+    },
+    "assets/icons/nougat-media-suite-512.png": {
+      "bytes": 265834,
+      "sha256": "681ece987dd00d9958cf953939403bd71a5ad9d70d8ad284e133272a0204d804"
+    },
+    "assets/icons/nougat-media-suite-64.png": {
+      "bytes": 9264,
+      "sha256": "139f370ff95f93a101988b0336359cdbab7e9b293ea76ba96dd2f5255c730d6d"
+    },
+    "assets/icons/nougat-media-suite-concept-sheet-v24.png": {
+      "bytes": 265834,
+      "sha256": "681ece987dd00d9958cf953939403bd71a5ad9d70d8ad284e133272a0204d804"
+    },
+    "assets/icons/nougat-media-suite.png": {
+      "bytes": 265834,
+      "sha256": "681ece987dd00d9958cf953939403bd71a5ad9d70d8ad284e133272a0204d804"
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 439,
+      "sha256": "9c27af02a7a91e4260eb5a8b6f104452480b69427de994a7c393060a71656eb3"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_26_SYSTEMS_NAV_DIAGNOSTICS_UP_NEXT_HANDSHAKE.md": {
+      "bytes": 5357,
+      "sha256": "b5c550048fd82ac8ac1239961235392d886e959d45a6a177de3193f6ef7b2c48"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_26_SYSTEMS_NAV_DIAGNOSTICS_UP_NEXT_VALIDATION.md": {
+      "bytes": 2300,
+      "sha256": "de036f52124e3be60b0cf2a221b309b5cd23a4cb5f3a8e2ae75523a75355794c"
+    },
+    "src/diagnostics/diagnostic_engine.cpp": {
+      "bytes": 34171,
+      "sha256": "8264a508f9fbc9ae5c71ccc76920fde7094a39c410520dd07bcc2fa0fc8e8c98"
+    },
+    "src/diagnostics/diagnostic_engine.hpp": {
+      "bytes": 1304,
+      "sha256": "f2d29268415d1318fa5d9d5ae7c767463e7eaf47b6df91187cb50644ef65c57c"
+    },
+    "src/diagnostics/diagnostic_types.hpp": {
+      "bytes": 3396,
+      "sha256": "c6d63c0bd2588b3461ed991e685a2325196f862a562a16f35a9b13cdfd5f91b9"
+    },
+    "src/main.cpp": {
+      "bytes": 329028,
+      "sha256": "f762a1967246b2d1f368df71e2665bae502386a79b61fb49f1cbf530cba6afe9"
+    },
+    "src/nougat_media_suite_icon_data.hpp": {
+      "bytes": 75702,
+      "sha256": "c626664598d57a3756a62a425875fd48567ae4eaa8c9b5a385ccf4630a0b22cb"
+    },
+    "tools/test_installer_rollback_v26.py": {
+      "bytes": 4395,
+      "sha256": "354c98d9bfa8a80fec7da6eba326efc697bc25ccfd0cdbcaa115dae9a3ef2baf"
+    },
+    "tools/test_nougat_diagnostics_v26.py": {
+      "bytes": 4993,
+      "sha256": "bb893eeda9c6e67e57e374945be8dbc31e30bf12bb9c4adf1c05564f5609316c"
+    },
+    "tools/test_nougat_media_suite_retained_v22.py": {
+      "bytes": 16916,
+      "sha256": "c6fcd9cdd4211086bb63381d92430c368fa76c9da446bea88b53afbb30e74d5a"
+    },
+    "tools/test_nougat_media_suite_retained_v25.py": {
+      "bytes": 10096,
+      "sha256": "8d7fcb63461d6b8700be239980ac1fb00de913b4bc60cd2457a01c4dd02c7f7a"
+    },
+    "tools/test_nougat_media_suite_ui_smoke_v26.py": {
+      "bytes": 2100,
+      "sha256": "8b97459e17185707faa41d76758cd51b46b5f2d079dcf968b16aaacc79e37f90"
+    },
+    "tools/test_nougat_media_suite_v26.py": {
+      "bytes": 7254,
+      "sha256": "c111e4fd221e7080145688a0d1e2b1055111e6e54fcc98c8a5d941877a33914e"
+    }
+  },
+  "project": "Nougat Media Suite",
+  "protected_boundaries": [
+    "licensing files unchanged",
+    "Search engine/bridge implementation unchanged",
+    "P2P implementation unchanged",
+    "user media/data not deleted"
+  ],
+  "required_absent": [
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_26.sh",
+    "NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v26.json",
+    "NougatMediaSuite_v26.desktop",
+    "Nougat_Media_Suite_v26",
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_26_SYSTEMS_NAV_DIAGNOSTICS_UP_NEXT_HANDSHAKE.md",
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_26_SYSTEMS_NAV_DIAGNOSTICS_UP_NEXT_VALIDATION.md",
+    "tools/test_installer_rollback_v26.py",
+    "tools/test_nougat_diagnostics_v26.py",
+    "tools/test_nougat_media_suite_retained_v25.py",
+    "tools/test_nougat_media_suite_ui_smoke_v26.py",
+    "tools/test_nougat_media_suite_v26.py"
+  ],
+  "roadmap_carry_forward": {
+    "v0.0.27": "seek hover thumbnail previews; preserve aesthetic fallback chapter marks",
+    "v0.0.28": "focused P2P management expansion"
+  },
+  "scope": [
+    "Mouse Button 8 Back and Button 9 Forward internal navigation history",
+    "Library root header cleanup and far-left List/Grid controls",
+    "Approved N lower-edge transparency cleanup app-wide",
+    "Evidence-based Diagnostic Center with TXT JSON and redacted support bundle",
+    "Centered existing 0-200 percent volume group with duplicate percentage and rejected speaker glyphs removed",
+    "Top-tab foreground layering over fixed branding/server/version",
+    "TV Up Next overlay with visible 10-second countdown Play Next Back to Series Replay"
+  ],
+  "target_executable": "Nougat_Media_Suite_v26",
+  "target_version_output": "Nougat Media Suite v0.0.26",
+  "version": "0.0.26"
+}
