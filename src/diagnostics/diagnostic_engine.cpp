@@ -483,6 +483,9 @@ DiagnosticReport DiagnosticEngine::evaluate(const DiagnosticInput& input) const 
         add_fact(report, "P2P", "Progress", std::to_string(static_cast<int>(input.p2p_progress * 100.0f + 0.5f)) + "%", "Current torrent status.");
         add_fact(report, "P2P", "Peers / seeds", std::to_string(input.p2p_peers) + " / " + std::to_string(input.p2p_seeds), "Current torrent status.");
         add_fact(report, "P2P", "Down / up", std::to_string(input.p2p_download_rate) + " B/s / " + std::to_string(input.p2p_upload_rate) + " B/s", "Current payload rates.");
+        add_fact(report, "P2P", "Selected media", std::to_string(static_cast<int>(input.p2p_selected_progress * 100.0f + 0.5f)) + "%", "Pieces belonging to the selected media file currently present.");
+        add_fact(report, "P2P", "Start buffer", human_bytes(static_cast<long long>(input.p2p_selected_buffered_bytes)), "Contiguous selected-media bytes available from the beginning.");
+        add_fact(report, "P2P", "Native stream bridge", input.p2p_stream_running ? "Running" : "Idle", "Loopback-only P2P HTTP Range bridge state.");
         if (!input.p2p_error.empty()) add_issue(report, DiagnosticSeverity::Warning, "P2P_TRANSFER_ERROR", "P2P transfer reports an error", input.p2p_error,
                                                  "Open Search > P2P and inspect or restart the affected transfer.");
     }

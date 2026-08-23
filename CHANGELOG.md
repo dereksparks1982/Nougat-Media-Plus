@@ -1,3 +1,15 @@
+# v0.0.32 same-version replacement — P2P + Nougat Security Analysis
+
+- Retained the already-built native P2P media workflow, playback-aware seek scheduling, autoplay no-flash repair, Search seam contrast, and Stream bottom-only provider panel treatment. Replaced the oversized volume housing with the same sheet-style track used by Seek, only shorter.
+- Added `Virus Scan` beside Search/Crawler/P2P with manual file/folder scanning, Scan Again, scan history, and optional free community telemetry key configuration.
+- Added the one-shot Nougat Security Analysis scaffold: SHA-256, file/content identification fallback, extension/type checks, built-in rule plumbing, hooks for pinned YARA-X/capa/Magika, optional external one-shot `clamscan`, and optional MalwareBazaar/ThreatFox community lookups. Full pinned engine runtime installation is intentionally deferred to the security-hardening pass.
+- Locked security behavior to **WARN ME FIRST**. Nougat does not automatically quarantine, delete, move, rename, or open suspicious files, and it installs no resident security daemon or filesystem watcher.
+- Added automatic one-shot analysis when the selected P2P transfer becomes complete/seeding, using the same engine as manual Virus Scan.
+- Added explicit local-seed / available-idle-uploading-paused information, known/connected peer and remote-seed evidence, and libtorrent swarm availability where meaningful.
+- Removed the stray normal Search `Node <id>` display while retaining the Node ID in Network/Advanced. Moved only the unchanged Crawler status sentence upward so the existing results box no longer crosses the text.
+- Added dedicated Home scrolling controls: a right-side vertical page scrollbar, a bottom horizontal Continue Watching scrollbar, and hard clipping below the fixed top header so posters cannot scroll over the menu.
+- Assigned advanced qBittorrent-class management to v0.0.33 under the owner-approved name **P2P Plus**.
+
 # Changelog
 
 ## v0.0.31 candidate — Exact Approved UI Sheet Components

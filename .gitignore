@@ -1,14 +1,6 @@
-# Generated ReddMedia runtimes and build products
-components/ai/runtime/
-components/ai/runtime.new/
-components/ai/runtime.old/
-components/jellyfin/runtime/
-build/
-build-*/
-cmake-build-*/
-**/__pycache__/
-*.pyc
+# Generated Nougat Security Analysis runtime and private scanner state.
+/components/security/runtime/
 
-# Local Nougat build handoff packages
+# Local build handoff packages.
 /1of2.zip
 /2of2.zip

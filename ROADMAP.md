@@ -57,7 +57,7 @@
 - Enlarge the compact volume slider knob so it fits its housing proportionally while preserving 0-200% behavior and the approved colors/readout.
 - Preserve accepted v0.0.29 Search/P2P, licensing, diagnostics, Stream providers, TV Up Next/autoplay, resume history, and N identity outside this UI/Library/player scope.
 
-## v0.0.31 candidate — Exact Approved UI Sheet Components
+## v0.0.31 accepted — Exact Approved UI Sheet Components
 - Treat the owner-approved Nougat component sheet as the literal control-shape authority rather than a loose visual reference.
 - Preserve every accepted v0.0.30 page/background palette exactly: purple Home, cocoa Video Player, green Library, red Discover, cream Search, provider-reactive Stream, and charcoal Debug.
 - Replace ordinary buttons that still look like flat rounded rectangles with the sheet's layered raised control construction: lower shadow, dark outer rim, bright inner bevel, stitched/inset seam, top highlight, and pressed/disabled states.
@@ -66,12 +66,24 @@
 - Keep Home card proportions/artwork and all v0.0.30 media behavior unchanged; this release is UI-component fidelity only.
 - Preserve licensing, Search/P2P transport, Jellyfin/catalog behavior, Discover logic, Stream playback, diagnostics, TV autoplay, metadata cache, and user data paths unchanged.
 
-## v0.0.32 planned — Focused P2P streaming expansion
-- Make P2P playback range-aware: map native-player HTTP byte-range demand to the selected torrent file and libtorrent pieces, using time-critical/deadline priorities for immediate playback data.
-- Maintain moving immediate, near-future buffer, and background priority zones; clear stale playback deadlines when seeking and reprioritize the new position.
-- Improve startup/seeking truthfulness with Finding Peers / Connecting / Buffering evidence rather than opaque stalls.
-- Keep playback inside Nougat's native player and retain Search > P2P as the user-facing location.
-- Add focused P2P transfer/peer/buffer evidence under Search > P2P and Debug without resurrecting a top-level P2P tab.
+## v0.0.32 candidate — Native P2P Media + Nougat Security Analysis
+- Keep the existing v0.0.32 native P2P work: magnets, local `.torrent` files, media selection, `Watch Now`, pause/resume/remove, localhost HTTP Range playback, selected-media progress, start-buffer evidence, playback-aware priority windows, and Search-to-P2P handoff.
+- Make completed torrents clearly report whether the local client is a complete seed, whether it is available/idle/uploading/paused, remote/known seed and peer evidence, and swarm availability where libtorrent exposes it.
+- Add `Virus Scan` beside `Search | Crawler | P2P` as a general manual file/folder scanner.
+- Add the one-shot Nougat Security Analysis scaffold with SHA-256/type checks, scan history, WARN-ME-FIRST behavior, optional external one-shot `clamscan`, community-telemetry hooks, and pinned integration points for YARA-X/capa/Magika. Full engine-runtime hardening follows after the scaffold is proven.
+- Hash scanned files with SHA-256, detect real content type, flag executable/media extension mismatches and suspicious double extensions, keep recent scan history, and allow Scan Again.
+- Support free/community MalwareBazaar and ThreatFox reputation lookups when the owner supplies a free abuse.ch Auth-Key; local scanning remains fully usable without a key.
+- Enforce **WARN ME FIRST**: Nougat reports evidence and never automatically quarantines, deletes, moves, renames, or opens a suspicious file. Scanner workers terminate after each manual/automatic scan.
+- Automatically run the same one-shot analysis when a selected P2P download reaches complete/seeding state; do not install a filesystem watcher.
+- Remove the stray ordinary Search `Node <id>` text while keeping the Node ID in Network/Advanced. Keep the Crawler layout unchanged and move only `Ready. Crawl a site or add a peer, then search.` upward so it sits correctly between the controls and results panel.
+- Retain the already-built autoplay no-flash repair, contained 0–200% volume geometry, brown Search stitching, and bottom-only Stream provider panel accent across YouTube, Vimeo, Rumble, RuTube, VK, and OK.
+- Preserve accepted v0.0.31 Home cards, page palettes, UI-sheet component family, Library/Discover/Stream behavior, licensing, Jellyfin ownership, and user-data boundaries outside this scope.
+
+- Add a dedicated right-side Home vertical scrollbar plus a sheet-style horizontal Continue Watching scrollbar; clip all Home scrolling content below the fixed top header.
+
+## v0.0.33 planned — P2P Plus
+- Add mature torrent-management controls without changing Nougat's native-media-first architecture: per-torrent/global speed limits, queue ordering and active-transfer limits, ratio/time seeding rules, per-file priorities, tracker management, Force Reannounce, Force Recheck, detailed peer view, piece/availability maps, bandwidth scheduling, RSS automation, and remote-control groundwork.
+- Keep all playback inside Nougat and reuse the v0.0.32 Security Analysis subsystem for downloaded-file checks.
 
 ## Future platform proposal — native web player and free provider adapters, version assignment pending
 - This future platform proposal is not part of v0.0.28 or v0.0.29 and must not displace the focused v0.0.32 P2P expansion without a later owner decision.

@@ -25,10 +25,23 @@ struct P2PStatus {
     int upload_rate = 0;
     int peers = 0;
     int seeds = 0;
+    int known_peers = 0;
+    int known_seeds = 0;
+    int tracker_complete = -1;
+    int tracker_incomplete = -1;
+    int uploading_peers = 0;
+    float swarm_availability = -1.0f;
+    bool has_incoming = false;
+    bool announcing_trackers = false;
+    bool announcing_dht = false;
+    bool announcing_lsd = false;
     std::string name;
     std::string state;
     std::string error;
     std::string save_path;
+    float selected_progress = 0.0f;
+    std::uint64_t selected_size = 0;
+    std::uint64_t selected_buffered_bytes = 0;
 };
 
 class P2PEngine {
@@ -44,6 +57,7 @@ public:
     bool restore_last(std::string& error);
     bool pause_transfer(std::string& error);
     bool resume_transfer(std::string& error);
+    bool remove_transfer(std::string& error);
     bool is_paused() const;
     void shutdown();
 
@@ -55,6 +69,7 @@ public:
     std::string selected_file_name() const;
 
     void prioritize_range(std::uint64_t offset, std::uint64_t length);
+    void prioritize_playback_window(std::uint64_t offset);
     bool wait_for_range(std::uint64_t offset, std::uint64_t length, int timeout_ms);
     bool read_selected_range(std::uint64_t offset, char* destination, std::size_t length,
                              std::size_t& bytes_read, std::string& error) const;

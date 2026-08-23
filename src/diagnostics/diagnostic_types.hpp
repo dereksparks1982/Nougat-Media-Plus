@@ -93,6 +93,9 @@ struct DiagnosticInput {
     std::string p2p_state;
     std::string p2p_error;
     std::string p2p_save_path;
+    float p2p_selected_progress = 0.0f;
+    unsigned long long p2p_selected_buffered_bytes = 0;
+    bool p2p_stream_running = false;
 
     // Local AI/TMDb evidence.
     bool tmdb_configured = false;

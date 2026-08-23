@@ -74,6 +74,7 @@ bool P2PEngine::start_torrent_file(const std::string&, const std::string&, std::
 bool P2PEngine::restore_last(std::string&) { return false; }
 bool P2PEngine::pause_transfer(std::string& error) { std::lock_guard<std::mutex> lock(impl_->mutex); if (impl_->paused) { error="P2P download is already stopped."; return false; } impl_->paused=true; return true; }
 bool P2PEngine::resume_transfer(std::string& error) { std::lock_guard<std::mutex> lock(impl_->mutex); if (!impl_->paused) { error="P2P download is already running."; return false; } impl_->paused=false; return true; }
+bool P2PEngine::remove_transfer(std::string& error) { std::lock_guard<std::mutex> lock(impl_->mutex); if (impl_->selected < 0 && !impl_->paused) { error="No active P2P transfer."; return false; } impl_->selected=-1; impl_->paused=false; return true; }
 bool P2PEngine::is_paused() const { std::lock_guard<std::mutex> lock(impl_->mutex); return impl_->paused; }
 void P2PEngine::shutdown() {}
 P2PStatus P2PEngine::status() const { return {}; }
@@ -83,6 +84,7 @@ int P2PEngine::selected_file() const { return -1; }
 std::uint64_t P2PEngine::selected_file_size() const { return 0; }
 std::string P2PEngine::selected_file_name() const { return {}; }
 void P2PEngine::prioritize_range(std::uint64_t, std::uint64_t) {}
+void P2PEngine::prioritize_playback_window(std::uint64_t) {}
 bool P2PEngine::wait_for_range(std::uint64_t, std::uint64_t, int) { return false; }
 bool P2PEngine::read_selected_range(std::uint64_t, char*, std::size_t, std::size_t& bytes_read, std::string& error) const {
     bytes_read = 0; error = "P2P stub build has no transfer data."; return false;
@@ -251,6 +253,26 @@ bool P2PEngine::resume_transfer(std::string& error) {
     } catch (const std::exception& e) { error=e.what(); return false; }
 }
 
+bool P2PEngine::remove_transfer(std::string& error) {
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (!impl_->valid()) { error = "No active P2P transfer."; return false; }
+        try {
+            impl_->handle.clear_piece_deadlines();
+            impl_->session.remove_torrent(impl_->handle);
+            impl_->handle = lt::torrent_handle();
+            impl_->selected = -1;
+            impl_->last_error.clear();
+            impl_->stopped = false;
+        } catch (const std::exception& e) { error = e.what(); return false; }
+    }
+    std::error_code ec;
+    fs::remove(resume_file(), ec);
+    ec.clear();
+    fs::remove(selected_file_state(), ec);
+    return true;
+}
+
 bool P2PEngine::is_paused() const {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     if (!impl_->valid()) return false;
@@ -281,6 +303,16 @@ P2PStatus P2PEngine::status() const {
         out.upload_rate = st.upload_payload_rate;
         out.peers = st.num_peers;
         out.seeds = st.num_seeds;
+        out.known_peers = st.list_peers;
+        out.known_seeds = st.list_seeds;
+        out.tracker_complete = st.num_complete;
+        out.tracker_incomplete = st.num_incomplete;
+        out.uploading_peers = st.num_uploads;
+        out.swarm_availability = st.is_seeding ? -1.0f : st.distributed_copies;
+        out.has_incoming = st.has_incoming;
+        out.announcing_trackers = st.announcing_to_trackers;
+        out.announcing_dht = st.announcing_to_dht;
+        out.announcing_lsd = st.announcing_to_lsd;
         out.name = st.name;
         out.save_path = st.save_path;
         if (st.errc) out.error = st.errc.message();
@@ -294,6 +326,38 @@ P2PStatus P2PEngine::status() const {
             case lt::torrent_status::seeding: out.state = "Seeding"; break;
             case lt::torrent_status::checking_resume_data: out.state = "Checking resume data"; break;
             default: out.state = "Starting"; break;
+        }
+        if (impl_->selected >= 0) {
+            std::shared_ptr<const lt::torrent_info> info = impl_->handle.torrent_file();
+            if (info && impl_->selected < info->files().num_files()) {
+                const lt::file_storage& storage = info->files();
+                const lt::file_index_t file_index(impl_->selected);
+                const std::uint64_t file_size = static_cast<std::uint64_t>(storage.file_size(file_index));
+                out.selected_size = file_size;
+                if (file_size > 0) {
+                    const std::uint64_t file_start = static_cast<std::uint64_t>(storage.file_offset(file_index));
+                    const std::uint64_t file_end = file_start + file_size;
+                    const std::uint64_t piece_length = static_cast<std::uint64_t>(storage.piece_length());
+                    const int first = static_cast<int>(file_start / piece_length);
+                    const int last = static_cast<int>((file_end - 1) / piece_length);
+                    std::uint64_t have_bytes = 0;
+                    std::uint64_t contiguous = 0;
+                    bool gap = false;
+                    for (int piece = first; piece <= last; ++piece) {
+                        const std::uint64_t piece_start = static_cast<std::uint64_t>(piece) * piece_length;
+                        const std::uint64_t piece_end = piece_start + piece_length;
+                        const std::uint64_t overlap_start = std::max(file_start, piece_start);
+                        const std::uint64_t overlap_end = std::min(file_end, piece_end);
+                        const std::uint64_t overlap = overlap_end > overlap_start ? overlap_end - overlap_start : 0;
+                        const bool have = impl_->handle.have_piece(lt::piece_index_t(piece));
+                        if (have) have_bytes += overlap;
+                        if (!gap && have) contiguous += overlap;
+                        else if (!have) gap = true;
+                    }
+                    out.selected_progress = static_cast<float>(static_cast<double>(have_bytes) / static_cast<double>(file_size));
+                    out.selected_buffered_bytes = std::min(contiguous, file_size);
+                }
+            }
         }
     } catch (const std::exception& e) {
         out.error = e.what();
@@ -330,6 +394,9 @@ bool P2PEngine::select_file(int index, std::string& error) {
     if (!info) { error = "P2P metadata is still loading."; return false; }
     if (index < 0 || index >= info->files().num_files()) { error = "Invalid P2P file selection."; return false; }
     impl_->selected = index;
+    ensure_parent(selected_file_state());
+    std::ofstream selected_out(selected_file_state(), std::ios::trunc);
+    if (selected_out) selected_out << impl_->selected << "\n";
     return true;
 }
 
@@ -375,6 +442,45 @@ void P2PEngine::prioritize_range(std::uint64_t offset, std::uint64_t length) {
             impl_->handle.set_piece_deadline(lt::piece_index_t(piece), deadline);
             deadline += 80;
         }
+    } catch (const std::exception& e) {
+        impl_->last_error = e.what();
+    }
+}
+
+void P2PEngine::prioritize_playback_window(std::uint64_t offset) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid() || impl_->selected < 0) return;
+    try {
+        std::shared_ptr<const lt::torrent_info> info = impl_->handle.torrent_file();
+        if (!info) return;
+        const lt::file_storage& storage = info->files();
+        const lt::file_index_t file_index(impl_->selected);
+        const std::uint64_t file_size = static_cast<std::uint64_t>(storage.file_size(file_index));
+        if (offset >= file_size || file_size == 0) return;
+        const std::uint64_t file_start = static_cast<std::uint64_t>(storage.file_offset(file_index));
+        const std::uint64_t piece_length = static_cast<std::uint64_t>(storage.piece_length());
+        auto schedule = [&](std::uint64_t local_start, std::uint64_t bytes, int first_deadline, int step) {
+            if (bytes == 0 || local_start >= file_size) return;
+            bytes = std::min(bytes, file_size - local_start);
+            const std::uint64_t absolute_start = file_start + local_start;
+            const std::uint64_t absolute_end = absolute_start + bytes - 1;
+            const int first = static_cast<int>(absolute_start / piece_length);
+            const int last = static_cast<int>(absolute_end / piece_length);
+            int deadline = first_deadline;
+            for (int piece = first; piece <= last; ++piece) {
+                if (!impl_->handle.have_piece(lt::piece_index_t(piece))) {
+                    impl_->handle.set_piece_deadline(lt::piece_index_t(piece), deadline);
+                }
+                deadline += step;
+            }
+        };
+        constexpr std::uint64_t immediate = 8ULL * 1024ULL * 1024ULL;
+        constexpr std::uint64_t ahead = 48ULL * 1024ULL * 1024ULL;
+        constexpr std::uint64_t rewind = 4ULL * 1024ULL * 1024ULL;
+        schedule(offset, immediate, 0, 35);
+        schedule(offset + immediate, ahead, 500, 70);
+        const std::uint64_t rewind_start = offset > rewind ? offset - rewind : 0;
+        schedule(rewind_start, offset - rewind_start, 3500, 100);
     } catch (const std::exception& e) {
         impl_->last_error = e.what();
     }

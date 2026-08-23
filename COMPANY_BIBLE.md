@@ -200,10 +200,18 @@ Only the owner decides whether the candidate is accepted.
 1. The decentralized Nougat engine is the integrated **Search** subsystem inside Nougat Media Suite.
 2. The owner-approved v0.0.21 top-level order is `Video Player | Library | Discover | Search | Stream | Debug`. Media/torrent P2P lives under Search, not as a top-level area.
 3. Accepted behavior remains preserved when identity/palette work changes unless functionality is explicitly approved.
-4. Search uses the approved cocoa/chocolate/nougat-cream/caramel palette. Its ordinary internal sections are `Search | Crawler | P2P`; decentralized peer/node administration is available only through a smaller Network/Advanced surface.
+4. Search uses the approved cocoa/chocolate/nougat-cream/caramel palette. Its ordinary internal sections are `Search | Crawler | P2P | Virus Scan`; decentralized peer/node administration is available only through a smaller Network/Advanced surface.
 5. Read-only Search output remains selectable/copyable with normal mouse selection, Ctrl+C, Ctrl+A, and right-click Copy/Select All.
 6. Nougat Media Suite owner-created code is distributed to recipients for noncommercial use under the project license; third-party components retain upstream licenses; the owner retains all rights not granted.
 7. Active Search data remains under the backward-compatible existing user-data tree.
+
+### v0.0.32 Security Analysis law
+
+- `Virus Scan` is a normal internal Search section beside P2P and uses the approved Search UI family.
+- Nougat Security Analysis is one-shot/on-demand: manual scans and completed Nougat downloads may launch a scanner worker, but no resident antivirus daemon or filesystem watcher is installed by Nougat.
+- Security findings use the owner-approved **WARN ME FIRST** policy. Nougat never automatically quarantines, deletes, moves, renames, or opens a suspicious file.
+- Security credentials and generated scanner runtimes remain private runtime state outside Git. The optional abuse.ch community Auth-Key is stored owner-only under the Nougat user config tree.
+- Automatic P2P scanning and manual Virus Scan use the same evidence/reporting engine and the worker terminates after the requested scan finishes.
 
 ### v0.0.21 identity and palette rules
 
@@ -246,7 +254,7 @@ Only the owner decides whether the candidate is accepted.
 
 - Search-page polish is scoped to the existing Search area and must not change decentralized-search engine behavior without separate owner approval.
 - The suite header uses the approved N emblem at the far left with `NOUGAT MEDIA SUITE` immediately beside it; the version/server area does not carry a duplicate N.
-- Search's internal `Search | Crawler | P2P` tabs use the approved concept-sheet control family and selected-tab point/notch.
+- Search's internal `Search | Crawler | P2P | Virus Scan` tabs use the approved concept-sheet control family and selected-tab point/notch.
 - `Network...` and `SEARCH` share the same right-side alignment and width.
 - Search fields, results, peer lists, crawl logs, and embedded P2P surfaces use the approved cream/caramel/chocolate concept family rather than the legacy flat dark slab.
 - The GNOME launcher/running-window identity must resolve to the approved Nougat N, not a generic gear fallback.

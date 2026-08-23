@@ -213,12 +213,11 @@ void P2PStreamServer::handle_client(int client_fd) {
     if (!send_all(client_fd, response.str()) || head_only) { close(client_fd); return; }
 
     constexpr std::size_t chunk_size = 1024 * 1024;
-    constexpr std::uint64_t priority_window = 16ULL * 1024ULL * 1024ULL;
     std::vector<char> buffer(chunk_size);
     std::uint64_t position = start;
     while (running_ && generation == request_generation_.load() && position <= end) {
         const std::size_t wanted = static_cast<std::size_t>(std::min<std::uint64_t>(chunk_size, end - position + 1));
-        engine_.prioritize_range(position, std::min<std::uint64_t>(priority_window, end - position + 1));
+        engine_.prioritize_playback_window(position);
         bool ready = false;
         while (running_ && generation == request_generation_.load() && !ready) {
             ready = engine_.wait_for_range(position, wanted, 2000);

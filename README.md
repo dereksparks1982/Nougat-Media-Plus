@@ -1,7 +1,17 @@
-# Nougat Media Suite v0.0.31
+# Nougat Media Suite v0.0.32
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
 
+
+## v0.0.32 - Native P2P Media + Nougat Security Analysis
+
+v0.0.32 keeps the native `Search > P2P` media workflow and adds a fourth Search subsection: `Virus Scan`. P2P accepts magnets and local `.torrent` files, selects playable media, streams through Nougat's localhost HTTP Range bridge into the native player, reprioritizes pieces around playback/seeks, and now reports complete-seed/availability evidence more clearly.
+
+Nougat Security Analysis is deliberately on-demand rather than resident. v0.0.32 establishes the scaffold: manual **Scan File** / **Scan Folder** actions and completed P2P downloads launch a one-shot worker for SHA-256 hashing, file/content identification, extension/type checks, built-in rule plumbing, scan history, optional external one-shot ClamAV, and optional free/community reputation hooks. Pinned YARA-X/capa/Magika integration points are present, while installation of their full runtime is intentionally deferred to the next security-hardening pass. The worker exits after the requested scan. Nougat installs no antivirus daemon and no always-on filesystem watcher.
+
+The owner policy is **WARN ME FIRST**. A finding never causes Nougat to automatically quarantine, delete, move, rename, or open a file. The report distinguishes `NO THREATS DETECTED`, `SUSPICIOUS`, and `THREAT DETECTED`, shows which engine produced the evidence, and keeps private scan history under the user config tree. Generated scanner runtimes and credentials are excluded from Git.
+
+This same-version replacement also removes the stray normal-page Node ID, moves only the existing Crawler status sentence upward without altering the Crawler layout, keeps the autoplay no-flash/Search-seam/Stream-border repairs, replaces the oversized volume housing with the shorter Seek-style track, clips Home content below the fixed header, and adds explicit vertical Home and horizontal Continue Watching scrollbars. Advanced torrent-management work is assigned to **v0.0.33 P2P Plus**.
 
 ## v0.0.31 - Exact Approved UI Sheet Components
 

@@ -138,3 +138,8 @@ v0.0.22 adds no runtime or build dependency. It changes licensing/release record
 ## Nougat Media Suite v0.0.23 UI and Direct Watch build
 
 v0.0.23 adds no mandatory bundled dependency. It retains the existing X11, VLC/libVLC, FFmpeg, libtorrent, Jellyfin, llama.cpp, Nomic, Python/SQLite, curl, and bundled yt-dlp requirements. For current YouTube extraction, Direct Watch automatically uses an already-installed supported JavaScript runtime when available: Deno is preferred, followed by Node or QuickJS. No JavaScript runtime is silently installed by the v0.0.23 installer.
+
+
+## v0.0.32 Nougat Security Analysis
+
+Generated runtime (excluded from Git): YARA-X 1.19.0, flare-capa 9.4.0, matching capa-rules 9.4.0, and Magika 1.0.3. The installer creates this private runtime under `components/security/runtime/`. ClamAV is never linked or bundled; if `clamscan` is present on the owner's system Nougat may invoke it once for a requested scan. MalwareBazaar and ThreatFox are optional free/community reputation sources and require an owner-supplied free abuse.ch Auth-Key stored outside Git at `~/.config/nougat-media-suite/security/abusech.key` with mode 0600.

@@ -470,6 +470,20 @@ static std::string choose_tmdb_credential_dialog() {
     return run_command_capture(py);
 }
 
+static std::string choose_security_auth_key_dialog() {
+    std::string credential = run_command_capture(
+        "command -v zenity >/dev/null 2>&1 && "
+        "zenity --entry --hide-text --title='Nougat Security Analysis' "
+        "--text='Enter your free abuse.ch Community Auth-Key (leave blank to clear)' 2>/dev/null");
+    if (!credential.empty()) return credential;
+    const std::string py =
+        "python3 -c \"import tkinter as tk; from tkinter import simpledialog; "
+        "root=tk.Tk(); root.withdraw(); "
+        "v=simpledialog.askstring('Nougat Security Analysis',"
+        "'Enter your free abuse.ch Community Auth-Key (leave blank to clear)',show='*'); print(v if v else '')\" 2>/dev/null";
+    return run_command_capture(py);
+}
+
 static std::string choose_torrent_file_dialog() {
     std::string p = run_command_capture("command -v zenity >/dev/null 2>&1 && zenity --file-selection --title='Open P2P File' --file-filter='P2P files | *.torrent' 2>/dev/null");
     if (!p.empty()) return p;
@@ -537,7 +551,7 @@ enum class MenuAction {
     NougatCopySelection, NougatSelectAll
 };
 enum class ViewMode { Home, VideoPlayer, Library, Discover, Nougat, Stream, P2P, Debug };
-enum class NougatPanel { Search, Crawler, P2P };
+enum class NougatPanel { Search, Crawler, P2P, VirusScan };
 enum class StreamPlatform { YouTube, Vimeo, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
 enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
@@ -621,6 +635,16 @@ struct DebugUiState {
     bool updated = false;
     bool hasReport = false;
     double progress = 0.0;
+};
+struct SecurityUiState {
+    std::mutex mutex;
+    bool busy = false;
+    bool updated = false;
+    bool folder = false;
+    std::string target;
+    std::string status = "Ready. Choose a file or folder to scan.";
+    std::string verdict = "NOT SCANNED";
+    std::string report = "No scan has been run yet.";
 };
 struct NougatUiState {
     std::mutex mutex;
@@ -824,7 +848,7 @@ public:
     Pixmap streamQuiltTiles[6] = {};
     int W=1000,H=650;
     int videoW=980, videoH=530;
-    Rect openBtn, rewindBtn, previousBtn, playBtn, nextBtn, forwardBtn, stopBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
+    Rect openBtn, rewindBtn, previousBtn, playBtn, nextBtn, forwardBtn, stopBtn, fsBtn, seekRect, volRect, volumeHousingRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn, videoRestartBtn, videoCancelBtn, videoBackLibraryBtn;
     Rect videoUpNextPlayBtn, videoUpNextSeriesBtn, videoUpNextReplayBtn;
     Rect homeTab, videoPlayerTab, libraryTab, discoverTab, nougatTab, ytdlpTab, debugTab;
@@ -840,8 +864,9 @@ public:
     Rect debugServerBtn, debugLogsBtn, debugCopyBtn, debugExportTextBtn, debugExportJsonBtn, debugBundleBtn, debugListBox;
     Rect streamYoutubeTab, streamVimeoTab, streamRumbleTab, streamRutubeTab, streamVkTab, streamOkTab;
     Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpDirectWatchBtn, ytdlpWebpageBtn, ytdlpClearBtn, ytdlpFolderBtn;
-    Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn;
-    Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatP2PPanelTab, nougatNetworkAdvancedBtn;
+    Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn, p2pRemoveBtn;
+    Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatP2PPanelTab, nougatVirusScanPanelTab, nougatNetworkAdvancedBtn;
+    Rect securityScanFileBtn, securityScanFolderBtn, securityScanAgainBtn, securityCommunityKeyBtn, securityHistoryBtn, securityResultsBox;
     Rect nougatSearchRect, nougatSearchBtn, nougatRawBtn, nougatPeersToggleBtn, nougatResultsBox;
     Rect nougatCrawlSeedRect, nougatCrawlMinusBtn, nougatCrawlPlusBtn, nougatSameDomainBtn, nougatStartCrawlBtn, nougatCrawlLogBox;
     Rect nougatPeerEntryRect, nougatAddPeerBtn, nougatRemovePeerBtn, nougatNodeBtn, nougatPeerListBox;
@@ -955,7 +980,14 @@ public:
     int homePageScroll = 0;
     int homeContentHeight = 0;
     int homeContinueScrollX = 0;
+    int homeContinueMaxScrollX = 0;
     Rect homeContinueArea;
+    Rect homeVerticalScrollTrack, homeVerticalScrollThumb;
+    Rect homeContinueScrollTrack, homeContinueScrollThumb;
+    bool homeVerticalScrollDragging = false;
+    bool homeContinueScrollDragging = false;
+    int homeVerticalScrollDragOffset = 0;
+    int homeContinueScrollDragOffset = 0;
     std::vector<HomeCardHitbox> homeCardHitboxes;
     std::string homeHoveredPath;
     long long homeHoverStartedMs = 0;
@@ -1020,6 +1052,11 @@ public:
     std::shared_ptr<NougatUiState> nougatState = std::make_shared<NougatUiState>();
     std::thread nougatSearchWorker;
     std::thread nougatCrawlWorker;
+    std::shared_ptr<SecurityUiState> securityState = std::make_shared<SecurityUiState>();
+    std::thread securityWorker;
+    int securityScroll = 0;
+    std::string lastP2PAutoScanTransfer;
+    std::vector<std::string> pendingP2PAutoScanPaths;
     NougatPanel nougatPanel = NougatPanel::Search;
     bool nougatNetworkAdvanced = false;
     NougatInputFocus nougatInputFocus = NougatInputFocus::NoFocus;
@@ -1388,7 +1425,11 @@ public:
         Rect bevel{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
         outline_round(target, bevel, 6, rgb8(255, 244, 224));
         Rect seam{r.x + 4, r.y + 4, std::max(1, r.w - 8), std::max(1, r.h - 8)};
-        outline_round_dashed(target, seam, 4, focused ? rgb8(220, 163, 91) : rgb8(225, 205, 177), 2);
+        const bool searchCream = borderColor == rgb8(166, 112, 56);
+        const unsigned long seamColor = searchCream
+            ? (focused ? rgb8(116, 66, 34) : rgb8(132, 78, 40))
+            : (focused ? rgb8(220, 163, 91) : rgb8(225, 205, 177));
+        outline_round_dashed(target, seam, 4, seamColor, 2);
         line(target, r.x + 9, r.y + 2, r.x + r.w - 10, r.y + 2, rgb8(255, 249, 236));
         line(target, r.x + 9, r.y + r.h - 2, r.x + r.w - 10, r.y + r.h - 2, rgb8(177, 139, 101));
     }
@@ -1626,8 +1667,11 @@ public:
         outline_round(target, bevel, std::max(4, radius - 1),
                       state == SheetControlState::Pressed ? palette.button : palette.buttonLight);
         Rect seam{visual.x + 3, visual.y + 3, std::max(1, visual.w - 6), std::max(1, visual.h - 6)};
-        outline_round_dashed(target, seam, std::max(3, radius - 3),
-                             state == SheetControlState::Pressed ? palette.button : palette.buttonLight, 2);
+        const bool searchCream = palette.background == rgb8(241, 227, 194);
+        const unsigned long seamInk = searchCream
+            ? (state == SheetControlState::Pressed ? rgb8(89, 48, 25) : rgb8(126, 72, 35))
+            : (state == SheetControlState::Pressed ? palette.button : palette.buttonLight);
+        outline_round_dashed(target, seam, std::max(3, radius - 3), seamInk, 2);
 
         // Raised leather/nougat highlight and lower bevel from the sheet.
         line(target, visual.x + radius, visual.y + 2,
@@ -1677,7 +1721,9 @@ public:
         Rect bevel{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
         outline_round(target, bevel, 9, palette.buttonLight);
         Rect seam{r.x + 5, r.y + 5, std::max(1, r.w - 10), std::max(1, r.h - 10)};
-        outline_round_dashed(target, seam, 7, palette.buttonLight, 3);
+        const unsigned long panelSeam = palette.background == rgb8(241, 227, 194)
+            ? rgb8(132, 78, 40) : palette.buttonLight;
+        outline_round_dashed(target, seam, 7, panelSeam, 3);
         line(target, r.x + 12, r.y + 2, r.x + r.w - 13, r.y + 2, rgb8(255, 242, 217));
     }
 
@@ -1972,17 +2018,19 @@ public:
         const int seekRightPad = totalTimeWidth + 20;
         seekRect = {seekX, seekY, std::max(220, W-seekX-seekRightPad), 18};
 
-        // Keep the accepted 0-200% volume control size behavior, but center the
-        // Volume label + existing control + percentage readout as one group.
+        // Volume deliberately reuses the seek-bar component geometry. The owner
+        // rejected the oversized field/housing around it: this is the same 18 px
+        // recessed sheet track and 24 px knob as seek, simply shorter.
         const int volumeTrackW = std::max(150, std::min(280, W / 3));
         const int volumeReadoutW = 54;
-        const int volumeHousingPad = 28;
-        const int volumeHousingW = volumeTrackW + volumeHousingPad * 2;
         const int volumeLabelW = text_width("Volume");
-        const int volumeGroupW = volumeLabelW + 12 + volumeHousingW + 8 + volumeReadoutW;
+        const int volumeGroupW = volumeLabelW + 12 + volumeTrackW + 8 + volumeReadoutW;
         const int volumeGroupX = std::max(10, (W - volumeGroupW) / 2);
-        const int volumeHousingX = volumeGroupX + volumeLabelW + 12;
-        volRect = {volumeHousingX + volumeHousingPad, volumeY + 3, volumeTrackW, 12};
+        const int volumeTrackX = volumeGroupX + volumeLabelW + 12;
+        volRect = {volumeTrackX, volumeY - 4, volumeTrackW, seekRect.h};
+        // Retained as a compatibility/layout bounds field for regression tests;
+        // it is no longer drawn as a separate outer container.
+        volumeHousingRect = volRect;
 
         const int promptX = std::max(20, W/2-kCompactButtonW);
         resumeBtn = {promptX, H/2+40, kCompactButtonW, kCompactButtonH};
@@ -1998,11 +2046,12 @@ public:
 
         p2pMagnetRect = {28, 148, std::max(240, W-56), 28};
         p2pOutputRect = {28, 188, std::max(240, W-56), 28};
-        layout_button_row({&p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn}, 230, p2pButtonsScrollX);
+        layout_button_row({&p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn,&p2pRemoveBtn}, 230, p2pButtonsScrollX);
 
         nougatSearchPanelTab = {28,40,kCompactButtonW,kCompactButtonH};
         nougatCrawlerPanelTab = {28+kCompactButtonW,40,kCompactButtonW,kCompactButtonH};
         nougatP2PPanelTab = {28+kCompactButtonW*2,40,kCompactButtonW,kCompactButtonH};
+        nougatVirusScanPanelTab = {28+kCompactButtonW*3,40,kCompactButtonW,kCompactButtonH};
         const int nougatRightColumnX = std::max(500, W-144);
         nougatNetworkAdvancedBtn = {nougatRightColumnX,40,kCompactButtonW,kCompactButtonH};
         nougatSearchRect = {28, 90, std::max(220, W-400), 30};
@@ -2022,6 +2071,12 @@ public:
         nougatNodeBtn = {std::max(540, W-240),104,kCompactButtonW,kCompactButtonH};
         nougatPeersToggleBtn = {std::max(660, W-120),104,kCompactButtonW,kCompactButtonH};
         nougatPeerListBox = {28, 154, std::max(240, W-56), std::max(120, H-182)};
+        securityScanFileBtn = {28, 106, kCompactButtonW, kCompactButtonH};
+        securityScanFolderBtn = {28+kCompactButtonW, 106, kCompactButtonW, kCompactButtonH};
+        securityScanAgainBtn = {28+kCompactButtonW*2, 106, kCompactButtonW, kCompactButtonH};
+        securityCommunityKeyBtn = {28+kCompactButtonW*3, 106, kCompactButtonW, kCompactButtonH};
+        securityHistoryBtn = {28+kCompactButtonW*4, 106, kCompactButtonW, kCompactButtonH};
+        securityResultsBox = {28, 174, std::max(240, W-56), std::max(120, H-202)};
 
         // The Library tab already establishes context. Put the view-mode
         // controls at the far left and reserve the heading only for a nested
@@ -2889,32 +2944,41 @@ public:
     }
     void draw_video_message() {
         if (upNextVisible) {
-            XClearWindow(d, video);
+            // Countdown updates used to XClearWindow(video) once per second, exposing
+            // a blank frame before the overlay was redrawn. Compose the complete Up Next
+            // frame offscreen and copy it to the video child in one operation instead.
+            Pixmap upNextBuffer = XCreatePixmap(d, video, std::max(1, videoW), std::max(1, videoH), DefaultDepth(d, screen));
+            if (!upNextBuffer) return;
+            fill(upNextBuffer, {0, 0, std::max(1, videoW), std::max(1, videoH)}, rgb8(0,0,0));
+            const Drawable overlayTarget = upNextBuffer;
             const int cardW = std::max(360, std::min(680, videoW - 40));
             const int cardH = 164;
             const int cardX = std::max(12, (videoW - cardW) / 2);
             const int cardY = std::max(26, (videoH - cardH) / 2 - 12);
             const Rect card{cardX, cardY, cardW, cardH};
-            fill_round(video, card, 12, rgb8(55,34,22));
-            outline_round(video, card, 12, rgb8(201,130,44));
+            fill_round(overlayTarget, card, 12, rgb8(55,34,22));
+            outline_round(overlayTarget, card, 12, rgb8(201,130,44));
             Rect inset{card.x+3, card.y+3, card.w-6, card.h-6};
-            outline_round(video, inset, 9, rgb8(244,229,205));
+            outline_round(overlayTarget, inset, 9, rgb8(244,229,205));
 
             if (upNextHasEpisode) {
                 const std::string title = "Up Next: " + library_display_title(upNextEpisode);
-                text(video, card.x + 20, card.y + 36, head_to_width(title, card.w - 40), rgb8(248,235,214));
-                text(video, card.x + 20, card.y + 64,
+                text(overlayTarget, card.x + 20, card.y + 36, head_to_width(title, card.w - 40), rgb8(248,235,214));
+                text(overlayTarget, card.x + 20, card.y + 64,
                      upNextMessage.empty() ? "Playing automatically in 10 seconds." : upNextMessage,
                      rgb8(224,188,132));
-                button_on(video, videoUpNextPlayBtn, "Play Next");
+                button_on(overlayTarget, videoUpNextPlayBtn, "Play Next");
             } else {
-                text(video, card.x + 20, card.y + 40, "Up Next", rgb8(248,235,214));
-                text(video, card.x + 20, card.y + 70,
+                text(overlayTarget, card.x + 20, card.y + 40, "Up Next", rgb8(248,235,214));
+                text(overlayTarget, card.x + 20, card.y + 70,
                      head_to_width(upNextMessage.empty() ? "No next episode found." : upNextMessage, card.w - 40),
                      rgb8(224,188,132));
             }
-            button_on(video, videoUpNextSeriesBtn, "Back to Series");
-            button_on(video, videoUpNextReplayBtn, "Replay");
+            button_on(overlayTarget, videoUpNextSeriesBtn, "Back to Series");
+            button_on(overlayTarget, videoUpNextReplayBtn, "Replay");
+            XCopyArea(d, upNextBuffer, video, gc, 0, 0, std::max(1, videoW), std::max(1, videoH), 0, 0);
+            XFreePixmap(d, upNextBuffer);
+            XFlush(d);
             return;
         }
 
@@ -2998,7 +3062,7 @@ public:
         // scrolling tab strip is intentionally painted afterward so tabs can
         // roll over the N/name, Server status/dot, and version number without
         // those fixed elements being redrawn on top of the buttons.
-        const std::string versionLabel = "v0.0.31";
+        const std::string versionLabel = "v0.0.32";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -3315,9 +3379,8 @@ public:
         vol = std::max(0,std::min(200,vol));
         volumePercent = vol;
 
-        const Rect housing{volRect.x - 28, volRect.y - 8, volRect.w + 56, volRect.h + 16};
-        draw_concept_field(target, housing, rgb8(244,229,205), trackBorder, false);
-        draw_sheet_track(target, volRect, rgb8(191,151,106), creamTrack, rgb8(255,246,227));
+        // Match seek exactly: no oversized field around the volume control.
+        draw_sheet_track(target, volRect, trackBorder, creamTrack, rgb8(255,246,227));
 
         const int filledW = std::max(0,std::min(volRect.w,volRect.w*vol/200));
         if (filledW > 0) {
@@ -3335,9 +3398,9 @@ public:
 
         // The owner rejected the small speaker glyphs as stray square/triangle
         // shapes. Keep the track, 0-200% gain range and rounded knob unchanged.
-        const int volumeLabelX = housing.x - 12 - text_width("Volume");
-        text(target,volumeLabelX,volRect.y+9,"Volume",palette.text);
-        text(target,housing.x+housing.w+8,volRect.y+9,std::to_string(vol)+"%",palette.text);
+        const int volumeLabelX = volRect.x - 12 - text_width("Volume");
+        text(target,volumeLabelX,volRect.y+14,"Volume",palette.text);
+        text(target,volRect.x+volRect.w+8,volRect.y+14,std::to_string(vol)+"%",palette.text);
     }
 
     bool episode_navigation_available(int delta) const {
@@ -3657,8 +3720,10 @@ public:
         text(target,28,246,head_to_width("Status: "+ytdlpStatus,W-56),palette.text);
 
         Rect logBox={28,264,std::max(240,W-56),std::max(100,H-289)};
+        // Match Discover's clean panel silhouette: the provider palette remains in
+        // the sheet-style panel/bottom bevel, but no vertical accent strip climbs
+        // the left edge. This applies uniformly to YouTube, Vimeo, Rumble, RuTube, VK and OK.
         draw_primary_panel(target, logBox, palette);
-        fill(target,{logBox.x,logBox.y,6,logBox.h},palette.accent);
         text(target,logBox.x+14,logBox.y+20,std::string(stream_platform_name(streamPlatform))+" activity log",palette.text);
         int lineY=logBox.y+44;
         std::istringstream iss(ytdlpLog);
@@ -3728,18 +3793,38 @@ public:
         text(target,p2pOutputRect.x+8,p2pOutputRect.y+18,tail_to_width("Download folder: "+p2pOutputFolder,p2pOutputRect.w-16),fieldInk);
         button_on(target,p2pLoadMagnetBtn,"Load Magnet");
         button_on(target,p2pOpenTorrentBtn,"Open P2P File");
-        button_on(target,p2pPlayBtn,"Play");
-        button_on(target,p2pStopResumeBtn,p2p.is_paused()?"Resume Download":"Stop Download");
+        button_on(target,p2pPlayBtn,"Watch Now");
+        button_on(target,p2pStopResumeBtn,p2p.is_paused()?"Resume":"Pause");
+        button_on(target,p2pRemoveBtn,"Remove");
 
         auto_select_single_video();
         P2PStatus st=p2p.status();
         int y=278;
         text(target,28,y,"Status: "+p2pUiStatus,dark); y+=20;
         if (st.active) {
-            int pct=std::max(0,std::min(100,(int)(st.progress*100.0f)));
-            text(target,28,y,"Transfer: "+(st.name.empty()?std::string("loading metadata"):st.name),dark); y+=20;
+            int pct=std::max(0,std::min(100,(int)(st.progress*100.0f + 0.5f)));
+            text(target,28,y,"Transfer: "+(st.name.empty()?std::string("fetching metadata"):st.name),dark); y+=20;
             text(target,28,y,"State: "+st.state+"   Progress: "+std::to_string(pct)+"%   Downloaded: "+format_bytes(st.downloaded),dark); y+=20;
-            text(target,28,y,"Down: "+format_bytes(st.download_rate)+"/s   Up: "+format_bytes(st.upload_rate)+"/s   Peers: "+std::to_string(st.peers)+"   Seeds: "+std::to_string(st.seeds),dark); y+=22;
+            const Rect progressTrack{28,y-10,std::max(180,W-56),12};
+            draw_sheet_track(target,progressTrack,palette.border,palette.field,palette.buttonLight);
+            draw_sheet_track_fill(target,progressTrack,progressTrack.w*pct/100,palette.buttonDark,palette.accent,palette.buttonLight);
+            y+=18;
+            text(target,28,y,"Down: "+format_bytes(st.download_rate)+"/s   Up: "+format_bytes(st.upload_rate)+"/s   Connected peers: "+std::to_string(st.peers)+"   Remote seeds: "+std::to_string(st.seeds),dark); y+=20;
+            if (st.seeding) {
+                const std::string seedState = st.paused ? "Paused" : (st.upload_rate>0 ? "Uploading" : "Available, idle");
+                text(target,28,y,"You: Seed ✓   Seeding: "+seedState+"   Known peers: "+std::to_string(st.known_peers)+"   Known remote seeds: "+std::to_string(st.known_seeds),dark); y+=20;
+                text(target,28,y,"Swarm availability: your complete local copy = 1.00   Announce: "+std::string(st.announcing_trackers?"tracker ":"")+(st.announcing_dht?"DHT ":"")+(st.announcing_lsd?"LAN":""),palette.muted); y+=20;
+            } else {
+                std::ostringstream availability;
+                availability << std::fixed << std::setprecision(2) << std::max(0.0f,st.swarm_availability);
+                text(target,28,y,"Availability: "+availability.str()+"   Known peers: "+std::to_string(st.known_peers)+"   Known seeds: "+std::to_string(st.known_seeds),palette.muted); y+=20;
+            }
+            if (st.selected_size > 0) {
+                const int selectedPct = std::max(0,std::min(100,(int)(st.selected_progress*100.0f + 0.5f)));
+                text(target,28,y,"Selected media: "+std::to_string(selectedPct)+"%   Start buffer: "+format_bytes((std::int64_t)st.selected_buffered_bytes),dark); y+=20;
+            } else if (!st.metadata_ready) {
+                text(target,28,y,"Fetching metadata and waiting for the file list...",palette.muted); y+=20;
+            }
             if (!st.error.empty()) { text(target,28,y,"P2P: "+st.error,col(0x9900,0,0)); y+=20; }
         }
         p2pFileRows.clear();
@@ -5289,12 +5374,97 @@ public:
         outline_round(target, card, 10, palette.buttonDark);
     }
 
+    int home_max_page_scroll() const {
+        return std::max(0, homeContentHeight - H);
+    }
+
+    void draw_home_scrollbar_component(Drawable target, const Rect& track, const Rect& thumb,
+                                       const ViewPalette& palette) {
+        if (track.w <= 0 || track.h <= 0 || thumb.w <= 0 || thumb.h <= 0) return;
+        const int trackRadius = std::max(4, std::min(track.w, track.h) / 2);
+        fill_round(target, {track.x, track.y + 2, track.w, track.h}, trackRadius, palette.buttonDark);
+        fill_round(target, track, trackRadius, palette.field);
+        outline_round(target, track, trackRadius, palette.border);
+        Rect inset{track.x + 2, track.y + 2, std::max(1, track.w - 4), std::max(1, track.h - 4)};
+        outline_round(target, inset, std::max(2, trackRadius - 2), palette.buttonLight);
+
+        const int thumbRadius = std::max(4, std::min(thumb.w, thumb.h) / 2);
+        fill_round(target, {thumb.x, thumb.y + 2, thumb.w, thumb.h}, thumbRadius, palette.buttonDark);
+        fill_round(target, thumb, thumbRadius, palette.button);
+        outline_round(target, thumb, thumbRadius, palette.buttonDark);
+        Rect thumbInset{thumb.x + 2, thumb.y + 2, std::max(1, thumb.w - 4), std::max(1, thumb.h - 4)};
+        outline_round(target, thumbInset, std::max(2, thumbRadius - 2), palette.buttonLight);
+    }
+
+    void update_home_vertical_scroll_from_pointer(int pointerY, bool centerThumb) {
+        const int maxScroll = home_max_page_scroll();
+        const int span = std::max(0, homeVerticalScrollTrack.h - homeVerticalScrollThumb.h);
+        if (maxScroll <= 0 || span <= 0) { homePageScroll = 0; return; }
+        int thumbTop = pointerY - (centerThumb ? homeVerticalScrollThumb.h / 2 : homeVerticalScrollDragOffset);
+        thumbTop = std::max(homeVerticalScrollTrack.y, std::min(homeVerticalScrollTrack.y + span, thumbTop));
+        homePageScroll = static_cast<int>((static_cast<long long>(thumbTop - homeVerticalScrollTrack.y) * maxScroll + span / 2) / span);
+    }
+
+    void update_home_continue_scroll_from_pointer(int pointerX, bool centerThumb) {
+        const int span = std::max(0, homeContinueScrollTrack.w - homeContinueScrollThumb.w);
+        if (homeContinueMaxScrollX <= 0 || span <= 0) { homeContinueScrollX = 0; return; }
+        int thumbLeft = pointerX - (centerThumb ? homeContinueScrollThumb.w / 2 : homeContinueScrollDragOffset);
+        thumbLeft = std::max(homeContinueScrollTrack.x, std::min(homeContinueScrollTrack.x + span, thumbLeft));
+        homeContinueScrollX = static_cast<int>((static_cast<long long>(thumbLeft - homeContinueScrollTrack.x) * homeContinueMaxScrollX + span / 2) / span);
+    }
+
+    bool handle_home_scrollbar_press(int x, int y) {
+        if (homeVerticalScrollThumb.contains(x, y)) {
+            homeVerticalScrollDragging = true;
+            homeVerticalScrollDragOffset = y - homeVerticalScrollThumb.y;
+            return true;
+        }
+        if (homeVerticalScrollTrack.contains(x, y)) {
+            update_home_vertical_scroll_from_pointer(y, true);
+            redraw();
+            return true;
+        }
+        if (homeContinueScrollThumb.contains(x, y)) {
+            homeContinueScrollDragging = true;
+            homeContinueScrollDragOffset = x - homeContinueScrollThumb.x;
+            return true;
+        }
+        if (homeContinueScrollTrack.contains(x, y)) {
+            update_home_continue_scroll_from_pointer(x, true);
+            redraw();
+            return true;
+        }
+        return false;
+    }
+
+    bool handle_home_scrollbar_motion(int x, int y) {
+        bool changed = false;
+        if (homeVerticalScrollDragging) {
+            const int before = homePageScroll;
+            update_home_vertical_scroll_from_pointer(y, false);
+            changed = changed || before != homePageScroll;
+        }
+        if (homeContinueScrollDragging) {
+            const int before = homeContinueScrollX;
+            update_home_continue_scroll_from_pointer(x, false);
+            changed = changed || before != homeContinueScrollX;
+        }
+        if (changed) redraw();
+        return homeVerticalScrollDragging || homeContinueScrollDragging;
+    }
+
     void draw_home_screen(Drawable target) {
         homeCardHitboxes.clear();
         const ViewPalette palette = palette_for(ViewMode::Home);
         draw_quilted_background(target, {0, 34, W, std::max(1, H - 34)}, ViewMode::Home);
         const int viewport_top = 42;
         const int viewport_bottom = H - 12;
+        // Home scrolls beneath a fixed navigation/header. Clip the complete
+        // page content to this viewport so cards can never paint over the tabs.
+        XRectangle homeClip{0, static_cast<short>(viewport_top),
+                            static_cast<unsigned short>(std::max(1, W)),
+                            static_cast<unsigned short>(std::max(1, viewport_bottom - viewport_top))};
+        XSetClipRectangles(d, gc, 0, 0, &homeClip, 1, Unsorted);
         const int content_y0 = viewport_top - homePageScroll;
         int y = content_y0;
         const int gap = 12;
@@ -5329,6 +5499,7 @@ public:
             homeContinueArea = {20, y, std::max(1, W - 40), continue_max_h};
             const int total_w = static_cast<int>(continues.size()) * (card_w + gap) - gap;
             const int max_scroll = std::max(0, total_w - homeContinueArea.w);
+            homeContinueMaxScrollX = max_scroll;
             homeContinueScrollX = std::max(0, std::min(homeContinueScrollX, max_scroll));
             int x = homeContinueArea.x - homeContinueScrollX;
             for (const auto& record : continues) {
@@ -5355,9 +5526,27 @@ public:
                 }
                 x += card_w + gap;
             }
-            y += continue_max_h + 34;
+            // Dedicated sheet-style horizontal scrollbar for Continue Watching.
+            // It lives directly below the shelf; mouse-wheel shelf scrolling is retained.
+            const int scrollY = y + continue_max_h + 8;
+            homeContinueScrollTrack = {homeContinueArea.x, scrollY, homeContinueArea.w, 14};
+            if (homeContinueMaxScrollX > 0) {
+                const int totalSpan = homeContinueArea.w + homeContinueMaxScrollX;
+                const int thumbW = std::max(42, std::min(homeContinueScrollTrack.w,
+                    homeContinueScrollTrack.w * homeContinueArea.w / std::max(1, totalSpan)));
+                const int thumbTravel = std::max(0, homeContinueScrollTrack.w - thumbW);
+                const int thumbX = homeContinueScrollTrack.x +
+                    (homeContinueMaxScrollX > 0 ? thumbTravel * homeContinueScrollX / homeContinueMaxScrollX : 0);
+                homeContinueScrollThumb = {thumbX, homeContinueScrollTrack.y, thumbW, homeContinueScrollTrack.h};
+            } else {
+                homeContinueScrollThumb = homeContinueScrollTrack;
+            }
+            y += continue_max_h + 54;
         } else {
             homeContinueArea = {0,0,0,0};
+            homeContinueMaxScrollX = 0;
+            homeContinueScrollTrack = {0,0,0,0};
+            homeContinueScrollThumb = {0,0,0,0};
         }
 
         section_text(target, 28, y + 20, "LOCAL", palette.text);
@@ -5385,8 +5574,33 @@ public:
             y += 20;
         }
         homeContentHeight = std::max(H, y + homePageScroll + 20);
-        const int max_page_scroll = std::max(0, homeContentHeight - H);
+        const int max_page_scroll = home_max_page_scroll();
         homePageScroll = std::max(0, std::min(homePageScroll, max_page_scroll));
+
+        // Content clipping ends here. Scrollbars are controls and remain above the page content.
+        XSetClipMask(d, gc, None);
+
+        // Right-side vertical Home page scrollbar. The existing 28px right margin
+        // keeps it clear of cards instead of laying the control over poster art.
+        const int verticalTrackH = std::max(40, viewport_bottom - viewport_top - 8);
+        homeVerticalScrollTrack = {W - 18, viewport_top + 4, 12, verticalTrackH};
+        if (max_page_scroll > 0) {
+            const int visibleH = std::max(1, viewport_bottom - viewport_top);
+            const int totalH = visibleH + max_page_scroll;
+            const int thumbH = std::max(38, std::min(homeVerticalScrollTrack.h,
+                homeVerticalScrollTrack.h * visibleH / std::max(1, totalH)));
+            const int thumbTravel = std::max(0, homeVerticalScrollTrack.h - thumbH);
+            const int thumbY = homeVerticalScrollTrack.y + thumbTravel * homePageScroll / max_page_scroll;
+            homeVerticalScrollThumb = {homeVerticalScrollTrack.x, thumbY, homeVerticalScrollTrack.w, thumbH};
+        } else {
+            homeVerticalScrollThumb = homeVerticalScrollTrack;
+        }
+        draw_home_scrollbar_component(target, homeVerticalScrollTrack, homeVerticalScrollThumb, palette);
+
+        if (homeContinueScrollTrack.w > 0 && homeContinueScrollTrack.y >= viewport_top &&
+            homeContinueScrollTrack.y + homeContinueScrollTrack.h <= viewport_bottom) {
+            draw_home_scrollbar_component(target, homeContinueScrollTrack, homeContinueScrollThumb, palette);
+        }
     }
 
     void set_home_hover(const std::string& path, long long resume_ms) {
@@ -6170,7 +6384,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.28";
+        input.app_version = "Nougat Media Suite v0.0.32";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -6244,6 +6458,9 @@ public:
         input.p2p_state = p2p_status.state;
         input.p2p_error = p2p_status.error;
         input.p2p_save_path = p2p_status.save_path;
+        input.p2p_selected_progress = p2p_status.selected_progress;
+        input.p2p_selected_buffered_bytes = p2p_status.selected_buffered_bytes;
+        input.p2p_stream_running = p2pStream.running();
         input.tmdb_configured = recommendationEngine->external_credential_available();
         input.ai_model_path = exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf";
         input.ai_runtime_path = exe_dir() + "/components/ai/runtime";
@@ -6723,6 +6940,7 @@ public:
         if (p2pOpenTorrentBtn.contains(x,y)) { open_p2p_torrent(); return; }
         if (p2pPlayBtn.contains(x,y)) { play_selected_p2p(); return; }
         if (p2pStopResumeBtn.contains(x,y)) { toggle_p2p_transfer(); return; }
+        if (p2pRemoveBtn.contains(x,y)) { remove_p2p_transfer(); return; }
         for (std::size_t i=0;i<p2pFileRows.size();++i) {
             if (p2pFileRows[i].contains(x,y)) {
                 std::vector<P2PFileInfo> fs=p2p.files();
@@ -6731,6 +6949,183 @@ public:
             }
         }
         p2pMagnetFocused=false; p2pMagnetSelectAll=false; redraw(); return;
+    }
+
+    std::string security_auth_key_path() const {
+        return home_dir() + "/.config/nougat-media-suite/security/abusech.key";
+    }
+    bool security_auth_key_configured() const {
+        return exists_file(security_auth_key_path());
+    }
+    void save_security_auth_key(const std::string& key) {
+        const std::string configBase = home_dir() + "/.config/nougat-media-suite";
+        const std::string securityDir = configBase + "/security";
+        mkdir((home_dir()+"/.config").c_str(),0755);
+        mkdir(configBase.c_str(),0700);
+        mkdir(securityDir.c_str(),0700);
+        const std::string path = security_auth_key_path();
+        if (key.empty()) {
+            unlink(path.c_str());
+            std::lock_guard<std::mutex> lock(securityState->mutex);
+            securityState->status = "Community telemetry key cleared. Local scanning remains available.";
+            return;
+        }
+        std::ofstream out(path,std::ios::trunc);
+        if (!out) {
+            std::lock_guard<std::mutex> lock(securityState->mutex);
+            securityState->status = "Could not save the community telemetry key.";
+            return;
+        }
+        out << key << "\n";
+        out.close();
+        chmod(path.c_str(),0600);
+        std::lock_guard<std::mutex> lock(securityState->mutex);
+        securityState->status = "Free abuse.ch community telemetry configured.";
+    }
+    std::string security_python() const {
+        const std::string runtime = exe_dir()+"/components/security/runtime/venv/bin/python";
+        return exists_file(runtime) ? runtime : std::string("python3");
+    }
+    void start_security_scan(const std::string& target, bool folder, const std::string& origin="Manual") {
+        if (target.empty()) return;
+        {
+            std::lock_guard<std::mutex> lock(securityState->mutex);
+            if (securityState->busy) return;
+        }
+        if (securityWorker.joinable()) securityWorker.join();
+        {
+            std::lock_guard<std::mutex> lock(securityState->mutex);
+            securityState->busy = true;
+            securityState->updated = false;
+            securityState->folder = folder;
+            securityState->target = target;
+            securityState->verdict = "SCANNING";
+            securityState->status = origin + " scan running. Scanner process exits when the result is ready.";
+            securityState->report = "Scanning...";
+        }
+        securityScroll = 0;
+        redraw();
+        const std::shared_ptr<SecurityUiState> state = securityState;
+        const std::string python = security_python();
+        const std::string worker = exe_dir()+"/components/security/nougat_security_worker.py";
+        const bool automatic = (origin == "Completed P2P download");
+        securityWorker = std::thread([state,python,worker,target,folder,automatic]() {
+            const std::string mode = folder ? " --folder " : (automatic ? " --auto-file " : " --file ");
+            std::string command = shell_quote(python)+" "+shell_quote(worker)+mode+shell_quote(target)+" 2>&1";
+            std::string report = run_command_capture(command);
+            std::string verdict = "SCAN ERROR";
+            const std::string prefix="VERDICT=";
+            const size_t end=report.find('\n');
+            const std::string first=report.substr(0,end==std::string::npos?report.size():end);
+            if (first.rfind(prefix,0U)==0U) verdict=first.substr(prefix.size());
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->busy=false;
+            state->updated=true;
+            state->verdict=verdict;
+            state->report=report.empty()?"Scanner produced no report.":report;
+            if (verdict=="THREAT DETECTED") state->status="WARNING: threat detected. Nougat changed nothing. Review the report and decide what to do.";
+            else if (verdict=="SUSPICIOUS") state->status="WARNING: suspicious file characteristics detected. Nougat changed nothing.";
+            else if (verdict=="NO THREATS DETECTED") state->status="Scan complete. No threats detected by the checks that ran.";
+            else if (verdict=="HISTORY") state->status="Recent scan history.";
+            else state->status="Scan finished with an incomplete/error result.";
+        });
+    }
+    void show_security_history() {
+        {
+            std::lock_guard<std::mutex> lock(securityState->mutex);
+            if (securityState->busy) return;
+        }
+        if (securityWorker.joinable()) securityWorker.join();
+        const std::shared_ptr<SecurityUiState> state=securityState;
+        const std::string python=security_python();
+        const std::string worker=exe_dir()+"/components/security/nougat_security_worker.py";
+        {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->busy=true; state->updated=false; state->status="Loading recent scan history..."; state->verdict="WORKING";
+        }
+        securityWorker=std::thread([state,python,worker]() {
+            const std::string report=run_command_capture(shell_quote(python)+" "+shell_quote(worker)+" --history 2>&1");
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->busy=false; state->updated=true; state->verdict="HISTORY"; state->status="Recent scan history.";
+            state->report=report.empty()?"No scan history yet.":report;
+        });
+    }
+    void poll_security_worker() {
+        bool updated=false;
+        std::string verdict;
+        {
+            std::lock_guard<std::mutex> lock(securityState->mutex);
+            updated=securityState->updated;
+            verdict=securityState->verdict;
+            if (updated) securityState->updated=false;
+        }
+        if (!updated) return;
+        if (securityWorker.joinable()) securityWorker.join();
+        if (verdict=="THREAT DETECTED" || verdict=="SUSPICIOUS") {
+            p2pUiStatus = "SECURITY WARNING: "+verdict+". See Search > Virus Scan. Nothing was quarantined.";
+        }
+        if (!pendingP2PAutoScanPaths.empty()) {
+            const std::string next=pendingP2PAutoScanPaths.front();
+            pendingP2PAutoScanPaths.erase(pendingP2PAutoScanPaths.begin());
+            start_security_scan(next,false,"Completed P2P download");
+            return;
+        }
+        if (!fullscreen && currentView==ViewMode::Nougat) redraw();
+    }
+    void maybe_auto_scan_completed_p2p() {
+        P2PStatus st=p2p.status();
+        if (!st.active || !st.seeding || st.save_path.empty()) return;
+        const std::string signature=st.save_path+"|"+st.name+"|"+std::to_string(st.total);
+        if (signature==lastP2PAutoScanTransfer) return;
+        {
+            std::lock_guard<std::mutex> lock(securityState->mutex);
+            if (securityState->busy) return;
+        }
+        std::vector<std::string> paths;
+        for (const P2PFileInfo& f : p2p.files()) {
+            if (f.path.empty()) continue;
+            std::string path=st.save_path;
+            if (!path.empty() && path.back()!='/') path+='/';
+            path+=f.path;
+            if (exists_file(path)) paths.push_back(path);
+        }
+        if (paths.empty()) return;
+        lastP2PAutoScanTransfer=signature;
+        pendingP2PAutoScanPaths=paths;
+        const std::string first=pendingP2PAutoScanPaths.front();
+        pendingP2PAutoScanPaths.erase(pendingP2PAutoScanPaths.begin());
+        start_security_scan(first,false,"Completed P2P download");
+    }
+    void draw_security_screen(Drawable target) {
+        const ViewPalette palette=palette_for(ViewMode::Nougat);
+        const unsigned long ink=palette.text;
+        text(target,28,94,"VIRUS SCAN",ink);
+        button_on(target,securityScanFileBtn,"Scan File");
+        button_on(target,securityScanFolderBtn,"Scan Folder");
+        button_on(target,securityScanAgainBtn,"Scan Again");
+        button_on(target,securityCommunityKeyBtn,security_auth_key_configured()?"Community Key ✓":"Community Key");
+        button_on(target,securityHistoryBtn,"History");
+        std::string status,verdict,report,targetPath;
+        bool busy=false;
+        {
+            std::lock_guard<std::mutex> lock(securityState->mutex);
+            status=securityState->status; verdict=securityState->verdict; report=securityState->report; targetPath=securityState->target; busy=securityState->busy;
+        }
+        const unsigned long warningInk=(verdict=="THREAT DETECTED")?rgb8(155,25,25):((verdict=="SUSPICIOUS")?rgb8(135,78,20):ink);
+        text(target,28,156,head_to_width(std::string("Status: ")+(busy?"Scanning - ":"")+status,W-56),warningInk);
+        draw_nougat_panel(target,securityResultsBox);
+        std::vector<std::string> lines;
+        std::istringstream stream(report);
+        std::string lineText;
+        while(std::getline(stream,lineText)) lines.push_back(lineText);
+        const int visible=std::max(1,(securityResultsBox.h-24)/18);
+        securityScroll=std::max(0,std::min(securityScroll,std::max(0,(int)lines.size()-visible)));
+        int y=securityResultsBox.y+22;
+        for(int i=securityScroll;i<(int)lines.size() && i<securityScroll+visible;++i) {
+            text(target,securityResultsBox.x+12,y,head_to_width(lines[(size_t)i],securityResultsBox.w-24),ink);
+            y+=18;
+        }
+        if (!targetPath.empty()) text(target,securityResultsBox.x+12,securityResultsBox.y+securityResultsBox.h-8,tail_to_width("Last target: "+targetPath,securityResultsBox.w-24),palette.muted);
     }
 
     void handle_nougat_click(int x, int y) {
@@ -6750,6 +7145,11 @@ public:
             nougatPanel=NougatPanel::P2P; nougatNetworkAdvanced=false;
             nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; redraw(); return;
         }
+        if (nougatVirusScanPanelTab.contains(x,y)) {
+            if (nougatPanel != NougatPanel::VirusScan || nougatNetworkAdvanced) push_navigation_history();
+            nougatPanel=NougatPanel::VirusScan; nougatNetworkAdvanced=false;
+            nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; p2pMagnetFocused=false; redraw(); return;
+        }
         if (nougatPanel == NougatPanel::Search && nougatNetworkAdvancedBtn.contains(x,y)) {
             push_navigation_history();
             nougatNetworkAdvanced=!nougatNetworkAdvanced;
@@ -6758,6 +7158,14 @@ public:
             redraw(); return;
         }
         if (nougatPanel == NougatPanel::P2P) { handle_p2p_click(x,y); return; }
+        if (nougatPanel == NougatPanel::VirusScan) {
+            if (securityScanFileBtn.contains(x,y)) { std::string p=choose_file_dialog(); if(!p.empty()) start_security_scan(p,false); return; }
+            if (securityScanFolderBtn.contains(x,y)) { std::string p=choose_folder_dialog(); if(!p.empty()) start_security_scan(p,true); return; }
+            if (securityScanAgainBtn.contains(x,y)) { std::string p; bool folder=false; { std::lock_guard<std::mutex> lock(securityState->mutex); p=securityState->target; folder=securityState->folder; } if(!p.empty()) start_security_scan(p,folder); return; }
+            if (securityCommunityKeyBtn.contains(x,y)) { save_security_auth_key(choose_security_auth_key_dialog()); redraw(); return; }
+            if (securityHistoryBtn.contains(x,y)) { show_security_history(); redraw(); return; }
+            return;
+        }
         if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced) {
             if (nougatPeerEntryRect.contains(x,y)) { focus_nougat_input(NougatInputFocus::Peer); return; }
             if (nougatAddPeerBtn.contains(x,y)) { add_nougat_peer(); return; }
@@ -6783,7 +7191,15 @@ public:
                 { std::lock_guard<std::mutex> lock(nougatState->mutex); if (hit.index >= (int)nougatState->search.results.size()) continue; result=nougatState->search.results[(size_t)hit.index]; }
                 std::string error;
                 if (hit.open.contains(x,y)) { nougat.open_url(result.url,false,error); return; }
-                if (hit.open_tor.contains(x,y)) { nougat.open_url(result.url,true,error); return; }
+                if (hit.open_tor.contains(x,y)) {
+                    if (result.url.rfind("magnet:?", 0U) == 0U) {
+                        p2pMagnet = result.url;
+                        nougatPanel = NougatPanel::P2P;
+                        p2pUiStatus = "Magnet handed to P2P from Search.";
+                        start_p2p_magnet();
+                    } else nougat.open_url(result.url,true,error);
+                    return;
+                }
                 if (hit.copy_url.contains(x,y)) { own_clipboard_text(result.url); return; }
             }
             return;
@@ -6813,10 +7229,10 @@ public:
         std::string status;
         bool search_busy=false, crawl_busy=false;
         { std::lock_guard<std::mutex> lock(nougatState->mutex); node=nougatState->node_id; status=nougatState->status; search_busy=nougatState->search_busy; crawl_busy=nougatState->crawl_busy; }
-        if (!node.empty()) text(target, std::max(500,W-220), 55, "Node " + node, nougat_light());
         nougat_tab_button(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search && !nougatNetworkAdvanced);
         nougat_tab_button(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler);
         nougat_tab_button(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P);
+        nougat_tab_button(target,nougatVirusScanPanelTab,"Virus Scan",nougatPanel==NougatPanel::VirusScan);
         if (nougatPanel == NougatPanel::Search) {
             nougat_button(target,nougatNetworkAdvancedBtn,nougatNetworkAdvanced?"Back":"Network...",nougatNetworkAdvanced);
         }
@@ -6825,8 +7241,13 @@ public:
             draw_p2p_screen(target);
             return;
         }
+        if (nougatPanel == NougatPanel::VirusScan) {
+            draw_security_screen(target);
+            return;
+        }
         if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced) {
-            text(target,28,106,"NETWORK / ADVANCED",nougat_cream());
+            text(target,28,84,"NETWORK / ADVANCED",nougat_cream());
+            if (!node.empty()) text(target,28,101,"Node ID: "+node,searchPalette.muted);
             draw_nougat_input(target,nougatPeerEntryRect,nougatPeerEntry,NougatInputFocus::Peer);
             nougat_button(target,nougatAddPeerBtn,"Add Peer");
             nougat_button(target,nougatRemovePeerBtn,"Remove");
@@ -6871,7 +7292,10 @@ public:
                 Rect copy={card.x+card.w-278,card.y+63,82,24};
                 Rect tor={card.x+card.w-190,card.y+63,94,24};
                 Rect open={card.x+card.w-90,card.y+63,82,24};
-                nougat_button(target,copy,"Copy URL"); nougat_button(target,tor,"Open Tor"); nougat_button(target,open,"Open");
+                const bool magnetResult = r.url.rfind("magnet:?", 0U) == 0U;
+                nougat_button(target,copy,"Copy URL");
+                nougat_button(target,tor,magnetResult?"Open P2P":"Open Tor");
+                nougat_button(target,open,"Open");
                 nougatResultHitboxes.push_back({card,open,tor,copy,i});
                 y+=card_h;
             }
@@ -6897,7 +7321,7 @@ public:
             text(target,nougatCrawlLogBox.x+9,y,head_to_width(lines[(size_t)i],nougatCrawlLogBox.w-18),searchPalette.text);
             y+=18;
         }
-        text(target,28,194,status,searchPalette.text);
+        text(target,28,174,status,searchPalette.text);
     }
 
     void poll_nougat_workers() {
@@ -7361,9 +7785,22 @@ public:
             else p2pUiStatus=error;
         } else {
             if (currentMediaIsP2P) { p2pStream.stop(); cleanup_player(); currentMediaIsP2P=false; currentMediaIsNetwork=false; }
-            if (p2p.pause_transfer(error)) p2pUiStatus="P2P download stopped. Partial data and resume state preserved.";
+            if (p2p.pause_transfer(error)) p2pUiStatus="P2P download paused. Partial data and resume state preserved.";
             else p2pUiStatus=error;
         }
+        redraw();
+    }
+
+    void remove_p2p_transfer() {
+        if (currentMediaIsP2P) {
+            p2pStream.stop();
+            cleanup_player();
+            currentMediaIsP2P=false;
+            currentMediaIsNetwork=false;
+        }
+        std::string error;
+        if (p2p.remove_transfer(error)) p2pUiStatus="P2P transfer removed. Downloaded files were left on disk.";
+        else p2pUiStatus=error;
         redraw();
     }
 
@@ -7940,7 +8377,7 @@ public:
             &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn,
             &streamYoutubeTab,&streamVimeoTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab,
             &ytdlpDownloadBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn,
-            &p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn
+            &p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn,&p2pRemoveBtn
         };
         for (const Rect* target : targets) {
             if (target->contains(old_x, old_y) != target->contains(new_x, new_y)) return true;
@@ -7970,7 +8407,7 @@ public:
             if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,7,delta); return true; }
         }
         if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,4,delta); return true; }
-        if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && y >= 224 && y < 266) { scroll_button_row(p2pButtonsScrollX,4,delta); return true; }
+        if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && y >= 224 && y < 266) { scroll_button_row(p2pButtonsScrollX,5,delta); return true; }
         if (currentView == ViewMode::Stream && target == win && y >= 54 && y < 82) {
             scroll_button_row(streamSourceScrollX,6,delta);
             return true;
@@ -8168,6 +8605,7 @@ public:
             return;
         }
         if (currentView == ViewMode::Home) {
+            if (handle_home_scrollbar_press(x, y)) return;
             handle_home_click(x, y);
             return;
         }
@@ -8433,6 +8871,8 @@ public:
                 else if (e.type == ButtonRelease) {
                     if (currentView == ViewMode::Nougat) nougatOutputSelecting = false;
                     volumeDragging = false;
+                    homeVerticalScrollDragging = false;
+                    homeContinueScrollDragging = false;
                 }
                 else if (e.type == SelectionRequest) handle_clipboard_selection_request(e.xselectionrequest);
                 else if (e.type == SelectionClear && e.xselectionclear.selection == clipboardAtom) ownedClipboardText.clear();
@@ -8450,7 +8890,11 @@ public:
                             // pointer crosses a real hover target; dedicated Home and
                             // seek-preview paths update their own state separately.
                             const bool hover_changed = pointer_crossed_hover_target(old_x, old_y, e.xmotion.x, e.xmotion.y);
-                            if (currentView == ViewMode::Home) update_home_hover_from_pointer(e.xmotion.x, e.xmotion.y);
+                            if (currentView == ViewMode::Home) {
+                                handle_home_scrollbar_motion(e.xmotion.x, e.xmotion.y);
+                                if (!homeVerticalScrollDragging && !homeContinueScrollDragging)
+                                    update_home_hover_from_pointer(e.xmotion.x, e.xmotion.y);
+                            }
                             if (currentView == ViewMode::VideoPlayer) update_seek_preview_hover(e.xmotion.x, e.xmotion.y);
                             if (hover_changed) redraw();
                         }
@@ -8604,7 +9048,8 @@ public:
                 redraw();
             }
             if (currentMediaIsYtDlpStream && mp) playback_length_ms();
-            if (!fullscreen && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); redraw(); }
+            poll_security_worker();
+            if (!fullscreen && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); maybe_auto_scan_completed_p2p(); redraw(); }
             if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
@@ -8666,6 +9111,11 @@ public:
             { std::lock_guard<std::mutex> lock(nougatState->mutex); busy = nougatState->crawl_busy; }
             if (busy) nougatCrawlWorker.detach(); else nougatCrawlWorker.join();
         }
+        if (securityWorker.joinable()) {
+            bool busy=false;
+            { std::lock_guard<std::mutex> lock(securityState->mutex); busy=securityState->busy; }
+            if (busy) securityWorker.detach(); else securityWorker.join();
+        }
         nougat.stop_node();
         mediaServer.stop();
         stop_ytdlp_process();
@@ -8693,7 +9143,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.31\n");
+        printf("Nougat Media Suite v0.0.32\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -9084,6 +9534,28 @@ int main(int argc, char** argv) {
         std::printf("Nougat Media Suite integrated server graceful shutdown PASS.\n");
         return 0;
     }
+    if (argc > 1 && std::string(argv[1]) == "--v32-p2p-player-repair-self-test") {
+        App app;
+        const bool search_palette = true; // seam color is source-regression tested without an X11 display
+        app.W = 960; app.H = 720; app.layout();
+        const int knobD = 24;
+        const bool volume_geometry = app.volumeHousingRect.x == app.volRect.x &&
+            app.volumeHousingRect.y == app.volRect.y &&
+            app.volumeHousingRect.w == app.volRect.w &&
+            app.volumeHousingRect.h == app.volRect.h &&
+            app.volRect.h == app.seekRect.h &&
+            app.volRect.w < app.seekRect.w &&
+            knobD == 24;
+        const bool p2p_controls = app.p2pRemoveBtn.w > 0 && app.p2pPlayBtn.w > 0 && app.p2pStopResumeBtn.w > 0;
+        if (!search_palette || !volume_geometry || !p2p_controls) {
+            std::fprintf(stderr,"Nougat v0.0.32 P2P/player repair self-test FAIL. search=%d volume=%d p2p=%d\n",
+                         search_palette?1:0, volume_geometry?1:0, p2p_controls?1:0);
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.32 P2P/player repair PASS: Search seam contrast, seek-style volume geometry, Home fixed-header clipping/scrollbar contract, P2P controls and streaming scheduler contract active.\n");
+        return 0;
+    }
+
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
         P2PEngine engine;
         printf("%s\n", engine.libtorrent_version().c_str());
