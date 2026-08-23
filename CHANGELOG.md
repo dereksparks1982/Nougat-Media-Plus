@@ -1,3 +1,17 @@
+# Nougat Media Suite v0.0.35 - Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
+
+- Stabilization-first cleanup release on the accepted v0.0.34 line.
+- Fix App-owned Nougat Search/Crawler shutdown lifetime by joining workers instead of detaching them across owner destruction.
+- Replace the false-positive v0.0.34 seek/volume assumptions with stronger v0.0.35 checks; Volume now uses a packaged sheet-pixel-derived 335x47 sprite family whose 100% frame is the canonical approved VOLUME component.
+- Search outer page frame is square; rounded treatment remains on inner controls/panels.
+- Standardize top inner control placement app-wide using Stream's accepted baseline, including Search, Debug, Live TV, Discover, and Library.
+- Recenter the Video Player's full 8-button transport row as one group at normal/full widths after the larger-tab layout change; the same row and Debug's 10-button action strip scroll completely to their final actions at narrow widths. Library no longer wraps its header controls: tools remain one scrollable row and List/Grid stay fixed at the far right.
+- Live TV removes the hardware-description subtitle and gains a native Linux DVB ATSC 1.0 RF 2-36 scan with frontend lock/signal evidence, PSIP VCT channel discovery, progress reporting, cancellation, and persisted channels.
+- Adds Studio between Stream and Debug with a dedicated yellow/gold palette with brown stitched borders and an internal Gold Studio identity.
+- Enlarges the selected top-tab pointer to match the taller/wider tab bodies and paints it after page content/loading chrome so it remains visible.
+- Repairs partial player repaints so undefined pixmap pixels cannot produce the black horizontal band near the seek/volume area; preserve the owner-confirmed no-flash Up Next behavior.
+- Expands the roadmap for the Nougat Media Processing Engine, conversion/audio tools, Quick Edit, Batch, and eventual full timeline Studio.
+
 # v0.0.34 candidate - Exact Sheet Tabs/Player Controls + Home/Discover UI Repair
 
 - Rebuilt the global top navigation from the approved concept-sheet TAB BUTTONS geometry/material treatment.

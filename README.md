@@ -1,6 +1,22 @@
-# Nougat Media Suite v0.0.34
+# Nougat Media Suite v0.0.35
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+## v0.0.35 - Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
+
+v0.0.35 is the stabilization/cleanup release after accepted v0.0.34. It repairs confirmed code and UI defects, strengthens validation that previously allowed false-positive sheet-fidelity PASS results, advances Live TV into a real owner-testable ATSC channel scan, and establishes the new Studio workspace in the top navigation without displacing the cleanup mission.
+
+### v0.0.35 changes
+- Repair Nougat Search/Crawler worker lifetime handling so App-owned workers are joined during shutdown instead of being detached across App destruction.
+- Repair the player against the approved sheet itself: the seek track keeps timestamps beneath its ends, while Volume now renders from a sheet-pixel-derived 335x47 VOLUME sprite family with the exact cream housing, speaker artwork, caramel/cream track, circular knob treatment, and percentage outside the housing.
+- Make Search use the same sharp outer page-frame corners as the other top-level pages while retaining rounded inner controls and panels.
+- Use Stream's existing top-inner-control row as the app-wide vertical reference. Search, Debug, Live TV, Discover, and Library now share that baseline; future Studio controls inherit the same ruler.
+- Fix narrow-window control reach and post-tab-resize centering: the Video Player's complete 8-button transport row is centered as one group at normal/full widths and scrolls fully to the final action when narrow; Debug's 10-action strip also reaches its final action. Library's header tools stay in one horizontal scrollable row instead of wrapping, while List/Grid remain fixed together at the far right.
+- Remove the Live TV hardware-description subtitle and advance the Linux DVB backend from detection into a native ATSC 1.0 over-the-air scan across RF channels 2-36, with lock/signal/quality progress, PSIP VCT service discovery, channel persistence, and honest failure/cancel status.
+- Add the top-level Studio tab between Stream and Debug with a true yellow/gold palette with brown stitched borders; the page is branded Gold Studio internally. v0.0.35 provides the page/navigation foundation; the media-processing toolset remains roadmap work.
+- Scale the selected top-tab downward pointer to match the enlarged tab bodies and repaint it as final chrome so page backgrounds/loading strips cannot erase it.
+- Initialize the complete seek/volume partial-repaint strips before copying them onscreen, preventing the black horizontal band that could appear during player pointer/seek refreshes while preserving the now-stable Up Next overlay behavior.
+- Preserve v0.0.34 server persistence, security runtime, P2P, Discover, Library, Stream, licensing, and user-data behavior outside the cleanup scope.
 
 ## v0.0.34 - Exact Sheet Tabs/Player Controls + Home/Discover UI Repair
 

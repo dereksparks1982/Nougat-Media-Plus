@@ -1,12 +1,41 @@
-## v0.0.34 candidate — Exact Sheet Tabs/Player Controls + Home/Discover UI Repair
+## v0.0.34 accepted — Exact Sheet Tabs/Player Controls + Home/Discover UI Repair
 - Exact concept-sheet top tabs, seek bar, and volume component.
 - Left-shifted scrollable nav lane with right Server/version side frozen.
 - Fixed Home card templates and direct scrollbar dragging.
 - Live TV header overlap repair.
 - Discover Live TV source and TMDb naming.
 - Affected page-frame corner repair; Search and Video Player frame behavior preserved.
+- Known v0.0.34 issues carried into v0.0.35: seek/volume sheet-fidelity mismatch and validation that could pass the invented geometry instead of proving the approved component.
 
 # Nougat Media Suite Roadmap
+
+## v0.0.35 candidate — Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
+- Make v0.0.35 a stabilization-first release: repair confirmed bugs from the project-wide code review, reduce brittle/duplicated code where it directly raises regression risk, harden ownership/lifetime/process cleanup, and preserve accepted v0.0.34 behavior outside the approved repair scope.
+- Replace false-positive source-token/constant checks with stronger behavioral validation where practical, including the approved concept-sheet seek/volume controls.
+- Repair the Video Player seek bar and housed volume control against the approved component sheet's actual geometry and visual hierarchy rather than an approximation.
+- Keep top-level page/background frames square while retaining rounded inner controls/panels; specifically remove the rounded outer Search page frame.
+- Use Stream's current top-inner-control vertical position as the alignment reference. Move Search, Debug, and Live TV top-inner control rows to that same baseline without moving the global top navigation.
+- Re-align the full app around the enlarged global tab/header geometry: extend the same Stream-derived baseline to Discover and Library, keep Library tools in one scrollable row with List/Grid at far right, recenter the full-width Video Player transport group, and preserve full horizontal reach in narrow layouts.
+- On Live TV, keep the LIVE TV heading, remove the hardware-description subtitle, and align the action-button row to the Stream baseline.
+- Advance the Linux DVB Live TV foundation from detection into a real owner-testable channel scan: enumerate the detected frontend, scan appropriate broadcast frequencies, expose tuning/lock/signal/progress evidence, discover services/channels, populate the channel list, and persist discovered channels for later Watch Live use. Fail honestly when lock/scanning is unavailable.
+- Add a new top-level Studio tab between Stream and Debug. Give Studio a true yellow/gold palette with brown stitched borders; the page is branded Gold Studio internally. v0.0.35 establishes the navigation/page foundation only; the major media-processing/editor toolset remains roadmap work so stabilization is not displaced.
+
+## v0.0.36 planned — Library Collection Hierarchy
+- Collapse recognized movie collections/franchises into a single top-level Library card by default. If a collection such as the 28 franchise has individual member movies plus a collection object, the main Movies grid shows only the collection card rather than duplicating the collection and every member film side by side.
+- Clicking a collection opens a dedicated collection-detail view containing the individual member movies in their collection order. Clicking a member movie then opens/plays that specific title through the normal Nougat movie path.
+- Standalone movies remain ordinary top-level Library items. Collection collapsing is hierarchy/navigation behavior, not merely visual grouping, and must preserve correct artwork, metadata, resume state, and source navigation for each member.
+
+## Studio / Nougat Media Processing Engine — post-v0.0.35
+- Build one reusable native media-processing engine around FFmpeg/libav rather than reinventing codecs. Share it across Convert, Audio Lab, Quick Edit, Batch, and the eventual timeline editor.
+- Core engine: persistent job queue, progress/ETA/cancel, logs, recoverable jobs, safe temporary/output handling, presets, advanced codec/container controls, and hardware acceleration where available. Prefer lossless remuxing when streams already fit the destination container.
+- Video conversion: MP4, MKV, WebM, MOV, AVI and other supported containers/codecs; resolution/FPS/bitrate/quality conversion; target-file-size compression; crop, resize, rotate, flip, trim, split, join/merge, still-frame extraction, thumbnails/contact sheets, GIF/WebP creation.
+- Subtitle/chapter/metadata tools: extract, convert, embed, remove, burn-in, chapter editing, metadata/tag editing, and artwork handling.
+- Audio Lab: MP3, FLAC, AAC, Opus, WAV, M4A, OGG and supported formats; extract audio from video; trim/join; split by timestamp, chapter, silence, or equal pieces; fade; sample-rate/bit-depth/bitrate conversion; loudness analysis/normalization; stereo/mono conversion; channel splitting/recombination; tags and album art.
+- Quick Edit: mark in/out, trim, crop, rotate, resize, join, replace/extract audio, subtitles, and fast export without opening the full timeline.
+- Batch: run reusable recipes across large file sets with naming templates, output rules, retry/skip behavior, collision handling, and queue persistence.
+- Full Studio timeline: project files, autosave/recovery, undo/redo, non-destructive editing, multiple video/audio tracks, razor/cut, ripple editing, trim/move/slip, snapping, markers, timeline zoom, transitions, fades, titles/text, overlays, picture-in-picture, opacity/compositing, speed changes, keyframes, filters/effects, color controls/scopes, audio mixer/waveforms/gain/pan/mute/solo, proxy media, render cache, source/program preview, and serious export controls.
+- Suite integration: Library → Convert/Quick Edit/Studio; Video Player → edit current media or create clip; legitimately obtained Stream downloads → processing; Live TV/DVR recordings → Studio; completed Studio exports → optional automatic Library import.
+- Media import: investigate lawful DVD/Blu-ray media extraction/import paths without bypassing DRM or access controls.
 
 ## v0.0.26 candidate — Systems, navigation, diagnostics, and TV end-of-episode UX
 - Mouse side Button 8/9 navigate Back/Forward through Nougat internal history.
@@ -265,6 +294,74 @@ Additional Stream services, Web Player, Plex integration, and other feature expa
 - Show a small red tree immediately beside the top-right `v0.0.14` label.
 - Preserve accepted v0.0.13 YouTube, P2P, subtitles, local playback, and seek behavior outside the pause-lifecycle repair.
 - Owner validation target: local episode -> play -> pause 1 minute -> resume -> pause at least 5 minutes -> resume -> pause and close -> reopen/resume -> repeated pause/resume cycles.
+
+## Studio / Media Processing
+
+Build Nougat into a complete native media workshop, not only a player/library. The Studio family should be powered by one reusable **Nougat Media Processing Engine** around FFmpeg/libav and related proven native libraries rather than reimplementing codecs.
+
+Core processing engine:
+
+- Shared job model for convert, remux, edit, audio, batch, and final Studio renders.
+- Queueing, pause/cancel where technically safe, progress/ETA, logs, failure recovery, output-conflict handling, and persistent job history.
+- Hardware-acceleration discovery/use where supported, with honest software fallback.
+- Safe temporary-file handling, crash-safe output writes, overwrite protection, and explicit source/output paths.
+- Reusable export presets plus an Advanced mode exposing codec/container/bitrate/resolution/frame-rate/audio/subtitle controls.
+- Fast lossless remux/copy paths when re-encoding is unnecessary.
+
+Video and container tools:
+
+- Convert/transcode among common containers and formats including MP4, MKV, WebM, MOV, AVI, and other formats supported by the bundled media stack.
+- Remux between compatible containers without re-encoding.
+- Trim/cut, split, join/merge, crop, resize, rotate, and flip.
+- Frame-rate, resolution, codec, bitrate, quality, and target-file-size conversion.
+- Extract clips and still frames; create thumbnails/contact sheets.
+- Create GIF/WebP animations from video clips.
+- Subtitle extraction, conversion, embedding, removal, language/default-track selection, and burn-in rendering.
+- Chapter viewing/editing/import/export.
+- Media metadata/tag viewing and editing.
+- Legally accessible DVD/Blu-ray media extraction/import where the source can be read through supported lawful paths.
+
+Audio Lab:
+
+- Convert among MP3, FLAC, AAC, Opus, WAV, M4A, OGG, and other supported audio formats.
+- Extract audio from video without unnecessary video processing.
+- Split audio by timestamps, chapters, detected silence, cue information, or equal-length pieces.
+- Join/merge audio, trim clips, fade in/out, and change sample rate/bit depth/bitrate where supported.
+- Loudness analysis and normalization.
+- Stereo/mono conversion plus left/right or multichannel stem/channel splitting and recombination.
+- Metadata/tag editing and album-art handling where the format supports it.
+
+Quick Edit:
+
+- A fast non-timeline workspace for the common jobs: mark in/out, trim, crop, rotate, resize, join, audio replacement/extraction, subtitle work, and export.
+- Allow direct handoff from Video Player, Library, Stream acquisitions, and Live TV recordings into Quick Edit without manually re-browsing for the source file.
+
+Batch:
+
+- Drop many files into a queue and apply one conversion/edit recipe to all of them.
+- Per-item status, retry/skip, output naming templates, destination rules, and collision handling.
+- Save reusable batch recipes/presets.
+
+Full Studio timeline editor:
+
+- Native project files with autosave/recovery, undo/redo, and non-destructive editing.
+- Multiple video and audio tracks.
+- Razor/cut, ripple-style editing, clip move/trim/slip behavior, snapping, markers, and timeline zoom.
+- Transitions, fades, titles/text, overlays, picture-in-picture, opacity/compositing, and speed changes.
+- Keyframes for transform/effect/audio parameters.
+- Video filters/effects and basic color controls, with room for scopes/color work as the editor matures.
+- Audio mixing, gain/pan, fades, waveform display, mute/solo, normalization, and track-level effects where supported.
+- Proxy media, render/cache strategy, and responsive preview for difficult source media.
+- Fullscreen/program preview plus source preview.
+- Export presets and advanced render settings using the shared media-processing engine.
+
+Suite integration:
+
+- Library item -> Convert / Quick Edit / Open in Studio.
+- Video Player -> edit the current file or create a clip from the current position.
+- Stream -> send a legitimately obtained local media file into Studio/Convert.
+- Live TV/DVR -> edit or convert recordings directly.
+- Studio/Convert output -> optionally add or refresh the result in Library.
 
 ## Archive
 

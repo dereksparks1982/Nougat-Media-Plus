@@ -1,0 +1,180 @@
+{
+  "target_version": "0.0.35",
+  "accepted_base_commit": "64eade89e7b9b88f1696bef18e580e22bace978f",
+  "title": "Code + Bug Cleanup, App-Wide Layout Repair, Exact Sheet Volume, Live TV Scan, Gold Studio Foundation, and Rollback Recovery Fix",
+  "payload": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 354,
+      "sha256": "dddb3f7a0b6a898887b2f6802aab8b91f014fef70775039efdb116aa2257c07b"
+    },
+    "CHANGELOG.md": {
+      "bytes": 54155,
+      "sha256": "b88b873068a5e9b0d447edb27af962c41349d3febc369778a0c3382c048f222a"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2930,
+      "sha256": "8364df70b899f595067112acaa63146f6ffc487a1ed463e8f00b73b98d895efb"
+    },
+    "DEPENDENCIES.md": {
+      "bytes": 12035,
+      "sha256": "4ea16698de24fd3684956d2998e876903c0fcd23bb504f07e38918ce07dd19a6"
+    },
+    "README.md": {
+      "bytes": 60144,
+      "sha256": "b394a1225563907a8f271af27b500b32e9669adc17efa066ef5e840d18490316"
+    },
+    "ROADMAP.md": {
+      "bytes": 47977,
+      "sha256": "55b9caa282520a711a6b9bf92cde758cac135d8604f60b796f0d7a194dd6eb9f"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 472,
+      "sha256": "ca77df9daac54c1fd0849fc03031bb8647bd35e63b64146cf96949f0b928fef6"
+    },
+    "NougatMediaSuite_v35.desktop": {
+      "bytes": 472,
+      "sha256": "ca77df9daac54c1fd0849fc03031bb8647bd35e63b64146cf96949f0b928fef6"
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 472,
+      "sha256": "ca77df9daac54c1fd0849fc03031bb8647bd35e63b64146cf96949f0b928fef6"
+    },
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_35.sh": {
+      "bytes": 23064,
+      "sha256": "efdd40868257ee1ee3cb1e1ac7acc1d1c03f1f357e497e1d68245dffff89e20a"
+    },
+    "src/main.cpp": {
+      "bytes": 538939,
+      "sha256": "9aed73e87623a4d807fb2b586e1d69c7c7d28f329e68d0987b12cd7e4149a932"
+    },
+    "src/live_tv/tuner_backend.cpp": {
+      "bytes": 18100,
+      "sha256": "7ddcb4cea5606ef896e29858b502c814de4e6e536cab53298b7d8ba166e0f3b4"
+    },
+    "src/live_tv/tuner_backend.hpp": {
+      "bytes": 1717,
+      "sha256": "2442df80b51c4f14e7d50c1f3034bf46385dca8217c3cd4735d10a2ccbb3ef06"
+    },
+    "tools/test_nougat_media_suite_v35.py": {
+      "bytes": 7303,
+      "sha256": "bdc008b6bd2203105c03bfe941a60f689b571465218e501fd4c178d15bbd7c1a"
+    },
+    "tools/test_installer_rollback_v35.py": {
+      "bytes": 1525,
+      "sha256": "1b89eeb8c5459c32fa1d0ab111d8abc79cb44d6f61a187531bf01ac5323b73a3"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_35_CODE_BUG_CLEANUP_VALIDATION.md": {
+      "bytes": 6162,
+      "sha256": "cd5d3797be68dbc39be87725abe761a97a358787944c2b53621165ccf7d65acf"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_35_OWNER_HANDSHAKE.md": {
+      "bytes": 1740,
+      "sha256": "5d40485ab3205bb6249873c7c9e052d6949299a5e39f0aac560d91fd89f2dbdd"
+    },
+    "assets/ui/nougat_volume_sheet_frames.bin": {
+      "bytes": 9494259,
+      "sha256": "38197798a97e9ecadf3934daca692446bea586b36e2038c533aa5c92f51077e2"
+    }
+  },
+  "pre_repair_candidate": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 318,
+      "sha256": "c7391d86c073ef5b70ded02358cbf7a895ee2a1b86c78cc064f526b8b5bf010a"
+    },
+    "CHANGELOG.md": {
+      "bytes": 53392,
+      "sha256": "41598eb8b7deeee03a11b4afb5f56b04d3d8fa434294833fae8ea951965289ce"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2930,
+      "sha256": "8364df70b899f595067112acaa63146f6ffc487a1ed463e8f00b73b98d895efb"
+    },
+    "DEPENDENCIES.md": {
+      "bytes": 12035,
+      "sha256": "4ea16698de24fd3684956d2998e876903c0fcd23bb504f07e38918ce07dd19a6"
+    },
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_35.sh": {
+      "bytes": 15489,
+      "sha256": "5016a7264f1b9bea90a17f2f5a04cbf92242b9bbf233cc939361278a4950b0f6"
+    },
+    "NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v35.json": {
+      "bytes": 3287,
+      "sha256": "22418e2f1fa3453f1c3febb45abe532ffba379700c8761f2d2d55704436be390"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 472,
+      "sha256": "ca77df9daac54c1fd0849fc03031bb8647bd35e63b64146cf96949f0b928fef6"
+    },
+    "NougatMediaSuite_v35.desktop": {
+      "bytes": 472,
+      "sha256": "ca77df9daac54c1fd0849fc03031bb8647bd35e63b64146cf96949f0b928fef6"
+    },
+    "README.md": {
+      "bytes": 59288,
+      "sha256": "3c5f8571dd5e14de16384b36569f50cc5ad59d442625dca59f8c72acca27d2bd"
+    },
+    "ROADMAP.md": {
+      "bytes": 46754,
+      "sha256": "fa3b1467d8a602c68f4601ddd9da2df75bca3705605ef1218a1d6fcec03fd4da"
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 472,
+      "sha256": "ca77df9daac54c1fd0849fc03031bb8647bd35e63b64146cf96949f0b928fef6"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_35_CODE_BUG_CLEANUP_VALIDATION.md": {
+      "bytes": 3628,
+      "sha256": "58d70b64d2e802422d0a44c7130f9319c80ae425425574238e6594d2f16d7190"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_35_OWNER_HANDSHAKE.md": {
+      "bytes": 733,
+      "sha256": "4631378e33dbf4338c93a33a639ca504bf05ddcb7e4cee03649bc5771820500b"
+    },
+    "src/live_tv/tuner_backend.cpp": {
+      "bytes": 18100,
+      "sha256": "7ddcb4cea5606ef896e29858b502c814de4e6e536cab53298b7d8ba166e0f3b4"
+    },
+    "src/live_tv/tuner_backend.hpp": {
+      "bytes": 1717,
+      "sha256": "2442df80b51c4f14e7d50c1f3034bf46385dca8217c3cd4735d10a2ccbb3ef06"
+    },
+    "src/main.cpp": {
+      "bytes": 528687,
+      "sha256": "d7a0d0279911700440e2c724cab2ace4932be6f896aaef141e22b71c72813d1e"
+    },
+    "tools/test_installer_rollback_v35.py": {
+      "bytes": 1158,
+      "sha256": "ac4f74c366b485c004bf99a9047f633b46aa663b8d2e2bc79c8f67df7ed2972b"
+    },
+    "tools/test_nougat_media_suite_v35.py": {
+      "bytes": 4150,
+      "sha256": "b552949c7cb66e62143a9b72c797fbac8941406080d91cdaabda7f53cf6c7d20"
+    }
+  },
+  "remove_after_success": [
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_34.sh",
+    "NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v34.json",
+    "NougatMediaSuite_v34.desktop",
+    "Nougat_Media_Suite_v34"
+  ],
+  "preserve_generated_runtime_prefixes": [
+    "components/ai/runtime/",
+    "components/jellyfin/runtime/",
+    "components/security/runtime/"
+  ],
+  "known_owner_validation": [
+    "real ATSC antenna/channel reception",
+    "approved-sheet VOLUME visual fidelity on the owner desktop",
+    "no black player repaint band during pointer/seek refresh",
+    "half-screen Video Player, Debug, and Library full horizontal control reach",
+    "app-wide top-inner-control alignment after enlarged global tabs",
+    "enlarged selected-tab pointer scale and centering",
+    "Gold Studio yellow/gold page identity with brown stitched borders",
+    "Up Next remains free of the previously fixed flashing regression"
+  ],
+  "recovery_assets": {
+    "recovery/pre_repair_candidate_manifest_v35.json": {
+      "bytes": 3287,
+      "sha256": "22418e2f1fa3453f1c3febb45abe532ffba379700c8761f2d2d55704436be390"
+    }
+  }
+}
