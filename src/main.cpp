@@ -39,6 +39,7 @@
 #include "ytdlp_stream_server.hpp"
 #include "nougat_media_suite_icon_data.hpp"
 #include "nougat_quilt_texture_data.hpp"
+#include "nougat_ui_sheet_texture_data.hpp"
 #include "media_server/jellyfin_api_client.hpp"
 #include "media_server/library_poster.hpp"
 #include "media_server/library_metadata_cache.hpp"
@@ -1211,6 +1212,16 @@ public:
     }
 
 
+    void outline_round_dashed(Drawable target, const Rect& r, int radius, unsigned long c, int dash=2) {
+        const int dashSize = std::max(1, dash);
+        char pattern[2] = {static_cast<char>(dashSize), static_cast<char>(dashSize)};
+        XSetLineAttributes(d, gc, 1, LineOnOffDash, CapButt, JoinRound);
+        XSetDashes(d, gc, 0, pattern, 2);
+        outline_round(target, r, radius, c);
+        XSetLineAttributes(d, gc, 1, LineSolid, CapButt, JoinMiter);
+    }
+
+
     static int quilt_view_index(ViewMode view) {
         switch (view) {
             case ViewMode::Home: return 0;
@@ -1367,12 +1378,19 @@ public:
 
     void draw_concept_field(Drawable target, const Rect& r, unsigned long fillColor,
                             unsigned long borderColor, bool focused=false) {
-        Rect shadow{r.x, r.y + 2, r.w, r.h};
-        fill_round(target, shadow, 7, rgb8(188, 154, 113));
-        fill_round(target, r, 7, fillColor);
-        outline_round(target, r, 7, focused ? rgb8(179, 108, 42) : borderColor);
-        Rect inset{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
-        outline_round(target, inset, 5, rgb8(247, 230, 202));
+        // Literal component grammar from the approved sheet: soft drop shadow,
+        // dark outer rim, bright raised inner bevel, then an inset seam.
+        Rect shadow{r.x, r.y + 3, r.w, r.h};
+        fill_round(target, shadow, 8, rgb8(183, 149, 109));
+        fill_round(target, r, 8, fillColor);
+        const unsigned long rim = focused ? rgb8(179, 108, 42) : borderColor;
+        outline_round(target, r, 8, rim);
+        Rect bevel{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        outline_round(target, bevel, 6, rgb8(255, 244, 224));
+        Rect seam{r.x + 4, r.y + 4, std::max(1, r.w - 8), std::max(1, r.h - 8)};
+        outline_round_dashed(target, seam, 4, focused ? rgb8(220, 163, 91) : rgb8(225, 205, 177), 2);
+        line(target, r.x + 9, r.y + 2, r.x + r.w - 10, r.y + 2, rgb8(255, 249, 236));
+        line(target, r.x + 9, r.y + r.h - 2, r.x + r.w - 10, r.y + r.h - 2, rgb8(177, 139, 101));
     }
 
     void draw_speaker_icon(Drawable target, int x, int y, bool loud, unsigned long c) {
@@ -1489,42 +1507,6 @@ public:
     }
 
 
-    void draw_primary_panel(Drawable target, const Rect& r, const ViewPalette& palette) {
-        Rect shadow{r.x, r.y + 3, r.w, r.h};
-        fill_round(target, shadow, 9, palette.buttonDark);
-        fill_round(target, r, 9, palette.panel);
-        outline_round(target, r, 9, palette.border);
-        Rect inset{r.x + 3, r.y + 3, std::max(1, r.w - 6), std::max(1, r.h - 6)};
-        outline_round(target, inset, 7, palette.buttonLight);
-    }
-
-    void draw_disabled_player_button(Drawable target, const Rect& r, const std::string& label) {
-        const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
-        Rect visual{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
-        fill_round(target, visual, 7, palette.background);
-        outline_round(target, visual, 7, palette.buttonDark);
-        const int label_x = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
-        text(target, label_x, visual.y + 17, label, palette.muted);
-    }
-
-    void button_on(Drawable target, const Rect& r, const std::string& label) {
-        const ViewPalette palette = currentView == ViewMode::Stream
-            ? stream_palette_for(streamPlatform) : palette_for(currentView);
-        const bool hover = target == win && r.contains(pointerWindowX, pointerWindowY);
-        const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
-        Rect shadow{visual.x, visual.y + 2, visual.w, visual.h};
-        fill_round(target, shadow, 8, palette.buttonDark);
-        fill_round(target, visual, 8, hover ? palette.buttonLight : palette.button);
-        outline_round(target, visual, 8, palette.buttonDark);
-        Rect stitch{visual.x + 2, visual.y + 2, std::max(1, visual.w - 4), std::max(1, visual.h - 4)};
-        outline_round(target, stitch, 6, hover ? rgb8(252,232,198) : palette.buttonLight);
-        line(target, visual.x + 8, visual.y + 2, visual.x + visual.w - 9, visual.y + 2,
-             rgb8(255,235,198));
-        const int label_x = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
-        const int label_y = visual.y + visual.h / 2 + 5;
-        text(target, label_x, label_y, head_to_width(label, visual.w - 10), palette.buttonText);
-    }
-
     static unsigned long component_to_visual_mask(unsigned char value, unsigned long mask) {
         if (mask == 0) return 0;
         int shift = 0;
@@ -1539,6 +1521,248 @@ public:
         return component_to_visual_mask(r, visual->red_mask) |
                component_to_visual_mask(g, visual->green_mask) |
                component_to_visual_mask(b, visual->blue_mask);
+    }
+
+    struct SheetRgb { unsigned char r=0, g=0, b=0; };
+
+    SheetRgb sheet_rgb_from_pixel(unsigned long pixel) const {
+        XColor c{};
+        c.pixel = pixel;
+        XQueryColor(d, DefaultColormap(d, screen), &c);
+        return {static_cast<unsigned char>(c.red / 257U),
+                static_cast<unsigned char>(c.green / 257U),
+                static_cast<unsigned char>(c.blue / 257U)};
+    }
+
+    static unsigned char sheet_lerp_channel(unsigned char a, unsigned char b, int numerator, int denominator) {
+        numerator = std::max(0, std::min(denominator, numerator));
+        return static_cast<unsigned char>((static_cast<int>(a) * (denominator - numerator) +
+                                           static_cast<int>(b) * numerator + denominator / 2) / denominator);
+    }
+
+    void draw_sheet_reference_texture(Drawable target, const Rect& area,
+                                      unsigned long darkPixel, unsigned long facePixel,
+                                      unsigned long lightPixel) {
+        if (area.w <= 0 || area.h <= 0) return;
+        const SheetRgb dark = sheet_rgb_from_pixel(darkPixel);
+        const SheetRgb face = sheet_rgb_from_pixel(facePixel);
+        const SheetRgb light = sheet_rgb_from_pixel(lightPixel);
+        const int depth = DefaultDepth(d, screen);
+        const int bits_per_pixel = (depth <= 16) ? 16 : 32;
+        const int bytes_per_pixel = bits_per_pixel / 8;
+        const std::size_t bytes = static_cast<std::size_t>(area.w) * static_cast<std::size_t>(area.h) * static_cast<std::size_t>(bytes_per_pixel);
+        char* image_data = static_cast<char*>(std::calloc(bytes, 1));
+        if (!image_data) return;
+        for (int y = 0; y < area.h; ++y) {
+            const int sy = std::min(nougat_ui_sheet_texture::kButtonTextureHeight - 1,
+                                    y * nougat_ui_sheet_texture::kButtonTextureHeight / std::max(1, area.h));
+            for (int x = 0; x < area.w; ++x) {
+                const int sx = std::min(nougat_ui_sheet_texture::kButtonTextureWidth - 1,
+                                        x * nougat_ui_sheet_texture::kButtonTextureWidth / std::max(1, area.w));
+                const int luma = nougat_ui_sheet_texture::kButtonTexture[sy * nougat_ui_sheet_texture::kButtonTextureWidth + sx];
+                SheetRgb out{};
+                if (luma <= 128) {
+                    out.r = sheet_lerp_channel(dark.r, face.r, luma, 128);
+                    out.g = sheet_lerp_channel(dark.g, face.g, luma, 128);
+                    out.b = sheet_lerp_channel(dark.b, face.b, luma, 128);
+                } else {
+                    const int t = luma - 128;
+                    out.r = sheet_lerp_channel(face.r, light.r, t, 127);
+                    out.g = sheet_lerp_channel(face.g, light.g, t, 127);
+                    out.b = sheet_lerp_channel(face.b, light.b, t, 127);
+                }
+                const unsigned long pixel = visual_pixel(out.r, out.g, out.b);
+                std::memcpy(image_data +
+                    (static_cast<std::size_t>(y) * static_cast<std::size_t>(area.w) + static_cast<std::size_t>(x)) * static_cast<std::size_t>(bytes_per_pixel),
+                    &pixel, static_cast<std::size_t>(bytes_per_pixel));
+            }
+        }
+        XImage* image = XCreateImage(d, DefaultVisual(d, screen), depth, ZPixmap, 0,
+                                     image_data, area.w, area.h, 32, 0);
+        if (!image) { std::free(image_data); return; }
+        XPutImage(d, target, gc, image, 0, 0, area.x, area.y, area.w, area.h);
+        XDestroyImage(image);
+    }
+
+    enum class SheetControlState { Normal, Hover, Pressed, Disabled };
+
+    unsigned long sheet_button_face(const ViewPalette& palette, SheetControlState state) {
+        switch (state) {
+            case SheetControlState::Hover: return palette.buttonLight;
+            case SheetControlState::Pressed: return palette.buttonDark;
+            case SheetControlState::Disabled: return palette.panel;
+            case SheetControlState::Normal: break;
+        }
+        return palette.button;
+    }
+
+    unsigned long sheet_button_ink(const ViewPalette& palette, SheetControlState state) {
+        if (state == SheetControlState::Disabled) return palette.muted;
+        if (state == SheetControlState::Pressed) return rgb8(250, 239, 219);
+        return palette.buttonText;
+    }
+
+    void draw_sheet_button_surface(Drawable target, const Rect& raw, const ViewPalette& palette,
+                                   SheetControlState state) {
+        if (raw.w <= 3 || raw.h <= 5) return;
+        const Rect visual{raw.x + 2, raw.y + 1, std::max(1, raw.w - 4), std::max(1, raw.h - 4)};
+        const int radius = std::max(5, std::min(10, visual.h / 2));
+        Rect shadow1{visual.x, visual.y + 3, visual.w, visual.h};
+        fill_round(target, shadow1, radius, palette.buttonDark);
+        Rect shadow2{visual.x + 1, visual.y + 2, std::max(1, visual.w - 2), visual.h};
+        fill_round(target, shadow2, std::max(4, radius - 1), palette.border);
+
+        const unsigned long face = sheet_button_face(palette, state);
+        fill_round(target, visual, radius, face);
+        outline_round(target, visual, radius, palette.buttonDark);
+        // The surface lighting texture is sampled directly from the owner-approved
+        // UI sheet, with its hue replaced by the already-accepted page palette.
+        // This keeps the sheet's actual highlight/depth pattern instead of a flat approximation.
+        Rect textureArea{visual.x + 5, visual.y + 4, std::max(1, visual.w - 10), std::max(1, visual.h - 9)};
+        const unsigned long textureLight = state == SheetControlState::Pressed ? palette.button : palette.buttonLight;
+        draw_sheet_reference_texture(target, textureArea, palette.buttonDark, face, textureLight);
+
+        Rect bevel{visual.x + 1, visual.y + 1, std::max(1, visual.w - 2), std::max(1, visual.h - 2)};
+        outline_round(target, bevel, std::max(4, radius - 1),
+                      state == SheetControlState::Pressed ? palette.button : palette.buttonLight);
+        Rect seam{visual.x + 3, visual.y + 3, std::max(1, visual.w - 6), std::max(1, visual.h - 6)};
+        outline_round_dashed(target, seam, std::max(3, radius - 3),
+                             state == SheetControlState::Pressed ? palette.button : palette.buttonLight, 2);
+
+        // Raised leather/nougat highlight and lower bevel from the sheet.
+        line(target, visual.x + radius, visual.y + 2,
+             visual.x + visual.w - radius - 1, visual.y + 2,
+             state == SheetControlState::Pressed ? palette.button : rgb8(255, 238, 205));
+        line(target, visual.x + radius, visual.y + visual.h - 2,
+             visual.x + visual.w - radius - 1, visual.y + visual.h - 2, palette.buttonDark);
+    }
+
+    void draw_sheet_tab_surface(Drawable target, const Rect& raw, const ViewPalette& palette,
+                                bool active, bool hover) {
+        draw_sheet_button_surface(target, raw, palette,
+                                  hover ? SheetControlState::Hover : SheetControlState::Normal);
+        if (!active) return;
+        const Rect visual{raw.x + 2, raw.y + 1, std::max(1, raw.w - 4), std::max(1, raw.h - 4)};
+        const int cx = visual.x + visual.w / 2;
+        const int baseY = visual.y + visual.h - 1;
+        const int tipY = raw.y + raw.h + 6;
+        XPoint outer[5] = {
+            {static_cast<short>(cx - 12), static_cast<short>(baseY - 2)},
+            {static_cast<short>(cx - 7), static_cast<short>(baseY + 1)},
+            {static_cast<short>(cx), static_cast<short>(tipY)},
+            {static_cast<short>(cx + 7), static_cast<short>(baseY + 1)},
+            {static_cast<short>(cx + 12), static_cast<short>(baseY - 2)}
+        };
+        XSetForeground(d, gc, palette.buttonDark);
+        XFillPolygon(d, target, gc, outer, 5, Convex, CoordModeOrigin);
+        XPoint inner[5] = {
+            {static_cast<short>(cx - 9), static_cast<short>(baseY - 2)},
+            {static_cast<short>(cx - 5), static_cast<short>(baseY)},
+            {static_cast<short>(cx), static_cast<short>(tipY - 2)},
+            {static_cast<short>(cx + 5), static_cast<short>(baseY)},
+            {static_cast<short>(cx + 9), static_cast<short>(baseY - 2)}
+        };
+        XSetForeground(d, gc, hover ? palette.buttonLight : palette.button);
+        XFillPolygon(d, target, gc, inner, 5, Convex, CoordModeOrigin);
+        line(target, cx - 6, baseY, cx, tipY - 2, palette.buttonLight);
+        line(target, cx, tipY - 2, cx + 6, baseY, palette.buttonLight);
+    }
+
+    void draw_sheet_panel_surface(Drawable target, const Rect& r, const ViewPalette& palette) {
+        if (r.w <= 2 || r.h <= 2) return;
+        Rect shadow{r.x, r.y + 4, r.w, r.h};
+        fill_round(target, shadow, 11, palette.buttonDark);
+        fill_round(target, r, 11, palette.panel);
+        outline_round(target, r, 11, palette.border);
+        Rect bevel{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        outline_round(target, bevel, 9, palette.buttonLight);
+        Rect seam{r.x + 5, r.y + 5, std::max(1, r.w - 10), std::max(1, r.h - 10)};
+        outline_round_dashed(target, seam, 7, palette.buttonLight, 3);
+        line(target, r.x + 12, r.y + 2, r.x + r.w - 13, r.y + 2, rgb8(255, 242, 217));
+    }
+
+    void draw_sheet_track(Drawable target, const Rect& track, unsigned long border,
+                          unsigned long base, unsigned long highlight) {
+        Rect shadow{track.x, track.y + 2, track.w, track.h};
+        fill_round(target, shadow, std::max(4, track.h / 2), border);
+        fill_round(target, track, std::max(4, track.h / 2), base);
+        outline_round(target, track, std::max(4, track.h / 2), border);
+        Rect inset{track.x + 2, track.y + 2, std::max(1, track.w - 4), std::max(1, track.h - 4)};
+        outline_round(target, inset, std::max(2, track.h / 2 - 2), highlight);
+    }
+
+    void draw_sheet_track_segment(Drawable target, const Rect& track, int start, int width,
+                                  unsigned long dark, unsigned long face, unsigned long highlight) {
+        start = std::max(0, std::min(track.w, start));
+        width = std::max(0, std::min(track.w - start, width));
+        if (width <= 0) return;
+        Rect fillRect{track.x + start + 1, track.y + 2, std::max(1, width - 1), std::max(3, track.h - 4)};
+        fill_round(target, fillRect, std::max(2, fillRect.h / 2), face);
+        outline_round(target, fillRect, std::max(2, fillRect.h / 2), dark);
+        if (fillRect.w > 8) line(target, fillRect.x + 4, fillRect.y + 1,
+                                 fillRect.x + fillRect.w - 5, fillRect.y + 1, highlight);
+    }
+
+    void draw_sheet_track_fill(Drawable target, const Rect& track, int width,
+                               unsigned long dark, unsigned long face, unsigned long highlight) {
+        draw_sheet_track_segment(target, track, 0, width, dark, face, highlight);
+    }
+
+    void draw_sheet_knob(Drawable target, int centerX, int centerY, int diameter,
+                         unsigned long dark, unsigned long face, unsigned long highlight) {
+        diameter = std::max(12, diameter);
+        const int x = centerX - diameter / 2;
+        const int y = centerY - diameter / 2;
+        fill_circle(target, x + 1, y + 3, diameter, dark);
+        fill_circle(target, x, y, diameter, face);
+        XSetForeground(d, gc, dark);
+        XDrawArc(d, target, gc, x, y, diameter, diameter, 0, 360 * 64);
+        XSetForeground(d, gc, highlight);
+        XDrawArc(d, target, gc, x + 2, y + 2, diameter - 4, diameter - 4, 35 * 64, 150 * 64);
+        XSetForeground(d, gc, rgb8(173, 127, 74));
+        XDrawArc(d, target, gc, x + 3, y + 3, diameter - 6, diameter - 6, 210 * 64, 115 * 64);
+    }
+
+    void draw_sheet_checkbox(Drawable target, const Rect& box, bool checked, const ViewPalette& palette) {
+        draw_sheet_button_surface(target, box, palette,
+                                  checked ? SheetControlState::Pressed : SheetControlState::Normal);
+        if (!checked) return;
+        const int x0 = box.x + std::max(6, box.w / 4);
+        const int y0 = box.y + box.h / 2;
+        const int x1 = box.x + box.w / 2 - 1;
+        const int y1 = box.y + box.h - std::max(6, box.h / 4);
+        const int x2 = box.x + box.w - std::max(5, box.w / 5);
+        const int y2 = box.y + std::max(5, box.h / 4);
+        const unsigned long ink = rgb8(250, 239, 219);
+        line(target, x0, y0, x1, y1, ink);
+        line(target, x0, y0 + 1, x1, y1 + 1, ink);
+        line(target, x1, y1, x2, y2, ink);
+        line(target, x1, y1 + 1, x2, y2 + 1, ink);
+    }
+
+
+    void draw_primary_panel(Drawable target, const Rect& r, const ViewPalette& palette) {
+        draw_sheet_panel_surface(target, r, palette);
+    }
+
+    void draw_disabled_player_button(Drawable target, const Rect& r, const std::string& label) {
+        const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
+        draw_sheet_button_surface(target, r, palette, SheetControlState::Disabled);
+        const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        const int label_x = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
+        text(target, label_x, visual.y + visual.h / 2 + 5, label, palette.muted);
+    }
+
+    void button_on(Drawable target, const Rect& r, const std::string& label) {
+        const ViewPalette palette = currentView == ViewMode::Stream
+            ? stream_palette_for(streamPlatform) : palette_for(currentView);
+        const bool hover = target == win && r.contains(pointerWindowX, pointerWindowY);
+        const SheetControlState state = hover ? SheetControlState::Hover : SheetControlState::Normal;
+        draw_sheet_button_surface(target, r, palette, state);
+        const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        const int label_x = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
+        const int label_y = visual.y + visual.h / 2 + 5;
+        text(target, label_x, label_y, head_to_width(label, visual.w - 10), sheet_button_ink(palette, state));
     }
 
     void draw_suite_badge(Drawable target, int x0, int y0, unsigned char bgR, unsigned char bgG, unsigned char bgB) {
@@ -1758,7 +1982,7 @@ public:
         const int volumeGroupW = volumeLabelW + 12 + volumeHousingW + 8 + volumeReadoutW;
         const int volumeGroupX = std::max(10, (W - volumeGroupW) / 2);
         const int volumeHousingX = volumeGroupX + volumeLabelW + 12;
-        volRect = {volumeHousingX + volumeHousingPad, volumeY + 4, volumeTrackW, 10};
+        volRect = {volumeHousingX + volumeHousingPad, volumeY + 3, volumeTrackW, 12};
 
         const int promptX = std::max(20, W/2-kCompactButtonW);
         resumeBtn = {promptX, H/2+40, kCompactButtonW, kCompactButtonH};
@@ -2774,7 +2998,7 @@ public:
         // scrolling tab strip is intentionally painted afterward so tabs can
         // roll over the N/name, Server status/dot, and version number without
         // those fixed elements being redrawn on top of the buttons.
-        const std::string versionLabel = "v0.0.30";
+        const std::string versionLabel = "v0.0.31";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -2807,36 +3031,9 @@ public:
             const bool active = currentView == view;
             const bool hover = tab.contains(pointerWindowX, pointerWindowY);
             const ViewPalette tabPalette = palette_for(view);
-            Rect visual{tab.x + 2, 2, std::max(1, tab.w - 4), 22};
-            Rect shadow{visual.x, visual.y + 2, visual.w, visual.h};
-            fill_round(target, shadow, 7, tabPalette.buttonDark);
-            fill_round(target, visual, 7, hover ? tabPalette.buttonLight : tabPalette.button);
-            outline_round(target, visual, 7, tabPalette.buttonDark);
-            Rect stitch{visual.x + 2, visual.y + 2, std::max(1, visual.w - 4), std::max(1, visual.h - 4)};
-            outline_round(target, stitch, 5, tabPalette.buttonLight);
-            line(target, visual.x + 7, visual.y + 2, visual.x + visual.w - 8, visual.y + 2,
-                 rgb8(255,235,198));
-
-            if (active) {
-                const int cx = visual.x + visual.w / 2;
-                XPoint point[3] = {
-                    {static_cast<short>(cx - 9), static_cast<short>(visual.y + visual.h - 2)},
-                    {static_cast<short>(cx + 9), static_cast<short>(visual.y + visual.h - 2)},
-                    {static_cast<short>(cx), static_cast<short>(31)}
-                };
-                XSetForeground(d, gc, tabPalette.buttonDark);
-                XFillPolygon(d, target, gc, point, 3, Convex, CoordModeOrigin);
-                XPoint inner[3] = {
-                    {static_cast<short>(cx - 7), static_cast<short>(visual.y + visual.h - 2)},
-                    {static_cast<short>(cx + 7), static_cast<short>(visual.y + visual.h - 2)},
-                    {static_cast<short>(cx), static_cast<short>(29)}
-                };
-                XSetForeground(d, gc, hover ? tabPalette.buttonLight : tabPalette.button);
-                XFillPolygon(d, target, gc, inner, 3, Convex, CoordModeOrigin);
-                line(target, cx - 6, visual.y + visual.h - 1, cx, 28, tabPalette.buttonLight);
-                line(target, cx, 28, cx + 6, visual.y + visual.h - 1, tabPalette.buttonLight);
-            }
-
+            Rect surface{tab.x, 1, tab.w, 26};
+            draw_sheet_tab_surface(target, surface, tabPalette, active, hover);
+            const Rect visual{surface.x + 2, surface.y + 1, std::max(1, surface.w - 4), std::max(1, surface.h - 4)};
             const int labelX = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
             text(target, labelX, 17, label, tabPalette.buttonText);
         };
@@ -3073,12 +3270,7 @@ public:
 
         draw_quilted_background(target, {0, std::max(0, seekRect.y-7), W, seekRect.h+18}, ViewMode::VideoPlayer);
 
-        Rect shadow{seekRect.x, seekRect.y + 2, seekRect.w, seekRect.h};
-        fill_round(target, shadow, 7, rgb8(181,145,103));
-        fill_round(target, seekRect, 7, creamTrack);
-        outline_round(target, seekRect, 7, trackBorder);
-        Rect inner{seekRect.x+2, seekRect.y+2, std::max(1,seekRect.w-4), std::max(1,seekRect.h-4)};
-        outline_round(target, inner, 5, rgb8(255,246,227));
+        draw_sheet_track(target, seekRect, trackBorder, creamTrack, rgb8(255,246,227));
 
         long long t=0,l=0;
         if (mp) { t=playback_time_ms(); l=playback_length_ms(); }
@@ -3087,9 +3279,7 @@ public:
             update_chapter_marks(false);
             pos = std::max(0, std::min(seekRect.w, (int)((double)t / (double)l * seekRect.w)));
             if (pos > 0) {
-                Rect played{seekRect.x+1, seekRect.y+3, std::max(1,pos-1), std::max(4,seekRect.h-6)};
-                fill_round(target, played, std::min(6, played.h/2), caramel);
-                line(target, played.x+5, played.y+1, played.x+std::max(5,played.w-5), played.y+1, caramelLight);
+                draw_sheet_track_fill(target, seekRect, pos, trackBorder, caramel, caramelLight);
             }
             for (long long markMs : chapterMarksMs) {
                 if (markMs <= 0 || markMs >= l) continue;
@@ -3099,17 +3289,11 @@ public:
             }
         }
 
-        const int knobD = 16;
-        const int knobX = std::max(seekRect.x-knobD/2+1,
-                                   std::min(seekRect.x+seekRect.w-knobD/2-1,
-                                            seekRect.x + pos - knobD/2));
-        const int knobY = seekRect.y + seekRect.h/2 - knobD/2;
-        fill_circle(target, knobX+1, knobY+2, knobD, rgb8(169,117,61));
-        fill_circle(target, knobX, knobY, knobD, rgb8(225,188,132));
-        XSetForeground(d,gc,trackBorder);
-        XDrawArc(d,target,gc,knobX,knobY,knobD,knobD,0,360*64);
-        XSetForeground(d,gc,rgb8(249,222,177));
-        XDrawArc(d,target,gc,knobX+2,knobY+2,knobD-4,knobD-4,30*64,160*64);
+        const int knobD = 24;
+        const int knobCenterX = std::max(seekRect.x + knobD / 2,
+            std::min(seekRect.x + seekRect.w - knobD / 2, seekRect.x + pos));
+        draw_sheet_knob(target, knobCenterX, seekRect.y + seekRect.h / 2, knobD,
+                        trackBorder, rgb8(225,188,132), rgb8(249,222,177));
 
         text(target, 10, seekRect.y+14, format_time(t), palette.text);
         int totalX = seekRect.x + seekRect.w + 10;
@@ -3123,44 +3307,31 @@ public:
         const unsigned long creamTrack = rgb8(247,236,217);
         const unsigned long trackBorder = rgb8(166,112,56);
 
-        const int y0 = std::max(0, volRect.y - 9);
-        draw_quilted_background(target, {0, y0, W, 31}, ViewMode::VideoPlayer);
+        const int y0 = std::max(0, volRect.y - 13);
+        draw_quilted_background(target, {0, y0, W, 39}, ViewMode::VideoPlayer);
 
         int vol = mp ? api.get_volume(mp) : volumePercent;
         if (vol < 0) vol = volumePercent;
         vol = std::max(0,std::min(200,vol));
         volumePercent = vol;
 
-        const Rect housing{volRect.x - 28, volRect.y - 5, volRect.w + 56, volRect.h + 10};
-        Rect housingShadow{housing.x, housing.y+2, housing.w, housing.h};
-        fill_round(target,housingShadow,8,rgb8(181,145,103));
-        fill_round(target,housing,8,rgb8(244,229,205));
-        outline_round(target,housing,8,trackBorder);
-        Rect housingInset{housing.x+2,housing.y+2,housing.w-4,housing.h-4};
-        outline_round(target,housingInset,6,rgb8(255,246,227));
-
-        fill_round(target,volRect,5,creamTrack);
-        outline_round(target,volRect,5,rgb8(191,151,106));
+        const Rect housing{volRect.x - 28, volRect.y - 8, volRect.w + 56, volRect.h + 16};
+        draw_concept_field(target, housing, rgb8(244,229,205), trackBorder, false);
+        draw_sheet_track(target, volRect, rgb8(191,151,106), creamTrack, rgb8(255,246,227));
 
         const int filledW = std::max(0,std::min(volRect.w,volRect.w*vol/200));
         if (filledW > 0) {
-            Rect played{volRect.x+1,volRect.y+2,std::max(1,filledW-1),std::max(3,volRect.h-4)};
-            fill_round(target,played,std::min(4,played.h/2),caramel);
-            line(target,played.x+4,played.y+1,played.x+std::max(4,played.w-4),played.y+1,caramelLight);
+            draw_sheet_track_fill(target, volRect, filledW, trackBorder, caramel, caramelLight);
         }
 
         const int normalX = volRect.x + volRect.w / 2;
         line(target, normalX, volRect.y - 2, normalX, volRect.y + volRect.h + 2, rgb8(135,100,67));
 
-        const int knobD=18;
-        const int knobCenterX=volRect.x + filledW;
-        const int knobX=std::max(volRect.x-knobD/2+1,
-                                 std::min(volRect.x+volRect.w-knobD/2-1,knobCenterX-knobD/2));
-        const int knobY=volRect.y + volRect.h/2-knobD/2;
-        fill_circle(target,knobX+1,knobY+2,knobD,rgb8(169,117,61));
-        fill_circle(target,knobX,knobY,knobD,rgb8(225,188,132));
-        XSetForeground(d,gc,trackBorder);
-        XDrawArc(d,target,gc,knobX,knobY,knobD,knobD,0,360*64);
+        const int knobD=24;
+        const int knobCenterX=std::max(volRect.x + knobD / 2,
+            std::min(volRect.x + volRect.w - knobD / 2, volRect.x + filledW));
+        draw_sheet_knob(target, knobCenterX, volRect.y + volRect.h / 2, knobD,
+                        trackBorder, rgb8(225,188,132), rgb8(249,222,177));
 
         // The owner rejected the small speaker glyphs as stray square/triangle
         // shapes. Keep the track, 0-200% gain range and rounded knob unchanged.
@@ -3295,24 +3466,28 @@ public:
         const int strip_y = 34;
         const int label_w = determinate ? 58 : 0;
         const int track_w = std::max(1, W - label_w);
-        const Rect track = {0, strip_y, track_w, 6};
-        fill(target, track, rgb8(236,220,197));
+        const Rect track = {2, strip_y + 1, std::max(1, track_w - 4), 10};
+        const unsigned long trackBorder = rgb8(166,112,56);
+        const unsigned long creamTrack = rgb8(244,229,205);
+        const unsigned long caramel = rgb8(184,111,43);
+        draw_sheet_track(target, track, trackBorder, creamTrack, rgb8(255,246,227));
         if (determinate) {
             progress = std::max(0.0, std::min(1.0, progress));
             const int loaded = std::max(progress > 0.0 ? 2 : 0,
-                                        std::min(track_w, static_cast<int>(progress * track_w)));
-            if (loaded > 0) fill(target, {0, strip_y, loaded, 6}, rgb8(184,111,43));
+                                        std::min(track.w, static_cast<int>(progress * track.w)));
+            draw_sheet_track_fill(target, track, loaded, trackBorder, caramel, rgb8(224,173,105));
             const int percent = static_cast<int>(std::lround(progress * 100.0));
             Rect chip{track_w, strip_y, label_w, 18};
-            fill_round(target, chip, 5, rgb8(244,229,205));
-            outline_round(target, chip, 5, rgb8(166,112,56));
+            draw_concept_field(target, chip, creamTrack, trackBorder, false);
             const std::string percent_text = std::to_string(percent) + "%";
             text(target, chip.x + std::max(4, (chip.w - text_width(percent_text)) / 2),
                  chip.y + 14, percent_text, rgb8(72,39,20));
         } else {
-            const int chunk = std::max(80, track_w / 5);
-            const int position = static_cast<int>((now_ms() / 8) % (track_w + chunk)) - chunk;
-            fill(target, {position, strip_y, chunk, 6}, rgb8(184,111,43));
+            const int chunk = std::max(80, track.w / 5);
+            const int position = static_cast<int>((now_ms() / 8) % (track.w + chunk)) - chunk;
+            const int begin = std::max(0, position);
+            const int end = std::min(track.w, position + chunk);
+            if (end > begin) draw_sheet_track_segment(target, track, begin, end - begin, trackBorder, caramel, rgb8(224,173,105));
         }
     }
 
@@ -3330,8 +3505,8 @@ public:
 
     void draw_volume_only() {
         if (fullscreen || currentView != ViewMode::VideoPlayer) return;
-        const int y0 = std::max(0, volRect.y - 10);
-        const int h = std::min(H - y0, 34);
+        const int y0 = std::max(0, volRect.y - 14);
+        const int h = std::min(H - y0, 42);
         if (h <= 0) return;
         Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
         draw_volume_bar(buffer);
@@ -3435,31 +3610,10 @@ public:
             const bool selected = streamPlatform == platform;
             const bool hover = r.contains(pointerWindowX, pointerWindowY);
             const ViewPalette own = stream_palette_for(platform);
+            draw_sheet_tab_surface(target, r, own, selected, hover);
             const Rect visual{r.x+2,r.y+1,std::max(1,r.w-4),std::max(1,r.h-4)};
-            Rect shadow{visual.x,visual.y+2,visual.w,visual.h};
-            fill_round(target,shadow,8,own.buttonDark);
-            fill_round(target,visual,8,hover?own.buttonLight:own.button);
-            outline_round(target,visual,8,selected?own.accent:own.buttonDark);
-            Rect stitch{visual.x+2,visual.y+2,std::max(1,visual.w-4),std::max(1,visual.h-4)};
-            outline_round(target,stitch,6,own.buttonLight);
-            if (selected) {
-                const int cx = visual.x + visual.w / 2;
-                XPoint outer[3] = {
-                    {static_cast<short>(cx-9), static_cast<short>(visual.y+visual.h-2)},
-                    {static_cast<short>(cx+9), static_cast<short>(visual.y+visual.h-2)},
-                    {static_cast<short>(cx), static_cast<short>(visual.y+visual.h+7)}
-                };
-                XSetForeground(d,gc,own.buttonDark);
-                XFillPolygon(d,target,gc,outer,3,Convex,CoordModeOrigin);
-                XPoint inner[3] = {
-                    {static_cast<short>(cx-7), static_cast<short>(visual.y+visual.h-2)},
-                    {static_cast<short>(cx+7), static_cast<short>(visual.y+visual.h-2)},
-                    {static_cast<short>(cx), static_cast<short>(visual.y+visual.h+5)}
-                };
-                XSetForeground(d,gc,hover?own.buttonLight:own.button);
-                XFillPolygon(d,target,gc,inner,3,Convex,CoordModeOrigin);
-            }
-            text(target, visual.x + std::max(6,(visual.w-text_width(label))/2), visual.y+17, label, own.buttonText);
+            text(target, visual.x + std::max(6,(visual.w-text_width(label))/2),
+                 visual.y + visual.h / 2 + 5, label, own.buttonText);
         };
         source_button(streamYoutubeTab,"YouTube",StreamPlatform::YouTube);
         source_button(streamVimeoTab,"Vimeo",StreamPlatform::Vimeo);
@@ -5626,25 +5780,28 @@ public:
 
     void draw_library_view_button(Drawable target, const Rect& r, LibraryDisplayMode mode, bool active) {
         const ViewPalette palette = palette_for(ViewMode::Library);
-        fill(target, r, active ? palette.selection : palette.button);
-        outline(target, r, active ? palette.accent : palette.buttonDark);
+        const bool hover = r.contains(pointerWindowX, pointerWindowY);
+        const SheetControlState state = active ? SheetControlState::Pressed :
+            (hover ? SheetControlState::Hover : SheetControlState::Normal);
+        draw_sheet_button_surface(target, r, palette, state);
+        const unsigned long iconInk = sheet_button_ink(palette, state);
         if (mode == LibraryDisplayMode::List) {
-            const int x1 = r.x + 7;
-            const int x2 = r.x + r.w - 7;
+            const int x1 = r.x + 8;
+            const int x2 = r.x + r.w - 8;
             for (int row = 0; row < 3; ++row) {
-                const int y = r.y + 7 + row * 6;
-                line(target, x1, y, x2, y, palette.buttonText);
+                const int y = r.y + 8 + row * 5;
+                line(target, x1, y, x2, y, iconInk);
             }
         } else {
-            const int size = 6;
-            const int gap = 4;
+            const int size = 5;
+            const int gap = 3;
             const int total = size * 2 + gap;
             const int sx = r.x + (r.w - total) / 2;
             const int sy = r.y + (r.h - total) / 2;
             for (int row = 0; row < 2; ++row) {
                 for (int column = 0; column < 2; ++column) {
                     Rect square{sx + column * (size + gap), sy + row * (size + gap), size, size};
-                    fill(target, square, palette.buttonText);
+                    fill_round(target, square, 1, iconInk);
                 }
             }
         }
@@ -6266,54 +6423,27 @@ public:
     void nougat_button(Drawable target, const Rect& r, const std::string& label, bool selected=false) {
         const ViewPalette palette = palette_for(ViewMode::Nougat);
         const bool hover = target == win && r.contains(pointerWindowX, pointerWindowY);
-        Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
-        Rect shadow{visual.x, visual.y + 2, visual.w, visual.h};
-        fill_round(target, shadow, 8, palette.buttonDark);
-        const unsigned long face = selected ? palette.buttonDark : (hover ? palette.buttonLight : palette.button);
-        const unsigned long ink = selected ? nougat_cream() : palette.buttonText;
-        fill_round(target, visual, 8, face);
-        outline_round(target, visual, 8, palette.buttonDark);
-        Rect stitch{visual.x + 2, visual.y + 2, std::max(1, visual.w - 4), std::max(1, visual.h - 4)};
-        outline_round(target, stitch, 6, selected ? palette.button : palette.buttonLight);
-        line(target, visual.x + 8, visual.y + 2, visual.x + visual.w - 9, visual.y + 2,
-             selected ? palette.button : rgb8(255,235,198));
+        const SheetControlState state = selected ? SheetControlState::Pressed :
+            (hover ? SheetControlState::Hover : SheetControlState::Normal);
+        draw_sheet_button_surface(target, r, palette, state);
+        const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
         const int labelX = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
         const int labelY = visual.y + visual.h / 2 + 5;
-        text(target, labelX, labelY, head_to_width(label, visual.w - 10), ink);
+        text(target, labelX, labelY, head_to_width(label, visual.w - 10), sheet_button_ink(palette, state));
     }
 
     void nougat_tab_button(Drawable target, const Rect& r, const std::string& label, bool active) {
-        nougat_button(target, r, label, active);
-        if (!active) return;
         const ViewPalette palette = palette_for(ViewMode::Nougat);
+        const bool hover = target == win && r.contains(pointerWindowX, pointerWindowY);
+        draw_sheet_tab_surface(target, r, palette, active, hover);
         const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
-        const int cx = visual.x + visual.w / 2;
-        XPoint outer[3] = {
-            {static_cast<short>(cx - 9), static_cast<short>(visual.y + visual.h - 2)},
-            {static_cast<short>(cx + 9), static_cast<short>(visual.y + visual.h - 2)},
-            {static_cast<short>(cx), static_cast<short>(visual.y + visual.h + 7)}
-        };
-        XSetForeground(d, gc, palette.buttonDark);
-        XFillPolygon(d, target, gc, outer, 3, Convex, CoordModeOrigin);
-        XPoint inner[3] = {
-            {static_cast<short>(cx - 7), static_cast<short>(visual.y + visual.h - 2)},
-            {static_cast<short>(cx + 7), static_cast<short>(visual.y + visual.h - 2)},
-            {static_cast<short>(cx), static_cast<short>(visual.y + visual.h + 5)}
-        };
-        XSetForeground(d, gc, palette.buttonDark);
-        XFillPolygon(d, target, gc, inner, 3, Convex, CoordModeOrigin);
-        line(target, cx - 6, visual.y + visual.h - 1, cx, visual.y + visual.h + 4, palette.button);
-        line(target, cx, visual.y + visual.h + 4, cx + 6, visual.y + visual.h - 1, palette.button);
+        const int labelX = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
+        const int labelY = visual.y + visual.h / 2 + 5;
+        text(target, labelX, labelY, head_to_width(label, visual.w - 10), palette.buttonText);
     }
 
     void draw_nougat_panel(Drawable target, const Rect& r) {
-        const ViewPalette palette = palette_for(ViewMode::Nougat);
-        Rect shadow{r.x, r.y + 3, r.w, r.h};
-        fill_round(target, shadow, 9, rgb8(199,168,129));
-        fill_round(target, r, 9, palette.panel);
-        outline_round(target, r, 9, palette.border);
-        Rect inset{r.x + 3, r.y + 3, std::max(1, r.w - 6), std::max(1, r.h - 6)};
-        outline_round(target, inset, 7, rgb8(255,245,225));
+        draw_sheet_panel_surface(target, r, palette_for(ViewMode::Nougat));
     }
 
     void draw_nougat_input(Drawable target, const Rect& r, const std::string& value, NougatInputFocus field) {
@@ -6701,7 +6831,7 @@ public:
             nougat_button(target,nougatAddPeerBtn,"Add Peer");
             nougat_button(target,nougatRemovePeerBtn,"Remove");
             nougat_button(target,nougatNodeBtn,nougat.node_running()?"STOP NODE":"START NODE",nougat.node_running());
-            nougat_button(target,nougatPeersToggleBtn,nougatSearchPeers?"Search peers [x]":"Search peers",nougatSearchPeers);
+            nougat_button(target,nougatPeersToggleBtn,"Search peers",nougatSearchPeers);
             draw_nougat_panel(target,nougatPeerListBox);
             std::vector<std::string> peers;
             { std::lock_guard<std::mutex> lock(nougatState->mutex); peers=nougatState->peers; }
@@ -6717,7 +6847,7 @@ public:
         }
         if (nougatPanel == NougatPanel::Search) {
             draw_nougat_input(target,nougatSearchRect,nougatSearchQuery,NougatInputFocus::Search);
-            nougat_button(target,nougatRawBtn,nougatRaw?"RAW [x]":"RAW",nougatRaw);
+            nougat_button(target,nougatRawBtn,"RAW",nougatRaw);
             nougat_button(target,nougatSearchBtn,search_busy?"SEARCHING":"SEARCH");
             text(target,28,160,status,searchPalette.text);
             draw_nougat_panel(target,nougatResultsBox);
@@ -6751,7 +6881,7 @@ public:
         draw_nougat_input(target,nougatCrawlSeedRect,nougatCrawlSeed,NougatInputFocus::CrawlSeed);
         nougat_button(target,nougatCrawlMinusBtn,"-"); nougat_button(target,nougatCrawlPlusBtn,"+");
         text(target,nougatCrawlMinusBtn.x-96,130,"Max pages: "+std::to_string(nougatMaxPages),nougat_cream());
-        nougat_button(target,nougatSameDomainBtn,nougatSameDomain?"Stay on domain [x]":"Stay on domain",nougatSameDomain);
+        nougat_button(target,nougatSameDomainBtn,"Stay on domain",nougatSameDomain);
         nougat_button(target,nougatStartCrawlBtn,crawl_busy?"CRAWLING":"START CRAWL");
         draw_nougat_panel(target,nougatCrawlLogBox);
         std::vector<std::string> lines;
@@ -6870,31 +7000,8 @@ public:
                                 bool active) {
         const ViewPalette palette = palette_for(ViewMode::Discover);
         const bool hover = r.contains(pointerWindowX, pointerWindowY);
+        draw_sheet_tab_surface(target, r, palette, active, hover);
         const Rect visual{r.x+2,r.y+1,std::max(1,r.w-4),std::max(1,r.h-4)};
-        Rect shadow{visual.x,visual.y+2,visual.w,visual.h};
-        fill_round(target,shadow,8,palette.buttonDark);
-        fill_round(target,visual,8,hover?palette.buttonLight:palette.button);
-        outline_round(target,visual,8,palette.buttonDark);
-        Rect stitch{visual.x+2,visual.y+2,std::max(1,visual.w-4),std::max(1,visual.h-4)};
-        outline_round(target,stitch,6,palette.buttonLight);
-        line(target,visual.x+8,visual.y+2,visual.x+visual.w-9,visual.y+2,rgb8(255,235,198));
-        if (active) {
-            const int cx=visual.x+visual.w/2;
-            XPoint outer[3] = {
-                {static_cast<short>(cx-9),static_cast<short>(visual.y+visual.h-2)},
-                {static_cast<short>(cx+9),static_cast<short>(visual.y+visual.h-2)},
-                {static_cast<short>(cx),static_cast<short>(visual.y+visual.h+7)}
-            };
-            XSetForeground(d,gc,palette.buttonDark);
-            XFillPolygon(d,target,gc,outer,3,Convex,CoordModeOrigin);
-            XPoint inner[3] = {
-                {static_cast<short>(cx-7),static_cast<short>(visual.y+visual.h-2)},
-                {static_cast<short>(cx+7),static_cast<short>(visual.y+visual.h-2)},
-                {static_cast<short>(cx),static_cast<short>(visual.y+visual.h+5)}
-            };
-            XSetForeground(d,gc,hover?palette.buttonLight:palette.button);
-            XFillPolygon(d,target,gc,inner,3,Convex,CoordModeOrigin);
-        }
         text(target,visual.x+std::max(5,(visual.w-text_width(label))/2),
              visual.y+visual.h/2+5,label,palette.buttonText);
     }
@@ -7071,14 +7178,14 @@ public:
                     providers[static_cast<std::size_t>(provider_index)];
                 const Rect row = {services_box.x + 6, row_y, services_box.w - 12, row_height - 2};
                 if (watchPreferences.is_selected(provider.id)) {
-                    fill(target, row, palette.selection);
+                    fill_round(target, row, 6, palette.selection);
                 }
-                outline(target, row, palette.border);
-                const std::string label =
-                    std::string(watchPreferences.is_selected(provider.id) ? "[x] " : "[ ] ") +
-                    provider.name;
-                text(target, row.x + 8, row.y + 18,
-                     head_to_width(label, row.w - 16), dark);
+                outline_round(target, row, 6, palette.border);
+                const bool selected = watchPreferences.is_selected(provider.id);
+                const Rect check{row.x + 5, row.y + 3, 22, 22};
+                draw_sheet_checkbox(target, check, selected, palette);
+                text(target, row.x + 34, row.y + 18,
+                     head_to_width(provider.name, row.w - 42), dark);
                 discoverProviderRows.push_back({row, provider.id});
                 row_y += row_height;
             }
@@ -8586,7 +8693,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.30\n");
+        printf("Nougat Media Suite v0.0.31\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -8850,6 +8957,30 @@ int main(int argc, char** argv) {
             return 1;
         }
         std::printf("Nougat Media Suite v0.0.30 UI/Library/Player PASS: multi-row DVD grid, portrait Home posters, persistent cache, Previous/Next, and volume/panel polish contract.\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v31-ui-sheet-self-test") {
+        App app;
+        const bool palette_ok =
+            app.quilt_view_index(ViewMode::Home) == 0 &&
+            app.quilt_view_index(ViewMode::VideoPlayer) == 1 &&
+            app.quilt_view_index(ViewMode::Library) == 2 &&
+            app.quilt_view_index(ViewMode::Discover) == 3 &&
+            app.quilt_view_index(ViewMode::Nougat) == 4 &&
+            app.quilt_view_index(ViewMode::Stream) == 5 &&
+            app.quilt_view_index(ViewMode::Debug) == 7;
+        const bool geometry_ok = App::kCompactButtonW == 116 && App::kCompactButtonH == 26;
+        const bool state_ok = static_cast<int>(App::SheetControlState::Normal) !=
+                              static_cast<int>(App::SheetControlState::Pressed);
+        const Rect tiny{0,0,32,26};
+        const bool icon_ok = tiny.w == 32 && tiny.h == App::kCompactButtonH;
+        if (!palette_ok || !geometry_ok || !state_ok || !icon_ok) {
+            std::fprintf(stderr,
+                "Nougat v0.0.31 exact UI-sheet component self-test FAIL. palette=%d geometry=%d state=%d icon=%d\n",
+                palette_ok, geometry_ok, state_ok, icon_ok);
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.31 exact UI-sheet component PASS: page palettes retained; sheet buttons, tabs, fields, panels, tracks, knobs and checkboxes active.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {

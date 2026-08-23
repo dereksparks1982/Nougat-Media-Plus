@@ -46,7 +46,7 @@
 - Make Home movie/poster art fill the artwork region with aspect-preserving cover behavior instead of rendering as a tiny centered poster. Preserve rounded top clipping and silent hover previews.
 - Preserve accepted v0.0.28 palette, Home state persistence, Library poster work, Search cleanup, resume/seek/player behavior, Discover, Search/P2P, diagnostics, licensing, and N identity outside this focused reliability/repair scope.
 
-## v0.0.30 candidate — UI Cohesion, Library Performance, and Player Navigation
+## v0.0.30 accepted — UI Cohesion, Library Performance, and Player Navigation
 - Apply the Search-style rounded/inset primary panel treatment to the equivalent large Library, Discover, Stream, and Debug content surfaces while preserving each page palette.
 - Keep every selected top-tab notch fully visible by keeping the busy/progress strip below the navigation pointer instead of painting across it.
 - Use Library-style portrait 2:3 DVD/poster geometry for Home movies, series, and seasons; keep episode imagery landscape.
@@ -57,17 +57,24 @@
 - Enlarge the compact volume slider knob so it fits its housing proportionally while preserving 0-200% behavior and the approved colors/readout.
 - Preserve accepted v0.0.29 Search/P2P, licensing, diagnostics, Stream providers, TV Up Next/autoplay, resume history, and N identity outside this UI/Library/player scope.
 
-## v0.0.31 planned — Focused P2P streaming expansion
+## v0.0.31 candidate — Exact Approved UI Sheet Components
+- Treat the owner-approved Nougat component sheet as the literal control-shape authority rather than a loose visual reference.
+- Preserve every accepted v0.0.30 page/background palette exactly: purple Home, cocoa Video Player, green Library, red Discover, cream Search, provider-reactive Stream, and charcoal Debug.
+- Replace ordinary buttons that still look like flat rounded rectangles with the sheet's layered raised control construction: lower shadow, dark outer rim, bright inner bevel, stitched/inset seam, top highlight, and pressed/disabled states.
+- Replace top-level tabs plus Search/Discover/Stream selector tabs with the same sheet control family and the integrated downward selected point/notch.
+- Replace text/input frames, large panels, compact icon buttons, watch-service checkboxes, progress surfaces, seek track, volume housing/track, and slider knobs with the sheet component geometry while retaining their existing page colors and behavior.
+- Keep Home card proportions/artwork and all v0.0.30 media behavior unchanged; this release is UI-component fidelity only.
+- Preserve licensing, Search/P2P transport, Jellyfin/catalog behavior, Discover logic, Stream playback, diagnostics, TV autoplay, metadata cache, and user data paths unchanged.
+
+## v0.0.32 planned — Focused P2P streaming expansion
 - Make P2P playback range-aware: map native-player HTTP byte-range demand to the selected torrent file and libtorrent pieces, using time-critical/deadline priorities for immediate playback data.
 - Maintain moving immediate, near-future buffer, and background priority zones; clear stale playback deadlines when seeking and reprioritize the new position.
-- Improve startup/seeking truthfulness with Finding Peers / Connecting / Buffering / Ready states and expose real stream-buffer health.
-- Configure/report uTP, DHT, PEX, local peer discovery, UPnP, NAT-PMP/PCP, listen sockets and supported hole punching independently rather than collapsing network traversal into one status.
+- Improve startup/seeking truthfulness with Finding Peers / Connecting / Buffering evidence rather than opaque stalls.
+- Keep playback inside Nougat's native player and retain Search > P2P as the user-facing location.
 - Add focused P2P transfer/peer/buffer evidence under Search > P2P and Debug without resurrecting a top-level P2P tab.
-- Persist safe libtorrent resume data and correctly select the intended media file inside multi-file torrents/TV packs.
-- Keep libtorrent alert/network processing off the X11 UI thread and preserve native Nougat playback as the only playback path.
 
 ## Future platform proposal — native web player and free provider adapters, version assignment pending
-- This future platform proposal is not part of v0.0.28 or v0.0.29 and must not displace the focused v0.0.31 P2P expansion without a later owner decision.
+- This future platform proposal is not part of v0.0.28 or v0.0.29 and must not displace the focused v0.0.32 P2P expansion without a later owner decision.
 - Add a first-party Nougat web client/player so browser playback uses Nougat controls, Home, watch history, resume state, subtitles/audio selection, fullscreen, seek previews, and Up Next instead of exposing the Jellyfin web UI.
 - Prefer direct browser playback of the original media when the browser supports it; use Nougat-controlled FFmpeg delivery/transcoding only when required by browser codec/container support.
 - Keep future external-provider support behind a generic provider adapter rather than hard-coding one company into Home. Provider sections may appear beneath LOCAL as source headings, with mixed movie/TV cards and no redundant Movies/TV subheadings.
@@ -278,14 +285,23 @@ Add Plex as a high-priority post-v0.0.19 library/server integration:
 
 This is roadmap-only and is not part of v0.0.19.
 
-## Live TV
+## Live TV / NextGen TV
 
-Build a unified **Live TV** area around tuners rather than one hardware brand.
+Build a unified **Live TV** area around Linux tuner capabilities rather than one hardware brand. Playback stays inside Nougat's native player.
 
 Initial hardware paths:
 
-- **HDHomeRun** network tuner discovery and playback.
-- **Local/direct antenna tuner** connected to the computer, subject to Linux driver support for the specific device.
+- **Hauppauge WinTV-HVR-955Q** and compatible local USB/PCIe tuners through Linux DVB/V4L2 when the kernel exposes the required receiver interfaces. The HVR-955Q is the first owner-hardware target for ATSC 1.0, clear QAM, and supported analog capture paths.
+- **HDHomeRun** network tuner discovery, channel enumeration, stream selection, signal/status evidence, and native playback.
+- **HDHomeRun FLEX 4K / other compatible ATSC 3.0 hardware** as the first network NextGen TV target.
+- Generic local/direct antenna tuner support when Linux drivers expose standard DVB/V4L2 interfaces.
+
+NextGen TV targets:
+
+- **ATSC 3.0 / NextGen TV** is a first-class Nougat target, not an ATSC 1.0-only afterthought.
+- Parse the service/signaling information required to identify playable ATSC 3.0 services and hand supported A/V streams to Nougat's native playback pipeline.
+- Add HEVC and applicable NextGen audio/subtitle handling as supported by the bundled/system media stack.
+- Report encrypted/DRM-only services honestly and use provider/hardware-supported access paths where available rather than inventing playback success.
 
 Long-term Live TV features:
 
@@ -295,7 +311,19 @@ Long-term Live TV features:
 - Watch Live.
 - Recording.
 - DVR recordings/library.
+- Signal strength, lock state, modulation/service information, and tuner diagnostics.
 - One combined guide even when channels come from different tuner devices.
+
+## Radio / SDR reception
+
+Add a native **Radio** receiver path alongside Live TV, driven by the actual capabilities of attached tuner/SDR hardware.
+
+- Broadcast **AM/FM** reception when the device/driver exposes it.
+- **NOAA/weather-band** and other receive-only services when supported by attached hardware.
+- A generic **SDR backend** for supported USB/network software-defined radios, with frequency tuning, modulation selection, gain, squelch, signal meter, presets/favorites, and spectrum/waterfall work as later polish.
+- **CB radio reception** through suitable SDR/receiver hardware, including conventional AM and supported SSB reception.
+- Keep radio audio inside Nougat's native playback/audio path and expose real tuner/signal diagnostics in Debug.
+- Any future transmit capability is a separate explicitly approved hardware/module scope; the Radio roadmap here is reception-focused.
 
 ## Supported streaming-service integration investigation
 

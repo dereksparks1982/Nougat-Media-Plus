@@ -1,6 +1,18 @@
 # Changelog
 
-## v0.0.30 candidate — UI Cohesion, Library Performance, and Player Navigation
+## v0.0.31 candidate — Exact Approved UI Sheet Components
+
+- Replaced the generic rounded-button approximation with a shared approved-sheet component renderer using a lower shadow, dark rim, raised inner bevel, stitched/inset seam, top highlight, pressed state, hover state, and disabled state.
+- Routed top-level navigation plus Search, Discover, and Stream selector tabs through the same component family with the integrated downward selected point/notch.
+- Rebuilt large panels and text/input fields around the sheet's double-rim/inset construction while retaining each page's accepted v0.0.30 palette.
+- Rebuilt Library List/Grid icon controls as actual sheet-family icon buttons instead of flat rectangles.
+- Replaced textual watch-service `[x]` markers with sheet-family checkbox controls.
+- Rebuilt the Video Player seek track, volume housing/track, slider knobs, and loading/progress surface with the sheet component geometry; slider knobs are now proportioned at 24 px against their compact housings.
+- Preserved Home cards, accepted page/background palettes, metadata/cache behavior, playback logic, Search/P2P transport, Stream behavior, TV autoplay, diagnostics, licensing, and user-data paths outside the visual component layer.
+- Reassigned the focused P2P streaming expansion to v0.0.32 so v0.0.31 remains a clean UI-sheet fidelity release.
+- Expanded the future Live TV roadmap with the owner's Hauppauge WinTV-HVR-955Q, HDHomeRun, ATSC 3.0/NextGen TV, and a receive-focused Radio/SDR path including AM/FM/weather and CB reception through suitable hardware.
+
+## v0.0.30 accepted — UI Cohesion, Library Performance, and Player Navigation
 
 - Standardized the large Library, Discover, Stream, and Debug content surfaces on Search's rounded/inset Nougat panel language while preserving page-specific palettes.
 - Moved the gold busy/progress strip below the top-tab notch so selected Home/Library/Debug pointers are not clipped by busy-page paint order.
@@ -11,7 +23,7 @@
 - Clarified refresh semantics: Refresh Server updates server/process state; Refresh Library performs Jellyfin library scanning and metadata reload.
 - Added `Previous` and `Next` player buttons using the v0.0.29 episode queue/resolver, separate from the existing 10-second seek controls.
 - Enlarged the compact volume knob to fit its rounded housing proportionally while retaining 0-200% gain and the existing percentage readout.
-- Preserved accepted licensing, Search/P2P implementation, diagnostics, Stream providers, v0.0.29 TV reliability, and N identity outside this scope. Focused P2P streaming expansion moves intact to v0.0.31.
+- Preserved accepted licensing, Search/P2P implementation, diagnostics, Stream providers, v0.0.29 TV reliability, and N identity outside this scope. Focused P2P streaming expansion moves intact to v0.0.32.
 
 ## v0.0.29 candidate — TV Playback, Navigation, and Carry-Forward UI Repair
 
