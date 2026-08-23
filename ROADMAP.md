@@ -81,9 +81,13 @@
 
 - Add a dedicated right-side Home vertical scrollbar plus a sheet-style horizontal Continue Watching scrollbar; clip all Home scrolling content below the fixed top header.
 
-## v0.0.33 planned — P2P Plus
-- Add mature torrent-management controls without changing Nougat's native-media-first architecture: per-torrent/global speed limits, queue ordering and active-transfer limits, ratio/time seeding rules, per-file priorities, tracker management, Force Reannounce, Force Recheck, detailed peer view, piece/availability maps, bandwidth scheduling, RSS automation, and remote-control groundwork.
-- Keep all playback inside Nougat and reuse the v0.0.32 Security Analysis subsystem for downloaded-file checks.
+## v0.0.33 candidate — P2P Plus + Security Hardening + Persistent Server + Live TV Foundation
+- Add the first mature P2P Plus management layer: speed limits, seed ratio/time rules, file priorities, queue movement, tracker visibility, Force Reannounce and Force Recheck. More advanced multi-transfer scheduling, peer/piece maps, RSS and remote control remain later work.
+- Harden Virus Scan with a pinned one-shot YARA-X/capa/Magika runtime and truthful ANALYSIS INCOMPLETE semantics; retain optional external clamscan and free abuse.ch telemetry only.
+- Add system-wide page viewport/border containment excluding Video Player, plus Home/Library scrollbar and top-navigation clipping repairs.
+- Make the Nougat-owned media server persist after the desktop UI closes until Stop Server is explicitly used.
+- Add Live TV as a top-level tab between Discover and Search, with Linux DVB/V4L2 discovery and first-hardware targeting for the Hauppauge WinTV-HVR-955Q. Real channel tuning/playback follows after owner hardware probing.
+- Keep future HDHomeRun, ATSC 3.0/NextGen TV, Radio/SDR and CB reception behind replaceable Nougat-owned backend interfaces.
 
 ## Future platform proposal — native web player and free provider adapters, version assignment pending
 - This future platform proposal is not part of v0.0.28 or v0.0.29 and must not displace the focused v0.0.32 P2P expansion without a later owner decision.

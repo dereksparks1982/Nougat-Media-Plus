@@ -1,3 +1,13 @@
+# v0.0.33 candidate - P2P Plus + Security Hardening + Persistent Server + Live TV Foundation
+
+- Added system-wide bordered/hard-clipped content viewports to normal pages while leaving Video Player untouched.
+- Hard-clipped Home/Continue Watching and added Library containment, vertical scrolling, and toolbar wrapping.
+- Clipped the top navigation between fixed Nougat branding and fixed Server/version chrome; inserted Live TV between Discover and Search.
+- Hardened Security Analysis verdict truthfulness and pinned YARA-X 1.19.0, capa 9.4.0/rules, and Magika 1.0.3 through a generated one-shot runtime. Added URLhaus to free abuse.ch reputation hooks and renamed Community Key to Threat Intel Key.
+- Added P2P Plus speed limits, seed ratio/time rules, file priority, queue movement, tracker status, Force Reannounce, and Force Recheck behind Nougat-owned interfaces.
+- Made the Nougat-owned Jellyfin server persistent across UI close/reopen after Start Server; Stop Server remains explicit and external Jellyfin is never killed.
+- Added Live TV scaffolding with Linux DVB/V4L2 discovery, channel storage/probe interfaces, and WinTV-HVR-955Q as the first hardware target. No fake tuning/playback claims.
+
 # v0.0.32 same-version replacement — P2P + Nougat Security Analysis
 
 - Retained the already-built native P2P media workflow, playback-aware seek scheduling, autoplay no-flash repair, Search seam contrast, and Stream bottom-only provider panel treatment. Replaced the oversized volume housing with the same sheet-style track used by Seek, only shorter.
@@ -460,3 +470,6 @@ Known limitations:
 - Every project launcher from unversioned through v22/v23/v24 plus the canonical reverse-DNS launcher uses the fresh cache-busting key `nougat-media-suite-concept-sheet-v24`.
 - The installer writes the exact same icon under the fresh key and every legacy/current Nougat icon alias used by GNOME, refreshes the dock favorite binding when present, refreshes desktop/icon caches, and reapplies raw executable custom-icon metadata only after the final v24 executable is written.
 - Existing concept-sheet quilt/background tinting and all non-icon behavior remain unchanged.
+
+- v0.0.33 repair: libtorrent 2.0.12 tracker compatibility repair.
+- v0.0.33 server-stop repair: persistent Nougat-owned Jellyfin sessions carry a per-session ownership token; Stop Server terminates the complete owned process tree and verifies port 8096 is released without killing Jellyfin by name.

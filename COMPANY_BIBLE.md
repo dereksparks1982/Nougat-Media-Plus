@@ -79,11 +79,12 @@ The accepted red-tree artwork remains historical ReddMedia identity through v0.0
 ## 8. Media-server ownership law
 
 - Nougat Media Suite may start and supervise its integrated Jellyfin process.
-- Closing Nougat Media Suite must stop and reap only the Jellyfin process Nougat Media Suite launched.
-- A separately started Jellyfin process must not be killed by Nougat Media Suite.
+- After **Start Server**, a Nougat-owned server is intentionally independent of the desktop UI and must remain running across normal UI close or UI crash until **Stop Server** is explicitly used.
+- Reopening Nougat must validate and adopt only the recorded Nougat-owned server; stale PID metadata must never authorize killing an unrelated process.
+- A separately started Jellyfin process must not be claimed or killed by Nougat Media Suite.
 - Start Server, Stop Server, and Refresh Server controls must report their real state.
-- Normal close and forced parent death must release an owned server and port 8096.
-- Server data, config, cache, logs, and the bundled runtime remain separate from Git-tracked source.
+- Stop Server records the explicit stopped preference. Nougat must not add operating-system boot autostart unless the owner separately approves it.
+- Server data, config, cache, logs, ownership metadata, and the bundled runtime remain separate from Git-tracked source.
 
 ## 9. Library and Discover law
 
@@ -121,7 +122,7 @@ The accepted red-tree artwork remains historical ReddMedia identity through v0.0
 - Warnings are errors for release builds.
 - Tests must exercise behavior, not only search source text.
 - Every fixed owner-reported defect receives a regression test when deterministic automation is practical.
-- Validate both success and failure paths, including invalid credentials, 401 handling, credential replacement preservation, missing artwork, type crossover, independent-server preservation, owned-server shutdown, and generated-runtime Git exclusions.
+- Validate both success and failure paths, including invalid credentials, 401 handling, credential replacement preservation, missing artwork, type crossover, independent-server preservation, persistent-owned-server survival/explicit shutdown, independent-server preservation, and generated-runtime Git exclusions.
 - Stub tests may provide deterministic isolation, but required real-runtime and owner-visible gates must still be identified and performed.
 - No test may use the owner's real credential or media.
 
@@ -187,7 +188,7 @@ A Nougat Media Suite candidate is ready for owner testing only when:
 - rollback behavior is proven;
 - generated runtimes remain excluded from Git;
 - version and documentation agree;
-- owned server shutdown is proven;
+- persistent owned-server survival across UI exit and explicit Stop Server shutdown are proven;
 - Movie/TV separation is proven;
 - TMDb credential lifecycle and poster paths are proven;
 - the final raw executable has the approved Nougat Media Suite icon metadata assignment read back;
@@ -198,7 +199,7 @@ Only the owner decides whether the candidate is accepted.
 ## 18. Search inside Nougat Media Suite
 
 1. The decentralized Nougat engine is the integrated **Search** subsystem inside Nougat Media Suite.
-2. The owner-approved v0.0.21 top-level order is `Video Player | Library | Discover | Search | Stream | Debug`. Media/torrent P2P lives under Search, not as a top-level area.
+2. Beginning with v0.0.33, the owner-approved top-level order is `Home | Video Player | Library | Discover | Live TV | Search | Stream | Debug`. Media/torrent P2P and Virus Scan remain under Search, not as top-level areas.
 3. Accepted behavior remains preserved when identity/palette work changes unless functionality is explicitly approved.
 4. Search uses the approved cocoa/chocolate/nougat-cream/caramel palette. Its ordinary internal sections are `Search | Crawler | P2P | Virus Scan`; decentralized peer/node administration is available only through a smaller Network/Advanced surface.
 5. Read-only Search output remains selectable/copyable with normal mouse selection, Ctrl+C, Ctrl+A, and right-click Copy/Select All.
@@ -276,3 +277,12 @@ Only the owner decides whether the candidate is accepted.
 - The Video Player volume control remains a deliberate 0-200% gain control. 100% is normal level; 101-200% remains available for quiet media even if amplification can distort.
 - TV episode completion must never silently dead-end when a next episode can be resolved. Nougat shows an Up Next overlay with a visible 10-second countdown plus Play Next, Back to Series, and Replay.
 - Diagnostic Green means a check returned healthy evidence. Unknown means the check could not establish evidence and must never be promoted to Green by assumption. Diagnostic exports redact credentials, tokens, authorization headers, cookies, passwords, and API keys.
+
+
+### v0.0.33 viewport, security, P2P Plus, and Live TV law
+
+- Every normal page and internal tab uses a hard content viewport/border so scrolling content cannot paint outside its lane. **Video Player is explicitly excluded and retains its accepted v0.0.32 presentation.**
+- The top navigation is hard-clipped between fixed Nougat branding and fixed Server/version chrome.
+- Security Analysis must report `ANALYSIS INCOMPLETE` when a required/relevant engine did not complete; it must never convert engine absence into a clean result or use the word `Safe` as a verdict. WARN ME FIRST and no automatic quarantine/delete/move/rename remain absolute.
+- Third-party security, torrent, server, tuner, codec, extraction, and other borrowed systems must remain behind Nougat-owned interfaces where practical so they can be replaced without rewriting product behavior.
+- Live TV is a first-class top-level page. v0.0.33 may truthfully discover/probe Linux DVB/V4L2 hardware and establish channel/guide/timeshift/recording interfaces, but must not claim actual tuning or playback until proven on owner hardware. The Hauppauge WinTV-HVR-955Q is the first hardware target; HDHomeRun and ATSC 3.0 are later adapters.

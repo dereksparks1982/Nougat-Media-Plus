@@ -44,6 +44,7 @@ namespace {
 
 [[maybe_unused]] fs::path resume_file() { return config_dir() / "active.fastresume"; }
 [[maybe_unused]] fs::path selected_file_state() { return config_dir() / "selected_file.txt"; }
+[[maybe_unused]] fs::path plus_settings_state() { return config_dir() / "plus_settings.txt"; }
 
 [[maybe_unused]] void ensure_parent(const fs::path& path) {
     std::error_code ec;
@@ -58,6 +59,7 @@ struct P2PEngine::Impl {
     int selected = -1;
     std::string error;
     bool paused = false;
+    P2PPlusSettings plus;
 };
 
 P2PEngine::P2PEngine() : impl_(std::make_unique<Impl>()) {}
@@ -76,6 +78,16 @@ bool P2PEngine::pause_transfer(std::string& error) { std::lock_guard<std::mutex>
 bool P2PEngine::resume_transfer(std::string& error) { std::lock_guard<std::mutex> lock(impl_->mutex); if (!impl_->paused) { error="P2P download is already running."; return false; } impl_->paused=false; return true; }
 bool P2PEngine::remove_transfer(std::string& error) { std::lock_guard<std::mutex> lock(impl_->mutex); if (impl_->selected < 0 && !impl_->paused) { error="No active P2P transfer."; return false; } impl_->selected=-1; impl_->paused=false; return true; }
 bool P2PEngine::is_paused() const { std::lock_guard<std::mutex> lock(impl_->mutex); return impl_->paused; }
+bool P2PEngine::set_speed_limits(int download_kib, int upload_kib, std::string&) { std::lock_guard<std::mutex> lock(impl_->mutex); impl_->plus.download_limit_kib=std::max(0,download_kib); impl_->plus.upload_limit_kib=std::max(0,upload_kib); return true; }
+bool P2PEngine::set_seed_rules(double ratio_limit, int time_limit_minutes, std::string&) { std::lock_guard<std::mutex> lock(impl_->mutex); impl_->plus.seed_ratio_limit=std::max(0.0,ratio_limit); impl_->plus.seed_time_limit_minutes=std::max(0,time_limit_minutes); return true; }
+P2PPlusSettings P2PEngine::plus_settings() const { std::lock_guard<std::mutex> lock(impl_->mutex); return impl_->plus; }
+bool P2PEngine::queue_up(std::string& error) { error="P2P stub has no queue."; return false; }
+bool P2PEngine::queue_down(std::string& error) { error="P2P stub has no queue."; return false; }
+bool P2PEngine::force_reannounce(std::string& error) { error="P2P stub has no trackers."; return false; }
+bool P2PEngine::force_recheck(std::string& error) { error="P2P stub has no transfer."; return false; }
+bool P2PEngine::set_file_priority(int, int, std::string& error) { error="P2P stub has no metadata."; return false; }
+std::vector<P2PTrackerInfo> P2PEngine::trackers() const { return {}; }
+void P2PEngine::enforce_seed_rules() {}
 void P2PEngine::shutdown() {}
 P2PStatus P2PEngine::status() const { return {}; }
 std::vector<P2PFileInfo> P2PEngine::files() const { return {}; }
@@ -116,6 +128,7 @@ struct P2PEngine::Impl {
     int selected = -1;
     std::string last_error;
     bool stopped = false;
+    P2PPlusSettings plus;
 
     Impl() {
         lt::settings_pack settings;
@@ -123,6 +136,21 @@ struct P2PEngine::Impl {
         settings.set_bool(lt::settings_pack::enable_lsd, true);
         settings.set_int(lt::settings_pack::connections_limit, 500);
         session.apply_settings(settings);
+        std::ifstream in(plus_settings_state());
+        if (in) in >> plus.download_limit_kib >> plus.upload_limit_kib >> plus.seed_ratio_limit >> plus.seed_time_limit_minutes;
+    }
+
+    void persist_plus() const {
+        ensure_parent(plus_settings_state());
+        std::ofstream out(plus_settings_state(), std::ios::trunc);
+        if (out) out << plus.download_limit_kib << " " << plus.upload_limit_kib << " "
+                     << plus.seed_ratio_limit << " " << plus.seed_time_limit_minutes << "\n";
+    }
+
+    void apply_plus_limits() {
+        if (!valid()) return;
+        handle.set_download_limit(plus.download_limit_kib > 0 ? plus.download_limit_kib * 1024 : 0);
+        handle.set_upload_limit(plus.upload_limit_kib > 0 ? plus.upload_limit_kib * 1024 : 0);
     }
 
     bool valid() const { return handle.is_valid(); }
@@ -174,6 +202,7 @@ bool P2PEngine::start_magnet(const std::string& uri, const std::string& save_pat
         impl_->selected = -1;
         impl_->last_error.clear();
         impl_->stopped = false;
+        impl_->apply_plus_limits();
     }
     return true;
 }
@@ -196,6 +225,7 @@ bool P2PEngine::start_torrent_file(const std::string& torrent_path, const std::s
             impl_->selected = -1;
             impl_->last_error.clear();
             impl_->stopped = false;
+            impl_->apply_plus_limits();
         }
         return true;
     } catch (const std::exception& e) {
@@ -225,6 +255,7 @@ bool P2PEngine::restore_last(std::string& error) {
         impl_->selected = selected;
         impl_->last_error.clear();
         impl_->stopped = false;
+        impl_->apply_plus_limits();
     }
     return true;
 }
@@ -279,6 +310,113 @@ bool P2PEngine::is_paused() const {
     try { return bool(impl_->handle.flags() & lt::torrent_flags::paused); } catch (const std::exception&) { return false; }
 }
 
+bool P2PEngine::set_speed_limits(int download_kib, int upload_kib, std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->plus.download_limit_kib = std::max(0, download_kib);
+    impl_->plus.upload_limit_kib = std::max(0, upload_kib);
+    try {
+        if (impl_->valid()) impl_->apply_plus_limits();
+        impl_->persist_plus();
+        return true;
+    } catch (const std::exception& e) { error = e.what(); return false; }
+}
+
+bool P2PEngine::set_seed_rules(double ratio_limit, int time_limit_minutes, std::string& error) {
+    if (ratio_limit < 0.0 || time_limit_minutes < 0) { error = "Seed limits cannot be negative."; return false; }
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->plus.seed_ratio_limit = ratio_limit;
+    impl_->plus.seed_time_limit_minutes = time_limit_minutes;
+    impl_->persist_plus();
+    return true;
+}
+
+P2PPlusSettings P2PEngine::plus_settings() const {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->plus;
+}
+
+bool P2PEngine::queue_up(std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid()) { error = "No active P2P transfer."; return false; }
+    try { impl_->handle.queue_position_up(); return true; }
+    catch (const std::exception& e) { error=e.what(); return false; }
+}
+
+bool P2PEngine::queue_down(std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid()) { error = "No active P2P transfer."; return false; }
+    try { impl_->handle.queue_position_down(); return true; }
+    catch (const std::exception& e) { error=e.what(); return false; }
+}
+
+bool P2PEngine::force_reannounce(std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid()) { error = "No active P2P transfer."; return false; }
+    try { impl_->handle.force_reannounce(); return true; }
+    catch (const std::exception& e) { error=e.what(); return false; }
+}
+
+bool P2PEngine::force_recheck(std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid()) { error = "No active P2P transfer."; return false; }
+    try { impl_->handle.force_recheck(); return true; }
+    catch (const std::exception& e) { error=e.what(); return false; }
+}
+
+bool P2PEngine::set_file_priority(int index, int priority, std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid()) { error = "No active P2P transfer."; return false; }
+    std::shared_ptr<const lt::torrent_info> info = impl_->handle.torrent_file();
+    if (!info || index < 0 || index >= info->files().num_files()) { error = "Invalid P2P file priority selection."; return false; }
+    priority = std::max(0, std::min(priority, 7));
+    try { impl_->handle.file_priority(lt::file_index_t(index), lt::download_priority_t(priority)); return true; }
+    catch (const std::exception& e) { error=e.what(); return false; }
+}
+
+std::vector<P2PTrackerInfo> P2PEngine::trackers() const {
+    std::vector<P2PTrackerInfo> out;
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid()) return out;
+    try {
+        const auto entries = impl_->handle.trackers();
+        out.reserve(entries.size());
+        for (const auto& entry : entries) {
+            P2PTrackerInfo item;
+            item.url = entry.url;
+            // libtorrent 2.x stores tracker response text per endpoint/info-hash,
+            // not on announce_entry itself. Keep the UI status portable across
+            // the 2.0.x API by exposing the stable announce_entry::verified bit.
+            item.message = entry.verified ? "verified" : "waiting";
+            out.push_back(std::move(item));
+        }
+    } catch (const std::exception&) {}
+    return out;
+}
+
+void P2PEngine::enforce_seed_rules() {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->valid()) return;
+    if (impl_->plus.seed_ratio_limit <= 0.0 && impl_->plus.seed_time_limit_minutes <= 0) return;
+    try {
+        const lt::torrent_status st = impl_->handle.status();
+        if (!st.is_seeding) return;
+        bool ratio_met = false;
+        if (impl_->plus.seed_ratio_limit > 0.0 && st.all_time_download > 0) {
+            const double ratio = static_cast<double>(st.all_time_upload) / static_cast<double>(st.all_time_download);
+            ratio_met = ratio >= impl_->plus.seed_ratio_limit;
+        }
+        bool time_met = false;
+        if (impl_->plus.seed_time_limit_minutes > 0) {
+            const auto seeded_minutes = std::chrono::duration_cast<std::chrono::minutes>(st.seeding_duration).count();
+            time_met = seeded_minutes >= impl_->plus.seed_time_limit_minutes;
+        }
+        if (ratio_met || time_met) {
+            impl_->handle.unset_flags(lt::torrent_flags::auto_managed);
+            impl_->handle.pause();
+        }
+    } catch (const std::exception&) {}
+}
+
 void P2PEngine::shutdown() {
     if (!impl_ || impl_->stopped) return;
     impl_->save_resume();
@@ -301,6 +439,11 @@ P2PStatus P2PEngine::status() const {
         out.total = st.total;
         out.download_rate = st.download_payload_rate;
         out.upload_rate = st.upload_payload_rate;
+        out.download_limit = impl_->handle.download_limit();
+        out.upload_limit = impl_->handle.upload_limit();
+        out.total_uploaded = st.total_upload;
+        out.total_downloaded = st.total_download;
+        out.share_ratio = st.total_download > 0 ? static_cast<double>(st.total_upload) / static_cast<double>(st.total_download) : 0.0;
         out.peers = st.num_peers;
         out.seeds = st.num_seeds;
         out.known_peers = st.list_peers;
@@ -313,6 +456,8 @@ P2PStatus P2PEngine::status() const {
         out.announcing_trackers = st.announcing_to_trackers;
         out.announcing_dht = st.announcing_to_dht;
         out.announcing_lsd = st.announcing_to_lsd;
+        out.queue_position = st.queue_position;
+        out.tracker_count = static_cast<int>(impl_->handle.trackers().size());
         out.name = st.name;
         out.save_path = st.save_path;
         if (st.errc) out.error = st.errc.message();

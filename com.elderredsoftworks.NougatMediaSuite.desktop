@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Nougat Media Suite
-Comment=Nougat Media Suite Home, native player, library, Discover AI, decentralized Search, Stream, P2P, and diagnostics
-Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Suite_v32"
+Comment=Nougat Media Suite Home, native player, library, Discover AI, Live TV, decentralized Search, Stream, P2P, security, and diagnostics
+Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Suite_v33"
 Icon=nougat-media-suite-concept-sheet-v24
 StartupWMClass=NougatMediaSuite
 X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaSuite

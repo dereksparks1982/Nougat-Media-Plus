@@ -220,13 +220,19 @@ def clamav_scan(path: Path) -> dict[str, Any]:
 
 
 def _post(url: str, key: str, body: bytes, content_type: str) -> dict[str, Any]:
-    req = urllib.request.Request(url, data=body, method="POST", headers={"Auth-Key": key, "Content-Type": content_type, "User-Agent": "Nougat-Media-Suite/0.0.32"})
+    req = urllib.request.Request(url, data=body, method="POST", headers={"Auth-Key": key, "Content-Type": content_type, "User-Agent": "Nougat-Media-Suite/0.0.33"})
     with urllib.request.urlopen(req, timeout=12) as resp:
         return json.loads(resp.read().decode("utf-8", "replace"))
 
 
 def community_telemetry(sha256: str) -> dict[str, Any]:
-    out: dict[str, Any] = {"configured": False, "malwarebazaar": "Community telemetry not configured", "threatfox": "Community telemetry not configured", "known_malicious": False}
+    out: dict[str, Any] = {
+        "configured": False,
+        "malwarebazaar": "Community telemetry not configured",
+        "threatfox": "Community telemetry not configured",
+        "urlhaus": "Community telemetry not configured",
+        "known_malicious": False,
+    }
     try:
         key = AUTH_KEY.read_text(encoding="utf-8").strip()
     except Exception:
@@ -263,6 +269,20 @@ def community_telemetry(sha256: str) -> dict[str, Any]:
             out["threatfox"] = f"Lookup: {status}"
     except Exception as exc:
         out["threatfox"] = f"Lookup unavailable: {exc.__class__.__name__}"
+    try:
+        form = urllib.parse.urlencode({"sha256_hash": sha256}).encode()
+        data = _post("https://urlhaus-api.abuse.ch/v1/payload/", key, form, "application/x-www-form-urlencoded")
+        status = str(data.get("query_status", "unknown"))
+        if status == "ok":
+            signature = data.get("signature") or data.get("file_type") or "known URLhaus payload"
+            out["urlhaus"] = f"KNOWN PAYLOAD: {signature}"
+            out["known_malicious"] = True
+        elif status in {"no_results", "hash_not_found", "invalid_hash"}:
+            out["urlhaus"] = "No known payload hash match"
+        else:
+            out["urlhaus"] = f"Lookup: {status}"
+    except Exception as exc:
+        out["urlhaus"] = f"Lookup unavailable: {exc.__class__.__name__}"
     return out
 
 
@@ -336,15 +356,43 @@ def scan_one(path: Path, online: bool = True) -> dict[str, Any]:
     yara = yara_scan(path)
     capa = capa_scan(path, ftype)
     clam = clamav_scan(path)
-    telemetry = community_telemetry(digest) if online else {"configured": False, "malwarebazaar": "Skipped", "threatfox": "Skipped", "known_malicious": False}
+    telemetry = community_telemetry(digest) if online else {"configured": False, "malwarebazaar": "Skipped", "threatfox": "Skipped", "urlhaus": "Skipped", "known_malicious": False}
 
     threat = bool(yara.get("matches")) or bool(clam.get("detected")) or bool(telemetry.get("known_malicious"))
     suspicious = bool(ext_findings)
-    verdict = "THREAT DETECTED" if threat else ("SUSPICIOUS" if suspicious else "NO THREATS DETECTED")
+
+    # Truthful verdict gate. "No threats detected" means every required/relevant
+    # Nougat analysis lane actually ran. An unavailable engine is not a clean
+    # result. ClamAV remains an optional second opinion and does not gate the
+    # verdict; configured online threat intelligence does gate an online scan.
+    incomplete_reasons: list[str] = []
+    if ftype.get("engine") != "Magika":
+        incomplete_reasons.append("Magika file-type runtime unavailable")
+    if not yara.get("available"):
+        incomplete_reasons.append("YARA-X runtime unavailable")
+    elif yara.get("errors"):
+        incomplete_reasons.append("YARA-X did not complete cleanly")
+    if capa.get("applicable") and (not capa.get("available") or capa.get("error")):
+        incomplete_reasons.append("capa executable analysis unavailable or incomplete")
+    if online and not telemetry.get("configured"):
+        incomplete_reasons.append("Threat intelligence key not configured")
+    elif online and (str(telemetry.get("malwarebazaar", "")).startswith("Lookup unavailable") or
+                     str(telemetry.get("threatfox", "")).startswith("Lookup unavailable") or
+                     str(telemetry.get("urlhaus", "")).startswith("Lookup unavailable")):
+        incomplete_reasons.append("Threat intelligence lookup incomplete")
+
+    if threat:
+        verdict = "THREAT DETECTED"
+    elif suspicious:
+        verdict = "SUSPICIOUS"
+    elif incomplete_reasons:
+        verdict = "ANALYSIS INCOMPLETE"
+    else:
+        verdict = "NO THREATS DETECTED"
     result = {
         "path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "sha256": digest, "type": ftype,
         "extension_findings": ext_findings, "yara": yara, "capa": capa, "clamav": clam,
-        "telemetry": telemetry, "verdict": verdict,
+        "telemetry": telemetry, "verdict": verdict, "incomplete_reasons": incomplete_reasons,
     }
     record_history(result)
     return result
@@ -392,6 +440,13 @@ def render_one(r: dict[str, Any], compact: bool = False) -> str:
     t = r["telemetry"]
     lines.append("MalwareBazaar: " + str(t.get("malwarebazaar")))
     lines.append("ThreatFox: " + str(t.get("threatfox")))
+    lines.append("URLhaus: " + str(t.get("urlhaus")))
+    if r.get("incomplete_reasons"):
+        lines.append("")
+        lines.append("Analysis completeness:")
+        for reason in r["incomplete_reasons"]:
+            lines.append("  • " + str(reason))
+        lines.append("No suspicious indicators were found by the checks that ran, but this file has NOT received a complete security analysis.")
     lines.extend(["", "RESULT: " + r["verdict"], "Policy: WARN ME FIRST. Nougat did not move, delete, quarantine, rename, or open this file."])
     return "\n".join(lines)
 
@@ -404,7 +459,7 @@ def scan_folder(folder: Path, online: bool) -> str:
     for i, p in enumerate(files, 1):
         try:
             r = scan_one(p, online=online)
-            severity = {"NO THREATS DETECTED": 0, "SUSPICIOUS": 1, "THREAT DETECTED": 2}.get(r["verdict"], 1)
+            severity = {"NO THREATS DETECTED": 0, "ANALYSIS INCOMPLETE": 1, "SUSPICIOUS": 2, "THREAT DETECTED": 3}.get(r["verdict"], 1)
             worst = max(worst, severity)
             lines.append(f"[{i}/{len(files)}] {render_one(r, compact=True)}")
             if severity:
@@ -412,7 +467,7 @@ def scan_folder(folder: Path, online: bool) -> str:
         except Exception as exc:
             worst = max(worst, 1)
             lines.append(f"[{i}/{len(files)}] ERROR: {p}: {exc}")
-    verdict = ["NO THREATS DETECTED", "SUSPICIOUS", "THREAT DETECTED"][worst]
+    verdict = ["NO THREATS DETECTED", "ANALYSIS INCOMPLETE", "SUSPICIOUS", "THREAT DETECTED"][worst]
     lines[0] = "VERDICT=" + verdict
     if details:
         lines.extend(["", "FLAGGED FILE DETAILS", "====================", ""])

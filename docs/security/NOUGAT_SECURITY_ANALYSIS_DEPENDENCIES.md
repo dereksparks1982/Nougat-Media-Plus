@@ -1,23 +1,30 @@
-# Nougat Security Analysis dependencies — v0.0.32
+# Nougat Security Analysis dependencies — v0.0.33
 
-Nougat Security Analysis is an on-demand subsystem. The scanner process is created for a requested scan (or a completed Nougat download), produces a result, and exits. There is no permanent antivirus daemon or filesystem watcher.
+Nougat Security Analysis is an **on-demand, one-shot** subsystem. No scanner daemon or filesystem watcher is installed.
 
-Runtime components installed into the generated, untracked `components/security/runtime/` tree:
+## Pinned generated runtime
 
-- **YARA-X 1.19.0** — VirusTotal — BSD-3-Clause — local rule matching.
-- **capa 9.4.0** — Mandiant/Google FLARE — Apache-2.0 — executable capability analysis.
-- **capa-rules 9.4.0** — matching upstream rules for capa — Apache-2.0.
-- **Magika 1.0.3** — Google — Apache-2.0 — content-based file type identification.
+The v0.0.33 installer generates `components/security/runtime/` locally and verifies:
 
-Optional external component:
+- YARA-X **1.19.0**
+- capa **9.4.0**
+- capa-rules **9.4.0**
+- Magika **1.0.3**
 
-- **ClamAV `clamscan`** — invoked one-shot when already installed. Nougat does not bundle or link libclamav, and does not start `clamd`.
+The generated runtime is untracked and replaceable behind Nougat-owned scanner interfaces. The helper stages and verifies a new runtime before replacing an older generated runtime.
 
-Optional free community reputation sources:
+## Optional external scanner
 
-- MalwareBazaar Community API — hash reputation.
-- ThreatFox Community API — IOC/hash reputation.
+`clamscan` may be used as a one-shot second opinion when already installed. Nougat does not run `clamd` and ClamAV availability does not decide analysis completeness.
 
-The community APIs require the owner's free abuse.ch Auth-Key. Nougat stores it only in `~/.config/nougat-media-suite/security/abusech.key` with owner-only permissions. It is never passed on a command line, written to Git, or printed in scan reports.
+## Free community threat intelligence
 
-The v0.0.32 package contains no malware samples. Validation uses harmless fixtures including the EICAR test string.
+When the owner supplies a free abuse.ch Auth-Key through **Threat Intel Key**, Nougat checks MalwareBazaar, ThreatFox and URLhaus. No paid API or subscription is required or planned for this integration. Credentials are stored locally with mode 0600 and are never passed on the command line or written to scan history.
+
+## Verdict law
+
+`NO THREATS DETECTED` is allowed only when every required/relevant local analysis lane completes. Missing Magika/YARA-X, incomplete applicable capa analysis, or an incomplete requested online reputation pass yields `ANALYSIS INCOMPLETE`. A positive detection still yields `THREAT DETECTED`; structural mismatch evidence yields `SUSPICIOUS`. Nougat never labels a file `Safe`.
+
+## Owner-control law
+
+WARN ME FIRST remains absolute. Nougat never automatically quarantines, deletes, moves, renames or opens a scanned file.

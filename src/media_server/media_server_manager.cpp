@@ -3,23 +3,29 @@
 #include <arpa/inet.h>
 #include <cerrno>
 #include <chrono>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <dirent.h>
 #include <fcntl.h>
+#include <fstream>
 #include <limits.h>
+#include <limits>
 #include <netinet/in.h>
 #include <signal.h>
 #include <string>
-#include <sys/prctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
+#include <sys/types.h>
 #include <unistd.h>
+#include <vector>
 
 namespace reddmedia {
 namespace {
+
+constexpr const char* kOwnerEnvironment = "NOUGAT_MEDIA_SERVER_OWNER";
 
 long long monotonic_ms() {
     using namespace std::chrono;
@@ -54,15 +60,67 @@ std::string parent_directory(const std::string& path) {
     return slash == std::string::npos ? "." : path.substr(0, slash);
 }
 
+std::string read_link(const std::string& path) {
+    char buffer[PATH_MAX] {};
+    const ssize_t length = readlink(path.c_str(), buffer, sizeof(buffer) - 1);
+    return length > 0 ? std::string(buffer, static_cast<std::size_t>(length)) : std::string();
+}
+
+std::string read_binary_file(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return {};
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+}
+
+bool numeric_name(const char* text) {
+    if (!text || !*text) return false;
+    for (const unsigned char* p = reinterpret_cast<const unsigned char*>(text); *p; ++p) {
+        if (!std::isdigit(*p)) return false;
+    }
+    return true;
+}
+
+bool null_list_contains(const std::string& blob, const std::string& exact) {
+    std::size_t begin = 0;
+    while (begin < blob.size()) {
+        std::size_t end = blob.find('\0', begin);
+        if (end == std::string::npos) end = blob.size();
+        if (blob.compare(begin, end - begin, exact) == 0) return true;
+        begin = end + 1;
+    }
+    return false;
+}
+
+bool null_list_contains_value(const std::string& blob, const std::string& value) {
+    std::size_t begin = 0;
+    while (begin < blob.size()) {
+        std::size_t end = blob.find('\0', begin);
+        if (end == std::string::npos) end = blob.size();
+        if (blob.compare(begin, end - begin, value) == 0) return true;
+        begin = end + 1;
+    }
+    return false;
+}
+
+bool process_is_zombie(pid_t pid) {
+    const std::string stat_line = read_binary_file("/proc/" + std::to_string(pid) + "/stat");
+    if (stat_line.empty()) return false;
+    const std::size_t close = stat_line.rfind(')');
+    if (close == std::string::npos || close + 2 >= stat_line.size()) return false;
+    return stat_line[close + 2] == 'Z';
+}
+
 } // namespace
 
 MediaServerManager::MediaServerManager() {
     resolve_paths();
+    persistent_enabled_ = load_enabled_state();
+    refresh();
 }
 
-MediaServerManager::~MediaServerManager() {
-    stop();
-}
+// Deliberately does NOT call stop(). The server is a persistent Nougat-owned
+// background service once the owner presses Start Server.
+MediaServerManager::~MediaServerManager() = default;
 
 void MediaServerManager::resolve_paths() {
     char executable[PATH_MAX] {};
@@ -76,6 +134,142 @@ void MediaServerManager::resolve_paths() {
     config_path_ = home_path + "/.config/reddmedia/server";
     cache_path_ = home_path + "/.cache/reddmedia/server";
     log_path_ = home_path + "/.local/share/reddmedia/server/log";
+    ownership_path_ = home_path + "/.local/share/reddmedia/server/nougat-owned.pid";
+    enabled_path_ = home_path + "/.config/reddmedia/server/persistent-enabled";
+}
+
+bool MediaServerManager::same_user_process(pid_t pid) const {
+    if (pid <= 1) return false;
+    struct stat info {};
+    const std::string proc_path = "/proc/" + std::to_string(pid);
+    return stat(proc_path.c_str(), &info) == 0 && info.st_uid == geteuid();
+}
+
+bool MediaServerManager::process_alive(pid_t pid) const {
+    if (pid <= 1 || process_is_zombie(pid)) return false;
+    if (kill(pid, 0) == 0) return true;
+    return errno == EPERM;
+}
+
+bool MediaServerManager::process_matches_runtime(pid_t pid) const {
+    if (!process_alive(pid) || !same_user_process(pid)) return false;
+    const std::string exe = read_link("/proc/" + std::to_string(pid) + "/exe");
+    if (!exe.empty() && exe == runtime_path_) return true;
+    const std::string cmdline = read_binary_file("/proc/" + std::to_string(pid) + "/cmdline");
+    return !cmdline.empty() && null_list_contains_value(cmdline, runtime_path_);
+}
+
+bool MediaServerManager::process_matches_nougat_signature(pid_t pid) const {
+    if (!process_alive(pid) || !same_user_process(pid)) return false;
+    const std::string cmdline = read_binary_file("/proc/" + std::to_string(pid) + "/cmdline");
+    if (cmdline.empty()) return false;
+    const bool runtime = process_matches_runtime(pid);
+    const bool data = null_list_contains_value(cmdline, data_path_);
+    const bool config = null_list_contains_value(cmdline, config_path_);
+    const bool package = null_list_contains_value(cmdline, "Nougat Media Suite integrated Jellyfin");
+    return runtime && data && config && package;
+}
+
+bool MediaServerManager::process_has_owner_token(pid_t pid, const std::string& token) const {
+    if (token.empty() || !process_alive(pid) || !same_user_process(pid)) return false;
+    const std::string environment = read_binary_file("/proc/" + std::to_string(pid) + "/environ");
+    if (environment.empty()) return false;
+    return null_list_contains(environment, std::string(kOwnerEnvironment) + "=" + token);
+}
+
+std::vector<pid_t> MediaServerManager::owned_processes(const std::string& token, pid_t recorded_pid) const {
+    std::vector<pid_t> result;
+    DIR* proc = opendir("/proc");
+    if (!proc) {
+        if (recorded_pid > 1 && process_matches_runtime(recorded_pid)) result.push_back(recorded_pid);
+        return result;
+    }
+
+    while (dirent* entry = readdir(proc)) {
+        if (!numeric_name(entry->d_name)) continue;
+        errno = 0;
+        char* end = nullptr;
+        const long value = std::strtol(entry->d_name, &end, 10);
+        if (errno != 0 || !end || *end != '\0' || value <= 1 ||
+            value > static_cast<long>(std::numeric_limits<pid_t>::max())) continue;
+        const pid_t pid = static_cast<pid_t>(value);
+        const bool token_match = process_has_owner_token(pid, token);
+        const bool signature_match = process_matches_nougat_signature(pid);
+        const bool recorded_runtime = pid == recorded_pid && process_matches_runtime(pid);
+        if (token_match || signature_match || recorded_runtime) result.push_back(pid);
+    }
+    closedir(proc);
+    return result;
+}
+
+std::string MediaServerManager::make_owner_token() const {
+    unsigned char bytes[16] {};
+    const int random_fd = open("/dev/urandom", O_RDONLY);
+    ssize_t got = -1;
+    if (random_fd >= 0) {
+        got = read(random_fd, bytes, sizeof(bytes));
+        close(random_fd);
+    }
+    if (got == static_cast<ssize_t>(sizeof(bytes))) {
+        static constexpr char hex[] = "0123456789abcdef";
+        std::string token;
+        token.reserve(sizeof(bytes) * 2);
+        for (unsigned char byte : bytes) {
+            token.push_back(hex[(byte >> 4) & 0x0f]);
+            token.push_back(hex[byte & 0x0f]);
+        }
+        return token;
+    }
+    return std::to_string(static_cast<long long>(getpid())) + "-" + std::to_string(monotonic_ms());
+}
+
+void MediaServerManager::persist_owned_record(pid_t pid, const std::string& token) const {
+    ensure_directory(parent_directory(ownership_path_));
+    const std::string temporary = ownership_path_ + ".tmp";
+    std::ofstream out(temporary, std::ios::trunc);
+    if (!out) return;
+    out << pid << '\n' << runtime_path_ << '\n' << token << '\n';
+    out.close();
+    chmod(temporary.c_str(), 0600);
+    rename(temporary.c_str(), ownership_path_.c_str());
+}
+
+void MediaServerManager::clear_owned_pid() const {
+    unlink(ownership_path_.c_str());
+}
+
+bool MediaServerManager::load_owned_record(pid_t& pid, std::string& token) const {
+    pid = -1;
+    token.clear();
+    std::ifstream in(ownership_path_);
+    long long value = -1;
+    std::string recorded_runtime;
+    if (!(in >> value)) return false;
+    in.ignore(4096, '\n');
+    std::getline(in, recorded_runtime);
+    std::getline(in, token); // empty for legacy v0.0.33 ownership files
+    if (value <= 1 || value > static_cast<long long>(std::numeric_limits<pid_t>::max())) return false;
+    if (!recorded_runtime.empty() && recorded_runtime != runtime_path_) return false;
+    pid = static_cast<pid_t>(value);
+    return true;
+}
+
+void MediaServerManager::persist_enabled(bool enabled) const {
+    ensure_directory(parent_directory(enabled_path_));
+    const std::string temporary = enabled_path_ + ".tmp";
+    std::ofstream out(temporary, std::ios::trunc);
+    if (!out) return;
+    out << (enabled ? "1\n" : "0\n");
+    out.close();
+    chmod(temporary.c_str(), 0600);
+    rename(temporary.c_str(), enabled_path_.c_str());
+}
+
+bool MediaServerManager::load_enabled_state() const {
+    std::ifstream in(enabled_path_);
+    int enabled = 1; // upgrade compatibility: v0.0.32 automatically ran the server.
+    if (in >> enabled) return enabled != 0;
+    return true;
 }
 
 bool MediaServerManager::health_ready() const {
@@ -127,6 +321,25 @@ bool MediaServerManager::health_ready() const {
     return status.find("HTTP/1.1 200") != std::string::npos || status.find("HTTP/1.0 200") != std::string::npos;
 }
 
+bool MediaServerManager::adopt_owned_server() {
+    pid_t recorded_pid = -1;
+    std::string token;
+    if (!load_owned_record(recorded_pid, token)) return false;
+
+    const std::vector<pid_t> processes = owned_processes(token, recorded_pid);
+    if (processes.empty()) {
+        clear_owned_pid();
+        owned_pid_ = -1;
+        owned_token_.clear();
+        return false;
+    }
+
+    owned_pid_ = process_alive(recorded_pid) ? recorded_pid : processes.front();
+    owned_token_ = token;
+    state_ = health_ready() ? MediaServerState::Ready : MediaServerState::Starting;
+    return true;
+}
+
 bool MediaServerManager::launch_runtime() {
     if (!regular_executable(runtime_path_)) {
         state_ = MediaServerState::RuntimeMissing;
@@ -138,17 +351,15 @@ bool MediaServerManager::launch_runtime() {
     ensure_directory(cache_path_);
     ensure_directory(log_path_);
 
+    const std::string token = make_owner_token();
     const pid_t child = fork();
     if (child < 0) {
         state_ = MediaServerState::Fault;
         return false;
     }
     if (child == 0) {
-        const pid_t parent_pid = getppid();
-        if (prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 || getppid() != parent_pid) {
-            _exit(126);
-        }
-        setsid();
+        if (setsid() < 0) _exit(126);
+        setenv(kOwnerEnvironment, token.c_str(), 1);
         const std::string log_file = log_path_ + "/jellyfin.log";
         const int log_fd = open(log_file.c_str(), O_CREAT | O_WRONLY | O_APPEND, 0644);
         const int null_fd = open("/dev/null", O_RDONLY);
@@ -165,105 +376,134 @@ bool MediaServerManager::launch_runtime() {
               "--nowebclient",
               "--ffmpeg", "/usr/bin/ffmpeg",
               "--service",
-              "--package-name", "ReddMedia integrated Jellyfin",
+              "--package-name", "Nougat Media Suite integrated Jellyfin",
               static_cast<char*>(nullptr));
         _exit(127);
     }
 
     owned_pid_ = child;
+    owned_token_ = token;
+    persist_owned_record(child, token);
     state_ = MediaServerState::Starting;
     return true;
 }
 
 void MediaServerManager::start() {
-    shutdown_requested_ = false;
+    persistent_enabled_ = true;
+    persist_enabled(true);
+
+    if (adopt_owned_server()) return;
+
+    // A healthy server not carrying Nougat ownership metadata is deliberately
+    // not claimed or killed. This preserves independently started Jellyfin.
     if (health_ready()) {
         state_ = MediaServerState::Ready;
+        owned_pid_ = -1;
+        owned_token_.clear();
         return;
     }
     launch_runtime();
 }
 
 void MediaServerManager::stop() {
-    shutdown_requested_ = true;
-    state_ = MediaServerState::Stopped;
-    next_restart_ms_ = 0;
+    persistent_enabled_ = false;
+    persist_enabled(false);
 
-    const pid_t pid = owned_pid_;
-    owned_pid_ = -1;
-    if (pid <= 0) return;
+    pid_t recorded_pid = owned_pid_;
+    std::string token = owned_token_;
+    pid_t file_pid = -1;
+    std::string file_token;
+    if (load_owned_record(file_pid, file_token)) {
+        if (recorded_pid <= 1) recorded_pid = file_pid;
+        if (token.empty()) token = file_token;
+    }
 
-    kill(-pid, SIGTERM);
-    kill(pid, SIGTERM);
+    std::vector<pid_t> processes = owned_processes(token, recorded_pid);
+    if (processes.empty()) {
+        clear_owned_pid();
+        owned_pid_ = -1;
+        owned_token_.clear();
+        state_ = health_ready() ? MediaServerState::Ready : MediaServerState::Stopped;
+        return;
+    }
 
-    int status = 0;
-    for (int attempt = 0; attempt < 60; ++attempt) {
-        const pid_t result = waitpid(pid, &status, WNOHANG);
-        if (result == pid || (result < 0 && errno == ECHILD)) return;
+    // Every process selected here either inherited Nougat's unguessable owner
+    // token or matches Nougat's exact runtime + data/config/package signature.
+    // Never kill by executable name alone.
+    for (pid_t pid : processes) kill(pid, SIGTERM);
+
+    bool stopped = false;
+    for (int attempt = 0; attempt < 120; ++attempt) {
+        processes = owned_processes(token, recorded_pid);
+        if (processes.empty() && !health_ready()) {
+            stopped = true;
+            break;
+        }
+        if (attempt > 0 && attempt % 20 == 0) {
+            for (pid_t pid : processes) kill(pid, SIGTERM);
+        }
         usleep(50000);
     }
 
-    kill(-pid, SIGKILL);
-    kill(pid, SIGKILL);
-    while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
+    if (!stopped) {
+        processes = owned_processes(token, recorded_pid);
+        for (pid_t pid : processes) kill(pid, SIGKILL);
+        for (int attempt = 0; attempt < 100; ++attempt) {
+            processes = owned_processes(token, recorded_pid);
+            if (processes.empty() && !health_ready()) {
+                stopped = true;
+                break;
+            }
+            if (attempt > 0 && attempt % 20 == 0) {
+                for (pid_t pid : processes) kill(pid, SIGKILL);
+            }
+            usleep(50000);
+        }
     }
+
+    clear_owned_pid();
+    owned_pid_ = -1;
+    owned_token_.clear();
+    if (stopped) state_ = MediaServerState::Stopped;
+    else if (owned_processes(token, recorded_pid).empty() && health_ready()) state_ = MediaServerState::Ready;
+    else state_ = MediaServerState::Fault;
 }
 
 void MediaServerManager::refresh() {
-    const MediaServerState previous = state_;
-    if (health_ready()) {
+    if (adopt_owned_server()) return;
+
+    const bool healthy = health_ready();
+    if (healthy) {
         state_ = MediaServerState::Ready;
-        return;
-    }
-    if (owned_pid_ > 0) {
-        int status = 0;
-        const pid_t result = waitpid(owned_pid_, &status, WNOHANG);
-        if (result == 0) {
-            state_ = MediaServerState::Starting;
-            return;
-        }
         owned_pid_ = -1;
-        state_ = MediaServerState::Fault;
+        owned_token_.clear();
         return;
     }
+
+    owned_pid_ = -1;
+    owned_token_.clear();
     if (!regular_executable(runtime_path_)) state_ = MediaServerState::RuntimeMissing;
-    else if (previous != MediaServerState::Stopped) state_ = MediaServerState::Fault;
     else state_ = MediaServerState::Stopped;
 }
 
 bool MediaServerManager::poll() {
-    if (shutdown_requested_) return false;
     const long long now = monotonic_ms();
     if (now - last_poll_ms_ < 2000) return false;
     last_poll_ms_ = now;
     const MediaServerState previous = state_;
 
-    if (health_ready()) {
-        state_ = MediaServerState::Ready;
-        return state_ != previous;
+    if (!adopt_owned_server()) {
+        if (health_ready()) state_ = MediaServerState::Ready; // independent server, not owned
+        else if (!regular_executable(runtime_path_)) state_ = MediaServerState::RuntimeMissing;
+        else state_ = MediaServerState::Stopped;
     }
-
-    if (owned_pid_ > 0) {
-        int status = 0;
-        const pid_t result = waitpid(owned_pid_, &status, WNOHANG);
-        if (result == 0) {
-            state_ = MediaServerState::Starting;
-            return state_ != previous;
-        }
-        owned_pid_ = -1;
-        state_ = MediaServerState::Fault;
-        next_restart_ms_ = now + 5000;
-    }
-
-    if (state_ == MediaServerState::RuntimeMissing) return state_ != previous;
-    if (owned_pid_ < 0 && now >= next_restart_ms_) launch_runtime();
     return state_ != previous;
 }
 
 std::string MediaServerManager::status_label() const {
     switch (state_) {
-    case MediaServerState::Starting: return "Server: Starting";
-    case MediaServerState::Ready: return "Server: Ready";
+    case MediaServerState::Starting: return owns_server() ? "Server: Starting (background)" : "Server: Starting";
+    case MediaServerState::Ready: return owns_server() ? "Server: Ready (background)" : "Server: Ready (external)";
     case MediaServerState::Fault: return "Server: Fault";
     case MediaServerState::RuntimeMissing: return "Server: Runtime Missing";
     case MediaServerState::Stopped: return "Server: Stopped";
@@ -271,36 +511,17 @@ std::string MediaServerManager::status_label() const {
     return "Server: Fault";
 }
 
-MediaServerState MediaServerManager::state() const {
-    return state_;
-}
-
+MediaServerState MediaServerManager::state() const { return state_; }
 bool MediaServerManager::owns_server() const {
-    return owned_pid_ > 0;
+    if (owned_pid_ <= 1 && owned_token_.empty()) return false;
+    return !owned_processes(owned_token_, owned_pid_).empty();
 }
-
-bool MediaServerManager::probe_health() const {
-    return health_ready();
-}
-
-const std::string& MediaServerManager::runtime_path() const {
-    return runtime_path_;
-}
-
-const std::string& MediaServerManager::data_path() const {
-    return data_path_;
-}
-
-const std::string& MediaServerManager::config_path() const {
-    return config_path_;
-}
-
-const std::string& MediaServerManager::cache_path() const {
-    return cache_path_;
-}
-
-const std::string& MediaServerManager::log_path() const {
-    return log_path_;
-}
+bool MediaServerManager::probe_health() const { return health_ready(); }
+bool MediaServerManager::persistent_enabled() const { return persistent_enabled_; }
+const std::string& MediaServerManager::runtime_path() const { return runtime_path_; }
+const std::string& MediaServerManager::data_path() const { return data_path_; }
+const std::string& MediaServerManager::config_path() const { return config_path_; }
+const std::string& MediaServerManager::cache_path() const { return cache_path_; }
+const std::string& MediaServerManager::log_path() const { return log_path_; }
 
 } // namespace reddmedia

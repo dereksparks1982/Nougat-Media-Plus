@@ -4,3 +4,8 @@
 # Local build handoff packages.
 /1of2.zip
 /2of2.zip
+
+/components/ai/runtime/
+/components/jellyfin/runtime/
+**/__pycache__/
+*.pyc

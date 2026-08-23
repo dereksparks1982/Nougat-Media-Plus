@@ -1,5 +1,18 @@
-# Nougat Media Suite v0.0.32
+# Nougat Media Suite v0.0.33
 
+## v0.0.33 - P2P Plus, Security Hardening, Persistent Server, Page Viewports, and Live TV Foundation
+
+v0.0.33 builds directly on accepted v0.0.32 commit `084ee7ccd82be3a578f738b3bcb6ac8570a573dd`. Normal pages now use a Nougat-owned bordered clipping viewport so scrolling content cannot bleed under fixed chrome; **Video Player is intentionally unchanged**. Home and Library gain hard containment, Library gains a dedicated vertical scrollbar and wrapping toolbar, and the top navigation is clipped between the fixed Nougat brand and fixed Server/version area.
+
+The top-level order is **Home | Video Player | Library | Discover | Live TV | Search | Stream | Debug**. Live TV is a truthful hardware-discovery foundation with a generic `NougatTunerBackend`, Linux DVB/V4L2 probing, channel database/scan interfaces, and first-hardware targeting for the Hauppauge WinTV-HVR-955Q. It does not claim channel tuning/playback yet.
+
+P2P Plus adds Nougat-owned management interfaces for speed limits, seeding ratio/time rules, per-file priority, queue movement, tracker status, Force Reannounce and Force Recheck while preserving v0.0.32 native Watch Now/seek-aware streaming.
+
+Nougat Security Analysis now requires the pinned one-shot runtime (YARA-X 1.19.0, capa 9.4.0 + matching rules, Magika 1.0.3). Missing required/relevant engines produce **ANALYSIS INCOMPLETE**, never a false clean result. Free abuse.ch MalwareBazaar/ThreatFox/URLhaus reputation remains optional through the owner's free **Threat Intel Key**. ClamAV remains an optional external one-shot second opinion. No resident scanner, filesystem watcher, automatic quarantine, deletion, move, rename, or open action is installed.
+
+The integrated Jellyfin server is now persistent after **Start Server**: closing the Nougat UI leaves a Nougat-owned server running, reopening adopts it, and **Stop Server** is the explicit shutdown path. Independently started Jellyfin is never claimed or killed.
+
+## Accepted v0.0.32 baseline
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
 
 
@@ -601,3 +614,4 @@ This replacement v0.0.19 candidate includes the recommendation/viewing-history s
 ## v0.0.26 candidate
 
 This candidate adds internal mouse Back/Forward navigation, cleans the Library header and Nougat icon perimeter, upgrades Debug into an evidence-based Diagnostic Center with TXT/JSON/redacted support-bundle exports, cleans and centers the intentional 0-200% volume control, fixes top-header layering during horizontal tab scrolling, and adds a 10-second TV Up Next overlay with Play Next / Back to Series / Replay. P2P feature expansion was later moved to v0.0.32 after the owner split v0.0.28/v0.0.29 into UI/artwork and TV-reliability releases.
+- v0.0.33 server-stop repair: persistent Nougat-owned Jellyfin sessions carry a per-session ownership token; Stop Server terminates the complete owned process tree and verifies port 8096 is released without killing Jellyfin by name.

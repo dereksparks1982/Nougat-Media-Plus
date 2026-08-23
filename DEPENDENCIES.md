@@ -1,3 +1,7 @@
+# v0.0.33 dependency note
+
+New active adapters remain replaceable Nougat-owned boundaries. The generated Security Analysis runtime pins YARA-X 1.19.0, capa 9.4.0 with matching capa-rules, and Magika 1.0.3. Optional ClamAV uses external one-shot `clamscan` only. Live TV discovery uses Linux `/dev/dvb` and V4L2 device/sysfs interfaces and adds no tuner daemon. Existing libtorrent 2.x remains the temporary P2P backend behind `P2PEngine`.
+
 # Nougat Media Suite Dependencies
 
 ## v0.0.18 metadata, diagnostics, and watch-availability requirements

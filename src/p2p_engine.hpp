@@ -13,6 +13,18 @@ struct P2PFileInfo {
     bool video = false;
 };
 
+struct P2PTrackerInfo {
+    std::string url;
+    std::string message;
+};
+
+struct P2PPlusSettings {
+    int download_limit_kib = 0;
+    int upload_limit_kib = 0;
+    double seed_ratio_limit = 0.0;
+    int seed_time_limit_minutes = 0;
+};
+
 struct P2PStatus {
     bool active = false;
     bool metadata_ready = false;
@@ -23,6 +35,11 @@ struct P2PStatus {
     std::int64_t total = 0;
     int download_rate = 0;
     int upload_rate = 0;
+    int download_limit = 0;
+    int upload_limit = 0;
+    std::int64_t total_uploaded = 0;
+    std::int64_t total_downloaded = 0;
+    double share_ratio = 0.0;
     int peers = 0;
     int seeds = 0;
     int known_peers = 0;
@@ -42,6 +59,8 @@ struct P2PStatus {
     float selected_progress = 0.0f;
     std::uint64_t selected_size = 0;
     std::uint64_t selected_buffered_bytes = 0;
+    int tracker_count = 0;
+    int queue_position = -1;
 };
 
 class P2PEngine {
@@ -59,6 +78,20 @@ public:
     bool resume_transfer(std::string& error);
     bool remove_transfer(std::string& error);
     bool is_paused() const;
+
+    // P2P Plus management surface. Nougat owns this interface so libtorrent
+    // remains a replaceable backend rather than leaking through the UI.
+    bool set_speed_limits(int download_kib, int upload_kib, std::string& error);
+    bool set_seed_rules(double ratio_limit, int time_limit_minutes, std::string& error);
+    P2PPlusSettings plus_settings() const;
+    bool queue_up(std::string& error);
+    bool queue_down(std::string& error);
+    bool force_reannounce(std::string& error);
+    bool force_recheck(std::string& error);
+    bool set_file_priority(int index, int priority, std::string& error);
+    std::vector<P2PTrackerInfo> trackers() const;
+    void enforce_seed_rules();
+
     void shutdown();
 
     P2PStatus status() const;
