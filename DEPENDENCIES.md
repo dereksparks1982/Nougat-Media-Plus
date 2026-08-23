@@ -1,3 +1,9 @@
+# v0.0.34 dependency note
+
+v0.0.34 adds no new runtime dependency. It retains the accepted v0.0.33 stack, including libtorrent 2.x, the Nougat-managed Jellyfin runtime, llama.cpp/Nomic embeddings, and the one-shot YARA-X/capa/Magika security runtime.
+
+The v0.0.34 installer builds natively against the owner machine's existing accepted runtime stack and verifies the retained v0.0.33 security runtime rather than replacing it.
+
 # v0.0.33 dependency note
 
 New active adapters remain replaceable Nougat-owned boundaries. The generated Security Analysis runtime pins YARA-X 1.19.0, capa 9.4.0 with matching capa-rules, and Magika 1.0.3. Optional ClamAV uses external one-shot `clamscan` only. Live TV discovery uses Linux `/dev/dvb` and V4L2 device/sysfs interfaces and adds no tuner daemon. Existing libtorrent 2.x remains the temporary P2P backend behind `P2PEngine`.

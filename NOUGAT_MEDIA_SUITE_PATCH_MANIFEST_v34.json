@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "project": "Nougat Media Suite",
+  "target_version": "0.0.34",
+  "accepted_base_version": "0.0.33",
+  "accepted_base_commit": "6763a42bf5c125974e5a2882234fb2ee2e04c512",
+  "scope": "Exact sheet tabs/player controls + Home/Discover/UI repair",
+  "payload": {
+    "CMakeLists.txt": {
+      "bytes": 2930,
+      "sha256": "46d6e1b4bf02f86f2163bc04e81cced88e97750091c61771ab5207a33ed93d1d"
+    },
+    "README.md": {
+      "bytes": 57387,
+      "sha256": "6fa7bd9176450c7452c02a8fad6dc17c18968092604980f5e0b8802509eb1d3f"
+    },
+    "CHANGELOG.md": {
+      "bytes": 52210,
+      "sha256": "001db043dd8e86672c6409c34cc7b743b29c83dfad2ab23258b2522ec291dc28"
+    },
+    "ROADMAP.md": {
+      "bytes": 38163,
+      "sha256": "d783f23735d5d1cc24e4a2308ff077602364f6f4fb99aba84c871a45d34e4a7f"
+    },
+    "DEPENDENCIES.md": {
+      "bytes": 11411,
+      "sha256": "2fb4a4635f5a32eeafdd3f3a88d222c5713973e41016043b1eb299ae516a0f1b"
+    },
+    "APPLY_COMMAND.txt": {
+      "bytes": 324,
+      "sha256": "3763fd208824b15debf27c92034f2f67ded1dcfc70ec7f2198cbd40fcf84729d"
+    },
+    "COMPANY_BIBLE.md": {
+      "bytes": 24401,
+      "sha256": "0b1d326d4f5cbc865c2a57eb7bdd9f40e45275b428b725b5d2ef234a7f9ad2dc"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 464,
+      "sha256": "b92104a3c68bc6f41feebae770586a6bc9a7e6e6ba987a9a87068e233ffbfc0b"
+    },
+    "NougatMediaSuite_v34.desktop": {
+      "bytes": 464,
+      "sha256": "b92104a3c68bc6f41feebae770586a6bc9a7e6e6ba987a9a87068e233ffbfc0b"
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 464,
+      "sha256": "b92104a3c68bc6f41feebae770586a6bc9a7e6e6ba987a9a87068e233ffbfc0b"
+    },
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_34.sh": {
+      "bytes": 19333,
+      "sha256": "8ab9511a8ec290e9c8641b4bb550932624d1d687a6ab3b1e52627d76b6393a46"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_34_EXACT_SHEET_UI_HANDSHAKE.md": {
+      "bytes": 498,
+      "sha256": "ce763603880146270fb8eb51e0d10d0397c5bcd76ff2b0e16fc83bc2f27c0c43"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_34_EXACT_SHEET_UI_VALIDATION.md": {
+      "bytes": 566,
+      "sha256": "d4454eb3fd1c983c86003137c7d260d7ab0b05f5d8d717792093a51a0b3adf42"
+    },
+    "src/main.cpp": {
+      "bytes": 519129,
+      "sha256": "eb0675fb64c743ddd7a946574948062b71d54bdabbbe74e99fcffc7c0e493d48"
+    },
+    "src/recommendations/recommendation_types.hpp": {
+      "bytes": 1928,
+      "sha256": "9c4aafd88174ab8590fce9e9e52d1223f70387b17ffe83464ce22b4741fdf25d"
+    },
+    "src/recommendations/recommendation_engine.cpp": {
+      "bytes": 12766,
+      "sha256": "7849d4d785ee08c60b2be026439269e62ab00da74ac9a3b565697415ad1dcccc"
+    },
+    "tools/test_nougat_media_suite_v34.py": {
+      "bytes": 3083,
+      "sha256": "c2ff82ebd2c988a94159f070cb5f1b9572aded42d1aede4b6e66a9b3455c0c4c"
+    },
+    "tools/test_installer_rollback_v34.py": {
+      "bytes": 980,
+      "sha256": "0c0cd0fd36641da6527749d81f6441b362294c65ebcb4d58751d2ebc0d154bc3"
+    }
+  },
+  "remove_after_success": [
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_33.sh",
+    "NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v33.json",
+    "NougatMediaSuite_v33.desktop",
+    "Nougat_Media_Suite_v33"
+  ],
+  "generated_runtime_exclusions": [
+    "components/ai/runtime/",
+    "components/jellyfin/runtime/",
+    "components/security/runtime/"
+  ],
+  "owner_checks": [
+    "top-tab sheet fidelity and left placement",
+    "seek/volume sheet fidelity",
+    "Home card alignment",
+    "scrollbar direct-stop behavior",
+    "Live TV header spacing",
+    "Discover Live TV/TMDb selectors",
+    "affected page frame corners"
+  ]
+}

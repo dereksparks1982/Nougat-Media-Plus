@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Nougat Media Suite v0.0.33 changed-files installer.
-# Base: accepted v0.0.32 commit 084ee7ccd82be3a578f738b3bcb6ac8570a573dd.
-# WARN ME FIRST security policy: no automatic quarantine/delete/move/rename/open.
+# Nougat Media Suite v0.0.34 changed-files installer.
+# Base: accepted v0.0.33 commit 6763a42bf5c125974e5a2882234fb2ee2e04c512.
+# Focus: exact-sheet tabs/player controls + Home/Discover/UI repair.
 
 payload_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 project_root="$HOME/DKLab/Projects/Nougat Media Suite"
-manifest_path="$payload_root/NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v33.json"
+manifest_path="$payload_root/NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v34.json"
 archive_parent="$HOME/DKLab/Archives/ReddMedia Archive"
 stamp="$(date +%Y%m%d_%H%M%S)"
-rollback_root="$archive_parent/Nougat_Media_Suite_pre_v0_0_33_P2P_PLUS_SECURITY_LIVE_TV_VIEWPORTS_$stamp"
-build_root="${TMPDIR:-/tmp}/nougat-media-suite-v0_0_33-$stamp-$$"
-expected_head="084ee7ccd82be3a578f738b3bcb6ac8570a573dd"
+rollback_root="$archive_parent/Nougat_Media_Suite_pre_v0_0_34_EXACT_SHEET_UI_$stamp"
+build_root="${TMPDIR:-/tmp}/nougat-media-suite-v0_0_34-$stamp-$$"
+expected_head="6763a42bf5c125974e5a2882234fb2ee2e04c512"
 canonical_id="com.elderredsoftworks.NougatMediaSuite"
 master_icon="$project_root/assets/icons/nougat-media-suite-concept-sheet-v24.png"
 pinned_model="$project_root/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf"
@@ -18,86 +18,13 @@ pinned_model_bytes="84106624"
 pinned_model_sha="d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac"
 canonical_launcher="$HOME/.local/share/applications/${canonical_id}.desktop"
 launcher_unversioned="$HOME/.local/share/applications/NougatMediaSuite.desktop"
-launcher_v32="$HOME/.local/share/applications/NougatMediaSuite_v32.desktop"
 launcher_v33="$HOME/.local/share/applications/NougatMediaSuite_v33.desktop"
+launcher_v34="$HOME/.local/share/applications/NougatMediaSuite_v34.desktop"
 applied=0
 
 phase_start(){ printf '\n=== %s ===\n' "$1"; }
 phase_pass(){ printf 'PASS: %s\n' "$1"; }
 require_command(){ command -v "$1" >/dev/null 2>&1 || { printf 'FAIL: required command missing: %s\n' "$1"; return 1; }; }
-
-python_venv_works(){
-  local probe="${TMPDIR:-/tmp}/nougat-python-venv-probe-$$"
-  rm -rf -- "$probe"
-  if python3 -m venv "$probe" >/dev/null 2>&1 && [[ -x "$probe/bin/python" && -x "$probe/bin/pip" ]]; then
-    rm -rf -- "$probe"
-    return 0
-  fi
-  rm -rf -- "$probe"
-  return 1
-}
-
-ensure_python_venv_support(){
-  local pyver_pkg generic_pkg="python3-venv" runner
-  if python_venv_works; then
-    printf 'Python venv/ensurepip prerequisite PASS.\n'
-    return 0
-  fi
-
-  pyver_pkg="$(python3 - <<'PYV'
-import sys
-print(f"python{sys.version_info.major}.{sys.version_info.minor}-venv")
-PYV
-)"
-  printf 'Python venv/ensurepip support is missing. Nougat will install the Ubuntu prerequisite: %s\n' "$pyver_pkg"
-  printf 'A sudo password prompt may appear in this terminal. No GUI will be opened.\n'
-
-  require_command apt-get || return 1
-  if [[ "$(id -u)" -eq 0 ]]; then
-    runner=""
-  else
-    require_command sudo || return 1
-    runner="sudo"
-  fi
-
-  if [[ -n "$runner" ]]; then
-    $runner apt-get install -y "$pyver_pkg" >/dev/null 2>&1 || \
-    $runner apt-get install -y "$generic_pkg" >/dev/null 2>&1 || {
-      printf 'Initial venv package install failed; refreshing Ubuntu package indexes once and retrying.\n'
-      $runner apt-get update || return 1
-      $runner apt-get install -y "$pyver_pkg" || $runner apt-get install -y "$generic_pkg" || return 1
-    }
-  else
-    apt-get install -y "$pyver_pkg" >/dev/null 2>&1 || \
-    apt-get install -y "$generic_pkg" >/dev/null 2>&1 || {
-      printf 'Initial venv package install failed; refreshing Ubuntu package indexes once and retrying.\n'
-      apt-get update || return 1
-      apt-get install -y "$pyver_pkg" || apt-get install -y "$generic_pkg" || return 1
-    }
-  fi
-
-  python_venv_works || { printf 'FAIL: Python venv/ensurepip is still unavailable after prerequisite installation.\n'; return 1; }
-  printf 'Python venv/ensurepip prerequisite installed and verified.\n'
-}
-
-cleanup_generated_python_caches(){
-  python3 - "$project_root" <<'PY'
-import pathlib, shutil, sys
-root=pathlib.Path(sys.argv[1])
-removed=0
-for p in sorted(root.rglob('__pycache__'), key=lambda x: len(x.parts), reverse=True):
-    if p.is_dir():
-        shutil.rmtree(p, ignore_errors=True)
-        removed += 1
-for p in list(root.rglob('*.pyc')):
-    try:
-        p.unlink()
-        removed += 1
-    except FileNotFoundError:
-        pass
-print(f'Python cache cleanup PASS: removed {removed} generated cache item(s).')
-PY
-}
 
 verify_file_exact(){ python3 - "$1" "$2" "$3" <<'PY'
 import hashlib,pathlib,sys
@@ -118,13 +45,21 @@ verify_relative_ai_rpath(){
   printf 'Relative AI runtime RPATH verified.\n'
 }
 
-verify_port_free(){ python3 - <<'PY'
-import socket
-s=socket.socket(); s.settimeout(.25); used=s.connect_ex(('127.0.0.1',8096))==0; s.close()
-if used:
- print('FAIL: localhost port 8096 is in use. Close Nougat Media Suite and any Jellyfin instance before installing v0.0.33 so the persistent-server lifecycle test can run safely.')
- raise SystemExit(1)
-print('Port 8096 is free.')
+cleanup_generated_python_caches(){
+  python3 - "$project_root" <<'PY'
+import pathlib,shutil,sys
+root=pathlib.Path(sys.argv[1]); removed=0
+for p in sorted(root.rglob('__pycache__'), key=lambda x: len(x.parts), reverse=True):
+    # Never delete caches inside generated runtime environments; those are runtime-owned.
+    rel=p.relative_to(root).as_posix()
+    if rel.startswith(('components/ai/runtime/','components/jellyfin/runtime/','components/security/runtime/')): continue
+    if p.is_dir(): shutil.rmtree(p,ignore_errors=True); removed+=1
+for p in list(root.rglob('*.pyc')):
+    rel=p.relative_to(root).as_posix()
+    if rel.startswith(('components/ai/runtime/','components/jellyfin/runtime/','components/security/runtime/')): continue
+    try: p.unlink(); removed+=1
+    except FileNotFoundError: pass
+print(f'Python cache cleanup PASS: removed {removed} project-generated cache item(s).')
 PY
 }
 
@@ -133,7 +68,7 @@ verify_git_state(){
   branch="$(git -C "$project_root" branch --show-current 2>/dev/null)"
   head="$(git -C "$project_root" rev-parse HEAD 2>/dev/null)"
   [[ "$branch" == "main" ]] || { printf 'FAIL: expected branch main, found %s\n' "${branch:-unknown}"; return 1; }
-  [[ "$head" == "$expected_head" ]] || { printf 'FAIL: expected accepted v0.0.32 HEAD %s, found %s\n' "$expected_head" "${head:-unknown}"; return 1; }
+  [[ "$head" == "$expected_head" ]] || { printf 'FAIL: expected accepted v0.0.33 HEAD %s, found %s\n' "$expected_head" "${head:-unknown}"; return 1; }
   git -C "$project_root" diff --quiet || { printf 'FAIL: tracked worktree changes exist.\n'; return 1; }
   git -C "$project_root" diff --cached --quiet || { printf 'FAIL: staged changes exist.\n'; return 1; }
   python3 - "$project_root" <<'PY'
@@ -146,16 +81,16 @@ if bad:
  print('FAIL: unexpected untracked project files:')
  for x in bad: print('  '+x)
  raise SystemExit(1)
-print('Git preflight PASS: accepted v0.0.32 HEAD with generated runtime directories only.')
+print('Git preflight PASS: accepted v0.0.33 HEAD with generated runtime directories only.')
 PY
 }
 
 verify_manifest(){ python3 - "$payload_root" "$manifest_path" <<'PY'
 import hashlib,json,pathlib,sys
 root=pathlib.Path(sys.argv[1]); mp=pathlib.Path(sys.argv[2])
-if not mp.is_file(): print('FAIL: v33 manifest missing'); raise SystemExit(1)
+if not mp.is_file(): print('FAIL: v34 manifest missing'); raise SystemExit(1)
 m=json.loads(mp.read_text())
-if m.get('target_version')!='0.0.33' or m.get('accepted_base_commit')!='084ee7ccd82be3a578f738b3bcb6ac8570a573dd':
+if m.get('target_version')!='0.0.34' or m.get('accepted_base_commit')!='6763a42bf5c125974e5a2882234fb2ee2e04c512':
  print('FAIL: manifest identity/base mismatch'); raise SystemExit(1)
 def sha(p):
  h=hashlib.sha256()
@@ -210,10 +145,10 @@ save_rollback(){
     [[ -n "$rel" ]] || continue
     if [[ -e "$project_root/$rel" ]]; then mkdir -p "$rollback_root/project/$(dirname "$rel")"; cp -a "$project_root/$rel" "$rollback_root/project/$rel" || return 1; fi
   done < <(manifest_paths remove_after_success)
-  for src in "$launcher_unversioned" "$launcher_v32" "$launcher_v33" "$canonical_launcher"; do
+  for src in "$launcher_unversioned" "$launcher_v33" "$launcher_v34" "$canonical_launcher"; do
     [[ -e "$src" ]] && cp -a "$src" "$rollback_root/user-shell/applications/$(basename "$src")"
   done
-  printf 'Accepted base: v0.0.32 %s\nTarget: v0.0.33\n' "$expected_head" > "$rollback_root/ROLLBACK_INFO.txt"
+  printf 'Accepted base: v0.0.33 %s\nTarget: v0.0.34\n' "$expected_head" > "$rollback_root/ROLLBACK_INFO.txt"
 }
 
 apply_payload(){
@@ -223,37 +158,36 @@ apply_payload(){
     mkdir -p "$project_root/$(dirname "$rel")" || return 1
     cp -a "$payload_root/$rel" "$project_root/$rel" || return 1
   done < <(manifest_paths payload)
-  cp -a "$manifest_path" "$project_root/NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v33.json" || return 1
-  chmod +x "$project_root/INSTALL_NOUGAT_MEDIA_SUITE_v0_0_33.sh" "$project_root/tools/install_nougat_security_runtime_v33.py" "$project_root/tools/test_nougat_media_suite_v33.py" "$project_root/tools/test_nougat_media_suite_ui_smoke_v33.py" "$project_root/tools/test_nougat_security_analysis_v33.py" "$project_root/components/security/nougat_security_worker.py" || return 1
+  chmod +x "$project_root/INSTALL_NOUGAT_MEDIA_SUITE_v0_0_34.sh" "$project_root/tools/test_nougat_media_suite_v34.py" "$project_root/tools/test_installer_rollback_v34.py" || return 1
   applied=1
 }
 
 restore_rollback(){
   [[ "$applied" == "1" ]] || return 0
-  printf '\nROLLBACK START: restoring accepted v0.0.32 touched state\n'
+  printf '\nROLLBACK START: restoring accepted v0.0.33 touched state\n'
   local rel backup dest
   while IFS= read -r rel; do
     [[ -n "$rel" ]] || continue
     backup="$rollback_root/project/$rel"
     if [[ -e "$backup" ]]; then mkdir -p "$project_root/$(dirname "$rel")"; cp -a "$backup" "$project_root/$rel"; else rm -rf -- "$project_root/$rel"; fi
   done < <(manifest_paths payload)
-  rm -f -- "$project_root/NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v33.json" "$project_root/Nougat_Media_Suite_v33"
+  rm -f -- "$project_root/NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v34.json" "$project_root/Nougat_Media_Suite_v34"
   while IFS= read -r rel; do
     [[ -n "$rel" ]] || continue
     backup="$rollback_root/project/$rel"
     [[ -e "$backup" ]] && { mkdir -p "$project_root/$(dirname "$rel")"; cp -a "$backup" "$project_root/$rel"; }
   done < <(manifest_paths remove_after_success)
-  for dest in "$launcher_unversioned" "$launcher_v32" "$launcher_v33" "$canonical_launcher"; do
+  for dest in "$launcher_unversioned" "$launcher_v33" "$launcher_v34" "$canonical_launcher"; do
     backup="$rollback_root/user-shell/applications/$(basename "$dest")"
     if [[ -e "$backup" ]]; then mkdir -p "$(dirname "$dest")"; cp -a "$backup" "$dest"; else rm -f -- "$dest"; fi
   done
-  printf 'ROLLBACK PASS: accepted v0.0.32 touched state restored. Generated runtimes/user data preserved.\n'
+  printf 'ROLLBACK PASS: accepted v0.0.33 touched state restored. Generated runtimes/user data preserved.\n'
 }
 
 run_source_tests(){
   verify_protected_state || return 1
-  python3 -m py_compile "$project_root/components/security/nougat_security_worker.py" "$project_root/tools/install_nougat_security_runtime_v33.py" || return 1
-  python3 "$project_root/tools/test_nougat_media_suite_v33.py" "$project_root" || return 1
+  python3 "$project_root/tools/test_nougat_media_suite_v34.py" "$project_root" || return 1
+  python3 "$project_root/tools/test_installer_rollback_v34.py" "$project_root" || return 1
   python3 "$project_root/tools/test_nougat_security_analysis_v33.py" "$project_root" || return 1
   python3 "$project_root/tools/test_p2p_stream_server_v32.py" "$project_root" || return 1
   python3 "$project_root/tools/test_nougat_diagnostics_v26.py" "$project_root" || return 1
@@ -262,8 +196,8 @@ run_source_tests(){
 build_stub(){
   cmake -S "$project_root" -B "$build_root/stub" -DREDDMEDIA_P2P_STUB=ON -DREDDMEDIA_AI_STUB=ON -DCMAKE_BUILD_TYPE=Release || return 1
   cmake --build "$build_root/stub" -j"$(nproc)" || return 1
-  local exe="$build_root/stub/Nougat_Media_Suite_v33"
-  [[ "$("$exe" --version)" == "Nougat Media Suite v0.0.33" ]] || return 1
+  local exe="$build_root/stub/Nougat_Media_Suite_v34"
+  [[ "$("$exe" --version)" == "Nougat Media Suite v0.0.34" ]] || return 1
   "$exe" --discover-ai-self-test || return 1
   "$exe" --v25-ui-state-self-test || return 1
   "$exe" --v28-ui-state-self-test || return 1
@@ -272,11 +206,17 @@ build_stub(){
   "$exe" --v31-ui-sheet-self-test || return 1
   "$exe" --v32-p2p-player-repair-self-test || return 1
   HOME="$build_root/stub-home" "$exe" --v33-integration-self-test || return 1
-  python3 "$project_root/tools/test_nougat_media_suite_v33.py" "$project_root" "$exe" || return 1
+  HOME="$build_root/stub-home-v34" "$exe" --v34-ui-polish-self-test || return 1
+  python3 "$project_root/tools/test_nougat_media_suite_v34.py" "$project_root" "$exe" || return 1
   python3 "$project_root/tools/test_nougat_media_suite_ui_smoke_v33.py" "$project_root" "$exe" || return 1
 }
 
-install_security_runtime(){
+verify_security_runtime(){
+  if python3 "$project_root/tools/install_nougat_security_runtime_v33.py" "$project_root" --check; then
+    python3 "$project_root/tools/test_nougat_security_analysis_v33.py" "$project_root" || return 1
+    return 0
+  fi
+  printf 'Retained v0.0.33 security runtime is missing or incomplete; rebuilding the free one-shot runtime.\n'
   python3 "$project_root/tools/install_nougat_security_runtime_v33.py" "$project_root" || return 1
   python3 "$project_root/tools/install_nougat_security_runtime_v33.py" "$project_root" --check || return 1
   python3 "$project_root/tools/test_nougat_security_analysis_v33.py" "$project_root" || return 1
@@ -289,9 +229,9 @@ build_full(){
   ln -s "$project_root/components/ai/runtime" "$build_root/full/components/ai/runtime" || return 1
   ln -s "$project_root/components/ai/models" "$build_root/full/components/ai/models" || return 1
   ln -s "$project_root/components/jellyfin/runtime" "$build_root/full/components/jellyfin/runtime" || return 1
-  local exe="$build_root/full/Nougat_Media_Suite_v33"
+  local exe="$build_root/full/Nougat_Media_Suite_v34"
   verify_relative_ai_rpath "$exe" || return 1
-  [[ "$(env -u LD_LIBRARY_PATH "$exe" --version 2>/dev/null)" == "Nougat Media Suite v0.0.33" ]] || return 1
+  [[ "$(env -u LD_LIBRARY_PATH "$exe" --version 2>/dev/null)" == "Nougat Media Suite v0.0.34" ]] || return 1
   env -u LD_LIBRARY_PATH "$exe" --discover-ai-self-test || return 1
   env -u LD_LIBRARY_PATH "$exe" --v25-ui-state-self-test || return 1
   env -u LD_LIBRARY_PATH "$exe" --v28-ui-state-self-test || return 1
@@ -300,56 +240,17 @@ build_full(){
   env -u LD_LIBRARY_PATH "$exe" --v31-ui-sheet-self-test || return 1
   env -u LD_LIBRARY_PATH "$exe" --v32-p2p-player-repair-self-test || return 1
   HOME="$build_root/full-home" env -u LD_LIBRARY_PATH "$exe" --v33-integration-self-test || return 1
-  python3 "$project_root/tools/test_nougat_media_suite_v33.py" "$project_root" "$exe" || return 1
+  HOME="$build_root/full-home-v34" env -u LD_LIBRARY_PATH "$exe" --v34-ui-polish-self-test || return 1
+  python3 "$project_root/tools/test_nougat_media_suite_v34.py" "$project_root" "$exe" || return 1
   python3 "$project_root/tools/test_p2p_stream_server_v32.py" "$project_root" || return 1
 }
 
-verify_persistent_server(){
-  local exe="$build_root/full/Nougat_Media_Suite_v33" home="$build_root/server-home" out="$build_root/server-parent.out" pid owner_file owner_token
-  mkdir -p "$home/.config/reddmedia/server" || return 1
-  printf '1\n' > "$home/.config/reddmedia/server/persistent-enabled"
-  HOME="$home" env -u LD_LIBRARY_PATH "$exe" --media-server-parent-death-hold >"$out" 2>&1 & pid=$!
-  local ready=0
-  for _ in $(seq 1 120); do grep -q 'parent-death test READY' "$out" 2>/dev/null && { ready=1; break; }; sleep .25; done
-  [[ "$ready" == "1" ]] || { kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; cat "$out"; return 1; }
-  owner_file="$home/.local/share/reddmedia/server/nougat-owned.pid"
-  owner_token="$(sed -n '3p' "$owner_file" 2>/dev/null || true)"
-  [[ -n "$owner_token" ]] || { printf 'FAIL: persistent server ownership token was not recorded.\n'; kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; return 1; }
-  kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; sleep 1
-  python3 - <<'PY' || return 1
-import socket
-s=socket.socket(); s.settimeout(1); ok=s.connect_ex(('127.0.0.1',8096))==0; s.close()
-if not ok: print('FAIL: Nougat-owned server died with UI/parent'); raise SystemExit(1)
-print('Persistent server survived parent exit.')
-PY
-  HOME="$home" env -u LD_LIBRARY_PATH "$exe" --media-server-lifecycle-test || return 1
-  NOUGAT_SERVER_TEST_TOKEN="$owner_token" python3 - <<'PY' || return 1
-import os,socket,time
-key=b'NOUGAT_MEDIA_SERVER_OWNER='+os.environ['NOUGAT_SERVER_TEST_TOKEN'].encode()
-for _ in range(60):
-    survivors=[]
-    for name in os.listdir('/proc'):
-        if not name.isdigit(): continue
-        try:
-            env=open(f'/proc/{name}/environ','rb').read().split(b'\0')
-        except (FileNotFoundError, PermissionError, ProcessLookupError, OSError):
-            continue
-        if key in env: survivors.append(name)
-    s=socket.socket(); s.settimeout(.2); used=s.connect_ex(('127.0.0.1',8096))==0; s.close()
-    if not survivors and not used:
-        print('Explicit Stop Server killed the complete Nougat-owned server process tree and released port 8096.')
-        raise SystemExit(0)
-    time.sleep(.1)
-print('FAIL: explicit stop left Nougat-owned server processes or port 8096 alive:', survivors)
-raise SystemExit(1)
-PY
-}
 install_launchers(){
   mkdir -p "$HOME/.local/share/applications" || return 1
   cp -a "$project_root/NougatMediaSuite.desktop" "$launcher_unversioned" || return 1
-  cp -a "$project_root/NougatMediaSuite_v33.desktop" "$launcher_v33" || return 1
+  cp -a "$project_root/NougatMediaSuite_v34.desktop" "$launcher_v34" || return 1
   cp -a "$project_root/com.elderredsoftworks.NougatMediaSuite.desktop" "$canonical_launcher" || return 1
-  rm -f -- "$launcher_v32"
+  rm -f -- "$launcher_v33"
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
 }
 
@@ -362,77 +263,72 @@ apply_raw_icon(){
 }
 
 install_final(){
-  cp "$build_root/full/Nougat_Media_Suite_v33" "$project_root/Nougat_Media_Suite_v33" || return 1
-  chmod +x "$project_root/Nougat_Media_Suite_v33" || return 1
-  verify_relative_ai_rpath "$project_root/Nougat_Media_Suite_v33" || return 1
-  [[ "$(env -u LD_LIBRARY_PATH "$project_root/Nougat_Media_Suite_v33" --version 2>/dev/null)" == "Nougat Media Suite v0.0.33" ]] || return 1
-  env -u LD_LIBRARY_PATH "$project_root/Nougat_Media_Suite_v33" --v33-integration-self-test || return 1
-  python3 "$project_root/tools/test_nougat_media_suite_v33.py" "$project_root" "$project_root/Nougat_Media_Suite_v33" || return 1
+  cp "$build_root/full/Nougat_Media_Suite_v34" "$project_root/Nougat_Media_Suite_v34" || return 1
+  chmod +x "$project_root/Nougat_Media_Suite_v34" || return 1
+  verify_relative_ai_rpath "$project_root/Nougat_Media_Suite_v34" || return 1
+  [[ "$(env -u LD_LIBRARY_PATH "$project_root/Nougat_Media_Suite_v34" --version 2>/dev/null)" == "Nougat Media Suite v0.0.34" ]] || return 1
+  env -u LD_LIBRARY_PATH "$project_root/Nougat_Media_Suite_v34" --v34-ui-polish-self-test || return 1
+  python3 "$project_root/tools/test_nougat_media_suite_v34.py" "$project_root" "$project_root/Nougat_Media_Suite_v34" || return 1
   install_launchers || return 1
-  apply_raw_icon "$project_root/Nougat_Media_Suite_v33" || return 1
+  apply_raw_icon "$project_root/Nougat_Media_Suite_v34" || return 1
   local rel
   while IFS= read -r rel; do [[ -n "$rel" ]] && rm -f -- "$project_root/$rel"; done < <(manifest_paths remove_after_success)
   command -v nautilus >/dev/null 2>&1 && nautilus -q >/dev/null 2>&1 || true
 }
 
 main(){
-  phase_start "accepted v0.0.32 base and v0.0.33 prerequisites"
+  phase_start "accepted v0.0.33 base and v0.0.34 prerequisites"
   [[ -d "$project_root" ]] || { printf 'FINAL FAIL: project not found. Terminal remains open.\n'; return 1; }
   local cmd
   for cmd in cmake g++ pkg-config python3 gio git env readelf sha256sum tar xvfb-run xwininfo xprop ffmpeg; do require_command "$cmd" || { printf 'FINAL FAIL: prerequisites incomplete. Terminal remains open.\n'; return 1; }; done
   pkg-config --exists libtorrent-rasterbar || { printf 'FAIL: libtorrent-rasterbar development package unavailable.\n'; return 1; }
-  ensure_python_venv_support || { printf 'FINAL FAIL: Python venv prerequisite could not be installed or verified. Terminal remains open.\n'; return 1; }
   cleanup_generated_python_caches || { printf 'FINAL FAIL: generated Python cache cleanup failed. Terminal remains open.\n'; return 1; }
-  verify_port_free || { printf 'FINAL FAIL: port preflight failed. Terminal remains open.\n'; return 1; }
   verify_git_state || { printf 'FINAL FAIL: Git/base preflight failed. Terminal remains open.\n'; return 1; }
-  [[ -x "$project_root/Nougat_Media_Suite_v32" ]] || { printf 'FAIL: accepted v0.0.32 root executable missing.\n'; return 1; }
-  [[ "$(env -u LD_LIBRARY_PATH "$project_root/Nougat_Media_Suite_v32" --version 2>/dev/null)" == "Nougat Media Suite v0.0.32" ]] || { printf 'FAIL: accepted v0.0.32 executable version mismatch.\n'; return 1; }
+  [[ -x "$project_root/Nougat_Media_Suite_v33" ]] || { printf 'FAIL: accepted v0.0.33 root executable missing.\n'; return 1; }
+  [[ "$(env -u LD_LIBRARY_PATH "$project_root/Nougat_Media_Suite_v33" --version 2>/dev/null)" == "Nougat Media Suite v0.0.33" ]] || { printf 'FAIL: accepted v0.0.33 executable version mismatch.\n'; return 1; }
   [[ -f "$project_root/components/ai/runtime/include/llama.h" && -e "$project_root/components/ai/runtime/lib/libllama.so.0" ]] || { printf 'FAIL: AI runtime missing.\n'; return 1; }
   [[ -x "$project_root/components/jellyfin/runtime/jellyfin/jellyfin" ]] || { printf 'FAIL: integrated Jellyfin runtime missing.\n'; return 1; }
   verify_file_exact "$pinned_model" "$pinned_model_bytes" "$pinned_model_sha" || { printf 'FAIL: pinned Nomic model missing/changed.\n'; return 1; }
   verify_manifest || return 1
   verify_protected_state || return 1
-  phase_pass "accepted v0.0.32 base and v0.0.33 prerequisites"
+  phase_pass "accepted v0.0.33 base and v0.0.34 prerequisites"
 
-  phase_start "save exact v0.0.32 touched-state rollback snapshot"
+  phase_start "save exact v0.0.33 touched-state rollback snapshot"
   save_rollback || { printf 'FINAL FAIL: rollback snapshot failed. Terminal remains open.\n'; return 1; }
-  phase_pass "save exact v0.0.32 touched-state rollback snapshot"
+  phase_pass "save exact v0.0.33 touched-state rollback snapshot"
 
-  phase_start "apply v0.0.33 changed files"
+  phase_start "apply v0.0.34 changed files"
   apply_payload || { restore_rollback; printf 'FINAL FAIL: payload application failed. Terminal remains open.\n'; return 1; }
-  run_source_tests || { restore_rollback; printf 'FINAL FAIL: source/security regression tests failed. Terminal remains open.\n'; return 1; }
-  phase_pass "apply v0.0.33 changed files and source/security tests"
+  run_source_tests || { restore_rollback; printf 'FINAL FAIL: source/regression tests failed. Terminal remains open.\n'; return 1; }
+  phase_pass "apply v0.0.34 changed files and source/regression tests"
 
   phase_start "warnings-as-errors stub build and X11 smoke"
   mkdir -p "$build_root" && build_stub || { restore_rollback; printf 'FINAL FAIL: stub/UI validation failed. Terminal remains open.\n'; return 1; }
   phase_pass "warnings-as-errors stub build and X11 smoke"
 
-  phase_start "install and verify pinned free one-shot security runtime"
-  install_security_runtime || { restore_rollback; printf 'FINAL FAIL: security runtime hardening failed after prerequisite verification. Check the upstream download/package error above. Terminal remains open.\n'; return 1; }
-  phase_pass "pinned free YARA-X/capa/Magika runtime and harmless scanner tests"
+  phase_start "verify retained one-shot security runtime"
+  verify_security_runtime || { restore_rollback; printf 'FINAL FAIL: retained security runtime verification failed. Terminal remains open.\n'; return 1; }
+  phase_pass "retained YARA-X/capa/Magika one-shot security runtime"
 
-  phase_start "full native v0.0.33 build"
+  phase_start "full native v0.0.34 build"
   build_full || { restore_rollback; printf 'FINAL FAIL: full native build failed. Terminal remains open.\n'; return 1; }
-  phase_pass "full native v0.0.33 build"
+  phase_pass "full native v0.0.34 build"
 
-  phase_start "persistent Nougat server lifecycle"
-  verify_persistent_server || { restore_rollback; printf 'FINAL FAIL: persistent server lifecycle failed. Terminal remains open.\n'; return 1; }
-  phase_pass "server survives UI/parent termination and explicit stop releases it"
-
-  phase_start "install final v0.0.33 executable and launchers"
+  phase_start "install final v0.0.34 executable and launchers"
   install_final || { restore_rollback; printf 'FINAL FAIL: final installation failed. Terminal remains open.\n'; return 1; }
-  phase_pass "install final v0.0.33 executable and launchers"
+  phase_pass "install final v0.0.34 executable and launchers"
 
   rm -rf -- "$build_root"
-  printf '\nFINAL PASS: Nougat Media Suite v0.0.33 installed and validated.\n'
-  printf 'Executable: %s\n' "$project_root/Nougat_Media_Suite_v33"
+  printf '\nFINAL PASS: Nougat Media Suite v0.0.34 installed and validated.\n'
+  printf 'Executable: %s\n' "$project_root/Nougat_Media_Suite_v34"
   printf 'Rollback snapshot: %s\n' "$rollback_root"
-  printf 'SECURITY: pinned one-shot YARA-X/capa/Magika runtime verified; WARN ME FIRST; no resident scanner or automatic quarantine/delete/move/rename.\n'
-  printf 'SERVER: Start Server is persistent across UI close; Stop Server explicitly stops the Nougat-owned server; external Jellyfin remains protected.\n'
-  printf 'LIVE TV: Linux DVB/V4L2 discovery scaffold active for WinTV-HVR-955Q probing; real channel tuning/playback is not claimed yet.\n'
-  printf 'OWNER CHECK REQUIRED: page/frame clipping, Home/Continue Watching edges, Library wrapping/scrollbar, top-nav clipping, Virus Scan results/process exit, P2P Plus controls, persistent server reopen/Stop, and Live TV tuner detection.\n'
-  printf 'CANDIDATE STATUS: v0.0.33 remains unaccepted until owner real-machine approval.\n'
-  printf 'Launch: cd "%s" && ./Nougat_Media_Suite_v33\n' "$project_root"
+  printf 'UI: actual-sheet top tabs, seek bar, and housed volume control active.\n'
+  printf 'HOME: fixed section card geometry and direct non-coasting scrollbar dragging active.\n'
+  printf 'DISCOVER: Live TV selector active; TMDb-backed sources labeled TMDb Movie / TMDb TV.\n'
+  printf 'FOUNDATIONS: accepted v0.0.33 server/security/P2P/tuner systems retained; server lifecycle is not altered by this installer.\n'
+  printf 'OWNER CHECK REQUIRED: top-tab sheet fidelity/left placement, seek/volume sheet fidelity, Home card alignment, scroll dragging, Live TV header spacing, Discover selectors, and page-frame corners.\n'
+  printf 'CANDIDATE STATUS: v0.0.34 remains unaccepted until owner real-machine approval.\n'
+  printf 'Launch: cd "%s" && ./Nougat_Media_Suite_v34\n' "$project_root"
 }
 
 main "$@"

@@ -1,3 +1,11 @@
+# v0.0.34 candidate - Exact Sheet Tabs/Player Controls + Home/Discover UI Repair
+
+- Rebuilt the global top navigation from the approved concept-sheet TAB BUTTONS geometry/material treatment.
+- Shifted only the scrollable tab lane left toward the app name; fixed right Server/version chrome is unchanged.
+- Rebuilt seek and volume visuals from the actual sheet while preserving Nougat playback/0-200% volume behavior.
+- Fixed Home-wide card geometry/alignment, direct scrollbar dragging, Live TV header overlap, affected page-frame corners, Discover Live TV selection, and TMDb source naming.
+- Retains accepted v0.0.33 server/security/P2P/tuner foundations without source changes.
+
 # v0.0.33 candidate - P2P Plus + Security Hardening + Persistent Server + Live TV Foundation
 
 - Added system-wide bordered/hard-clipped content viewports to normal pages while leaving Video Player untouched.

@@ -1,3 +1,11 @@
+## v0.0.34 candidate — Exact Sheet Tabs/Player Controls + Home/Discover UI Repair
+- Exact concept-sheet top tabs, seek bar, and volume component.
+- Left-shifted scrollable nav lane with right Server/version side frozen.
+- Fixed Home card templates and direct scrollbar dragging.
+- Live TV header overlap repair.
+- Discover Live TV source and TMDb naming.
+- Affected page-frame corner repair; Search and Video Player frame behavior preserved.
+
 # Nougat Media Suite Roadmap
 
 ## v0.0.26 candidate — Systems, navigation, diagnostics, and TV end-of-episode UX

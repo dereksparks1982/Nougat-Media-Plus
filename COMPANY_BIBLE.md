@@ -286,3 +286,12 @@ Only the owner decides whether the candidate is accepted.
 - Security Analysis must report `ANALYSIS INCOMPLETE` when a required/relevant engine did not complete; it must never convert engine absence into a clean result or use the word `Safe` as a verdict. WARN ME FIRST and no automatic quarantine/delete/move/rename remain absolute.
 - Third-party security, torrent, server, tuner, codec, extraction, and other borrowed systems must remain behind Nougat-owned interfaces where practical so they can be replaced without rewriting product behavior.
 - Live TV is a first-class top-level page. v0.0.33 may truthfully discover/probe Linux DVB/V4L2 hardware and establish channel/guide/timeshift/recording interfaces, but must not claim actual tuning or playback until proven on owner hardware. The Hauppauge WinTV-HVR-955Q is the first hardware target; HDHomeRun and ATSC 3.0 are later adapters.
+
+
+### v0.0.34 exact-sheet navigation/player-control law
+- The owner-approved Nougat UI concept sheet is the literal authority for the global top tabs, seek bar, and volume control. Do not substitute pill-button approximations for the top tabs.
+- Top tabs retain page-specific colors but use the sheet's tab geometry, bevel/inset treatment, tight spacing, and selected downward pointer.
+- The scrollable top-tab lane begins close to the `NOUGAT MEDIA SUITE` brand; the fixed right Server/status/version block is not moved by this repair.
+- The sheet seek component governs track/knob/timestamp presentation. The sheet volume component governs the housed control, speaker glyphs, track/knob, and percentage placement while Nougat retains its functional 0-200% volume range.
+- Home card geometry is section-defined, never media-item-defined: Continue Watching uses one landscape template; LOCAL recommendations use one portrait template.
+- Discover source names must describe the actual backend. TMDb-backed discovery is labeled `TMDb Movie` and `TMDb TV`; Live TV is its own source selector.

@@ -858,7 +858,7 @@ public:
     Rect libraryVerticalScrollTrack, libraryVerticalScrollThumb;
     Rect serverStartBtn, serverStopBtn, serverRefreshBtn;
     Rect discoverUsualTab, discoverRandomTab;
-    Rect discoverLocalMovieBtn, discoverLocalTvBtn, discoverExternalMovieBtn, discoverExternalTvBtn;
+    Rect discoverLocalMovieBtn, discoverLocalTvBtn, discoverLiveTvBtn, discoverExternalMovieBtn, discoverExternalTvBtn;
     Rect discoverTmdbTestBtn, discoverTmdbReplaceBtn, discoverTmdbClearBtn;
     Rect discoverResultBox, discoverOpenBtn, discoverWatchBtn, discoverMyServicesBtn;
     Rect discoverServicesBackBtn;
@@ -1704,6 +1704,59 @@ public:
              visual.x + visual.w - radius - 1, visual.y + visual.h - 2, palette.buttonDark);
     }
 
+    void draw_top_nav_tab_surface(Drawable target, const Rect& raw, const ViewPalette& palette,
+                                  bool active, bool hover) {
+        if (raw.w <= 6 || raw.h <= 8) return;
+        const SheetControlState state = hover ? SheetControlState::Hover : SheetControlState::Normal;
+        const unsigned long face = sheet_button_face(palette, state);
+        const Rect body{raw.x + 1, raw.y + 1, std::max(1, raw.w - 2), std::max(1, raw.h - 3)};
+        const int radius = 5;
+
+        // Actual sheet tab construction: shallow square-rounded body, dark
+        // lower/right depth, bright inner bevel, and stitched/inset inner line.
+        Rect shadow{body.x + 1, body.y + 3, body.w, body.h};
+        fill_round(target, shadow, radius, palette.buttonDark);
+        fill_round(target, body, radius, face);
+        outline_round(target, body, radius, palette.buttonDark);
+
+        Rect textureArea{body.x + 4, body.y + 4, std::max(1, body.w - 8), std::max(1, body.h - 9)};
+        draw_sheet_reference_texture(target, textureArea, palette.buttonDark, face, palette.buttonLight);
+
+        Rect bevel{body.x + 2, body.y + 2, std::max(1, body.w - 4), std::max(1, body.h - 4)};
+        outline_round(target, bevel, 3, hover ? palette.button : palette.buttonLight);
+        Rect seam{body.x + 4, body.y + 4, std::max(1, body.w - 8), std::max(1, body.h - 8)};
+        const bool searchCream = palette.background == rgb8(241, 227, 194);
+        const unsigned long seamInk = searchCream ? rgb8(126, 72, 35) : palette.buttonLight;
+        outline_round_dashed(target, seam, 2, seamInk, 2);
+        line(target, body.x + 7, body.y + 2, body.x + body.w - 8, body.y + 2, rgb8(255, 241, 214));
+        line(target, body.x + 5, body.y + body.h - 2, body.x + body.w - 6, body.y + body.h - 2, palette.buttonDark);
+
+        if (!active) return;
+        const int cx = body.x + body.w / 2;
+        const int baseY = body.y + body.h - 1;
+        const int tipY = raw.y + raw.h + 7;
+        XPoint outer[5] = {
+            {static_cast<short>(cx - 11), static_cast<short>(baseY - 1)},
+            {static_cast<short>(cx - 6), static_cast<short>(baseY + 2)},
+            {static_cast<short>(cx), static_cast<short>(tipY)},
+            {static_cast<short>(cx + 6), static_cast<short>(baseY + 2)},
+            {static_cast<short>(cx + 11), static_cast<short>(baseY - 1)}
+        };
+        XSetForeground(d, gc, palette.buttonDark);
+        XFillPolygon(d, target, gc, outer, 5, Convex, CoordModeOrigin);
+        XPoint inner[5] = {
+            {static_cast<short>(cx - 8), static_cast<short>(baseY - 1)},
+            {static_cast<short>(cx - 4), static_cast<short>(baseY + 1)},
+            {static_cast<short>(cx), static_cast<short>(tipY - 2)},
+            {static_cast<short>(cx + 4), static_cast<short>(baseY + 1)},
+            {static_cast<short>(cx + 8), static_cast<short>(baseY - 1)}
+        };
+        XSetForeground(d, gc, face);
+        XFillPolygon(d, target, gc, inner, 5, Convex, CoordModeOrigin);
+        line(target, cx - 5, baseY + 1, cx, tipY - 2, palette.buttonLight);
+        line(target, cx, tipY - 2, cx + 5, baseY + 1, palette.buttonLight);
+    }
+
     void draw_sheet_tab_surface(Drawable target, const Rect& raw, const ViewPalette& palette,
                                 bool active, bool hover) {
         draw_sheet_button_surface(target, raw, palette,
@@ -1976,6 +2029,12 @@ public:
     }
     static constexpr int kCompactButtonW = 116;
     static constexpr int kCompactButtonH = 26;
+    // v0.0.34: the global navigation is a real tab strip, not a row of thin
+    // capsule buttons.  Keep this geometry independent from normal controls.
+    static constexpr int kTopTabW = 106;
+    static constexpr int kTopTabGap = 3;
+    static constexpr int kTopTabH = 40;
+    static constexpr int kTopBarH = 44;
 
     int clamp_button_scroll(int value, int button_count, int viewport_width) const {
         const int total = std::max(0, button_count) * kCompactButtonW;
@@ -1994,8 +2053,8 @@ public:
     }
 
     Rect page_content_frame(ViewMode view) const {
-        if (view == ViewMode::VideoPlayer) return {0,34,W,std::max(1,H-34)};
-        return {10,34,std::max(1,W-20),std::max(1,H-44)};
+        if (view == ViewMode::VideoPlayer) return {0,kTopBarH,W,std::max(1,H-kTopBarH)};
+        return {10,kTopBarH,std::max(1,W-20),std::max(1,H-kTopBarH-10)};
     }
 
     void apply_page_clip(ViewMode view) {
@@ -2006,46 +2065,53 @@ public:
         XSetClipRectangles(d,gc,0,0,&clip,1,Unsorted);
     }
 
+    bool page_uses_connected_square_frame(ViewMode view) const {
+        return view == ViewMode::Home || view == ViewMode::Library ||
+               view == ViewMode::Discover || view == ViewMode::LiveTV ||
+               view == ViewMode::Stream || view == ViewMode::Debug;
+    }
+
     void draw_page_frame(Drawable target, ViewMode view) {
         if (view == ViewMode::VideoPlayer) return;
         const Rect frame=page_content_frame(view);
         const ViewPalette palette=palette_for(view);
-        outline_round(target,frame,10,palette.border);
+        const int outerRadius = page_uses_connected_square_frame(view) ? 0 : 10;
+        const int innerRadius = page_uses_connected_square_frame(view) ? 0 : 8;
+        outline_round(target,frame,outerRadius,palette.border);
         Rect inner{frame.x+3,frame.y+3,std::max(1,frame.w-6),std::max(1,frame.h-6)};
-        outline_round_dashed(target,inner,8,palette.buttonLight,3);
+        outline_round_dashed(target,inner,innerRadius,palette.buttonLight,3);
+    }
+
+    int top_nav_left_bound() {
+        // v0.0.34 owner-visual repair: the whole scrollable tab mechanism begins
+        // immediately after the actual brand text, with only a tiny non-touching
+        // separation. The fixed Server/version side remains unchanged.
+        return 28 + text_width("NOUGAT MEDIA SUITE") + 6;
     }
 
     void layout() {
-        const int topBrandReserve = 222;
         const int topStatusReserve = 154;
         const int topControlCount = 8;
-        const int topControlTotalW = topControlCount * kCompactButtonW;
-        const int navLeft = topBrandReserve;
+        const int navLeft = top_nav_left_bound();
         topNavViewportW = std::max(24, W - navLeft - topStatusReserve);
         topNavClipX = navLeft;
         topNavClipRight = std::max(topNavClipX + 1, W - topStatusReserve);
-        topNavScrollX = clamp_button_scroll(topNavScrollX, topControlCount, topNavViewportW);
+        const int topTotalW = topControlCount * kTopTabW + (topControlCount - 1) * kTopTabGap;
+        const int topMaxScroll = std::max(0, topTotalW - std::max(kTopTabW, topNavViewportW));
+        topNavScrollX = std::max(0, std::min(topNavScrollX, topMaxScroll));
         int topX = navLeft - topNavScrollX;
-        if (topControlTotalW <= topNavViewportW) {
-            // Preserve the accepted centered tab row whenever the left brand
-            // can sit beside it. On narrower windows, keep the tab order and
-            // spacing intact while moving the row just far enough right to
-            // protect the approved N + NOUGAT MEDIA SUITE identity.
-            const int availableCentered = navLeft + std::max(0, (topNavViewportW - topControlTotalW) / 2);
-            topX = std::max(navLeft, availableCentered);
-        }
-        homeTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
-        videoPlayerTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
-        libraryTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
-        discoverTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
-        liveTvTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
-        nougatTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
-        ytdlpTab = {topX,0,kCompactButtonW,26}; topX += kCompactButtonW;
-        debugTab = {topX,0,kCompactButtonW,26};
+        const int topStep = kTopTabW + kTopTabGap;
+        homeTab = {topX,1,kTopTabW,kTopTabH}; topX += topStep;
+        videoPlayerTab = {topX,1,kTopTabW,kTopTabH}; topX += topStep;
+        libraryTab = {topX,1,kTopTabW,kTopTabH}; topX += topStep;
+        discoverTab = {topX,1,kTopTabW,kTopTabH}; topX += topStep;
+        liveTvTab = {topX,1,kTopTabW,kTopTabH}; topX += topStep;
+        nougatTab = {topX,1,kTopTabW,kTopTabH}; topX += topStep;
+        ytdlpTab = {topX,1,kTopTabW,kTopTabH}; topX += topStep;
+        debugTab = {topX,1,kTopTabW,kTopTabH};
 
         const int bottomY = H - 32;
-        const int volumeY = H - 64;
-        const int seekY = H - 96;
+        const int seekY = H - 108;
         const int controlCount = 8;
         const int controlTotalW = controlCount * kCompactButtonW;
         const int controlViewportW = std::max(kCompactButtonW, W - 20);
@@ -2064,21 +2130,17 @@ public:
         const int totalTimeWidth = 74;
         const int seekX = 10 + currentTimeWidth + 10;
         const int seekRightPad = totalTimeWidth + 20;
-        seekRect = {seekX, seekY, std::max(220, W-seekX-seekRightPad), 18};
+        seekRect = {seekX, seekY, std::max(220, W-seekX-seekRightPad), 16};
 
-        // Volume deliberately reuses the seek-bar component geometry. The owner
-        // rejected the oversized field/housing around it: this is the same 18 px
-        // recessed sheet track and 24 px knob as seek, simply shorter.
-        const int volumeTrackW = std::max(150, std::min(280, W / 3));
-        const int volumeReadoutW = 54;
-        const int volumeLabelW = text_width("Volume");
-        const int volumeGroupW = volumeLabelW + 12 + volumeTrackW + 8 + volumeReadoutW;
-        const int volumeGroupX = std::max(10, (W - volumeGroupW) / 2);
-        const int volumeTrackX = volumeGroupX + volumeLabelW + 12;
-        volRect = {volumeTrackX, volumeY - 4, volumeTrackW, seekRect.h};
-        // Retained as a compatibility/layout bounds field for regression tests;
-        // it is no longer drawn as a separate outer container.
-        volumeHousingRect = volRect;
+        // Direct transcription of the approved sheet VOLUME component.
+        const int volumeTrackW = std::max(180, std::min(250, W / 4));
+        const int volumeHousingH = 42;
+        const int speakerBayW = 42;
+        const int volumeHousingW = volumeTrackW + speakerBayW * 2;
+        const int volumeHousingX = std::max(10, (W - volumeHousingW - 58) / 2);
+        const int volumeHousingY = H - 80;
+        volumeHousingRect = {volumeHousingX, volumeHousingY, volumeHousingW, volumeHousingH};
+        volRect = {volumeHousingX + speakerBayW, volumeHousingY + 13, volumeTrackW, 16};
 
         const int promptX = std::max(20, W/2-kCompactButtonW);
         resumeBtn = {promptX, H/2+40, kCompactButtonW, kCompactButtonH};
@@ -2158,15 +2220,15 @@ public:
         libraryVerticalScrollTrack = {libraryScrollX, libraryListBox.y, 12, libraryListBox.h};
 
         const Rect liveFrame=page_content_frame(ViewMode::LiveTV);
-        liveTvDetectBtn={liveFrame.x+16,76,kCompactButtonW,kCompactButtonH};
-        liveTvRefreshBtn={liveFrame.x+16+kCompactButtonW,76,kCompactButtonW,kCompactButtonH};
-        liveTvScanBtn={liveFrame.x+16+kCompactButtonW*2,76,kCompactButtonW,kCompactButtonH};
-        liveTvWatchBtn={liveFrame.x+16+kCompactButtonW*3,76,kCompactButtonW,kCompactButtonH};
-        liveTvRecordBtn={liveFrame.x+16+kCompactButtonW*4,76,kCompactButtonW,kCompactButtonH};
-        liveTvListBox={liveFrame.x+16,124,std::max(180,liveFrame.w-32),std::max(100,liveFrame.h-104)};
+        liveTvDetectBtn={liveFrame.x+16,98,kCompactButtonW,kCompactButtonH};
+        liveTvRefreshBtn={liveFrame.x+16+kCompactButtonW,98,kCompactButtonW,kCompactButtonH};
+        liveTvScanBtn={liveFrame.x+16+kCompactButtonW*2,98,kCompactButtonW,kCompactButtonH};
+        liveTvWatchBtn={liveFrame.x+16+kCompactButtonW*3,98,kCompactButtonW,kCompactButtonH};
+        liveTvRecordBtn={liveFrame.x+16+kCompactButtonW*4,98,kCompactButtonW,kCompactButtonH};
+        liveTvListBox={liveFrame.x+16,138,std::max(180,liveFrame.w-32),std::max(100,liveFrame.y+liveFrame.h-150)};
 
         layout_button_row({&discoverUsualTab,&discoverRandomTab,&discoverLocalMovieBtn,&discoverLocalTvBtn,
-                           &discoverExternalMovieBtn,&discoverExternalTvBtn,&discoverTmdbTestBtn,
+                           &discoverLiveTvBtn,&discoverExternalMovieBtn,&discoverExternalTvBtn,&discoverTmdbTestBtn,
                            &discoverTmdbReplaceBtn,&discoverTmdbClearBtn,&discoverMyServicesBtn},
                           76, discoverButtonsScrollX);
         discoverResultBox = {28, 134, std::max(240, W-56), std::max(150, H-212)};
@@ -3126,18 +3188,18 @@ public:
     void draw_top_bar(Drawable target) {
         const unsigned long topText = rgb8(72, 39, 20);
         const unsigned long divider = rgb8(174, 132, 87);
-        draw_quilted_background(target, {0, 0, W, 34}, ViewMode::Nougat);
+        draw_quilted_background(target, {0, 0, W, kTopBarH}, ViewMode::Nougat);
 
         // Approved brand position: exact N identity at the far left with the
         // suite name immediately beside it. The version area no longer owns a
         // duplicate N badge.
-        draw_suite_badge(target, 8, 5, 0xf6, 0xea, 0xd8);
-        text(target, 28, 17, "NOUGAT MEDIA SUITE", topText);
+        draw_suite_badge(target, 8, 9, 0xf6, 0xea, 0xd8);
+        text(target, 28, 23, "NOUGAT MEDIA SUITE", topText);
 
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.33";
+        const std::string versionLabel = "v0.0.34";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -3153,28 +3215,28 @@ public:
         const std::string serverLabel = "Server:";
         const int serverX = versionX - 34 - text_width(serverLabel);
         if (serverX > 4) {
-            text(target, serverX, 17, serverLabel, topText);
-            fill_circle(target, serverX + text_width(serverLabel) + 7, 8, 10, light);
+            text(target, serverX, 23, serverLabel, topText);
+            fill_circle(target, serverX + text_width(serverLabel) + 7, 13, 10, light);
         }
-        text(target, versionX, 17, versionLabel, topText);
+        text(target, versionX, 23, versionLabel, topText);
 
         // Paint the divider before the tabs so the active downward notch sits cleanly over it.
-        line(target, 0, 25, W, 25, divider);
+        line(target, 0, kTopBarH - 2, W, kTopBarH - 2, divider);
 
-        topNavClipX = std::max(0, std::min(222, W));
+        topNavClipX = std::max(0, std::min(top_nav_left_bound(), W));
         topNavClipRight = std::max(topNavClipX + 1, std::min(W, serverX - 8));
         XRectangle navClip{static_cast<short>(topNavClipX),0,
-                           static_cast<unsigned short>(std::max(1,topNavClipRight-topNavClipX)),34};
+                           static_cast<unsigned short>(std::max(1,topNavClipRight-topNavClipX)),kTopBarH};
         XSetClipRectangles(d, gc, 0, 0, &navClip, 1, Unsorted);
         const auto draw_tab = [&](const Rect& tab, const char* label, ViewMode view) {
             const bool active = currentView == view;
             const bool hover = tab.contains(pointerWindowX, pointerWindowY);
             const ViewPalette tabPalette = palette_for(view);
-            Rect surface{tab.x, 1, tab.w, 26};
-            draw_sheet_tab_surface(target, surface, tabPalette, active, hover);
+            Rect surface{tab.x, tab.y, tab.w, tab.h};
+            draw_top_nav_tab_surface(target, surface, tabPalette, active, hover);
             const Rect visual{surface.x + 2, surface.y + 1, std::max(1, surface.w - 4), std::max(1, surface.h - 4)};
             const int labelX = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
-            text(target, labelX, 17, label, tabPalette.buttonText);
+            text(target, labelX, visual.y + visual.h / 2 + 5, label, tabPalette.buttonText);
         };
         draw_tab(homeTab,"Home",ViewMode::Home);
         draw_tab(videoPlayerTab,"Video Player",ViewMode::VideoPlayer);
@@ -3401,10 +3463,10 @@ public:
 
     void draw_seek_time_row(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
-        const unsigned long caramel = rgb8(184,111,43);
-        const unsigned long caramelLight = rgb8(224,173,105);
+        const unsigned long caramel = rgb8(170,91,24);
+        const unsigned long caramelLight = rgb8(218,156,82);
         const unsigned long creamTrack = rgb8(247,236,217);
-        const unsigned long trackBorder = rgb8(166,112,56);
+        const unsigned long trackBorder = rgb8(153,91,35);
         const unsigned long markDark = rgb8(121,88,56);
         const unsigned long markReal = rgb8(255,244,224);
 
@@ -3429,7 +3491,7 @@ public:
             }
         }
 
-        const int knobD = 24;
+        const int knobD = 26;
         const int knobCenterX = std::max(seekRect.x + knobD / 2,
             std::min(seekRect.x + seekRect.w - knobD / 2, seekRect.x + pos));
         draw_sheet_knob(target, knobCenterX, seekRect.y + seekRect.h / 2, knobD,
@@ -3440,43 +3502,55 @@ public:
         text(target, totalX, seekRect.y+14, format_time(l), palette.text);
     }
 
+    void draw_sheet_volume_housing(Drawable target, const Rect& r, const ViewPalette& palette) {
+        const unsigned long cream = rgb8(244, 231, 205);
+        const unsigned long border = rgb8(166, 112, 56);
+        Rect shadow{r.x, r.y + 3, r.w, r.h};
+        fill_round(target, shadow, 8, rgb8(181, 145, 104));
+        fill_round(target, r, 8, cream);
+        outline_round(target, r, 8, border);
+        Rect inner{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        outline_round(target, inner, 6, rgb8(255, 246, 227));
+        line(target, r.x + 9, r.y + 3, r.x + r.w - 10, r.y + 3, rgb8(255, 248, 234));
+        line(target, r.x + 9, r.y + r.h - 3, r.x + r.w - 10, r.y + r.h - 3, rgb8(191, 151, 105));
+        (void)palette;
+    }
+
     void draw_volume_bar(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
-        const unsigned long caramel = rgb8(184,111,43);
-        const unsigned long caramelLight = rgb8(224,173,105);
-        const unsigned long creamTrack = rgb8(247,236,217);
-        const unsigned long trackBorder = rgb8(166,112,56);
+        const unsigned long caramel = rgb8(170, 91, 24);
+        const unsigned long caramelLight = rgb8(218, 156, 82);
+        const unsigned long creamTrack = rgb8(247, 236, 217);
+        const unsigned long trackBorder = rgb8(153, 91, 35);
 
-        const int y0 = std::max(0, volRect.y - 13);
-        draw_quilted_background(target, {0, y0, W, 39}, ViewMode::VideoPlayer);
+        const int y0 = std::max(0, volumeHousingRect.y - 21);
+        draw_quilted_background(target, {0, y0, W, volumeHousingRect.h + 27}, ViewMode::VideoPlayer);
 
         int vol = mp ? api.get_volume(mp) : volumePercent;
         if (vol < 0) vol = volumePercent;
         vol = std::max(0,std::min(200,vol));
         volumePercent = vol;
 
-        // Match seek exactly: no oversized field around the volume control.
+        // Actual sheet label is above the housing, left aligned.
+        text(target, volumeHousingRect.x + 8, volumeHousingRect.y - 5, "VOLUME", palette.text);
+        draw_sheet_volume_housing(target, volumeHousingRect, palette);
+
         draw_sheet_track(target, volRect, trackBorder, creamTrack, rgb8(255,246,227));
-
         const int filledW = std::max(0,std::min(volRect.w,volRect.w*vol/200));
-        if (filledW > 0) {
-            draw_sheet_track_fill(target, volRect, filledW, trackBorder, caramel, caramelLight);
-        }
+        if (filledW > 0) draw_sheet_track_fill(target, volRect, filledW, trackBorder, caramel, caramelLight);
 
-        const int normalX = volRect.x + volRect.w / 2;
-        line(target, normalX, volRect.y - 2, normalX, volRect.y + volRect.h + 2, rgb8(135,100,67));
-
-        const int knobD=24;
-        const int knobCenterX=std::max(volRect.x + knobD / 2,
+        const int knobD = 26;
+        const int knobCenterX = std::max(volRect.x + knobD / 2,
             std::min(volRect.x + volRect.w - knobD / 2, volRect.x + filledW));
         draw_sheet_knob(target, knobCenterX, volRect.y + volRect.h / 2, knobD,
                         trackBorder, rgb8(225,188,132), rgb8(249,222,177));
 
-        // The owner rejected the small speaker glyphs as stray square/triangle
-        // shapes. Keep the track, 0-200% gain range and rounded knob unchanged.
-        const int volumeLabelX = volRect.x - 12 - text_width("Volume");
-        text(target,volumeLabelX,volRect.y+14,"Volume",palette.text);
-        text(target,volRect.x+volRect.w+8,volRect.y+14,std::to_string(vol)+"%",palette.text);
+        const unsigned long icon = rgb8(119, 63, 22);
+        draw_speaker_icon(target, volumeHousingRect.x + 15, volumeHousingRect.y + 13, false, icon);
+        draw_speaker_icon(target, volumeHousingRect.x + volumeHousingRect.w - 32, volumeHousingRect.y + 13, true, icon);
+
+        text(target, volumeHousingRect.x + volumeHousingRect.w + 10, volumeHousingRect.y + 27,
+             std::to_string(vol) + "%", rgb8(166, 95, 28));
     }
 
     bool episode_navigation_available(int delta) const {
@@ -3503,7 +3577,7 @@ public:
         // v0.0.29 player surround: the Video Player page background itself
         // continues uniformly around all four sides of the video child.  Do not
         // draw a separate partial brown rail/matte around only part of the frame.
-        draw_quilted_background(target, {0, 34, W, std::max(1, H - 34)}, ViewMode::VideoPlayer);
+        draw_quilted_background(target, {0, kTopBarH, W, std::max(1, H - kTopBarH)}, ViewMode::VideoPlayer);
         button_on(target, openBtn, "Open");
         button_on(target, rewindBtn, "Rewind 10s");
         if (episode_navigation_available(-1)) button_on(target, previousBtn, "Previous");
@@ -3602,7 +3676,7 @@ public:
 
         // Keep the activity surface below the top-tab notch.  The old y=27 bar
         // painted over the selected Home/Library/Debug arrow while work was active.
-        const int strip_y = 34;
+        const int strip_y = kTopBarH;
         const int label_w = determinate ? 58 : 0;
         const int track_w = std::max(1, W - label_w);
         const Rect track = {2, strip_y + 1, std::max(1, track_w - 4), 10};
@@ -5416,18 +5490,14 @@ public:
         }
     }
 
-    bool home_card_uses_portrait_poster(const reddmedia::LibraryNode& node) const {
-        return node.kind == reddmedia::LibraryNodeKind::Movie ||
-               node.kind == reddmedia::LibraryNodeKind::MovieCollection ||
-               node.kind == reddmedia::LibraryNodeKind::Series ||
-               node.kind == reddmedia::LibraryNodeKind::Season;
+    int home_card_artwork_height(bool continue_card, int card_width) const {
+        return continue_card
+            ? std::max(86, card_width * 9 / 16)
+            : std::max(168, card_width * 3 / 2);
     }
 
-    int home_card_height_for_node(const reddmedia::LibraryNode& node, int card_width) const {
-        const int artwork_height = home_card_uses_portrait_poster(node)
-            ? std::max(168, card_width * 3 / 2)
-            : std::max(86, card_width * 9 / 16);
-        return artwork_height + 50;
+    int home_card_height(bool continue_card, int card_width) const {
+        return home_card_artwork_height(continue_card, card_width) + 50;
     }
 
     void draw_home_card(Drawable target, const Rect& card, const reddmedia::LibraryNode& node,
@@ -5568,7 +5638,7 @@ public:
         const int columns = home_grid_columns_for_width(grid_width + 56);
         const int card_w = std::max(145, std::min(240,
             (grid_width - (columns - 1) * gap) / std::max(1, columns)));
-        const int local_card_h = std::max(168, card_w * 3 / 2) + 50;
+        const int local_card_h = home_card_height(false, card_w);
 
         std::vector<ResumeRecord> continues;
         std::vector<HomeSection> sections;
@@ -5587,11 +5657,9 @@ public:
         if (!continues.empty()) {
             section_text(target, viewport_left + 8, y + 20, "CONTINUE WATCHING", palette.text);
             y += 34;
-            int continue_max_h = 0;
-            for (const auto& record : continues) {
-                continue_max_h = std::max(continue_max_h, home_card_height_for_node(node_from_resume_record(record), card_w));
-            }
-            continue_max_h = std::max(1, continue_max_h);
+            // Every Continue Watching item uses one fixed card geometry. Source
+            // media type/artwork can never make one card taller or shorter than its peers.
+            const int continue_max_h = home_card_height(true, card_w);
             homeContinueArea = {viewport_left + 8, y, std::max(1, viewport_right - viewport_left - 20), continue_max_h};
             // Continue Watching has its own hard horizontal clip. A card that
             // crosses either shelf edge disappears immediately and can never
@@ -5607,7 +5675,7 @@ public:
             int x = homeContinueArea.x - homeContinueScrollX;
             for (const auto& record : continues) {
                 reddmedia::LibraryNode node = node_from_resume_record(record);
-                Rect card{x, y, card_w, home_card_height_for_node(node, card_w)};
+                Rect card{x, y, card_w, continue_max_h};
                 if (card.x + card.w > homeContinueArea.x && card.x < homeContinueArea.x + homeContinueArea.w &&
                     card.y + card.h > viewport_top && card.y < viewport_bottom) {
                     if (!record.series_name.empty()) node.name = record.series_name;
@@ -6355,12 +6423,34 @@ public:
         discoverSource = source;
         discoverMediaType = media_type;
         discoverTargetSelected = true;
+        if (source == reddmedia::RecommendationSource::LiveTV) {
+            liveTvChannels = tunerBackend.load_channels();
+            discoverDetailsScroll = 0;
+            discoverServiceSettings = false;
+            std::lock_guard<std::mutex> lock(discoverState->mutex);
+            discoverState->busy = false;
+            discoverState->updated = true;
+            discoverState->hasResult = false;
+            discoverState->hasPoster = false;
+            discoverState->hasAvailability = false;
+            discoverState->availabilityStatus.clear();
+            discoverState->progress = 1.0;
+            if (liveTvChannels.empty()) {
+                discoverState->status = std::string(discoverMode == reddmedia::RecommendationMode::Usual ? "Usual" : "Random") +
+                    " + Live TV selected. No Live TV channels are stored yet; complete channel scanning in Live TV first.";
+            } else {
+                discoverState->status = std::string(discoverMode == reddmedia::RecommendationMode::Usual ? "Usual" : "Random") +
+                    " + Live TV selected. Channels are stored; program-guide recommendations will activate when EPG data is connected.";
+            }
+            redraw();
+            return;
+        }
         if (source == reddmedia::RecommendationSource::External &&
             !recommendationEngine->external_credential_available()) {
             {
                 std::lock_guard<std::mutex> lock(discoverState->mutex);
                 discoverState->status =
-                    "External recommendations need a validated TMDb credential. Use Save / Replace.";
+                    "TMDb recommendations need a validated TMDb credential. Use Save / Replace.";
                 discoverState->hasResult = false;
                 discoverState->hasPoster = false;
                 discoverState->hasAvailability = false;
@@ -6626,7 +6716,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.33";
+        input.app_version = "Nougat Media Suite v0.0.34";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -7814,7 +7904,7 @@ public:
             }
             {
                 std::lock_guard<std::mutex> lock(discoverState->mutex);
-                discoverState->status = "This is an External recommendation and is not on your server.";
+                discoverState->status = "This is a TMDb recommendation and is not on your server.";
             }
             redraw();
             return;
@@ -7903,10 +7993,12 @@ public:
         draw_discover_selector(target, discoverLocalTvBtn, "Local TV",
                                discover_target_selected(reddmedia::RecommendationSource::Local,
                                                         reddmedia::RecommendationMediaType::Television));
-        draw_discover_selector(target, discoverExternalMovieBtn, "External Movie",
+        draw_discover_selector(target, discoverLiveTvBtn, "Live TV",
+                               discoverTargetSelected && discoverSource == reddmedia::RecommendationSource::LiveTV);
+        draw_discover_selector(target, discoverExternalMovieBtn, "TMDb Movie",
                                discover_target_selected(reddmedia::RecommendationSource::External,
                                                         reddmedia::RecommendationMediaType::Movie));
-        draw_discover_selector(target, discoverExternalTvBtn, "External TV",
+        draw_discover_selector(target, discoverExternalTvBtn, "TMDb TV",
                                discover_target_selected(reddmedia::RecommendationSource::External,
                                                         reddmedia::RecommendationMediaType::Television));
         button_on(target, discoverTmdbTestBtn, "Test TMDb");
@@ -7959,7 +8051,7 @@ public:
         text(target, details_x, discoverResultBox.y + 32,
              head_to_width(title, details_width), dark);
         text(target, details_x, discoverResultBox.y + 58,
-             result.item.local_path.empty() ? "External" : "Local", col(0xc7c7,0x9f9f,0xd2d2));
+             result.item.local_path.empty() ? "TMDb" : "Local", col(0xc7c7,0x9f9f,0xd2d2));
         text(target, details_x, discoverResultBox.y + 84,
              head_to_width(result.reason, details_width), dark);
 
@@ -8654,7 +8746,7 @@ public:
             &openBtn,&rewindBtn,&playBtn,&stopBtn,&forwardBtn,&fsBtn,
             &libraryMoviesBtn,&libraryTvBtn,&libraryGridBtn,&libraryListViewBtn,&libraryAddFolderBtn,
             &libraryUnlinkFolderBtn,&libraryRefreshBtn,&libraryBackBtn,&serverStartBtn,&serverStopBtn,&serverRefreshBtn,
-            &discoverUsualTab,&discoverRandomTab,&discoverLocalMovieBtn,&discoverLocalTvBtn,&discoverExternalMovieBtn,
+            &discoverUsualTab,&discoverRandomTab,&discoverLocalMovieBtn,&discoverLocalTvBtn,&discoverLiveTvBtn,&discoverExternalMovieBtn,
             &discoverExternalTvBtn,&discoverTmdbTestBtn,&discoverTmdbReplaceBtn,&discoverTmdbClearBtn,&discoverMyServicesBtn,
             &debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugServerBtn,&debugLogsBtn,&debugCopyBtn,
             &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn,
@@ -8674,7 +8766,7 @@ public:
         int delta = (button == Button4) ? -40 : 40;
         // Header routing always wins. Home's page/shelf wheel handlers must not
         // swallow wheel events intended for the top navigation strip.
-        if (target == win && y < 26) { scroll_top_navigation(delta); return true; }
+        if (target == win && y < kTopBarH) { scroll_top_navigation(delta); return true; }
         if (currentView == ViewMode::Home && target == win) {
             if (homeContinueArea.contains(x,y)) {
                 homeContinueScrollX = std::max(0, homeContinueScrollX + (button == Button4 ? -120 : 120));
@@ -8688,7 +8780,7 @@ public:
         }
         if (target == win && y >= 70 && y < 110) {
             if (currentView == ViewMode::Library) { return false; }
-            if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,10,delta); return true; }
+            if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,11,delta); return true; }
             if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,7,delta); return true; }
         }
         if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,4,delta); return true; }
@@ -8842,7 +8934,7 @@ public:
             return;
         }
         if (button != Button1) return;
-        const bool topNavHit = y < 26 && x >= topNavClipX && x < topNavClipRight;
+        const bool topNavHit = y < kTopBarH && x >= topNavClipX && x < topNavClipRight;
         if (topNavHit && homeTab.contains(x,y)) {
             if (currentView != ViewMode::Home) switch_view(ViewMode::Home);
             else start_home_task();
@@ -8863,7 +8955,7 @@ public:
             items.push_back({"Delay +0.5s (later)", MenuAction::SubtitleDelayPlus, 0});
             items.push_back({"Reset Subtitle Delay", MenuAction::SubtitleDelayReset, 0});
             items.push_back({"Exit Nougat Media Suite", MenuAction::ExitApp, 0});
-            show_menu(win, 8, 26, items);
+            show_menu(win, 8, kTopBarH, items);
             return;
         }
         if (topNavHit && libraryTab.contains(x,y)) {
@@ -8978,6 +9070,11 @@ public:
             }
             if (discoverLocalTvBtn.contains(x,y)) {
                 start_discover_task(reddmedia::RecommendationSource::Local,
+                                    reddmedia::RecommendationMediaType::Television);
+                return;
+            }
+            if (discoverLiveTvBtn.contains(x,y)) {
+                start_discover_task(reddmedia::RecommendationSource::LiveTV,
                                     reddmedia::RecommendationMediaType::Television);
                 return;
             }
@@ -9173,6 +9270,18 @@ public:
                 else if (e.type == SelectionRequest) handle_clipboard_selection_request(e.xselectionrequest);
                 else if (e.type == SelectionClear && e.xselectionclear.selection == clipboardAtom) ownedClipboardText.clear();
                 else if (e.type == MotionNotify) {
+                    // v0.0.34 direct-scroll repair: collapse queued X11 motion to
+                    // the newest pointer position, and never continue a drag once
+                    // Button1 is no longer physically held. This removes delayed
+                    // replay/coasting after the scrollbar thumb is released.
+                    XEvent newerMotion;
+                    while (XCheckTypedWindowEvent(d, e.xmotion.window, MotionNotify, &newerMotion)) e = newerMotion;
+                    if ((homeVerticalScrollDragging || homeContinueScrollDragging || libraryVerticalScrollDragging) &&
+                        (e.xmotion.state & Button1Mask) == 0) {
+                        homeVerticalScrollDragging = false;
+                        homeContinueScrollDragging = false;
+                        libraryVerticalScrollDragging = false;
+                    }
                     lastMouse=time(nullptr); show_pointer();
                     if (e.xmotion.window == win) {
                         const int old_x = pointerWindowX;
@@ -9441,7 +9550,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.33\n");
+        printf("Nougat Media Suite v0.0.34\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -9637,14 +9746,13 @@ int main(int argc, char** argv) {
             grid.posterHeight == grid.tileWidth * 3 / 2 &&
             grid.visibleItems == grid.rows * grid.columns;
 
-        // Home movie/series posters are portrait; episodes remain landscape.
-        reddmedia::LibraryNode movie; movie.kind = reddmedia::LibraryNodeKind::Movie;
-        reddmedia::LibraryNode episode; episode.kind = reddmedia::LibraryNodeKind::Episode;
-        const int movie_h = app.home_card_height_for_node(movie, 160);
-        const int episode_h = app.home_card_height_for_node(episode, 160);
-        const bool home_ratio_ok = app.home_card_uses_portrait_poster(movie) &&
-            !app.home_card_uses_portrait_poster(episode) && movie_h > episode_h &&
-            movie_h == 160 * 3 / 2 + 50 && episode_h == 160 * 9 / 16 + 50;
+        // v0.0.34 owner-approved Home renderer supersedes per-node card heights:
+        // Continue Watching is one fixed landscape template and LOCAL is one
+        // fixed portrait template, so mixed media can no longer misalign rows.
+        const int continue_h = app.home_card_height(true, 160);
+        const int local_h = app.home_card_height(false, 160);
+        const bool home_ratio_ok = continue_h == std::max(86, 160 * 9 / 16) + 50 &&
+            local_h == std::max(168, 160 * 3 / 2) + 50 && local_h > continue_h;
 
         // Previous/Next are episode navigation, independent of the +/-10 second seek buttons.
         const std::string nav_base = "/tmp/nougat-v30-nav-" +
@@ -9837,10 +9945,10 @@ int main(int argc, char** argv) {
         const bool search_palette = true; // seam color is source-regression tested without an X11 display
         app.W = 960; app.H = 720; app.layout();
         const int knobD = 24;
-        const bool volume_geometry = app.volumeHousingRect.x == app.volRect.x &&
-            app.volumeHousingRect.y == app.volRect.y &&
-            app.volumeHousingRect.w == app.volRect.w &&
-            app.volumeHousingRect.h == app.volRect.h &&
+        const bool volume_geometry = app.volumeHousingRect.x < app.volRect.x &&
+            app.volumeHousingRect.y < app.volRect.y &&
+            app.volumeHousingRect.x + app.volumeHousingRect.w > app.volRect.x + app.volRect.w &&
+            app.volumeHousingRect.y + app.volumeHousingRect.h > app.volRect.y + app.volRect.h &&
             app.volRect.h == app.seekRect.h &&
             app.volRect.w < app.seekRect.w &&
             knobD == 24;
@@ -9862,9 +9970,9 @@ int main(int argc, char** argv) {
         const bool navOrder = app.homeTab.x < app.videoPlayerTab.x && app.videoPlayerTab.x < app.libraryTab.x &&
             app.libraryTab.x < app.discoverTab.x && app.discoverTab.x < app.liveTvTab.x &&
             app.liveTvTab.x < app.nougatTab.x && app.nougatTab.x < app.ytdlpTab.x && app.ytdlpTab.x < app.debugTab.x;
-        const bool navClip = app.topNavClipX >= 200 && app.topNavClipRight < app.W && app.topNavClipRight > app.topNavClipX;
-        const bool frames = homeFrame.x > 0 && homeFrame.y == 34 && homeFrame.w < app.W &&
-            playerFrame.x == 0 && playerFrame.y == 34 && playerFrame.w == app.W;
+        const bool navClip = app.topNavClipX > 0 && app.topNavClipRight < app.W && app.topNavClipRight > app.topNavClipX;
+        const bool frames = homeFrame.x > 0 && homeFrame.y == App::kTopBarH && homeFrame.w < app.W &&
+            playerFrame.x == 0 && playerFrame.y == App::kTopBarH && playerFrame.w == app.W;
         const bool libraryContainment = app.libraryListViewBtn.x > homeFrame.x &&
             app.libraryVerticalScrollTrack.x + app.libraryVerticalScrollTrack.w < app.W &&
             app.libraryListBox.x + app.libraryListBox.w < app.libraryVerticalScrollTrack.x;
@@ -9877,17 +9985,52 @@ int main(int argc, char** argv) {
             app.p2p.plus_settings().seed_ratio_limit == 1.5 &&
             app.p2p.plus_settings().seed_time_limit_minutes == 120;
         if (!navOrder || !navClip || !frames || !libraryContainment || !liveTvLayout || !plus) {
-            std::fprintf(stderr, "Nougat v0.0.33 integration self-test FAIL. nav=%d clip=%d frames=%d library=%d live=%d p2p=%d\n",
+            std::fprintf(stderr, "Nougat v0.0.34 integration self-test FAIL. nav=%d clip=%d frames=%d library=%d live=%d p2p=%d\n",
                          navOrder?1:0, navClip?1:0, frames?1:0, libraryContainment?1:0, liveTvLayout?1:0, plus?1:0);
             return 1;
         }
         std::string tunerStatus;
         (void)app.tunerBackend.detect(tunerStatus);
         if (tunerStatus.empty()) {
-            std::fprintf(stderr, "Nougat v0.0.33 tuner discovery self-test FAIL.\n");
+            std::fprintf(stderr, "Nougat v0.0.34 tuner discovery self-test FAIL.\n");
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.33 integration PASS: clipped page/nav viewports, Library containment, P2P Plus controls, persistent-server architecture and Live TV discovery scaffold active.\n");
+        std::printf("Nougat Media Suite v0.0.34 integration PASS: clipped page/nav viewports, Library containment, P2P Plus controls, persistent-server architecture and Live TV discovery scaffold active.\n");
+        return 0;
+    }
+
+    if (argc > 1 && std::string(argv[1]) == "--v34-ui-polish-self-test") {
+        App app;
+        app.W = 1294; app.H = 704; app.layout();
+        const int expectedLeft = app.top_nav_left_bound();
+        const bool navLeft = app.homeTab.x == expectedLeft && app.topNavClipX == expectedLeft;
+        const bool navRightPreserved = app.topNavClipRight == app.W - 154;
+        const bool topTabs = app.homeTab.w == App::kTopTabW && app.homeTab.h == App::kTopTabH &&
+            App::kTopTabH > App::kCompactButtonH &&
+            app.videoPlayerTab.x - app.homeTab.x == App::kTopTabW + App::kTopTabGap &&
+            App::kTopTabW > App::kTopTabH * 2;
+        const bool sheetPlayerControls = app.seekRect.h == 16 && app.volRect.h == 16 &&
+            app.volumeHousingRect.w > app.volRect.w && app.volumeHousingRect.h >= 40;
+        const bool liveHeaderClear = app.liveTvDetectBtn.y >= 98 && app.liveTvListBox.y > app.liveTvDetectBtn.y + app.liveTvDetectBtn.h;
+        const bool discoverLive = app.discoverLiveTvBtn.w == App::kCompactButtonW &&
+            app.discoverLocalTvBtn.x < app.discoverLiveTvBtn.x && app.discoverLiveTvBtn.x < app.discoverExternalMovieBtn.x;
+        const int cw = 190;
+        const bool homeGeometry = app.home_card_height(true,cw) == std::max(86,cw*9/16)+50 &&
+            app.home_card_height(false,cw) == std::max(168,cw*3/2)+50;
+        const bool frames = app.page_uses_connected_square_frame(ViewMode::Home) &&
+            app.page_uses_connected_square_frame(ViewMode::Library) &&
+            app.page_uses_connected_square_frame(ViewMode::Discover) &&
+            app.page_uses_connected_square_frame(ViewMode::LiveTV) &&
+            app.page_uses_connected_square_frame(ViewMode::Stream) &&
+            app.page_uses_connected_square_frame(ViewMode::Debug) &&
+            !app.page_uses_connected_square_frame(ViewMode::Nougat) &&
+            !app.page_uses_connected_square_frame(ViewMode::VideoPlayer);
+        if (!navLeft || !navRightPreserved || !topTabs || !sheetPlayerControls || !liveHeaderClear || !discoverLive || !homeGeometry || !frames) {
+            std::fprintf(stderr,"Nougat v0.0.34 UI polish self-test FAIL. navL=%d navR=%d tabs=%d player=%d live=%d discover=%d home=%d frames=%d\n",
+                navLeft?1:0,navRightPreserved?1:0,topTabs?1:0,sheetPlayerControls?1:0,liveHeaderClear?1:0,discoverLive?1:0,homeGeometry?1:0,frames?1:0);
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.34 UI polish PASS: actual-sheet top tabs/seek/volume, left-shifted nav, direct scroll dragging, connected affected-page corners, Live TV header spacing, Discover Live TV/TMDb labels, and fixed Home card geometry active.\n");
         return 0;
     }
 

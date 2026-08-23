@@ -1,4 +1,22 @@
-# Nougat Media Suite v0.0.33
+# Nougat Media Suite v0.0.34
+
+## v0.0.34 - Exact Sheet Tabs/Player Controls + Home/Discover UI Repair
+
+v0.0.34 builds directly on accepted v0.0.33 commit `6763a42bf5c125974e5a2882234fb2ee2e04c512`. It is a focused owner-visible UI/Discover release. The approved Nougat concept sheet is the literal component authority for the global top tabs, player seek bar, and player volume control.
+
+### Owner-approved v0.0.34 changes
+- Global top navigation uses the actual concept-sheet tab proportions and construction instead of thin pill buttons: squarer rounded body, double bevel/inset seam, tight inter-tab spacing, and the selected downward pointer. Existing per-page colors remain.
+- The entire scrollable top-tab lane is shifted left to sit close to `NOUGAT MEDIA SUITE`; the fixed right-side `Server / dot / version` area is deliberately unchanged.
+- Video Player seek bar now follows the actual sheet seek component: slim cream track, caramel progress, round knob, timestamps below.
+- Video Player volume now follows the actual sheet volume component: compact cream housing, left/right speaker glyphs, inset track, round knob, and percentage readout. Existing 0-200% Nougat gain behavior is retained.
+- Home cards use fixed section geometry rather than media-type-driven heights. Continue Watching is a consistent landscape preview shelf; LOCAL recommendations use a consistent portrait-grid template.
+- Home and Library scrollbar dragging consumes only the latest X11 motion and stops when Button1 is released, removing delayed/coasting drag behavior.
+- Live TV header text and buttons no longer overlap.
+- Discover adds a `Live TV` source selector so `Usual + Live TV` and `Random + Live TV` are valid combinations. Until channel/EPG data exists, the UI reports that truthfully instead of inventing recommendations.
+- Discover renames `External Movie` / `External TV` to `TMDb Movie` / `TMDb TV`; backend behavior remains TMDb.
+- Page-frame corner repair applies to Home, Library, Discover, Live TV, Stream, and Debug. Search and Video Player retain their accepted frame behavior.
+- v0.0.33 persistent server, security runtime, P2P Plus, and tuner-detection foundations are retained unchanged.
+
 
 ## v0.0.33 - P2P Plus, Security Hardening, Persistent Server, Page Viewports, and Live TV Foundation
 

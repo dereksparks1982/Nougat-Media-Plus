@@ -5,7 +5,7 @@
 
 namespace reddmedia {
 
-enum class RecommendationSource { Local, External };
+enum class RecommendationSource { Local, External, LiveTV };
 enum class RecommendationMediaType { Movie, Television };
 enum class RecommendationMode { Usual, Random };
 enum class WatchProviderCategory { Subscription, Free, Ads, Rent, Buy };

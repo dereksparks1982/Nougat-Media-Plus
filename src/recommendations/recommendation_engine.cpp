@@ -262,7 +262,10 @@ bool RecommendationEngine::recommend(const RecommendationRequest& request,
                 " titles are linked to ReddMedia.";
             return false;
         }
-    } else if (!external_candidates(request, local_items, candidates, error)) {
+    } else if (request.source == RecommendationSource::External) {
+        if (!external_candidates(request, local_items, candidates, error)) return false;
+    } else {
+        error = "Live TV recommendations are handled by Nougat's tuner/EPG layer, not the TMDb recommendation engine.";
         return false;
     }
 
