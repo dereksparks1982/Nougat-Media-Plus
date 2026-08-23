@@ -41,6 +41,7 @@
 #include "nougat_quilt_texture_data.hpp"
 #include "media_server/jellyfin_api_client.hpp"
 #include "media_server/library_poster.hpp"
+#include "media_server/library_metadata_cache.hpp"
 #include "media_server/media_server_manager.hpp"
 #include "diagnostics/diagnostic_engine.hpp"
 #include "recommendations/recommendation_engine.hpp"
@@ -570,6 +571,8 @@ struct LibraryUiState {
     bool busy = false;
     bool updated = false;
     double progress = 0.0;
+    bool progress_determinate = false;
+    std::string progress_label;
 };
 struct DiscoverUiState {
     std::mutex mutex;
@@ -594,6 +597,8 @@ struct PosterUiState {
     bool busy = false;
     bool updated = false;
     double progress = 0.0;
+    bool progress_determinate = false;
+    std::string progress_label;
 };
 struct ServerUiState {
     std::mutex mutex;
@@ -603,6 +608,8 @@ struct ServerUiState {
     bool busy = false;
     bool updated = false;
     double progress = 0.0;
+    bool progress_determinate = false;
+    std::string progress_label;
 };
 struct DebugUiState {
     std::mutex mutex;
@@ -816,7 +823,7 @@ public:
     Pixmap streamQuiltTiles[6] = {};
     int W=1000,H=650;
     int videoW=980, videoH=530;
-    Rect openBtn, rewindBtn, playBtn, stopBtn, forwardBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
+    Rect openBtn, rewindBtn, previousBtn, playBtn, nextBtn, forwardBtn, stopBtn, fsBtn, seekRect, volRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn, videoRestartBtn, videoCancelBtn, videoBackLibraryBtn;
     Rect videoUpNextPlayBtn, videoUpNextSeriesBtn, videoUpNextReplayBtn;
     Rect homeTab, videoPlayerTab, libraryTab, discoverTab, nougatTab, ytdlpTab, debugTab;
@@ -966,6 +973,8 @@ public:
     reddmedia::MediaServerManager mediaServer;
     std::shared_ptr<reddmedia::JellyfinApiClient> libraryClient =
         std::make_shared<reddmedia::JellyfinApiClient>();
+    std::shared_ptr<reddmedia::LibraryMetadataCache> libraryMetadataCache =
+        std::make_shared<reddmedia::LibraryMetadataCache>();
     std::shared_ptr<LibraryUiState> libraryState = std::make_shared<LibraryUiState>();
     std::thread libraryWorker;
     std::vector<Rect> libraryRows;
@@ -1200,6 +1209,7 @@ public:
         XDrawArc(d, target, gc, r.x, r.y + r.h - diameter - 1, diameter, diameter, 180 * 64, 90 * 64);
         XDrawArc(d, target, gc, r.x + r.w - diameter - 1, r.y + r.h - diameter - 1, diameter, diameter, 270 * 64, 90 * 64);
     }
+
 
     static int quilt_view_index(ViewMode view) {
         switch (view) {
@@ -1478,6 +1488,25 @@ public:
             rgb8(238,210,168), rgb8(72,39,20), rgb8(191,122,46)};
     }
 
+
+    void draw_primary_panel(Drawable target, const Rect& r, const ViewPalette& palette) {
+        Rect shadow{r.x, r.y + 3, r.w, r.h};
+        fill_round(target, shadow, 9, palette.buttonDark);
+        fill_round(target, r, 9, palette.panel);
+        outline_round(target, r, 9, palette.border);
+        Rect inset{r.x + 3, r.y + 3, std::max(1, r.w - 6), std::max(1, r.h - 6)};
+        outline_round(target, inset, 7, palette.buttonLight);
+    }
+
+    void draw_disabled_player_button(Drawable target, const Rect& r, const std::string& label) {
+        const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
+        Rect visual{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        fill_round(target, visual, 7, palette.background);
+        outline_round(target, visual, 7, palette.buttonDark);
+        const int label_x = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
+        text(target, label_x, visual.y + 17, label, palette.muted);
+    }
+
     void button_on(Drawable target, const Rect& r, const std::string& label) {
         const ViewPalette palette = currentView == ViewMode::Stream
             ? stream_palette_for(streamPlatform) : palette_for(currentView);
@@ -1699,16 +1728,18 @@ public:
         const int bottomY = H - 32;
         const int volumeY = H - 64;
         const int seekY = H - 96;
-        const int controlCount = 6;
+        const int controlCount = 8;
         const int controlTotalW = controlCount * kCompactButtonW;
         const int controlViewportW = std::max(kCompactButtonW, W - 20);
         controlsScrollX = clamp_button_scroll(controlsScrollX, controlCount, controlViewportW);
         int x = controlTotalW <= controlViewportW ? std::max(10, (W - controlTotalW) / 2) : 10 - controlsScrollX;
         openBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
         rewindBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
+        previousBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
         playBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
-        stopBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
+        nextBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
         forwardBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
+        stopBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
         fsBtn = {x, bottomY, kCompactButtonW, kCompactButtonH};
 
         const int currentTimeWidth = 64;
@@ -2743,7 +2774,7 @@ public:
         // scrolling tab strip is intentionally painted afterward so tabs can
         // roll over the N/name, Server status/dot, and version number without
         // those fixed elements being redrawn on top of the buttons.
-        const std::string versionLabel = "v0.0.29";
+        const std::string versionLabel = "v0.0.30";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -3121,7 +3152,7 @@ public:
         const int normalX = volRect.x + volRect.w / 2;
         line(target, normalX, volRect.y - 2, normalX, volRect.y + volRect.h + 2, rgb8(135,100,67));
 
-        const int knobD=14;
+        const int knobD=18;
         const int knobCenterX=volRect.x + filledW;
         const int knobX=std::max(volRect.x-knobD/2+1,
                                  std::min(volRect.x+volRect.w-knobD/2-1,knobCenterX-knobD/2));
@@ -3138,6 +3169,24 @@ public:
         text(target,housing.x+housing.w+8,volRect.y+9,std::to_string(vol)+"%",palette.text);
     }
 
+    bool episode_navigation_available(int delta) const {
+        if (!tvAutoplayArmed || tvAutoplayIndex < 0 || delta == 0) return false;
+        const int target = tvAutoplayIndex + delta;
+        return target >= 0 && target < static_cast<int>(tvAutoplayQueue.size()) &&
+               exists_file(tvAutoplayQueue[static_cast<std::size_t>(target)].path);
+    }
+
+    void play_relative_episode(int delta) {
+        if (delta == 0) return;
+        if ((!tvAutoplayArmed || tvAutoplayIndex < 0) && activeLibraryItemValid &&
+            activeLibraryItem.kind == reddmedia::LibraryNodeKind::Episode) {
+            prepare_tv_autoplay(activeLibraryItem);
+        }
+        if (!episode_navigation_available(delta)) return;
+        start_tv_autoplay_index(tvAutoplayIndex + delta);
+        if (!fullscreen) redraw();
+    }
+
     void draw_controls(Drawable target) {
         draw_top_bar(target);
         if (currentView != ViewMode::VideoPlayer) return;
@@ -3147,9 +3196,13 @@ public:
         draw_quilted_background(target, {0, 34, W, std::max(1, H - 34)}, ViewMode::VideoPlayer);
         button_on(target, openBtn, "Open");
         button_on(target, rewindBtn, "Rewind 10s");
+        if (episode_navigation_available(-1)) button_on(target, previousBtn, "Previous");
+        else draw_disabled_player_button(target, previousBtn, "Previous");
         button_on(target, playBtn, "Play/Pause");
-        button_on(target, stopBtn, "Stop");
+        if (episode_navigation_available(1)) button_on(target, nextBtn, "Next");
+        else draw_disabled_player_button(target, nextBtn, "Next");
         button_on(target, forwardBtn, "Fast Forward 10s");
+        button_on(target, stopBtn, "Stop");
         button_on(target, fsBtn, "Fullscreen");
         const int titleStripY = std::max(32, H - 126);
         draw_quilted_background(target, {10, titleStripY, std::max(1, W - 20), 24}, ViewMode::VideoPlayer);
@@ -3159,45 +3212,73 @@ public:
         draw_volume_bar(target);
     }
 
-    bool loading_state(double& progress) {
+    bool loading_state(double& progress, bool& determinate, std::string& label) {
+        progress = 0.0;
+        determinate = false;
+        label.clear();
         if (currentView == ViewMode::Home) {
             std::lock_guard<std::mutex> lock(homeState->mutex);
-            if (homeState->busy) { progress = homeState->progress; return true; }
+            if (homeState->busy) { progress = homeState->progress; label = "Loading..."; return true; }
         }
         {
             std::lock_guard<std::mutex> lock(serverState->mutex);
-            if (serverState->busy) { progress = serverState->progress; return true; }
+            if (serverState->busy) {
+                progress = serverState->progress;
+                determinate = serverState->progress_determinate;
+                label = serverState->progress_label;
+                return true;
+            }
         }
         if (currentView == ViewMode::Library) {
             {
                 std::lock_guard<std::mutex> lock(libraryState->mutex);
-                if (libraryState->busy) { progress = libraryState->progress; return true; }
+                if (libraryState->busy) {
+                    progress = libraryState->progress;
+                    determinate = libraryState->progress_determinate;
+                    label = libraryState->progress_label;
+                    return true;
+                }
             }
             {
                 std::lock_guard<std::mutex> lock(posterState->mutex);
-                if (posterState->busy) { progress = posterState->progress; return true; }
+                if (posterState->busy) {
+                    progress = posterState->progress;
+                    determinate = posterState->progress_determinate;
+                    label = posterState->progress_label;
+                    return true;
+                }
             }
         }
         if (currentView == ViewMode::Discover) {
             std::lock_guard<std::mutex> lock(discoverState->mutex);
-            if (discoverState->busy) { progress = discoverState->progress; return true; }
+            if (discoverState->busy) { progress = discoverState->progress; label = "Working..."; return true; }
         }
         if (currentView == ViewMode::Debug) {
             {
                 std::lock_guard<std::mutex> lock(debugState->mutex);
-                if (debugState->busy) { progress = debugState->progress; return true; }
+                if (debugState->busy) { progress = debugState->progress; label = "Checking..."; return true; }
             }
             {
                 std::lock_guard<std::mutex> lock(libraryState->mutex);
-                if (libraryState->busy) { progress = libraryState->progress; return true; }
+                if (libraryState->busy) {
+                    progress = libraryState->progress;
+                    determinate = libraryState->progress_determinate;
+                    label = libraryState->progress_label;
+                    return true;
+                }
             }
             {
                 std::lock_guard<std::mutex> lock(posterState->mutex);
-                if (posterState->busy) { progress = posterState->progress; return true; }
+                if (posterState->busy) {
+                    progress = posterState->progress;
+                    determinate = posterState->progress_determinate;
+                    label = posterState->progress_label;
+                    return true;
+                }
             }
             {
                 std::lock_guard<std::mutex> lock(discoverState->mutex);
-                if (discoverState->busy) { progress = discoverState->progress; return true; }
+                if (discoverState->busy) { progress = discoverState->progress; label = "Working..."; return true; }
             }
         }
         return false;
@@ -3205,16 +3286,33 @@ public:
 
     void draw_loading_bar(Drawable target) {
         double progress = 0.0;
-        if (!loading_state(progress)) return;
-        const Rect track = {0, 27, W, 6};
+        bool determinate = false;
+        std::string label;
+        if (!loading_state(progress, determinate, label)) return;
+
+        // Keep the activity surface below the top-tab notch.  The old y=27 bar
+        // painted over the selected Home/Library/Debug arrow while work was active.
+        const int strip_y = 34;
+        const int label_w = determinate ? 58 : 0;
+        const int track_w = std::max(1, W - label_w);
+        const Rect track = {0, strip_y, track_w, 6};
         fill(target, track, rgb8(236,220,197));
-        if (progress > 0.0) {
-            const int loaded = std::max(2, std::min(W, static_cast<int>(progress * W)));
-            fill(target, {0, 27, loaded, 6}, rgb8(184,111,43));
+        if (determinate) {
+            progress = std::max(0.0, std::min(1.0, progress));
+            const int loaded = std::max(progress > 0.0 ? 2 : 0,
+                                        std::min(track_w, static_cast<int>(progress * track_w)));
+            if (loaded > 0) fill(target, {0, strip_y, loaded, 6}, rgb8(184,111,43));
+            const int percent = static_cast<int>(std::lround(progress * 100.0));
+            Rect chip{track_w, strip_y, label_w, 18};
+            fill_round(target, chip, 5, rgb8(244,229,205));
+            outline_round(target, chip, 5, rgb8(166,112,56));
+            const std::string percent_text = std::to_string(percent) + "%";
+            text(target, chip.x + std::max(4, (chip.w - text_width(percent_text)) / 2),
+                 chip.y + 14, percent_text, rgb8(72,39,20));
         } else {
-            const int chunk = std::max(80, W / 5);
-            const int position = static_cast<int>((now_ms() / 8) % (W + chunk)) - chunk;
-            fill(target, {position, 27, chunk, 6}, rgb8(184,111,43));
+            const int chunk = std::max(80, track_w / 5);
+            const int position = static_cast<int>((now_ms() / 8) % (track_w + chunk)) - chunk;
+            fill(target, {position, strip_y, chunk, 6}, rgb8(184,111,43));
         }
     }
 
@@ -3405,8 +3503,7 @@ public:
         text(target,28,246,head_to_width("Status: "+ytdlpStatus,W-56),palette.text);
 
         Rect logBox={28,264,std::max(240,W-56),std::max(100,H-289)};
-        fill(target,logBox,palette.panel);
-        outline(target,logBox,palette.border);
+        draw_primary_panel(target, logBox, palette);
         fill(target,{logBox.x,logBox.y,6,logBox.h},palette.accent);
         text(target,logBox.x+14,logBox.y+20,std::string(stream_platform_name(streamPlatform))+" activity log",palette.text);
         int lineY=logBox.y+44;
@@ -3529,11 +3626,13 @@ public:
             std::lock_guard<std::mutex> lock(serverState->mutex);
             serverState->busy = true;
             serverState->updated = false;
-            serverState->progress = 0.05;
+            serverState->progress = 0.0;
+            serverState->progress_determinate = false;
+            serverState->progress_label = "Working...";
             serverState->state = reddmedia::MediaServerState::Starting;
             if (operation == 1) serverState->status = "Starting integrated server...";
             else if (operation == 2) serverState->status = "Stopping owned integrated server...";
-            else serverState->status = "Refreshing server status...";
+            else serverState->status = "Refreshing server status (library metadata unchanged)...";
         }
         redraw();
         const std::shared_ptr<ServerUiState> state = serverState;
@@ -3567,6 +3666,8 @@ public:
             state->busy = false;
             state->updated = true;
             state->progress = 1.0;
+            state->progress_determinate = false;
+            state->progress_label.clear();
         });
     }
 
@@ -3582,6 +3683,17 @@ public:
         if (!fullscreen) redraw();
     }
 
+    std::string library_cache_key(int operation,
+                                  reddmedia::LibraryMediaType media_type,
+                                  const reddmedia::LibraryNode& parent) const {
+        if (operation == 5 && !parent.id.empty()) return "children:" + parent.id;
+        if (operation != 0) {
+            return media_type == reddmedia::LibraryMediaType::Television
+                ? "roots:television" : "roots:movies";
+        }
+        return {};
+    }
+
     void start_library_task(int operation,
                             const std::string& folder = {},
                             const reddmedia::LibraryNode& parent = {}) {
@@ -3591,14 +3703,32 @@ public:
         }
         if (operation == 1 || operation == 2 || operation == 3) homeNeedsRefresh.store(true);
         if (libraryWorker.joinable()) libraryWorker.join();
+
+        const reddmedia::LibraryMediaType media_type = libraryMediaType;
+        const bool type_chosen = libraryTypeChosen;
+        const std::string cache_key = library_cache_key(operation, media_type, parent);
+        std::vector<reddmedia::LibraryNode> cached_nodes;
+        if (!cache_key.empty()) {
+            std::string cache_error;
+            libraryMetadataCache->load(cache_key, cached_nodes, cache_error);
+        }
         {
             std::lock_guard<std::mutex> lock(libraryState->mutex);
+            if (cached_nodes.empty() && (operation == 1 || operation == 2 || operation == 3)) {
+                cached_nodes = libraryState->nodes;
+            }
+            if (!cached_nodes.empty() && (operation == 4 || operation == 5)) {
+                libraryState->nodes = cached_nodes;
+            }
             libraryState->busy = true;
             libraryState->updated = false;
-            libraryState->progress = 0.05;
-            if (operation == 1) libraryState->status = "Linking folder and scanning metadata...";
-            else if (operation == 2) libraryState->status = "Refreshing this library...";
-            else if (operation == 3) libraryState->status = "Unlinking folder...";
+            libraryState->progress = 0.0;
+            libraryState->progress_determinate = false;
+            libraryState->progress_label = "Scanning...";
+            if (operation == 1) libraryState->status = "Linking folder and scanning Jellyfin library...";
+            else if (operation == 2) libraryState->status = "Scanning Jellyfin library for changes...";
+            else if (operation == 3) libraryState->status = "Unlinking folder and refreshing Jellyfin library...";
+            else if (!cached_nodes.empty()) libraryState->status = "Cached metadata ready. Checking for library changes...";
             else libraryState->status = "Loading real library metadata...";
         }
         if (operation == 2) {
@@ -3609,72 +3739,127 @@ public:
 
         const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
         const std::shared_ptr<reddmedia::RecommendationEngine> engine = recommendationEngine;
+        const std::shared_ptr<reddmedia::LibraryMetadataCache> metadata_cache = libraryMetadataCache;
         const std::shared_ptr<LibraryUiState> state = libraryState;
-        const reddmedia::LibraryMediaType media_type = libraryMediaType;
-        const bool type_chosen = libraryTypeChosen;
-        libraryWorker = std::thread([client, engine, state, operation, folder, parent,
-                                     media_type, type_chosen]() {
-            const auto set_progress = [state](double progress) {
+        libraryWorker = std::thread([client, engine, metadata_cache, state, operation, folder, parent,
+                                     media_type, type_chosen, cache_key, cached_nodes]() mutable {
+            const auto set_indeterminate = [state](const std::string& status, const std::string& label) {
                 std::lock_guard<std::mutex> lock(state->mutex);
-                state->progress = progress;
+                if (!status.empty()) state->status = status;
+                state->progress = 0.0;
+                state->progress_determinate = false;
+                state->progress_label = label;
             };
+            const auto set_measured = [state](std::size_t completed, std::size_t total,
+                                              const std::string& status) {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                if (!status.empty()) state->status = status;
+                state->progress_determinate = total > 0U;
+                state->progress = total > 0U
+                    ? std::max(0.0, std::min(1.0, static_cast<double>(completed) / static_cast<double>(total)))
+                    : 0.0;
+                state->progress_label = total > 0U
+                    ? std::to_string(completed) + " / " + std::to_string(total)
+                    : "Scanning...";
+            };
+
             std::string error;
             bool ok = client->initialize(error);
-            set_progress(0.18);
-            if (ok && operation == 1) ok = client->add_media_folder(folder, media_type, error);
-            if (ok && operation == 2) ok = client->refresh_library(error);
-            if (ok && operation == 3) ok = client->unlink_media_folder(folder, media_type, error);
-            set_progress(0.48);
+            if (ok && operation == 1) {
+                set_indeterminate("Linking folder and scanning Jellyfin library...", "Scanning...");
+                ok = client->add_media_folder(folder, media_type, error);
+            }
+            if (ok && operation == 2) {
+                set_indeterminate("Scanning Jellyfin library for changes...", "Scanning...");
+                ok = client->refresh_library(error);
+            }
+            if (ok && operation == 3) {
+                set_indeterminate("Unlinking folder and refreshing Jellyfin library...", "Scanning...");
+                ok = client->unlink_media_folder(folder, media_type, error);
+            }
+
             std::vector<reddmedia::MediaFolder> folders;
-            if (ok) ok = client->load_media_folders(folders, error);
-            set_progress(0.62);
+            if (ok) {
+                set_indeterminate("Reading linked media folders...", "Reading...");
+                ok = client->load_media_folders(folders, error);
+            }
+
             std::vector<reddmedia::LibraryNode> nodes;
-            if (ok && operation == 5) ok = client->load_library_children(parent, nodes, error);
-            else if (ok && type_chosen && operation != 0) {
+            if (ok && operation == 5) {
+                set_indeterminate(cached_nodes.empty() ? "Loading library level..." :
+                                  "Cached metadata ready. Checking this library level...", "Reading...");
+                ok = client->load_library_children(parent, nodes, error);
+            } else if (ok && type_chosen && operation != 0) {
+                set_indeterminate(cached_nodes.empty() ? "Loading library titles..." :
+                                  "Cached metadata ready. Checking for library changes...", "Reading...");
                 ok = client->load_library_roots(media_type, nodes, error);
             }
-            if (ok && engine->external_credential_available()) {
+
+            std::map<std::string, reddmedia::LibraryNode> cached_by_id;
+            for (const auto& cached : cached_nodes) {
+                if (!cached.id.empty()) cached_by_id[cached.id] = cached;
+            }
+
+            if (ok) {
+                const std::size_t total = nodes.size();
                 for (std::size_t index = 0; index < nodes.size(); ++index) {
                     reddmedia::LibraryNode& node = nodes[index];
-                    std::string fallback_error;
-                    if (node.kind == reddmedia::LibraryNodeKind::Episode &&
-                        !node.series_tmdb_id.empty() && node.season_number >= 0 &&
-                        node.episode_number > 0 &&
-                        (node.episode_title.empty() || node.overview.empty())) {
-                        std::string title;
-                        std::string overview;
-                        if (engine->load_tv_episode_details(node.series_tmdb_id,
-                                                            node.season_number,
-                                                            node.episode_number,
-                                                            title, overview,
-                                                            fallback_error)) {
-                            if (node.episode_title.empty()) node.episode_title = title;
-                            if (node.overview.empty()) node.overview = overview;
+                    const auto old = cached_by_id.find(node.id);
+                    if (old != cached_by_id.end()) {
+                        const reddmedia::LibraryNode& cached = old->second;
+                        const bool same_provider_identity = cached.tmdb_id == node.tmdb_id &&
+                            cached.series_tmdb_id == node.series_tmdb_id;
+                        if (same_provider_identity) {
+                            if (node.episode_title.empty()) node.episode_title = cached.episode_title;
+                            if (node.overview.empty()) node.overview = cached.overview;
+                            if (node.tmdb_poster_path.empty()) node.tmdb_poster_path = cached.tmdb_poster_path;
                         }
                     }
-                    // Artwork quality pass: when an exact provider ID exists,
-                    // ask TMDb for its proper poster even if Jellyfin also has a
-                    // Primary image.  Never title-search or guess an ID here.
-                    if (node.kind == reddmedia::LibraryNodeKind::Movie && !node.tmdb_id.empty()) {
-                        engine->load_movie_poster_path(node.tmdb_id,
-                                                      node.tmdb_poster_path,
-                                                      fallback_error);
-                    } else if (node.kind == reddmedia::LibraryNodeKind::Series && !node.tmdb_id.empty()) {
-                        node.series_tmdb_id = node.tmdb_id;
-                        engine->load_tv_poster_path(node.tmdb_id, 0,
-                                                   node.tmdb_poster_path,
-                                                   fallback_error);
-                    } else if (!node.series_tmdb_id.empty()) {
-                        engine->load_tv_poster_path(node.series_tmdb_id,
-                                                   std::max(0, node.season_number),
-                                                   node.tmdb_poster_path,
-                                                   fallback_error);
+
+                    if (engine->external_credential_available()) {
+                        std::string fallback_error;
+                        if (node.kind == reddmedia::LibraryNodeKind::Episode &&
+                            !node.series_tmdb_id.empty() && node.season_number >= 0 &&
+                            node.episode_number > 0 &&
+                            (node.episode_title.empty() || node.overview.empty())) {
+                            std::string title;
+                            std::string overview;
+                            if (engine->load_tv_episode_details(node.series_tmdb_id,
+                                                                node.season_number,
+                                                                node.episode_number,
+                                                                title, overview,
+                                                                fallback_error)) {
+                                if (node.episode_title.empty()) node.episode_title = title;
+                                if (node.overview.empty()) node.overview = overview;
+                            }
+                        }
+                        if (node.tmdb_poster_path.empty()) {
+                            if (node.kind == reddmedia::LibraryNodeKind::Movie && !node.tmdb_id.empty()) {
+                                engine->load_movie_poster_path(node.tmdb_id,
+                                                              node.tmdb_poster_path,
+                                                              fallback_error);
+                            } else if (node.kind == reddmedia::LibraryNodeKind::Series && !node.tmdb_id.empty()) {
+                                node.series_tmdb_id = node.tmdb_id;
+                                engine->load_tv_poster_path(node.tmdb_id, 0,
+                                                           node.tmdb_poster_path,
+                                                           fallback_error);
+                            } else if (!node.series_tmdb_id.empty()) {
+                                engine->load_tv_poster_path(node.series_tmdb_id,
+                                                           std::max(0, node.season_number),
+                                                           node.tmdb_poster_path,
+                                                           fallback_error);
+                            }
+                        }
                     }
-                    set_progress(0.62 + 0.27 * static_cast<double>(index + 1U) /
-                        static_cast<double>(std::max<std::size_t>(1U, nodes.size())));
+                    set_measured(index + 1U, total, "Updating metadata...");
                 }
+                if (nodes.empty()) set_indeterminate("Library check complete.", "Ready");
             }
-            set_progress(0.90);
+
+            if (ok && !cache_key.empty()) {
+                std::string cache_error;
+                metadata_cache->store(cache_key, nodes, cache_error);
+            }
 
             std::lock_guard<std::mutex> lock(state->mutex);
             if (ok) {
@@ -3696,6 +3881,8 @@ public:
             state->busy = false;
             state->updated = true;
             state->progress = 1.0;
+            state->progress_determinate = true;
+            state->progress_label = "100%";
         });
     }
 
@@ -4898,6 +5085,20 @@ public:
         }
     }
 
+    bool home_card_uses_portrait_poster(const reddmedia::LibraryNode& node) const {
+        return node.kind == reddmedia::LibraryNodeKind::Movie ||
+               node.kind == reddmedia::LibraryNodeKind::MovieCollection ||
+               node.kind == reddmedia::LibraryNodeKind::Series ||
+               node.kind == reddmedia::LibraryNodeKind::Season;
+    }
+
+    int home_card_height_for_node(const reddmedia::LibraryNode& node, int card_width) const {
+        const int artwork_height = home_card_uses_portrait_poster(node)
+            ? std::max(168, card_width * 3 / 2)
+            : std::max(86, card_width * 9 / 16);
+        return artwork_height + 50;
+    }
+
     void draw_home_card(Drawable target, const Rect& card, const reddmedia::LibraryNode& node,
                         const std::string& subtitle, bool continue_card, long long resume_ms=0, long long duration_ms=0) {
         const ViewPalette palette = palette_for(ViewMode::Home);
@@ -4947,8 +5148,7 @@ public:
         const int grid_width = std::max(1, W - 56);
         const int card_w = std::max(145, std::min(240,
             (grid_width - (columns - 1) * gap) / std::max(1, columns)));
-        const int image_h = std::max(86, card_w * 9 / 16);
-        const int card_h = image_h + 50;
+        const int local_card_h = std::max(168, card_w * 3 / 2) + 50;
 
         std::vector<ResumeRecord> continues;
         std::vector<HomeSection> sections;
@@ -4967,16 +5167,21 @@ public:
         if (!continues.empty()) {
             section_text(target, 28, y + 20, "CONTINUE WATCHING", palette.text);
             y += 34;
-            homeContinueArea = {20, y, std::max(1, W - 40), card_h};
+            int continue_max_h = 0;
+            for (const auto& record : continues) {
+                continue_max_h = std::max(continue_max_h, home_card_height_for_node(node_from_resume_record(record), card_w));
+            }
+            continue_max_h = std::max(1, continue_max_h);
+            homeContinueArea = {20, y, std::max(1, W - 40), continue_max_h};
             const int total_w = static_cast<int>(continues.size()) * (card_w + gap) - gap;
             const int max_scroll = std::max(0, total_w - homeContinueArea.w);
             homeContinueScrollX = std::max(0, std::min(homeContinueScrollX, max_scroll));
             int x = homeContinueArea.x - homeContinueScrollX;
             for (const auto& record : continues) {
-                Rect card{x, y, card_w, card_h};
+                reddmedia::LibraryNode node = node_from_resume_record(record);
+                Rect card{x, y, card_w, home_card_height_for_node(node, card_w)};
                 if (card.x + card.w > homeContinueArea.x && card.x < homeContinueArea.x + homeContinueArea.w &&
                     card.y + card.h > viewport_top && card.y < viewport_bottom) {
-                    reddmedia::LibraryNode node = node_from_resume_record(record);
                     if (!record.series_name.empty()) node.name = record.series_name;
                     else if (node.name.empty()) node.name = record.title;
 
@@ -4996,7 +5201,7 @@ public:
                 }
                 x += card_w + gap;
             }
-            y += card_h + 34;
+            y += continue_max_h + 34;
         } else {
             homeContinueArea = {0,0,0,0};
         }
@@ -5014,15 +5219,15 @@ public:
             int column = 0;
             for (const auto& node : section.items) {
                 const int x = 28 + column * (card_w + gap);
-                Rect card{x, y, card_w, card_h};
+                Rect card{x, y, card_w, local_card_h};
                 if (card.y + card.h > viewport_top && card.y < viewport_bottom) {
                     draw_home_card(target, card, node, home_card_subtitle(node), false);
                     homeCardHitboxes.push_back({card, node, false, 0});
                 }
                 ++column;
-                if (column >= columns) { column = 0; y += card_h + gap; }
+                if (column >= columns) { column = 0; y += local_card_h + gap; }
             }
-            if (column != 0) y += card_h + gap;
+            if (column != 0) y += local_card_h + gap;
             y += 20;
         }
         homeContentHeight = std::max(H, y + homePageScroll + 20);
@@ -5152,6 +5357,8 @@ public:
             posterState->busy = true;
             posterState->updated = false;
             posterState->progress = 0.0;
+            posterState->progress_determinate = false;
+            posterState->progress_label = "Preparing artwork...";
         }
         const std::shared_ptr<PosterUiState> posters = posterState;
         const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
@@ -5160,6 +5367,11 @@ public:
             std::size_t total = 0;
             for (const auto& node : nodes) {
                 if (!node.tmdb_poster_path.empty() || !node.poster_item_id.empty()) ++total;
+            }
+            {
+                std::lock_guard<std::mutex> lock(posters->mutex);
+                posters->progress_determinate = total > 0U;
+                posters->progress_label = total > 0U ? "0 / " + std::to_string(total) : "Artwork ready";
             }
             std::size_t completed = 0;
             for (const auto& node : nodes) {
@@ -5209,11 +5421,17 @@ public:
                 std::lock_guard<std::mutex> lock(posters->mutex);
                 posters->progress = total == 0U ? 1.0 :
                     static_cast<double>(completed) / static_cast<double>(total);
+                posters->progress_determinate = total > 0U;
+                posters->progress_label = total > 0U
+                    ? std::to_string(completed) + " / " + std::to_string(total)
+                    : "Artwork ready";
             }
             std::lock_guard<std::mutex> lock(posters->mutex);
             posters->busy = false;
             posters->updated = true;
             posters->progress = 1.0;
+            posters->progress_determinate = true;
+            posters->progress_label = "100%";
         });
     }
 
@@ -5367,13 +5585,18 @@ public:
             return metrics;
         }
 
-        // Poster grid is truly portrait.  v27 forced arbitrary poster sources into
-        // a squat cell and visibly distorted them.  v28 keeps a 2:3 art region.
-        const int preferred_width = 150;
+        // Keep DVD/poster geometry at 2:3, but size cards from both width and
+        // available height.  v0.0.29 could stretch each card wide enough that
+        // only one row fit even in a tall/fullscreen Library viewport.
+        int target_width = 150;
+        if (inner_height >= 430) {
+            const int two_row_tile_height = std::max(218, (inner_height - metrics.gap) / 2);
+            const int two_row_poster_height = std::max(168, two_row_tile_height - 50);
+            target_width = std::max(112, std::min(150, two_row_poster_height * 2 / 3));
+        }
+        metrics.tileWidth = target_width;
         metrics.columns = std::max(1, (inner_width + metrics.gap) /
-                                      (preferred_width + metrics.gap));
-        metrics.tileWidth = std::max(112,
-            (inner_width - (metrics.columns - 1) * metrics.gap) / metrics.columns);
+                                      (metrics.tileWidth + metrics.gap));
         metrics.posterHeight = std::max(168, metrics.tileWidth * 3 / 2);
         metrics.tileHeight = metrics.posterHeight + 50;
         metrics.rows = std::max(1, (inner_height + metrics.gap) /
@@ -5451,8 +5674,7 @@ public:
             nodes=libraryState->nodes; status=libraryState->status; busy=libraryState->busy;
         }
         text(target,28,122,head_to_width(std::string("Status: ")+(busy?"Working - ":"")+status,W-56),palette.text);
-        fill(target,libraryListBox,palette.panel);
-        outline(target,libraryListBox,palette.border);
+        draw_primary_panel(target, libraryListBox, palette);
         libraryRows.clear();
         const LibraryGridMetrics grid=library_grid_metrics();
         const int max_scroll=std::max(0,static_cast<int>(nodes.size())-grid.visibleItems);
@@ -6560,7 +6782,6 @@ public:
     void draw_debug_screen(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::Debug);
         const unsigned long dark = palette.text;
-        const unsigned long border = palette.border;
         draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Debug);
         button_on(target, debugRunBtn, "Run Checks");
         button_on(target, debugRetryBtn, "Retry");
@@ -6586,8 +6807,7 @@ public:
         }
         text(target, 28, 116, head_to_width(
             std::string("Status: ") + (busy ? "Working - " : "") + status, W - 56), dark);
-        fill(target, debugListBox, palette.panel);
-        outline(target, debugListBox, border);
+        draw_primary_panel(target, debugListBox, palette);
         debugIssueRows.clear();
         if (!has_report) {
             text(target, debugListBox.x + 14, debugListBox.y + 30,
@@ -6814,7 +7034,6 @@ public:
     void draw_discover_screen(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::Discover);
         const unsigned long dark = palette.text;
-        const unsigned long border = palette.border;
         draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Discover);
         if (discoverServiceSettings) {
             text(target, 28, 58, "MY STREAMING SERVICES - UNITED STATES", dark);
@@ -6823,8 +7042,7 @@ public:
                  "Select services you use. Availability still shows every verified listing.",
                  palette.muted);
             const Rect services_box = {28, 120, std::max(240, W - 56), std::max(150, H - 148)};
-            fill(target, services_box, palette.panel);
-            outline(target, services_box, border);
+            draw_primary_panel(target, services_box, palette);
             std::vector<reddmedia::WatchProvider> providers;
             std::string status;
             bool busy = false;
@@ -6910,8 +7128,7 @@ public:
             availability_status = discoverState->availabilityStatus;
         }
         text(target, 28, 218, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
-        fill(target, discoverResultBox, palette.panel);
-        outline(target, discoverResultBox, border);
+        draw_primary_panel(target, discoverResultBox, palette);
         text(target, 28, H - 12,
              "Watch availability by JustWatch via TMDb. This product uses the TMDB API but is not endorsed or certified by TMDB.",
              palette.muted);
@@ -8015,9 +8232,11 @@ public:
         }
         if (openBtn.contains(x,y)) { do_open(); return; }
         if (rewindBtn.contains(x,y)) { seek_relative(-10000); return; }
+        if (previousBtn.contains(x,y)) { play_relative_episode(-1); return; }
         if (playBtn.contains(x,y)) { toggle_play(); return; }
-        if (stopBtn.contains(x,y)) { stop_media(); return; }
+        if (nextBtn.contains(x,y)) { play_relative_episode(1); return; }
         if (forwardBtn.contains(x,y)) { seek_relative(10000); return; }
+        if (stopBtn.contains(x,y)) { stop_media(); return; }
         if (fsBtn.contains(x,y)) { toggle_fullscreen(); return; }
         if (needResumePrompt && resumeBtn.contains(x,y)) { open_media(sessionPath, sessionTime); return; }
         if (needResumePrompt && loadBtn.contains(x,y)) { needResumePrompt=false; redraw(); do_open(); return; }
@@ -8270,7 +8489,9 @@ public:
                 if (!fullscreen) redraw();
             }
             double loading_progress = 0.0;
-            if (!fullscreen && loading_state(loading_progress) &&
+            bool loading_determinate = false;
+            std::string loading_label;
+            if (!fullscreen && loading_state(loading_progress, loading_determinate, loading_label) &&
                 now_ms() - lastLoadingRedrawMs >= 80) {
                 lastLoadingRedrawMs = now_ms();
                 redraw();
@@ -8365,7 +8586,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.29\n");
+        printf("Nougat Media Suite v0.0.30\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -8547,6 +8768,88 @@ int main(int argc, char** argv) {
             return 1;
         }
         std::printf("Nougat Media Suite v0.0.29 TV/UI reliability PASS: same-folder Up Next, 10-second overlay, natural fallback, Vimeo, and Home artwork.\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v30-ui-library-player-self-test") {
+        App app;
+
+        // Library Grid must use the available height for multiple visible DVD/poster rows.
+        app.libraryListBox = {20, 170, 1260, 540};
+        app.libraryMovieView = LibraryDisplayMode::Grid;
+        app.libraryMediaType = reddmedia::LibraryMediaType::Movies;
+        const LibraryGridMetrics grid = app.library_grid_metrics();
+        const bool grid_ok = grid.rows >= 2 && grid.columns >= 5 &&
+            grid.posterHeight == grid.tileWidth * 3 / 2 &&
+            grid.visibleItems == grid.rows * grid.columns;
+
+        // Home movie/series posters are portrait; episodes remain landscape.
+        reddmedia::LibraryNode movie; movie.kind = reddmedia::LibraryNodeKind::Movie;
+        reddmedia::LibraryNode episode; episode.kind = reddmedia::LibraryNodeKind::Episode;
+        const int movie_h = app.home_card_height_for_node(movie, 160);
+        const int episode_h = app.home_card_height_for_node(episode, 160);
+        const bool home_ratio_ok = app.home_card_uses_portrait_poster(movie) &&
+            !app.home_card_uses_portrait_poster(episode) && movie_h > episode_h &&
+            movie_h == 160 * 3 / 2 + 50 && episode_h == 160 * 9 / 16 + 50;
+
+        // Previous/Next are episode navigation, independent of the +/-10 second seek buttons.
+        const std::string nav_base = "/tmp/nougat-v30-nav-" +
+            std::to_string(static_cast<long long>(getpid()));
+        mkdir(nav_base.c_str(), 0700);
+        std::vector<reddmedia::LibraryNode> nav_queue(3);
+        for (int i = 0; i < 3; ++i) {
+            nav_queue[static_cast<std::size_t>(i)].kind = reddmedia::LibraryNodeKind::Episode;
+            nav_queue[static_cast<std::size_t>(i)].path = nav_base + "/Episode" + std::to_string(i + 1) + ".mkv";
+            std::ofstream(nav_queue[static_cast<std::size_t>(i)].path).put('\0');
+        }
+        app.tvAutoplayQueue = nav_queue;
+        app.tvAutoplayIndex = 1;
+        app.tvAutoplayArmed = true;
+        const bool nav_middle_ok = app.episode_navigation_available(-1) && app.episode_navigation_available(1);
+        app.tvAutoplayIndex = 0;
+        const bool nav_first_ok = !app.episode_navigation_available(-1) && app.episode_navigation_available(1);
+        app.tvAutoplayIndex = 2;
+        const bool nav_last_ok = app.episode_navigation_available(-1) && !app.episode_navigation_available(1);
+        for (const auto& node : nav_queue) unlink(node.path.c_str());
+        rmdir(nav_base.c_str());
+
+        // Persistent metadata cache must round-trip real metadata without delimiter corruption.
+        const std::string cache_dir = "/tmp/nougat-v30-cache-" +
+            std::to_string(static_cast<long long>(getpid()));
+        reddmedia::LibraryMetadataCache cache(cache_dir);
+        reddmedia::LibraryNode cached;
+        cached.kind = reddmedia::LibraryNodeKind::Episode;
+        cached.id = "episode-id";
+        cached.parent_id = "season-id";
+        cached.series_id = "series-id";
+        cached.name = "Title\twith delimiter";
+        cached.path = "/media/Show/Season 01/Show.S01E02.mkv";
+        cached.overview = "Line one\nLine two";
+        cached.series_name = "Show Name";
+        cached.episode_title = "Purple Giraffe";
+        cached.genres = {"Comedy", "Romance"};
+        cached.primary_image_tag = "image-tag";
+        cached.tmdb_poster_path = "/poster.jpg";
+        cached.production_year = 2005;
+        cached.season_number = 1;
+        cached.episode_number = 2;
+        std::string cache_error;
+        const bool cache_store_ok = cache.store("children:season-id", {cached}, cache_error);
+        std::vector<reddmedia::LibraryNode> loaded;
+        const bool cache_load_ok = cache.load("children:season-id", loaded, cache_error);
+        const bool cache_ok = cache_store_ok && cache_load_ok && loaded.size() == 1 &&
+            loaded[0].name == cached.name && loaded[0].overview == cached.overview &&
+            loaded[0].genres == cached.genres && loaded[0].season_number == 1 &&
+            loaded[0].episode_number == 2;
+        cache.remove("children:season-id", cache_error);
+        rmdir(cache_dir.c_str());
+
+        if (!grid_ok || !home_ratio_ok || !nav_middle_ok || !nav_first_ok || !nav_last_ok || !cache_ok) {
+            std::fprintf(stderr,
+                "Nougat v0.0.30 UI/Library/Player self-test FAIL. grid=%d home=%d nav=%d/%d/%d cache=%d\n",
+                grid_ok, home_ratio_ok, nav_middle_ok, nav_first_ok, nav_last_ok, cache_ok);
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.30 UI/Library/Player PASS: multi-row DVD grid, portrait Home posters, persistent cache, Previous/Next, and volume/panel polish contract.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {

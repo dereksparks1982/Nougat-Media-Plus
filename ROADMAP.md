@@ -33,7 +33,7 @@
 - Remove the redundant standalone `SEARCH` page heading while retaining `Search | Crawler | P2P` and reclaim the vertical space.
 - Preserve accepted v0.0.27 playback, resume, seek-preview, Discover, Search/P2P, diagnostics, licensing, and N identity outside this visual/state scope.
 
-## v0.0.29 candidate — TV Playback, Navigation, and Carry-Forward UI Repair
+## v0.0.29 accepted — TV Playback, Navigation, and Carry-Forward UI Repair
 - Resolve the next local episode from the current playback file's folder regardless of whether playback began from Home, Library, Open File, resume history, or another local path. Prefer parsed/verified season+episode identity; use natural filename order for catalog-confirmed episodes when explicit numbering tokens are absent.
 - Resolve/cache the next episode when playback starts so the end-of-media path does not perform a slow folder/catalog discovery before showing Up Next.
 - At natural episode completion, show the resolved Up Next overlay immediately with a visible 10-second countdown, `Play Next`, `Back to Series`, and `Replay`; autoplay at zero unless the owner chooses another action. Manual Stop continues to cancel autoplay.
@@ -46,13 +46,28 @@
 - Make Home movie/poster art fill the artwork region with aspect-preserving cover behavior instead of rendering as a tiny centered poster. Preserve rounded top clipping and silent hover previews.
 - Preserve accepted v0.0.28 palette, Home state persistence, Library poster work, Search cleanup, resume/seek/player behavior, Discover, Search/P2P, diagnostics, licensing, and N identity outside this focused reliability/repair scope.
 
-## v0.0.30 planned — P2P expansion
-- Resume the deferred P2P work as its own focused build.
-- Target a BitTorrent Pro-class management experience: active transfer list, progress/speeds/peers/seeds/ETA/ratio/status, per-transfer pause/resume/remove, optional data removal with confirmation, file selection/priorities, global/per-transfer limits, queue ordering, seeding/ratio controls, tracker status/reannounce, peer information, and durable resume state.
-- Keep playback integrated in Nougat and preserve the Search > P2P architecture.
+## v0.0.30 candidate — UI Cohesion, Library Performance, and Player Navigation
+- Apply the Search-style rounded/inset primary panel treatment to the equivalent large Library, Discover, Stream, and Debug content surfaces while preserving each page palette.
+- Keep every selected top-tab notch fully visible by keeping the busy/progress strip below the navigation pointer instead of painting across it.
+- Use Library-style portrait 2:3 DVD/poster geometry for Home movies, series, and seasons; keep episode imagery landscape.
+- Make Library Grid use the available vertical viewport so multiple poster rows are visible simultaneously, with normal vertical scrolling through the wall.
+- Add a private persistent cache-first Library metadata path so known views can appear immediately while Jellyfin reconciliation continues asynchronously. Reuse verified cached artwork identifiers to avoid unnecessary repeat enrichment.
+- Keep Jellyfin library scan phases indeterminate when no total is available, then show a real numeric percentage beside the gold progress bar for item/artwork phases with measured completed/total work. Clarify that Refresh Server refreshes server/process state while Refresh Library triggers Jellyfin library scanning/metadata reload.
+- Add concise `Previous` and `Next` native-player controls backed by the v0.0.29 episode resolver, preserving the existing +/-10-second seek controls and disabling navigation at episode boundaries.
+- Enlarge the compact volume slider knob so it fits its housing proportionally while preserving 0-200% behavior and the approved colors/readout.
+- Preserve accepted v0.0.29 Search/P2P, licensing, diagnostics, Stream providers, TV Up Next/autoplay, resume history, and N identity outside this UI/Library/player scope.
+
+## v0.0.31 planned — Focused P2P streaming expansion
+- Make P2P playback range-aware: map native-player HTTP byte-range demand to the selected torrent file and libtorrent pieces, using time-critical/deadline priorities for immediate playback data.
+- Maintain moving immediate, near-future buffer, and background priority zones; clear stale playback deadlines when seeking and reprioritize the new position.
+- Improve startup/seeking truthfulness with Finding Peers / Connecting / Buffering / Ready states and expose real stream-buffer health.
+- Configure/report uTP, DHT, PEX, local peer discovery, UPnP, NAT-PMP/PCP, listen sockets and supported hole punching independently rather than collapsing network traversal into one status.
+- Add focused P2P transfer/peer/buffer evidence under Search > P2P and Debug without resurrecting a top-level P2P tab.
+- Persist safe libtorrent resume data and correctly select the intended media file inside multi-file torrents/TV packs.
+- Keep libtorrent alert/network processing off the X11 UI thread and preserve native Nougat playback as the only playback path.
 
 ## Future platform proposal — native web player and free provider adapters, version assignment pending
-- This future platform proposal is not part of v0.0.28 or v0.0.29 and must not displace the focused v0.0.30 P2P expansion without a later owner decision.
+- This future platform proposal is not part of v0.0.28 or v0.0.29 and must not displace the focused v0.0.31 P2P expansion without a later owner decision.
 - Add a first-party Nougat web client/player so browser playback uses Nougat controls, Home, watch history, resume state, subtitles/audio selection, fullscreen, seek previews, and Up Next instead of exposing the Jellyfin web UI.
 - Prefer direct browser playback of the original media when the browser supports it; use Nougat-controlled FFmpeg delivery/transcoding only when required by browser codec/container support.
 - Keep future external-provider support behind a generic provider adapter rather than hard-coding one company into Home. Provider sections may appear beneath LOCAL as source headings, with mixed movie/TV cards and no redundant Movies/TV subheadings.

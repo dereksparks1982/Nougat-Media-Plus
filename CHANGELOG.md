@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.30 candidate — UI Cohesion, Library Performance, and Player Navigation
+
+- Standardized the large Library, Discover, Stream, and Debug content surfaces on Search's rounded/inset Nougat panel language while preserving page-specific palettes.
+- Moved the gold busy/progress strip below the top-tab notch so selected Home/Library/Debug pointers are not clipped by busy-page paint order.
+- Changed Home movie/series/season cards to portrait 2:3 DVD/poster geometry while retaining landscape episode stills and rounded artwork clipping.
+- Reworked Library Grid sizing from both available width and height so multiple poster rows are visible at once instead of one row occupying the whole vertical viewport.
+- Added a private persistent Library metadata cache. Known library views can paint cached metadata first while the current Jellyfin view refreshes asynchronously, and verified cached artwork metadata avoids unnecessary repeat enrichment.
+- Added determinate Library/artwork progress reporting based only on real completed/total work. Jellyfin scan phases with no measurable total remain indeterminate rather than using a fake percentage.
+- Clarified refresh semantics: Refresh Server updates server/process state; Refresh Library performs Jellyfin library scanning and metadata reload.
+- Added `Previous` and `Next` player buttons using the v0.0.29 episode queue/resolver, separate from the existing 10-second seek controls.
+- Enlarged the compact volume knob to fit its rounded housing proportionally while retaining 0-200% gain and the existing percentage readout.
+- Preserved accepted licensing, Search/P2P implementation, diagnostics, Stream providers, v0.0.29 TV reliability, and N identity outside this scope. Focused P2P streaming expansion moves intact to v0.0.31.
+
 ## v0.0.29 candidate — TV Playback, Navigation, and Carry-Forward UI Repair
 
 - Repaired TV next-episode resolution at the player level: local episodes prepare a same-folder queue regardless of launch route, prefer parsed `SxxEyy` / `NxNN` identity, and retain natural filename ordering for catalog-confirmed episodes without explicit tokens.
