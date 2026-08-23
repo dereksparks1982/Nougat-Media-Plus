@@ -1,5 +1,7 @@
 # Nougat Media Suite v0.0.34
 
+Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
 ## v0.0.34 - Exact Sheet Tabs/Player Controls + Home/Discover UI Repair
 
 v0.0.34 builds directly on accepted v0.0.33 commit `6763a42bf5c125974e5a2882234fb2ee2e04c512`. It is a focused owner-visible UI/Discover release. The approved Nougat concept sheet is the literal component authority for the global top tabs, player seek bar, and player volume control.
@@ -30,8 +32,6 @@ Nougat Security Analysis now requires the pinned one-shot runtime (YARA-X 1.19.0
 
 The integrated Jellyfin server is now persistent after **Start Server**: closing the Nougat UI leaves a Nougat-owned server running, reopening adopts it, and **Stop Server** is the explicit shutdown path. Independently started Jellyfin is never claimed or killed.
 
-## Accepted v0.0.32 baseline
-Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
 
 
 ## v0.0.32 - Native P2P Media + Nougat Security Analysis
