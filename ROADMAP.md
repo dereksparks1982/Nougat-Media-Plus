@@ -9,7 +9,7 @@
 
 # Nougat Media Suite Roadmap
 
-## v0.0.35 candidate — Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
+## v0.0.35 accepted — Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
 - Make v0.0.35 a stabilization-first release: repair confirmed bugs from the project-wide code review, reduce brittle/duplicated code where it directly raises regression risk, harden ownership/lifetime/process cleanup, and preserve accepted v0.0.34 behavior outside the approved repair scope.
 - Replace false-positive source-token/constant checks with stronger behavioral validation where practical, including the approved concept-sheet seek/volume controls.
 - Repair the Video Player seek bar and housed volume control against the approved component sheet's actual geometry and visual hierarchy rather than an approximation.
@@ -20,10 +20,29 @@
 - Advance the Linux DVB Live TV foundation from detection into a real owner-testable channel scan: enumerate the detected frontend, scan appropriate broadcast frequencies, expose tuning/lock/signal/progress evidence, discover services/channels, populate the channel list, and persist discovered channels for later Watch Live use. Fail honestly when lock/scanning is unavailable.
 - Add a new top-level Studio tab between Stream and Debug. Give Studio a true yellow/gold palette with brown stitched borders; the page is branded Gold Studio internally. v0.0.35 establishes the navigation/page foundation only; the major media-processing/editor toolset remains roadmap work so stabilization is not displaced.
 
-## v0.0.36 planned — Library Collection Hierarchy
-- Collapse recognized movie collections/franchises into a single top-level Library card by default. If a collection such as the 28 franchise has individual member movies plus a collection object, the main Movies grid shows only the collection card rather than duplicating the collection and every member film side by side.
-- Clicking a collection opens a dedicated collection-detail view containing the individual member movies in their collection order. Clicking a member movie then opens/plays that specific title through the normal Nougat movie path.
-- Standalone movies remain ordinary top-level Library items. Collection collapsing is hierarchy/navigation behavior, not merely visual grouping, and must preserve correct artwork, metadata, resume state, and source navigation for each member.
+## v0.0.36 candidate — Library Hierarchy, Home Artwork, and Exact-Sheet Player/Header Repair
+- Collapse recognized movie collections/franchises into a single top-level Library card by default. Member movies are hidden from the root while the collection remains directly navigable; standalone movies remain normal root items.
+- Add the approved-sheet `Search` input directly below the Library green action row with the exact placeholder `Search` and live local filtering. Keep List/Grid together at the far right of the action row.
+- Repair Home card artwork placement so Continue Watching uses centered proportional 16:9 cover artwork and Local/Recommended movie cards fill their portrait poster viewports without the current black-gap/offset defect.
+- Replace the generic player seek rendering with a pixel-derived approved-sheet seek sprite family. Shorten/keep the bar at its sheet-derived width and place elapsed/total time on its left/right sides on the same line.
+- Repair mouse-driven player clipping at the repaint root by making seek/time, VOLUME/percentage, and transport buttons one stable control repaint region. Preserve the accepted VOLUME component itself and remove only the rectangular sheet background around the rounded housing.
+- Change the global header to the same tan sampled from the approved VOLUME housing, center both header clusters vertically, and replace the generic Server dot with the sheet-family circular status indicator.
+- Preserve the current app lettering until a separately approved system-wide typography pass.
+- Preserve v0.0.35's owner-validated ATSC 1.0 scan behavior unchanged except for regression checks.
+
+## v0.0.37 candidate — Native Live TV Watch + Classic Guide
+- Make `Watch Live` on a persisted ATSC channel such as 3.1 tune the stored DVB frontend/frequency, select the correct MPEG transport-stream program, and feed the live broadcast into Nougat's existing native player. Double-clicking a selected channel uses the same path.
+- Expose one logical tuner per independently usable DVB frontend instead of showing sibling V4L2/VBI device nodes as separate tuners.
+- Add explicit tuner ownership state so channel scanning, guide harvesting, and live playback cannot compete for the same tuner.
+- Harvest/cache ATSC PSIP EIT guide data and present the first old-school guide grid with channels down the left, time across the top, duration-sized program cells, current-time marker, current-program highlight, `Refresh Guide`, and `Now`.
+- Keep ETT-rich descriptions, XMLTV supplementation, DVR/recording, timeshift, favorites, and multi-tuner scheduling as later Live TV stages after owner validation of v0.0.37 tuning and EIT grid behavior.
+- Support clean Stop, retune, and channel changes without destabilizing the accepted v0.0.35 channel scan/persistence path.
+- Validate first on the owner's already working tuner/channel database before expanding into guide, recording, timeshift, favorites, or channel-surfing features.
+
+## v0.0.38 agenda — Unified Player Activity Overlay
+- Unify the video-surface mouse pointer and media-title/info overlay under one activity timer in fullscreen, maximized, normal, and half-screen/resized player states.
+- Any mouse movement over the video shows both pointer and title/info at the same time and resets a 3-second idle timer. After 3 seconds with no mouse movement, both disappear together.
+- Eliminate the current behavior where the title/info disappears as soon as motion stops while the pointer remains visible, and prevent flicker from separate hide timers.
 
 ## Studio / Nougat Media Processing Engine — post-v0.0.35
 - Build one reusable native media-processing engine around FFmpeg/libav rather than reinventing codecs. Share it across Convert, Audio Lab, Quick Edit, Batch, and the eventual timeline editor.

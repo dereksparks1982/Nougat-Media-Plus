@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iomanip>
 #include <netinet/in.h>
+#include <set>
 #include <sstream>
 #include <string>
 #include <sys/socket.h>
@@ -845,6 +846,30 @@ bool JellyfinApiClient::load_library_roots(LibraryMediaType media_type,
         if (node.kind == LibraryNodeKind::Series) node.series_tmdb_id = node.tmdb_id;
         if (!node.id.empty() && !node.name.empty()) loaded.push_back(std::move(node));
     }
+
+    // v0.0.36 collection hierarchy: Jellyfin's collapseBoxSetItems hint is not
+    // sufficient on every server/version. Build an explicit set of collection
+    // members and remove those Movie entries from the root. Collections remain
+    // as the one top-level card; opening one still loads its member movies.
+    if (media_type == LibraryMediaType::Movies) {
+        std::set<std::string> collection_member_ids;
+        for (const LibraryNode& node : loaded) {
+            if (node.kind != LibraryNodeKind::MovieCollection) continue;
+            std::vector<LibraryNode> children;
+            std::string child_error;
+            if (!load_library_children(node, children, child_error)) continue;
+            for (const LibraryNode& child : children) {
+                if (child.kind == LibraryNodeKind::Movie && !child.id.empty()) {
+                    collection_member_ids.insert(child.id);
+                }
+            }
+        }
+        loaded.erase(std::remove_if(loaded.begin(), loaded.end(),
+            [&collection_member_ids](const LibraryNode& node) {
+                return node.kind == LibraryNodeKind::Movie &&
+                       collection_member_ids.find(node.id) != collection_member_ids.end();
+            }), loaded.end());
+    }
     nodes = std::move(loaded);
     return true;
 }
@@ -861,10 +886,12 @@ bool JellyfinApiClient::load_library_children(const LibraryNode& parent,
         error = "That library item does not contain another level.";
         return false;
     }
+    const std::string sort_by = parent.kind == LibraryNodeKind::MovieCollection
+        ? "ProductionYear%2CSortName" : "SortName";
     const std::string target = "/Items?userId=" + url_encode(user_id_) +
         "&parentId=" + url_encode(parent.id) + "&recursive=false&includeItemTypes=" +
         item_types + "&fields=" + common_item_fields() +
-        "&sortBy=SortName&sortOrder=Ascending&enableImages=true";
+        "&sortBy=" + sort_by + "&sortOrder=Ascending&enableImages=true";
     const HttpResponse response = request("GET", target, "", true, 60);
     if (response.status != 200) {
         error = "ReddMedia could not open that library level.";

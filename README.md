@@ -1,6 +1,39 @@
-# Nougat Media Suite v0.0.35
+# Nougat Media Suite v0.0.37
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+## v0.0.37 - Native Live TV Watch + Classic Guide + System/Visual Repair
+
+v0.0.37 builds on accepted v0.0.36. It keeps the validated 66-channel ATSC scanner intact, finishes the first owner-testable Watch Live path, adds the first old-school TV-guide grid from broadcast PSIP EIT data, and carries forward the owner-requested Home/player/header/System corrections.
+
+### v0.0.37 changes
+- Rename the top-level `Debug` tab to **System**. Move `Start Server`, `Stop Server`, and `Refresh Server` out of Library into System with diagnostics/log/export tools.
+- Keep Library focused on media/catalog work; the v0.0.36 sheet-style `Search` row and collection hierarchy remain intact.
+- Make Continue Watching use the same physical Home card/poster geometry as the regular recommendation cards while retaining horizontal shelf scrolling, resume progress, and watch-history behavior.
+- Extend the approved exact-sheet seek component across most of the player width while keeping elapsed time on its left and total time on its right. Preserve the native end caps and circular knob while stretching only repeatable track spans.
+- Remove the opaque white halo/edge artifact around the seek and VOLUME sheet sprites without replacing their approved artwork.
+- Replace the generic Server light with the stitched circular sheet-style state button: the whole face changes green/amber/red by server state.
+- Collapse Linux DVB/V4L2/VBI exposure into owner-visible logical tuner rows. A usable DVB frontend represents the physical tuner; sibling raw video/VBI nodes are not shown as fake additional tuners.
+- Add channel selection plus **double-click to Watch Live**. The `Watch Live` button invokes the same path. Persisted frequency/program metadata is translated into an ATSC libVLC input so the broadcast opens in Nougat's native player.
+- Add explicit tuner-use ownership states (`Idle`, `Scanning`, `GuideRefreshing`, `Watching`) so scanning/guide harvesting cannot steal a tuner while live playback owns it.
+- Add ATSC PSIP EIT guide harvesting and a persisted guide cache. Existing v0.0.35/v0.0.36 channel files are enriched with RF/program/source metadata when guide refresh sees the VCT.
+- Add the first classic TV-guide grid: channels down the left, half-hour time slots across the top, duration-sized program blocks, current-program highlighting, a current-time marker, `Channels`, `Guide`, `Refresh Guide`, and `Now` controls.
+- Keep `Record` as an explicit future DVR hook; v0.0.37 does not pretend recording/timeshift is implemented.
+
+## v0.0.36 - Library Hierarchy, Home Artwork, and Exact-Sheet Player/Header Repair
+
+v0.0.36 builds on accepted v0.0.35 and focuses on owner-visible Library/Home/player polish without reworking the already validated ATSC channel scanner.
+
+### v0.0.36 changes
+- Add a dedicated Library search field directly below the green action row. It uses the approved sheet INPUT FIELD treatment, displays the placeholder `Search`, and filters the current local Library view by title/series/episode text while preserving the fixed far-right List/Grid pair.
+- Enforce movie collection hierarchy client-side as well as through Jellyfin hints: member movies belonging to a BoxSet/collection are removed from the top-level Movies view, the collection remains as the single root card, and opening it shows its films in production-year/name order.
+- Repair Home artwork rendering by isolating offscreen card rendering from the page/shelf X11 clip. Continue Watching fills its landscape 16:9 artwork viewport proportionally; Local/Recommended cards fill their portrait poster viewport without the large black gaps caused by the leaked window clip.
+- Replace the generic seek drawing at normal owner geometry with a pixel-derived frame family built from the literal approved `SEEKBAR (PROGRESS)` component. The bar is kept at the sheet-derived 378 px width so elapsed time can sit at its left and total time at its right on the same line.
+- Make the player control strip one stable repaint unit from seek through transport controls. Seek/time, exact VOLUME housing, percentage, and buttons now redraw together so mouse movement/dragging cannot alternate between clipping the volume top and clipping time/percentage text.
+- Preserve the correct approved-sheet VOLUME artwork while clipping away only the rectangular sheet background outside its rounded housing.
+- Change the global header material from cream to the tan sampled from the approved VOLUME housing, vertically center the left brand and right Server/version clusters, and replace the generic server dot with the sheet-family circular status indicator.
+- Preserve the current lettering/font for a later system-wide typography release rather than changing fonts piecemeal.
+- Carry the validated v0.0.35 native ATSC scan forward unchanged as a regression baseline. Native `Watch Live` tuning/playback from persisted channels is assigned to the next build agenda.
 
 ## v0.0.35 - Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
 

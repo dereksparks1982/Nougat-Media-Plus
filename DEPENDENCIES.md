@@ -154,6 +154,10 @@ v0.0.23 adds no mandatory bundled dependency. It retains the existing X11, VLC/l
 
 Generated runtime (excluded from Git): YARA-X 1.19.0, flare-capa 9.4.0, matching capa-rules 9.4.0, and Magika 1.0.3. The installer creates this private runtime under `components/security/runtime/`. ClamAV is never linked or bundled; if `clamscan` is present on the owner's system Nougat may invoke it once for a requested scan. MalwareBazaar and ThreatFox are optional free/community reputation sources and require an owner-supplied free abuse.ch Auth-Key stored outside Git at `~/.config/nougat-media-suite/security/abusech.key` with mode 0600.
 
+## Nougat Media Suite v0.0.36 Library/UI/player repair
+
+v0.0.36 adds no new linked third-party runtime dependency. Library collection/search behavior uses the existing Jellyfin HTTP client and standard C++ library. The Home/player/header repairs remain native X11 rendering. The exact seek component is packaged as a Nougat-owned pixel-derived runtime asset generated from the already approved UI sheet stored under `docs/design/`; no external UI toolkit or web runtime is introduced.
+
 ## Nougat Media Suite v0.0.35 Live TV scan and Studio foundation
 
 v0.0.35 adds no new linked third-party runtime library. The native ATSC 1.0 channel-scan path uses the Linux DVB userspace API (`linux/dvb/frontend.h` and `linux/dvb/dmx.h`) supplied by the normal Ubuntu Linux development headers and talks directly to `/dev/dvb/adapter*/frontend*` and `demux0` devices. The existing build dependency set remains sufficient on the target Ubuntu workstation. Studio v0.0.35 is navigation/palette foundation only; the future FFmpeg/libav media-processing engine remains roadmap work and does not add a new v0.0.35 dependency.

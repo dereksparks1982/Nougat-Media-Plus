@@ -1,3 +1,27 @@
+# Changelog
+
+## v0.0.37 - Native Live TV Watch + Classic Guide + System/Visual Repair
+- Renamed Debug to System and moved server Start/Stop/Refresh controls out of Library.
+- Unified Continue Watching card size with normal Home cards.
+- Made the exact-sheet seek responsive/full-width with side timestamps and removed seek/volume halo artifacts.
+- Replaced the server indicator with the stitched whole-face state circle.
+- Deduplicated owner-visible tuner devices to logical DVB tuners.
+- Added channel selection, double-click/Watch Live ATSC playback through Nougat's native libVLC player, and tuner ownership guards.
+- Added ATSC PSIP EIT guide refresh/cache plus the first classic channel-by-time guide grid and Now navigation.
+- Preserved accepted v0.0.36 Library/Search/collection behavior, P2P, security, diagnostics, licensing, and the validated ATSC scan.
+
+# Nougat Media Suite v0.0.36 - Library Hierarchy, Home Artwork, and Exact-Sheet Player/Header Repair
+
+- Adds a sheet-exact Library `Search` input on its own row below the green actions with live local filtering.
+- Enforces collection-first Movie roots so BoxSet member films do not duplicate beside their collection card; collection children remain directly navigable/playable and are ordered by production year/name.
+- Fixes Home card artwork black-gap/vertical-offset rendering by isolating offscreen image drawing from the page/shelf X11 clipping GC.
+- Adds a 101-frame, pixel-derived seek sprite family from the literal approved `SEEKBAR (PROGRESS)` component and keeps elapsed/total timestamps on the same line to the left/right of the shorter bar.
+- Replaces competing seek/volume partial redraw rectangles with one stable full-height player-control repaint region, eliminating mouse-state clipping between the seek times, VOLUME housing, percentage, and transport row.
+- Preserves the accepted exact VOLUME sprite while masking the rectangular source-sheet corners outside its rounded housing.
+- Recolors the global header to the approved VOLUME-housing tan, vertically centers both header clusters, and uses a sheet-family circular Server state indicator.
+- Preserves the working v0.0.35 Linux DVB ATSC channel scan and puts persisted-channel native `Watch Live` tuning/playback on the next-build agenda.
+- Defers the requested lettering/font redesign to a dedicated future system-wide typography pass.
+
 # Nougat Media Suite v0.0.35 - Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
 
 - Stabilization-first cleanup release on the accepted v0.0.34 line.
