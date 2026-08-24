@@ -1,7 +1,24 @@
-# Nougat Media Suite v0.0.39
+# Nougat Media Suite v0.0.40
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
 
+
+## v0.0.40 - System Loading, Live TV Tuner Navigation, Search Repair, and Crawler UI
+
+v0.0.40 builds directly on accepted v0.0.39 and repairs system-wide loading presentation, Live TV tuner administration, Nougat Search behavior, executable branding, and Crawler controls.
+
+### v0.0.40 changes
+
+- Replaces the oversized percentage loading surface with a thin 3 px caramel loading sliver directly below the global header.
+- Removes percentage text and continuously rolling indeterminate loading animation.
+- Live TV controls are ordered Guide, Detect Tuner, Refresh Tuner, Scan Channels, Watch Live, Refresh Guide, Record.
+- Detect Tuner opens a dedicated Tuners page; Refresh Tuner refreshes that page; Guide returns to the normal guide.
+- Applies the approved Nougat N artwork to the actual root executable through GNOME custom-icon metadata.
+- Repairs existing Nougat Search indexes with an FTS rebuild migration.
+- Improves multi-word Search matching so useful partial-term results are not discarded.
+- Adds keyless clearnet bootstrap discovery when the local and peer index does not provide enough useful results.
+- Arranges the Search row as Search field, SEARCH, RAW.
+- Makes Crawler Max Pages a deliberate visible minus, value, plus control.
 
 ## v0.0.39 - Deep Diagnostics and Live TV Guide Reliability
 

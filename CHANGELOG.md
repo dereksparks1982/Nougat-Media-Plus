@@ -1,4 +1,14 @@
 # Changelog
+## v0.0.40 - System Loading, Live TV Tuner Navigation, Search Repair, and Crawler UI
+
+- Replaces the oversized percentage loading surface with the 3 px caramel loading sliver.
+- Restores Detect Tuner and Refresh Tuner to Live TV and adds the dedicated Tuners page.
+- Applies and verifies the approved Nougat N artwork on the actual root executable.
+- Repairs the Nougat Search FTS index and improves multi-word result matching.
+- Adds clearnet bootstrap discovery when local and peer results are insufficient.
+- Arranges Search as field, SEARCH, RAW.
+- Makes Crawler Max Pages a visible minus, value, plus control.
+
 ## v0.0.39 - Diagnostic Center and Live TV Reliability Repair
 - Replaces obsolete diagnostic severity with Passed / Needs Attention / Problem / Not Tested / Information.
 - Adds evidence, expected/observed results, repair guidance, history, and Quick/Deep diagnostics.
