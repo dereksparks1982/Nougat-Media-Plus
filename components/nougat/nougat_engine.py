@@ -19,7 +19,7 @@ from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "0.0.19"
+VERSION = "0.0.20"
 DEFAULT_PORT = 48731
 USER_AGENT = f"ReddMedia-Nougat/{VERSION} decentralized research crawler"
 
@@ -80,6 +80,21 @@ def connect_db() -> sqlite3.Connection:
     con = sqlite3.connect(db_path(), timeout=30, check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+
+    con.execute(
+        "CREATE TABLE IF NOT EXISTS nougat_meta "
+        "(key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')"
+    )
+    row = con.execute(
+        "SELECT value FROM nougat_meta WHERE key='fts_schema_revision'"
+    ).fetchone()
+    if row is None or str(row[0]) != "2":
+        with con:
+            con.execute("INSERT INTO pages_fts(pages_fts) VALUES('rebuild')")
+            con.execute(
+                "INSERT INTO nougat_meta(key,value) VALUES('fts_schema_revision','2') "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+            )
     return con
 
 
@@ -307,7 +322,7 @@ def make_match_query(query: str) -> str:
         value = re.sub(r"[^\w\-]+", " ", value, flags=re.UNICODE).strip()
         if value:
             tokens.append('"' + value.replace('"', '""') + '"')
-    return " AND ".join(tokens)
+    return " OR ".join(tokens)
 
 
 def local_search(query: str, limit: int = 100, offset: int = 0, raw: bool = False) -> tuple[int, list[SearchResult]]:
@@ -339,11 +354,156 @@ def peer_search(peer: str, query: str, limit: int, offset: int, raw: bool, timeo
         return json.loads(response.read(2_000_000).decode("utf-8"))
 
 
+class _LiveSearchParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.results: list[dict[str, str]] = []
+        self._title_active = False
+        self._snippet_active = False
+        self._title_parts: list[str] = []
+        self._snippet_parts: list[str] = []
+        self._href = ""
+
+    @staticmethod
+    def _classes(attrs) -> set[str]:
+        value = dict(attrs).get("class", "")
+        return {part.strip() for part in str(value).split() if part.strip()}
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() != "a":
+            return
+        classes = self._classes(attrs)
+        if "result__a" in classes or "result-link" in classes:
+            self._title_active = True
+            self._title_parts = []
+            self._href = dict(attrs).get("href", "")
+        if "result__snippet" in classes or "result-snippet" in classes:
+            self._snippet_active = True
+            self._snippet_parts = []
+
+    def handle_data(self, data):
+        text = re.sub(r"\s+", " ", data).strip()
+        if not text:
+            return
+        if self._title_active:
+            self._title_parts.append(text)
+        if self._snippet_active:
+            self._snippet_parts.append(text)
+
+    def handle_endtag(self, tag):
+        if tag.lower() != "a":
+            return
+        if self._title_active:
+            title = " ".join(self._title_parts).strip()
+            if self._href and title:
+                self.results.append({"url": self._href, "title": title, "snippet": ""})
+            self._title_active = False
+            self._title_parts = []
+            self._href = ""
+            return
+        if self._snippet_active:
+            snippet = " ".join(self._snippet_parts).strip()
+            if self.results and snippet:
+                self.results[-1]["snippet"] = snippet
+            self._snippet_active = False
+            self._snippet_parts = []
+
+
+def _unwrap_live_result_url(url: str) -> str:
+    try:
+        parsed = urllib.parse.urlsplit(html.unescape(url))
+        params = urllib.parse.parse_qs(parsed.query)
+        if "uddg" in params and params["uddg"]:
+            return urllib.parse.unquote(params["uddg"][0])
+        return html.unescape(url)
+    except Exception:
+        return html.unescape(url)
+
+
+def live_discovery_search(query: str, limit: int = 30) -> list[SearchResult]:
+    if not query.strip():
+        return []
+
+    browser_ua = (
+        "Mozilla/5.0 (X11; Linux x86_64; rv:154.0) "
+        "Gecko/20100101 Firefox/154.0"
+    )
+    payload = urllib.parse.urlencode({
+        "q": query[:499],
+        "kl": "us-en",
+        "kp": "-2",
+    }).encode("utf-8")
+    headers = {
+        "User-Agent": browser_ua,
+        "Referer": "https://html.duckduckgo.com/",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "text/html,application/xhtml+xml",
+    }
+
+    last_error = None
+    for endpoint in (
+        "https://html.duckduckgo.com/html/",
+        "https://lite.duckduckgo.com/lite/",
+    ):
+        try:
+            req = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=12) as response:
+                page = response.read(2_000_000).decode("utf-8", "replace")
+
+            parser = _LiveSearchParser()
+            parser.feed(page)
+            output: list[SearchResult] = []
+            seen: set[str] = set()
+            now = int(time.time())
+
+            for position, item in enumerate(parser.results):
+                url = _unwrap_live_result_url(item.get("url", "")).strip()
+                if not url.startswith(("http://", "https://")) or url in seen:
+                    continue
+                seen.add(url)
+                title = html.unescape(item.get("title", "")).strip() or url
+                snippet = html.unescape(item.get("snippet", "")).strip()
+                host = urllib.parse.urlsplit(url).hostname or ""
+                output.append(SearchResult(
+                    url=url,
+                    title=title,
+                    snippet=snippet,
+                    domain=host,
+                    source_network="CLEARNET",
+                    source_node="LIVE-DISCOVERY",
+                    crawled_at=now,
+                    content_hash=hashlib.sha256(url.encode("utf-8", "replace")).hexdigest(),
+                    score=float(position),
+                ))
+                if len(output) >= max(1, min(limit, 50)):
+                    break
+
+            if output:
+                for result in output:
+                    try:
+                        index_document(
+                            result.url,
+                            result.title,
+                            result.snippet or result.title,
+                            result.source_network,
+                            result.source_node,
+                        )
+                    except Exception:
+                        pass
+                return output
+        except Exception as exc:
+            last_error = exc
+
+    if last_error:
+        raise RuntimeError(f"Live discovery unavailable: {last_error}")
+    return []
+
 def federated_search(query: str, limit: int, offset: int, raw: bool, include_peers: bool) -> tuple[int, list[SearchResult], list[tuple[str, str]]]:
     local_total, local_results = local_search(query, limit, offset, raw)
     total = local_total
     results = list(local_results)
     statuses: list[tuple[str, str]] = []
+
     if include_peers:
         for peer in load_config().get("peers", []):
             try:
@@ -354,18 +514,33 @@ def federated_search(query: str, limit: int, offset: int, raw: bool, include_pee
                 statuses.append((str(peer), "OK"))
             except Exception as exc:
                 statuses.append((str(peer), f"OFFLINE: {exc}"))
+
     dedup: dict[str, SearchResult] = {}
     for result in results:
         if result.url not in dedup:
             dedup[result.url] = result
     results = list(dedup.values())
-    if not raw:
+
+    if offset == 0 and len(results) < min(limit, 20):
+        try:
+            discovered = live_discovery_search(query, min(limit, 50))
+            known = {item.url for item in results}
+            for item in discovered:
+                if item.url not in known:
+                    results.append(item)
+                    known.add(item.url)
+            total = max(total, len(results))
+            statuses.append(("LIVE-DISCOVERY", f"OK: {len(discovered)} result(s)"))
+        except Exception as exc:
+            statuses.append(("LIVE-DISCOVERY", f"UNAVAILABLE: {exc}"))
+
+    if not raw and local_results:
         results.sort(key=lambda item: (item.score, item.url))
+
     return total, results[:limit], statuses
 
-
 class NougatHandler(BaseHTTPRequestHandler):
-    server_version = "ReddMediaNougatPeer/0.0.19"
+    server_version = "ReddMediaNougatPeer/0.0.20"
 
     def log_message(self, fmt, *args):
         return

@@ -1,0 +1,29 @@
+{
+  "name": "Nougat Media Suite v0.0.40 Rejected-Build Repair v7",
+  "target_version": "0.0.40",
+  "base_version": "0.0.39",
+  "base_commit": "e9468cc0a98eefd9efd6f3dfd9ec32851dca8c26",
+  "package_revision": "v7-regular-elf-executable-staging",
+  "payload": {
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_40_REJECTED_BUILD_REPAIR_v7.sh": {
+      "bytes": 16198,
+      "sha256": "c84ed4397ba909e813632775b61318d9e590a21c3ad593e8bef30a3c5ad85831"
+    },
+    "README_v0_0_40_REPAIR_v7.md": {
+      "bytes": 471,
+      "sha256": "a9c0fa0e6ad2642d3555835937189c2499dbe470a9901ddb8f695655cd6e1c6b"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_40_REJECTED_BUILD_REPAIR_v7_VALIDATION.md": {
+      "bytes": 1856,
+      "sha256": "ff0b2803b550de1f71155e10dcc0f8ae224a8a8da4f88aabd031619e6999ef0c"
+    },
+    "tools/apply_v40_rejected_build_repair.py": {
+      "bytes": 34317,
+      "sha256": "e45ad4347a55e9a5014942c669cfadd602c028decbbd5be14d2d5145e14c06bf"
+    },
+    "tools/test_nougat_media_suite_v40_repair.py": {
+      "bytes": 4550,
+      "sha256": "d30434de6bb5ac4162bef45b0a2f4e48fe3dccf34363609eff5e0b98dcd9028c"
+    }
+  }
+}

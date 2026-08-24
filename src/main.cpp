@@ -1097,11 +1097,13 @@ public:
     std::vector<reddmedia::LiveTvChannel> liveTvChannels;
     std::vector<reddmedia::LiveTvProgram> liveTvPrograms;
     std::vector<LiveTvHitbox> liveTvChannelHitboxes;
+    std::vector<Rect> liveTvTunerHitboxes;
     int liveTvSelectedTuner = -1;
     int liveTvSelectedChannel = -1;
     std::map<std::string, reddmedia::LibraryPoster> liveTvLogoCache;
     std::set<std::string> liveTvLogoAttempted;
     bool liveTvGuideMode = true;
+    bool liveTvTunersMode = false;
     bool liveTvFullGuideRefreshQueued = false;
     long long liveTvLastCurrentMuxHarvestMs = 0;
     long long liveTvLastAutoGuideRefreshMs = 0;
@@ -2331,18 +2333,22 @@ public:
         layout_button_row({&nougatSearchPanelTab,&nougatCrawlerPanelTab,&nougatP2PPanelTab,
                            &nougatVirusScanPanelTab,&nougatNetworkAdvancedBtn},
                           kPageControlY, nougatPanelButtonsScrollX);
-        const int nougatRightColumnX = std::max(500, W-144);
-        nougatSearchRect = {28, 90, std::max(220, W-400), 30};
-        nougatRawBtn = {std::max(260, W-360),90,kCompactButtonW,kCompactButtonH};
+        const int nougatSearchGap = 8;
+        const int nougatSearchButtonsWidth = 2 * kCompactButtonW + 2 * nougatSearchGap;
+        nougatSearchRect = {28, 90, std::max(220, W - 56 - nougatSearchButtonsWidth), 30};
+        nougatSearchBtn = {nougatSearchRect.x + nougatSearchRect.w + nougatSearchGap,
+                           90, kCompactButtonW, kCompactButtonH};
+        nougatRawBtn = {nougatSearchBtn.x + kCompactButtonW + nougatSearchGap,
+                        90, kCompactButtonW, kCompactButtonH};
         nougatPeersToggleBtn = {std::max(380, W-240),90,kCompactButtonW,kCompactButtonH};
-        nougatSearchBtn = {nougatRightColumnX,90,kCompactButtonW,kCompactButtonH};
         nougatResultsBox = {28, 148, std::max(240, W-56), std::max(120, H-176)};
-        nougatCrawlSeedRect = {28, 90, std::max(240, W-300), 30};
-        nougatCrawlMinusBtn = {std::max(320, W-260),90,36,26};
-        nougatCrawlPlusBtn = {std::max(364, W-216),90,36,26};
-        nougatSameDomainBtn = {28, 132, kCompactButtonW, kCompactButtonH};
-        nougatStartCrawlBtn = {28+kCompactButtonW, 132, kCompactButtonW, kCompactButtonH};
-        nougatCrawlLogBox = {28, 190, std::max(240, W-56), std::max(120, H-218)};
+
+        nougatCrawlSeedRect = {28, 96, std::max(240, W-56), 30};
+        nougatSameDomainBtn = {28, 136, kCompactButtonW, kCompactButtonH};
+        nougatStartCrawlBtn = {28+kCompactButtonW+8, 136, kCompactButtonW, kCompactButtonH};
+        nougatCrawlPlusBtn = {std::max(28, W-64),136,36,26};
+        nougatCrawlMinusBtn = {std::max(28, W-152),136,36,26};
+        nougatCrawlLogBox = {28, 176, std::max(240, W-56), std::max(120, H-204)};
         nougatPeerEntryRect = {28, 104, std::max(220, W-520), 30};
         nougatAddPeerBtn = {std::max(300, W-480),104,kCompactButtonW,kCompactButtonH};
         nougatRemovePeerBtn = {std::max(420, W-360),104,kCompactButtonW,kCompactButtonH};
@@ -2388,7 +2394,7 @@ public:
         // v0.0.38 owner-approved Live TV toolbar: tuner administration moved
         // to System; redundant Channels button removed. Guide stays in place
         // as the single guide-view control.
-        layout_button_row({&liveTvScanBtn,&liveTvWatchBtn,&liveTvGuideBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn},
+        layout_button_row({&liveTvGuideBtn,&liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn},
                           kPageControlY, liveTvButtonsScrollX);
         liveTvListBox={liveFrame.x+16,96,std::max(180,liveFrame.w-32),std::max(100,liveFrame.y+liveFrame.h-108)};
 
@@ -2404,7 +2410,7 @@ public:
         // v0.0.37: System owns administrative server controls. Library stays
         // focused on media/catalog actions, while Start/Stop/Refresh Server
         // live with diagnostics, logs, exports, and maintenance tools here.
-        layout_button_row({&serverStartBtn,&serverStopBtn,&serverRefreshBtn,&liveTvDetectBtn,&liveTvRefreshBtn,
+        layout_button_row({&serverStartBtn,&serverStopBtn,&serverRefreshBtn,
                            &debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugLogsBtn,&debugCopyBtn,
                            &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn},
                           kPageControlY, debugButtonsScrollX);
@@ -3437,7 +3443,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.39";
+        const std::string versionLabel = "v0.0.40";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -4190,16 +4196,20 @@ public:
         progress = 0.0;
         determinate = false;
         label.clear();
+
         if (currentView == ViewMode::Home) {
             std::lock_guard<std::mutex> lock(homeState->mutex);
-            if (homeState->busy) { progress = homeState->progress; determinate = true; label = "Loading..."; return true; }
+            if (homeState->busy) {
+                progress = homeState->progress;
+                determinate = true;
+                return true;
+            }
         }
         {
             std::lock_guard<std::mutex> lock(serverState->mutex);
             if (serverState->busy) {
                 progress = serverState->progress;
                 determinate = serverState->progress_determinate;
-                label = serverState->progress_label;
                 return true;
             }
         }
@@ -4209,7 +4219,6 @@ public:
                 if (libraryState->busy) {
                     progress = libraryState->progress;
                     determinate = libraryState->progress_determinate;
-                    label = libraryState->progress_label;
                     return true;
                 }
             }
@@ -4218,26 +4227,70 @@ public:
                 if (posterState->busy) {
                     progress = posterState->progress;
                     determinate = posterState->progress_determinate;
-                    label = posterState->progress_label;
                     return true;
                 }
             }
         }
         if (currentView == ViewMode::Discover) {
             std::lock_guard<std::mutex> lock(discoverState->mutex);
-            if (discoverState->busy) { progress = discoverState->progress; determinate = true; label = "Working..."; return true; }
+            if (discoverState->busy) {
+                progress = discoverState->progress;
+                determinate = true;
+                return true;
+            }
         }
+        if (currentView == ViewMode::LiveTV) {
+            {
+                std::lock_guard<std::mutex> lock(liveTvScanState->mutex);
+                if (liveTvScanState->busy) {
+                    if (liveTvScanState->total > 0) {
+                        progress = std::max(0.0, std::min(1.0,
+                            static_cast<double>(liveTvScanState->completed) /
+                            static_cast<double>(liveTvScanState->total)));
+                        determinate = true;
+                    }
+                    return true;
+                }
+            }
+            {
+                std::lock_guard<std::mutex> lock(liveTvGuideState->mutex);
+                if (liveTvGuideState->busy) {
+                    if (liveTvGuideState->total > 0) {
+                        progress = std::max(0.0, std::min(1.0,
+                            static_cast<double>(liveTvGuideState->completed) /
+                            static_cast<double>(liveTvGuideState->total)));
+                        determinate = true;
+                    }
+                    return true;
+                }
+            }
+        }
+        if (currentView == ViewMode::Nougat) {
+            {
+                std::lock_guard<std::mutex> lock(nougatState->mutex);
+                if (nougatState->search_busy || nougatState->crawl_busy) return true;
+            }
+            {
+                std::lock_guard<std::mutex> lock(securityState->mutex);
+                if (securityState->busy) return true;
+            }
+        }
+        if (currentView == ViewMode::Stream && ytdlpJob == YtDlpJob::Download) return true;
+
         if (currentView == ViewMode::Debug) {
             {
                 std::lock_guard<std::mutex> lock(debugState->mutex);
-                if (debugState->busy) { progress = debugState->progress; label = "Checking..."; return true; }
+                if (debugState->busy) {
+                    progress = debugState->progress;
+                    determinate = true;
+                    return true;
+                }
             }
             {
                 std::lock_guard<std::mutex> lock(libraryState->mutex);
                 if (libraryState->busy) {
                     progress = libraryState->progress;
                     determinate = libraryState->progress_determinate;
-                    label = libraryState->progress_label;
                     return true;
                 }
             }
@@ -4246,13 +4299,16 @@ public:
                 if (posterState->busy) {
                     progress = posterState->progress;
                     determinate = posterState->progress_determinate;
-                    label = posterState->progress_label;
                     return true;
                 }
             }
             {
                 std::lock_guard<std::mutex> lock(discoverState->mutex);
-                if (discoverState->busy) { progress = discoverState->progress; determinate = true; label = "Working..."; return true; }
+                if (discoverState->busy) {
+                    progress = discoverState->progress;
+                    determinate = true;
+                    return true;
+                }
             }
         }
         return false;
@@ -4263,39 +4319,30 @@ public:
         bool determinate = false;
         std::string label;
         if (!loading_state(progress, determinate, label)) return;
+        (void)label;
 
-        // Owner-approved placement: system-wide loading surface remains in its
-        // original lane immediately below the top tabs. No page content is
-        // re-anchored or moved to accommodate it.
-        const int barH=22; // approved percent-bar body: tall enough to contain 0%..100% text cleanly
-        const Rect bar{2,kTopBarH+1,std::max(1,W-4),barH};
-        if (determinate && sheetProgressLoaded) {
-            progress=std::max(0.0,std::min(1.0,progress));
-            const int percent=std::max(0,std::min(100,static_cast<int>(std::lround(progress*100.0))));
-            const std::string pct=std::to_string(percent)+"%";
-            const int textW=text_width(pct);
-            const int trackW=std::max(1,bar.w-20);
-            const int minVisualPercent=std::min(100,std::max(0,(textW+16)*100/trackW));
-            const int renderPercent=std::max(percent,minVisualPercent);
-            draw_sheet_progress_frame(target,bar,renderPercent);
-            const int fillLeft=bar.x+8;
-            const int fillRight=bar.x+bar.w-8;
-            const int leading=fillLeft+(fillRight-fillLeft)*renderPercent/100;
-            const int pctX=std::max(fillLeft+4,std::min(leading-textW-4,fillRight-textW-4));
-            const int pctY=fontInfo ? bar.y + (bar.h + fontInfo->ascent - fontInfo->descent) / 2 : bar.y + bar.h - 5;
-            text(target,pctX,pctY,pct,rgb8(255,244,224));
-            return;
-        }
+        // v0.0.40 owner-approved system-wide loading language:
+        // a thin caramel sliver directly below the top header. No percentage,
+        // no large housing, and no continuously rolling indeterminate chunk.
+        const int sliverX = 0;
+        const int sliverY = kTopBarH + 1;
+        const int sliverW = std::max(1, W);
+        const int sliverH = 3;
+        const unsigned long caramel = rgb8(170, 91, 24);
 
-        // Indeterminate work keeps the same approved top lane and the existing
-        // mouse/UI geometry. It does not relocate any page controls.
-        const ViewPalette palette=palette_for(currentView);
-        draw_sheet_track(target,bar,palette.border,palette.field,palette.buttonLight);
-        const int chunk=std::max(80,bar.w/5);
-        const int position=static_cast<int>((now_ms()/8)%(bar.w+chunk))-chunk;
-        const int begin=std::max(0,position);
-        const int finish=std::min(bar.w,position+chunk);
-        if (finish>begin) draw_sheet_track_segment(target,bar,begin,finish-begin,palette.border,palette.button,palette.buttonLight);
+        progress = std::max(0.0, std::min(1.0, progress));
+        double visibleProgress = progress;
+        if (!determinate && visibleProgress <= 0.0) visibleProgress = 0.08;
+
+        int fillW = static_cast<int>(std::lround(
+            visibleProgress * static_cast<double>(sliverW)));
+        if (fillW <= 0) fillW = 1;
+        fillW = std::max(1, std::min(sliverW, fillW));
+
+        XSetForeground(d, gc, caramel);
+        XFillRectangle(d, target, gc, sliverX, sliverY,
+                       static_cast<unsigned>(fillW),
+                       static_cast<unsigned>(sliverH));
     }
 
     void draw_player_controls_only() {
@@ -7625,6 +7672,7 @@ public:
         const Rect frame = page_content_frame(ViewMode::LiveTV);
         draw_quilted_background(target, frame, ViewMode::LiveTV);
         liveTvChannelHitboxes.clear();
+        liveTvTunerHitboxes.clear();
 
         bool scanBusy=false, guideBusy=false;
         int scanPhysical=0,scanCompleted=0,scanTotal=35,scanSignal=-1,scanQuality=-1,scanFound=0;
@@ -7641,17 +7689,60 @@ public:
             guideBusy=liveTvGuideState->busy;
         }
 
+        button_on(target,liveTvGuideBtn,"Guide");
+        button_on(target,liveTvDetectBtn,"Detect Tuner");
+        button_on(target,liveTvRefreshBtn,"Refresh Tuner");
         button_on(target,liveTvScanBtn,scanBusy ? "Scanning..." : "Scan Channels");
         button_on(target,liveTvWatchBtn,"Watch Live");
-        button_on(target,liveTvGuideBtn,"Guide");
         button_on(target,liveTvGuideRefreshBtn,guideBusy ? "Guide..." : "Refresh Guide");
         button_on(target,liveTvRecordBtn,"Record");
 
         draw_primary_panel(target, liveTvListBox, palette);
         section_text(target, liveTvListBox.x+12, liveTvListBox.y+24,
-                     liveTvGuideMode ? "LIVE TV GUIDE" : "LIVE TV", palette.text);
+                     liveTvTunersMode ? "LIVE TV TUNERS" :
+                     (liveTvGuideMode ? "LIVE TV GUIDE" : "LIVE TV"), palette.text);
         text(target,liveTvListBox.x+12,liveTvListBox.y+48,
              head_to_width("Status: "+liveTvStatus,liveTvListBox.w-24),palette.text);
+
+
+        if (liveTvTunersMode) {
+            const int top = liveTvListBox.y + 66;
+            if (liveTvTuners.empty()) {
+                text(target, liveTvListBox.x + 14, top + 20,
+                     "No tuner detected. Press Detect Tuner above.", palette.text);
+                return;
+            }
+
+            int y = top;
+            for (std::size_t i = 0; i < liveTvTuners.size(); ++i) {
+                const auto& tuner = liveTvTuners[i];
+                Rect card{liveTvListBox.x + 10, y,
+                          std::max(120, liveTvListBox.w - 20), 86};
+                fill_round(target, card, 7,
+                           static_cast<int>(i) == liveTvSelectedTuner
+                               ? palette.selection : palette.panel);
+                outline_round(target, card, 7, palette.border);
+
+                const std::string title = tuner.name.empty() ? tuner.id : tuner.name;
+                text(target, card.x + 12, card.y + 20,
+                     head_to_width(title, card.w - 24), palette.text);
+                text(target, card.x + 12, card.y + 40,
+                     head_to_width("Frontend: " + tuner.frontend_path, card.w - 24),
+                     palette.muted);
+                text(target, card.x + 12, card.y + 60,
+                     head_to_width("Backend: " + tuner.backend + " | " + tuner.status,
+                                   card.w - 24),
+                     palette.muted);
+                text(target, card.x + 12, card.y + 78,
+                     tuner.readable ? "Device access: Ready" : "Device access: Not readable",
+                     tuner.readable ? palette.text : rgb8(170, 50, 40));
+
+                liveTvTunerHitboxes.push_back(card);
+                y += 94;
+                if (y + 86 > liveTvListBox.y + liveTvListBox.h - 8) break;
+            }
+            return;
+        }
 
         if (liveTvGuideMode) {
             const int top=liveTvListBox.y+66;
@@ -7740,7 +7831,7 @@ public:
             if (scanQuality>=0) { text(target,liveTvListBox.x+12,y,"Signal quality: "+std::to_string(scanQuality)+"%",palette.muted); y+=20; }
         }
         if (liveTvTuners.empty()) {
-            text(target,liveTvListBox.x+12,y,"No tuner detected yet. Open System and press Detect Tuner.",palette.muted); y+=36;
+            text(target,liveTvListBox.x+12,y,"No tuner detected yet. Press Detect Tuner above.",palette.muted); y+=36;
         } else {
             // One owner-visible row per independently usable DVB frontend. Raw
             // VBI/video nodes stay implementation details instead of fake tuners.
@@ -7771,11 +7862,47 @@ public:
     }
 
     void handle_live_tv_click(int x,int y, Time eventTime) {
+        if (liveTvGuideBtn.contains(x,y)) {
+            liveTvTunersMode=false;
+            liveTvGuideMode=true;
+            liveTvPrograms=tunerBackend.load_guide();
+            redraw();
+            return;
+        }
+        if (liveTvDetectBtn.contains(x,y)) {
+            liveTvTunersMode=true;
+            liveTvGuideMode=false;
+            refresh_live_tv_tuners(true);
+            redraw();
+            return;
+        }
+        if (liveTvRefreshBtn.contains(x,y)) {
+            liveTvTunersMode=true;
+            liveTvGuideMode=false;
+            refresh_live_tv_tuners(true);
+            redraw();
+            return;
+        }
         if (liveTvScanBtn.contains(x,y)) { start_live_tv_scan(); redraw(); return; }
-        if (liveTvGuideBtn.contains(x,y)) { liveTvGuideMode=true; liveTvPrograms=tunerBackend.load_guide(); redraw(); return; }
-        if (liveTvGuideRefreshBtn.contains(x,y)) { liveTvGuideMode=true; start_live_tv_guide_refresh(); redraw(); return; }
+        if (liveTvGuideRefreshBtn.contains(x,y)) {
+            liveTvTunersMode=false;
+            liveTvGuideMode=true;
+            start_live_tv_guide_refresh();
+            redraw();
+            return;
+        }
         if (liveTvWatchBtn.contains(x,y)) { watch_live_tv_channel(liveTvSelectedChannel); return; }
         if (liveTvRecordBtn.contains(x,y)) { liveTvStatus="Recording is reserved for the next DVR stage; Watch Live and Guide are active first."; redraw(); return; }
+
+        if (liveTvTunersMode) {
+            for (std::size_t i=0; i<liveTvTunerHitboxes.size() && i<liveTvTuners.size(); ++i) {
+                if (!liveTvTunerHitboxes[i].contains(x,y)) continue;
+                liveTvSelectedTuner=static_cast<int>(i);
+                liveTvStatus="Selected tuner: "+liveTvTuners[i].name+".";
+                redraw();
+                return;
+            }
+        }
 
         for (const auto& hit:liveTvChannelHitboxes) {
             if (!hit.rect.contains(x,y)) continue;
@@ -8112,7 +8239,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.39";
+        input.app_version = "Nougat Media Suite v0.0.40";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -9212,12 +9339,26 @@ public:
             draw_visible_vertical_scrollbar(target,nougatResultsBox,nougatResultScroll,static_cast<int>(results.size()),visible,searchPalette);
             return;
         }
-        text(target,28,102,"Seed URL",nougat_cream());
+        text(target,28,91,"Seed URL",searchPalette.text);
         draw_nougat_input(target,nougatCrawlSeedRect,nougatCrawlSeed,NougatInputFocus::CrawlSeed);
-        nougat_button(target,nougatCrawlMinusBtn,"-"); nougat_button(target,nougatCrawlPlusBtn,"+");
-        text(target,nougatCrawlMinusBtn.x-96,130,"Max pages: "+std::to_string(nougatMaxPages),nougat_cream());
         nougat_button(target,nougatSameDomainBtn,"Stay on domain",nougatSameDomain);
         nougat_button(target,nougatStartCrawlBtn,crawl_busy?"CRAWLING":"START CRAWL");
+
+        const Rect maxPagesValue{
+            nougatCrawlMinusBtn.x + nougatCrawlMinusBtn.w + 4,
+            nougatCrawlMinusBtn.y,
+            std::max(1, nougatCrawlPlusBtn.x - (nougatCrawlMinusBtn.x + nougatCrawlMinusBtn.w) - 8),
+            nougatCrawlMinusBtn.h
+        };
+        text(target,std::max(28,nougatCrawlMinusBtn.x-82),nougatCrawlMinusBtn.y+18,
+             "Max Pages",searchPalette.text);
+        nougat_button(target,nougatCrawlMinusBtn,"-");
+        fill_round(target,maxPagesValue,6,searchPalette.field);
+        outline_round(target,maxPagesValue,6,searchPalette.border);
+        const std::string maxPagesText=std::to_string(nougatMaxPages);
+        text(target,maxPagesValue.x+std::max(4,(maxPagesValue.w-text_width(maxPagesText))/2),
+             maxPagesValue.y+18,maxPagesText,searchPalette.text);
+        nougat_button(target,nougatCrawlPlusBtn,"+");
         draw_nougat_panel(target,nougatCrawlLogBox);
         std::vector<std::string> lines;
         { std::lock_guard<std::mutex> lock(nougatState->mutex); lines=nougatState->crawl_log; }
@@ -9253,7 +9394,7 @@ public:
         Rect panel{28, 118, std::max(240, W - 56), std::max(150, H - 148)};
         draw_primary_panel(target, panel, palette);
         text(target, panel.x + 16, panel.y + 30, "Planned processing engine: FFmpeg/libav-backed Convert, Audio Lab, Quick Edit, Batch, and full timeline Studio.", palette.text);
-        text(target, panel.x + 16, panel.y + 56, "v0.0.39 keeps the Gold Studio navigation/palette foundation; processing tools remain roadmap work.", palette.muted);
+        text(target, panel.x + 16, panel.y + 56, "v0.0.40 keeps the Gold Studio navigation/palette foundation; processing tools remain roadmap work.", palette.muted);
     }
 
     void draw_debug_screen(Drawable target) {
@@ -9263,8 +9404,6 @@ public:
         button_on(target, serverStartBtn, "Start Server");
         button_on(target, serverStopBtn, "Stop Server");
         button_on(target, serverRefreshBtn, "Refresh Server");
-        button_on(target, liveTvDetectBtn, "Detect Tuner");
-        button_on(target, liveTvRefreshBtn, "Refresh Tuner");
         button_on(target, debugRunBtn, "Quick Diagnostic");
         button_on(target, debugRetryBtn, "Deep Diagnostic");
         button_on(target, debugMetadataBtn, "Refresh Metadata");
@@ -10146,6 +10285,7 @@ public:
         apply_video_layout();
         if (currentView == ViewMode::Home) start_home_task();
         if (currentView == ViewMode::LiveTV) {
+            liveTvTunersMode = false;
             liveTvGuideMode = true;
             liveTvGuideTimeOffsetSlots = 0;
             liveTvPrograms = tunerBackend.load_guide();
@@ -10353,7 +10493,7 @@ public:
             &ytdlpDownloadBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn,
             &p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn,&p2pRemoveBtn,
             &p2pSpeedBtn,&p2pSeedRulesBtn,&p2pQueueUpBtn,&p2pQueueDownBtn,&p2pReannounceBtn,&p2pRecheckBtn,&p2pPriorityBtn,
-            &liveTvScanBtn,&liveTvWatchBtn,&liveTvGuideBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn
+            &liveTvGuideBtn,&liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn
         };
         for (const Rect* target : targets) {
             if (target->contains(old_x, old_y) != target->contains(new_x, new_y)) return true;
@@ -10380,7 +10520,7 @@ public:
         if (target == win && y >= kPageControlY && y < kPageControlBottom + 4) {
             if (currentView == ViewMode::Stream) { scroll_button_row(streamSourceScrollX,6,delta); return true; }
             if (currentView == ViewMode::Nougat) { scroll_button_row(nougatPanelButtonsScrollX,5,delta); return true; }
-            if (currentView == ViewMode::LiveTV) { scroll_button_row(liveTvButtonsScrollX,5,delta); return true; }
+            if (currentView == ViewMode::LiveTV) { scroll_button_row(liveTvButtonsScrollX,7,delta); return true; }
             if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,14,delta); return true; }
             if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,11,delta); return true; }
             if (currentView == ViewMode::Library) {
@@ -10746,7 +10886,6 @@ public:
             if (serverStartBtn.contains(x,y)) { start_server_task(1); return; }
             if (serverStopBtn.contains(x,y)) { start_server_task(2); return; }
             if (serverRefreshBtn.contains(x,y)) { start_server_task(3); return; }
-            if (liveTvDetectBtn.contains(x,y) || liveTvRefreshBtn.contains(x,y)) { refresh_live_tv_tuners(true); redraw(); return; }
             if (debugRunBtn.contains(x,y)) { start_debug_task(false); return; }
             if (debugRetryBtn.contains(x,y)) { start_debug_task(true); return; }
             if (debugMetadataBtn.contains(x,y)) {
@@ -11274,7 +11413,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.39\n");
+        printf("Nougat Media Suite v0.0.40\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -11916,10 +12055,11 @@ int main(int argc, char** argv) {
         const bool progressSheet = App::kSheetProgressW==279 && App::kSheetProgressH==40 && App::kSheetProgressFrames==101;
         const bool liveGuideDefault = app.liveTvGuideMode && app.liveTvGuideTimeOffsetSlots==0 &&
             app.liveTvGuideBtn.y==App::kPageControlY && app.liveTvGuideBtn.w>0;
-        const bool tunerAdminInSystem = app.liveTvDetectBtn.y==App::kPageControlY && app.liveTvRefreshBtn.y==App::kPageControlY &&
-            app.liveTvDetectBtn.x==app.serverRefreshBtn.x+App::kCompactButtonW &&
+        const bool tunerAdminInLiveTv = app.liveTvGuideBtn.y==App::kPageControlY &&
+            app.liveTvDetectBtn.y==App::kPageControlY && app.liveTvRefreshBtn.y==App::kPageControlY &&
+            app.liveTvDetectBtn.x==app.liveTvGuideBtn.x+App::kCompactButtonW &&
             app.liveTvRefreshBtn.x==app.liveTvDetectBtn.x+App::kCompactButtonW &&
-            app.liveTvScanBtn.y==App::kPageControlY;
+            app.liveTvScanBtn.x==app.liveTvRefreshBtn.x+App::kCompactButtonW;
         const auto wrapped = app.library_title_lines("This Is A Deliberately Long Library Title For Wrapping", 150);
         const bool titleWrap = !wrapped.first.empty() && !wrapped.second.empty();
         const bool activityDefault = !app.playerActivityOverlayVisible && app.lastPlayerActivityMotionMs==0;
@@ -11968,21 +12108,21 @@ int main(int argc, char** argv) {
         const bool liveTvTransportBounds = !app.live_tv_channel_navigation_available(-1) &&
             app.live_tv_channel_navigation_available(1);
 
-        if (!volumeGeometry || !progressSheet || !liveGuideDefault || !tunerAdminInSystem || !networkLogos || !titleWrap || !activityDefault ||
+        if (!volumeGeometry || !progressSheet || !liveGuideDefault || !tunerAdminInLiveTv || !networkLogos || !titleWrap || !activityDefault ||
             !liveProgram || !lastChannel || !liveTvTransportNav || !liveTvTransportBounds) {
             std::fprintf(stderr,
                 "Nougat v0.0.38 self-test FAIL. volume=%d progress=%d guide=%d tuneradmin=%d logos=%d wrap=%d activity=%d program=%d last=%d livetvnav=%d bounds=%d\n",
-                volumeGeometry?1:0,progressSheet?1:0,liveGuideDefault?1:0,tunerAdminInSystem?1:0,networkLogos?1:0,titleWrap?1:0,activityDefault?1:0,
+                volumeGeometry?1:0,progressSheet?1:0,liveGuideDefault?1:0,tunerAdminInLiveTv?1:0,networkLogos?1:0,titleWrap?1:0,activityDefault?1:0,
                 liveProgram?1:0,lastChannel?1:0,liveTvTransportNav?1:0,liveTvTransportBounds?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.38 PASS: exact-sheet player/progress geometry, Guide-default Live TV, System tuner administration, real network-logo mapping, remembered channel, Live TV Previous/Next channel navigation, Library title wrapping, unified player activity state, and Live TV program identity active.\n");
+        std::printf("Nougat Media Suite v0.0.38 PASS: exact-sheet player/progress geometry, Guide-default Live TV, Live TV tuner administration, real network-logo mapping, remembered channel, Live TV Previous/Next channel navigation, Library title wrapping, unified player activity state, and Live TV program identity active.\n");
         return 0;
     }
 
     if (argc > 1 && std::string(argv[1]) == "--v39-diagnostics-live-tv-self-test") {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.39";
+        input.app_version = "Nougat Media Suite v0.0.40";
         input.executable_path = argv[0];
         input.project_root = "/tmp";
         input.current_view = "Debug";
@@ -12053,17 +12193,17 @@ int main(int argc, char** argv) {
         const bool saneOverall = report.overall != reddmedia::DiagnosticSeverity::Problem;
         if (!metadataInfo || !searchIdle || !liveMux || !queuedInfo || !structured || !saneOverall) {
             std::fprintf(stderr,
-                "Nougat v0.0.39 diagnostic self-test FAIL. metadata=%d idle=%d livemux=%d queued=%d structured=%d overall=%d\n",
+                "Nougat v0.0.40 diagnostic self-test FAIL. metadata=%d idle=%d livemux=%d queued=%d structured=%d overall=%d\n",
                 metadataInfo?1:0, searchIdle?1:0, liveMux?1:0, queuedInfo?1:0, structured?1:0, saneOverall?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.39 PASS: subsystem diagnostics, sane severity, Search idle state, Live TV awareness, guide coverage, and current-multiplex harvesting active.\n");
+        std::printf("Nougat Media Suite v0.0.40 PASS: subsystem diagnostics, sane severity, Search idle state, Live TV awareness, guide coverage, and current-multiplex harvesting active.\n");
         return 0;
     }
 
     if (argc > 1 && std::string(argv[1]) == "--v39-diagnostic-self-test") {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.39";
+        input.app_version = "Nougat Media Suite v0.0.40";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = "System";
@@ -12081,17 +12221,17 @@ int main(int argc, char** argv) {
             if (issue.code.find("METADATA") != std::string::npos && issue.severity == reddmedia::DiagnosticSeverity::Information) metadata_info = true;
         }
         if (!search_idle || !metadata_info) {
-            std::fprintf(stderr, "Nougat v0.0.39 diagnostic self-test FAIL. search-idle=%d metadata-info=%d\n", search_idle?1:0, metadata_info?1:0);
+            std::fprintf(stderr, "Nougat v0.0.40 diagnostic self-test FAIL. search-idle=%d metadata-info=%d\n", search_idle?1:0, metadata_info?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.39 diagnostic self-test PASS: Search idle is Not Tested and optional metadata is Information.\n");
+        std::printf("Nougat Media Suite v0.0.40 diagnostic self-test PASS: Search idle is Not Tested and optional metadata is Information.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v39-channel-logo-audit") {
         App app;
         const std::vector<reddmedia::LiveTvChannel> channels = app.tunerBackend.load_channels();
         if (channels.empty()) {
-            std::fprintf(stderr, "Nougat v0.0.39 channel-logo audit FAIL: no persisted Live TV channels were found.\n");
+            std::fprintf(stderr, "Nougat v0.0.40 channel-logo audit FAIL: no persisted Live TV channels were found.\n");
             return 1;
         }
         int unresolved = 0;
@@ -12103,10 +12243,10 @@ int main(int argc, char** argv) {
             }
         }
         if (unresolved != 0) {
-            std::fprintf(stderr, "Nougat v0.0.39 channel-logo audit FAIL: %d/%zu channel(s) do not resolve to real artwork.\n", unresolved, channels.size());
+            std::fprintf(stderr, "Nougat v0.0.40 channel-logo audit FAIL: %d/%zu channel(s) do not resolve to real artwork.\n", unresolved, channels.size());
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.39 channel-logo audit PASS: %zu/%zu persisted channels resolve to real artwork.\n", channels.size(), channels.size());
+        std::printf("Nougat Media Suite v0.0.40 channel-logo audit PASS: %zu/%zu persisted channels resolve to real artwork.\n", channels.size(), channels.size());
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
