@@ -9,6 +9,17 @@
 
 # Nougat Media Suite Roadmap
 
+## v0.0.39 candidate — Deep Diagnostics + Live TV Guide Reliability
+- Rebuild Diagnostic Center around subsystem truth: Passed, Needs Attention, Problems, Not Tested, and Information.
+- Add deep runtime, Library, server, player, Live TV/tuner, Search, P2P, Stream, AI/TMDb, storage/system evidence with observed/expected/action detail and retained exports/history.
+- Use recursive Library diagnostic queries and stop treating missing metadata/posters or an idle Search node as suite-wide faults.
+- Auto-load cached Live TV guide data, preserve/merge valid PSIP events, collect longer VCT/MGT/EIT cycles, and improve coverage across stored channels.
+- Harvest current-multiplex PSIP through demux0 during playback; queue other-RF refresh work until the single DVB frontend is idle.
+- Expand real bundled channel-logo mapping and use square logo cards.
+- Repair only the explicitly carried visual defects: progress-bar pale bottom strip/stitch clarity, black Live TV timing text, and the green/yellow/red stitched Server status indicator.
+- Preserve approved v0.0.38 positions, VOLUME control, player geometry, and unrelated artwork.
+
+
 ## v0.0.35 accepted — Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
 - Make v0.0.35 a stabilization-first release: repair confirmed bugs from the project-wide code review, reduce brittle/duplicated code where it directly raises regression risk, harden ownership/lifetime/process cleanup, and preserve accepted v0.0.34 behavior outside the approved repair scope.
 - Replace false-positive source-token/constant checks with stronger behavioral validation where practical, including the approved concept-sheet seek/volume controls.
@@ -53,6 +64,15 @@
 - Keep ETT-rich descriptions, XMLTV supplementation, DVR/recording, timeshift, favorites, and multi-tuner scheduling as later Live TV stages after owner validation of v0.0.37 tuning and EIT grid behavior.
 - Support clean Stop, retune, and channel changes without destabilizing the accepted v0.0.35 channel scan/persistence path.
 - Validate first on the owner's already working tuner/channel database before expanding into guide, recording, timeshift, favorites, or channel-surfing features.
+
+## v0.0.40 planned — Games / Unified Emulation
+- Add a top-level `Games` tab immediately after `Studio`. Games is a Nougat media category, not a separate application.
+- Present one unified Nougat game-library/emulator experience while allowing different mature emulator cores/backends underneath per system.
+- Target the broad practical emulation range available on Linux at implementation time: Nintendo, Sega, PlayStation, Xbox where mature emulation exists, Atari, arcade/MAME, classic computers/handhelds, and other supported systems.
+- Provide unified library artwork, system filters/search, controller setup, fullscreen launch, saves, save states, recent games, favorites, play history, and per-game backend overrides when needed.
+- Users supply their own game dumps/ROMs/ISOs and any legally required BIOS/firmware. Nougat does not distribute copyrighted commercial ROM sets.
+- Re-verify and preserve upstream licensing before bundling any redistributable test content. Candidate playable test: `2048-nes` (Unlicense/public-domain-style). Candidate NES diagnostic ROM: `NES Waveforms` (MIT).
+- This work begins only after v0.0.39 is repaired and owner-accepted.
 
 ## Studio / Nougat Media Processing Engine — post-v0.0.35
 - Build one reusable native media-processing engine around FFmpeg/libav rather than reinventing codecs. Share it across Convert, Audio Lab, Quick Edit, Batch, and the eventual timeline editor.

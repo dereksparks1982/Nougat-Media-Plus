@@ -1,6 +1,24 @@
-# Nougat Media Suite v0.0.38
+# Nougat Media Suite v0.0.39
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+
+## v0.0.39 - Deep Diagnostics and Live TV Guide Reliability
+
+v0.0.39 builds directly on accepted v0.0.38. It focuses on evidence-based diagnostics and reliable native ATSC guide behavior without relocating approved UI.
+
+### v0.0.39 changes
+
+- Diagnostic Center now reports subsystem health instead of allowing low-severity content-quality statistics to poison the entire suite status.
+- The summary separates Passed, Needs Attention, Problems, Not Tested, and Information and exposes observed evidence, expected state, and suggested action per check.
+- Library diagnostics use a recursive catalog query for real Movie/Collection/Series/Season/Episode counts; missing descriptions/posters remain informational.
+- Search idle is explicitly Not Tested rather than a fault.
+- Live TV diagnostics understand tuner nodes, tuner-use state, signal lock/quality, current channel/program, guide coverage/freshness, current-multiplex harvesting, and queued full-guide refresh.
+- Cached guide data loads automatically and is merged with longer PSIP EIT/VCT collection passes rather than being discarded when a broadcaster omits a table during one cycle.
+- While watching Live TV, Nougat harvests PSIP from the active RF multiplex without retuning; the single WinTV frontend queues other-frequency refresh work until idle.
+- Bundled real network-logo coverage is expanded and channel-logo cards are square.
+- The accepted player layout and VOLUME component remain untouched; only the explicitly rejected progress-bar bottom strip/stitch clarity and Live TV timing color are repaired.
+- Diagnostic JSON/TXT/support bundles are retained, with private diagnostic-history snapshots stored locally for comparison.
 
 
 ## v0.0.38 - Library, Live TV and Player Exact-Sheet Polish

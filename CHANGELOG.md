@@ -1,4 +1,23 @@
 # Changelog
+## v0.0.39 - Diagnostic Center and Live TV Reliability Repair
+- Replaces obsolete diagnostic severity with Passed / Needs Attention / Problem / Not Tested / Information.
+- Adds evidence, expected/observed results, repair guidance, history, and Quick/Deep diagnostics.
+- Preserves guide cache data, queues full guide sweeps until a single tuner is idle, and forbids text artwork fallbacks.
+- Preserves the accepted exact-sheet player VOLUME asset unchanged.
+
+
+## v0.0.39 - Deep Diagnostics and Live TV Guide Reliability
+
+- Replaces the old flat diagnostic interpretation with subsystem health summaries using Passed, Needs Attention, Problems, Not Tested, and Information.
+- Adds evidence/expected/action detail, recursive Library counts, correct Search idle handling, Live TV/tuner awareness, and diagnostic history snapshots while retaining TXT/JSON/support-bundle exports.
+- Treats metadata/artwork completeness as information rather than catastrophic suite health and distinguishes individual Library path warnings from core failures.
+- Expands tuner evidence with Linux DVB frontend/demux/dvr/net access, delivery-system details, tuner-use state, signal lock/quality when exposed, current channel/program, guide coverage, guide freshness, and queued-refresh state.
+- Loads cached Live TV guide data automatically, preserves valid cached events, waits longer for PSIP tables, collects additional EIT tables, and merges source-ID/VCT evidence instead of wiping rows on an incomplete broadcast cycle.
+- During Live TV playback, harvests PSIP from the currently tuned multiplex through demux0 without retuning; a full cross-multiplex refresh is queued until the single tuner becomes idle.
+- Expands bundled real channel/network artwork and uses square logo cards as explicitly approved.
+- Keeps the accepted player layout unchanged while removing only the rejected pale bottom strip from the progress bar and retaining its approved-sheet stitched detail.
+- Keeps Live TV program start/end timing and uses the approved dark timing text.
+- Rebuilds the round Server status light as one smooth stitched design shared by green/yellow/red states; only the state color changes.
 
 ## v0.0.38 - Library, Live TV and Player Exact-Sheet Polish
 

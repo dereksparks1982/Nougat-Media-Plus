@@ -37,6 +37,17 @@ struct LiveTvProgram {
     unsigned event_id = 0;
 };
 
+struct TunerRuntimeStatus {
+    bool frontend_accessible = false;
+    bool demux_accessible = false;
+    bool dvr_accessible = false;
+    bool net_accessible = false;
+    bool signal_lock = false;
+    int signal_percent = -1;
+    int quality_percent = -1;
+    std::string delivery_systems;
+};
+
 struct ChannelScanProgress {
     int physical_channel = 0;
     unsigned frequency_hz = 0;
@@ -73,11 +84,27 @@ public:
     // Harvest the first several hours of ATSC PSIP EIT data from persisted
     // multiplexes. Existing v0.0.35 channel databases are enriched from VCT
     // while harvesting so source/program/RF metadata does not require a rescan.
+    // Read EIT/VCT from the multiplex already tuned for Live TV. This opens
+    // demux filters only and never retunes the frontend, so playback continues.
+    bool harvest_current_multiplex_guide(const TunerDevice& tuner,
+                                         const LiveTvChannel& current_channel,
+                                         const std::vector<LiveTvChannel>& channels,
+                                         std::vector<LiveTvProgram>& programs,
+                                         std::string& status) const;
     bool refresh_guide(const TunerDevice& tuner,
                        std::vector<LiveTvChannel>& channels,
                        std::vector<LiveTvProgram>& programs,
                        std::string& status,
                        const ChannelScanCallback& callback = {}) const;
+    bool refresh_current_multiplex_guide(const TunerDevice& tuner,
+                       const LiveTvChannel& current_channel,
+                       std::vector<LiveTvChannel>& channels,
+                       std::vector<LiveTvProgram>& programs,
+                       std::string& status) const;
+
+    bool probe_runtime_status(const TunerDevice& tuner,
+                              TunerRuntimeStatus& runtime,
+                              std::string& status) const;
 
     // Native ATSC 1.0 over-the-air scan for Linux DVB frontends. The callback
     // is invoked after each physical channel attempt; returning false cancels.

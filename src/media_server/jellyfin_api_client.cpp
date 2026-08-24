@@ -944,6 +944,27 @@ bool JellyfinApiClient::load_all_recommendation_items(std::vector<LibraryNode>& 
     return true;
 }
 
+bool JellyfinApiClient::load_diagnostic_catalog_items(std::vector<LibraryNode>& nodes,
+                                                        std::string& error) {
+    if (!initialize(error)) return false;
+    const std::string target = "/Items?userId=" + url_encode(user_id_) +
+        "&recursive=true&includeItemTypes=Movie%2CBoxSet%2CSeries%2CSeason%2CEpisode&fields=" +
+        common_item_fields() +
+        "&sortBy=SortName&sortOrder=Ascending&enableImages=true";
+    const HttpResponse response = request("GET", target, "", true, 90);
+    if (response.status != 200) {
+        error = "Nougat could not read the recursive diagnostic catalog.";
+        return false;
+    }
+    std::vector<LibraryNode> loaded;
+    for (const std::string& object : json_array_objects(response.body, "Items")) {
+        LibraryNode node = parse_library_node(object);
+        if (!node.id.empty() && !node.name.empty()) loaded.push_back(std::move(node));
+    }
+    nodes = std::move(loaded);
+    return true;
+}
+
 bool JellyfinApiClient::load_primary_image_bmp(const std::string& item_id,
                                                const std::string& image_tag,
                                                int width,

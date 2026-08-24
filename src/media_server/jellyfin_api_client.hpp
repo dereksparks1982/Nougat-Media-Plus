@@ -69,6 +69,8 @@ public:
                                std::string& error);
     bool load_all_recommendation_items(std::vector<LibraryNode>& nodes,
                                        std::string& error);
+    bool load_diagnostic_catalog_items(std::vector<LibraryNode>& nodes,
+                                       std::string& error);
     bool load_primary_image_bmp(const std::string& item_id,
                                 const std::string& image_tag,
                                 int width,

@@ -13,6 +13,7 @@
 #include <string>
 #include <sstream>
 #include <fstream>
+#include <filesystem>
 #include <iomanip>
 #include <algorithm>
 #include <atomic>
@@ -675,6 +676,7 @@ struct LiveTvGuideUiState {
     int completed = 0;
     int total = 0;
     int programs_found = 0;
+    bool current_mux_only = false;
     std::string status = "Broadcast guide cache ready.";
     std::vector<reddmedia::LiveTvChannel> channels;
     std::vector<reddmedia::LiveTvProgram> programs;
@@ -1100,12 +1102,16 @@ public:
     std::map<std::string, reddmedia::LibraryPoster> liveTvLogoCache;
     std::set<std::string> liveTvLogoAttempted;
     bool liveTvGuideMode = true;
+    bool liveTvFullGuideRefreshQueued = false;
+    long long liveTvLastCurrentMuxHarvestMs = 0;
+    long long liveTvLastAutoGuideRefreshMs = 0;
     int liveTvGuideChannelScroll = 0;
     int liveTvGuideTimeOffsetSlots = 0;
     Time liveTvLastClickTime = 0;
     int liveTvLastClickChannel = -1;
     std::string liveTvStatus = "Live TV ready. Detect your tuner to begin.";
     LiveTvTunerUse liveTvTunerUse = LiveTvTunerUse::Idle;
+    bool liveTvGuideRefreshQueued = false;
     int liveTvPlayingChannel = -1;
     std::shared_ptr<reddmedia::JellyfinApiClient> libraryClient =
         std::make_shared<reddmedia::JellyfinApiClient>();
@@ -1938,28 +1944,43 @@ public:
 
     void draw_sheet_status_circle(Drawable target, int x, int y, int diameter,
                                   unsigned long stateColor) {
-        // v0.0.37: use the sheet's circular SHAPE VARIANT as a stateful button.
-        // The entire face changes state color; there is no tiny LED nested in a
-        // tan ring. The stitched perimeter remains visible in every state.
+        // v0.0.39: all green/yellow/red states share one identical sheet-family
+        // indicator. Only the face color changes. Stitch spacing mirrors the
+        // fine 2-on/2-off seam rhythm used by the Search tab instead of the old
+        // chunky dashed XDrawArc ring.
         diameter = std::max(16, diameter);
         const unsigned long dark = rgb8(112, 70, 35);
         const unsigned long shadow = rgb8(166, 125, 82);
         const unsigned long light = rgb8(255, 239, 207);
-        const unsigned long stitch = rgb8(244, 223, 187);
+        const unsigned long stitch = rgb8(126, 72, 35);
         fill_circle(target, x + 1, y + 3, diameter, shadow);
         fill_circle(target, x, y, diameter, stateColor);
         XSetForeground(d, gc, dark);
+        XSetLineAttributes(d,gc,1,LineSolid,CapRound,JoinRound);
         XDrawArc(d, target, gc, x, y, diameter, diameter, 0, 360 * 64);
         if (diameter > 8) {
             XSetForeground(d, gc, light);
             XDrawArc(d, target, gc, x + 2, y + 2, diameter - 4, diameter - 4, 35 * 64, 150 * 64);
-            XSetLineAttributes(d, gc, 1, LineOnOffDash, CapButt, JoinMiter);
-            const char dash[] = {2, 2};
-            XSetDashes(d, gc, 0, dash, 2);
-            XSetForeground(d, gc, stitch);
-            XDrawArc(d, target, gc, x + 3, y + 3, diameter - 6, diameter - 6, 0, 360 * 64);
-            XSetLineAttributes(d, gc, 1, LineSolid, CapButt, JoinMiter);
+            const double cx=x+diameter/2.0;
+            const double cy=y+diameter/2.0;
+            const double radius=std::max(3.0,diameter/2.0-3.5);
+            const int stitches=std::max(10,static_cast<int>(2.0*3.14159265358979323846*radius/4.0));
+            XSetForeground(d,gc,stitch);
+            XSetLineAttributes(d,gc,1,LineSolid,CapRound,JoinRound);
+            for (int i=0;i<stitches;++i) {
+                const double angle=(2.0*3.14159265358979323846*i)/stitches;
+                const double tangent=angle+3.14159265358979323846/2.0;
+                const double px=cx+std::cos(angle)*radius;
+                const double py=cy+std::sin(angle)*radius;
+                const double half=0.75;
+                const int x1=static_cast<int>(std::lround(px-std::cos(tangent)*half));
+                const int y1=static_cast<int>(std::lround(py-std::sin(tangent)*half));
+                const int x2=static_cast<int>(std::lround(px+std::cos(tangent)*half));
+                const int y2=static_cast<int>(std::lround(py+std::sin(tangent)*half));
+                XDrawLine(d,target,gc,x1,y1,x2,y2);
+            }
         }
+        XSetLineAttributes(d,gc,1,LineSolid,CapButt,JoinMiter);
     }
 
     void draw_sheet_checkbox(Drawable target, const Rect& box, bool checked, const ViewPalette& palette) {
@@ -3416,7 +3437,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.38";
+        const std::string versionLabel = "v0.0.39";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -3729,8 +3750,9 @@ public:
         const unsigned long caramelLight = rgb8(218,156,82);
         const unsigned long creamTrack = rgb8(247,236,217);
         const unsigned long trackBorder = rgb8(153,91,35);
-        const unsigned long markDark = rgb8(121,88,56);
-        const unsigned long markReal = rgb8(255,244,224);
+        // NOUGAT_V39_BLACK_CHAPTER_MARKERS_V4
+        const unsigned long markDark = rgb8(0,0,0);
+        const unsigned long markReal = rgb8(0,0,0);
 
         draw_quilted_background(target, {0, std::max(0, seekRect.y-7), W, seekRect.h+46}, ViewMode::VideoPlayer);
 
@@ -3785,11 +3807,14 @@ public:
         const std::string currentText = format_time(t);
         const std::string totalText = format_time(l);
         const int timeY = seekRect.y + seekRect.h / 2 + 5;
-        const int leftTextX = 24;
-        const int rightEdge = W - 24;
+        // NOUGAT_V39_EXACT_SHEET_SEEK_TIME_ADJACENCY
+        const int seekTimeGap = 6;
+        const int leftTextX = std::max(4, seekRect.x - seekTimeGap - text_width(currentText));
+        const int rightTextX = std::min(W - 4 - text_width(totalText),
+                                        seekRect.x + seekRect.w + seekTimeGap);
         const unsigned long timingText = rgb8(0, 0, 0);
         text(target, leftTextX, timeY, currentText, timingText);
-        text(target, rightEdge - text_width(totalText), timeY, totalText, timingText);
+        text(target, rightTextX, timeY, totalText, timingText);
 
         if (liveProgramTiming) {
             const auto clockText=[](long long unixTime) {
@@ -3803,8 +3828,10 @@ public:
             const std::string startText=clockText(liveProgramStart);
             const std::string endText=clockText(liveProgramEnd);
             const int clockY=timeY+17;
-            text(target,leftTextX,clockY,startText,timingText);
-            text(target,rightEdge-text_width(endText),clockY,endText,timingText);
+            const int startTextX=std::max(4,seekRect.x-seekTimeGap-text_width(startText));
+            const int endTextX=std::min(W-4-text_width(endText),seekRect.x+seekRect.w+seekTimeGap);
+            text(target,startTextX,clockY,startText,timingText);
+            text(target,endTextX,clockY,endText,timingText);
         }
     }
 
@@ -3846,27 +3873,34 @@ public:
         const int dstCenter = dstTrackStart + (dstTrackEnd - dstTrackStart) * percent / 100;
 
         std::vector<unsigned char> scaled(static_cast<std::size_t>(targetW) * targetH * 4U, 0U);
-        const auto map_segment = [](int x, int dl, int dr, int sl, int sr) {
-            if (dr <= dl || sr <= sl) return sl;
-            const long long num = static_cast<long long>(x - dl) * (sr - sl);
-            return sl + static_cast<int>(num / (dr - dl));
+        const auto map_segment = [](int x, int dl, int dr, int sl, int sr) -> double {
+            if (dr <= dl || sr <= sl) return static_cast<double>(sl);
+            const double t=static_cast<double>(x-dl)/static_cast<double>(dr-dl);
+            return static_cast<double>(sl)+t*static_cast<double>(sr-sl);
         };
         for (int y=0; y<targetH; ++y) {
             for (int x=0; x<targetW; ++x) {
-                int sx=0;
-                if (x < cap) sx = std::min(kSheetSeekW-1,x);
-                else if (x >= targetW-cap) sx = std::max(0,kSheetSeekW-(targetW-x));
-                else if (x >= dstCenter-knobHalf && x <= dstCenter+knobHalf) sx = srcCenter + (x-dstCenter);
+                double sx=0.0;
+                if (x < cap) sx = static_cast<double>(std::min(kSheetSeekW-1,x));
+                else if (x >= targetW-cap) sx = static_cast<double>(std::max(0,kSheetSeekW-(targetW-x)));
+                else if (x >= dstCenter-knobHalf && x <= dstCenter+knobHalf) sx = static_cast<double>(srcCenter + (x-dstCenter));
                 else if (x < dstCenter-knobHalf) {
                     sx = map_segment(x,cap,std::max(cap+1,dstCenter-knobHalf),cap,std::max(cap+1,srcCenter-knobHalf));
                 } else {
                     sx = map_segment(x,std::min(targetW-cap-1,dstCenter+knobHalf),targetW-cap,
                                      std::min(kSheetSeekW-cap-1,srcCenter+knobHalf),kSheetSeekW-cap);
                 }
-                sx=std::max(0,std::min(kSheetSeekW-1,sx));
-                const std::size_t si=(static_cast<std::size_t>(y)*kSheetSeekW+static_cast<std::size_t>(sx))*4U;
+                sx=std::max(0.0,std::min(static_cast<double>(kSheetSeekW-1),sx));
+                const int sx0=static_cast<int>(std::floor(sx));
+                const int sx1=std::min(kSheetSeekW-1,sx0+1);
+                const double frac=sx-static_cast<double>(sx0);
+                const std::size_t si0=(static_cast<std::size_t>(y)*kSheetSeekW+static_cast<std::size_t>(sx0))*4U;
+                const std::size_t si1=(static_cast<std::size_t>(y)*kSheetSeekW+static_cast<std::size_t>(sx1))*4U;
                 const std::size_t di=(static_cast<std::size_t>(y)*targetW+static_cast<std::size_t>(x))*4U;
-                scaled[di]=source[si]; scaled[di+1U]=source[si+1U]; scaled[di+2U]=source[si+2U]; scaled[di+3U]=source[si+3U];
+                for (std::size_t channel=0;channel<4U;++channel) {
+                    const double value=static_cast<double>(source[si0+channel])*(1.0-frac)+static_cast<double>(source[si1+channel])*frac;
+                    scaled[di+channel]=static_cast<unsigned char>(std::lround(std::max(0.0,std::min(255.0,value))));
+                }
             }
         }
 
@@ -3878,16 +3912,24 @@ public:
         Visual* visual = DefaultVisual(d, screen);
         // Preserve the literal RGBA sheet artwork, including the stitched edge
         // and antialiasing, by compositing it onto the already-painted quilt.
-        // Rows 26-32 are the separate pale underside crop-shadow region, not
+        // Rows 23-32 are the separate pale underside crop-shadow region, not
         // the stitched progress-bar body. Leave those rows transparent so the
         // quilt continues directly beneath the approved component without
-        // changing any of the retained sheet pixels in rows 0-25.
-        const int compositeH = std::min(targetH, 26);
+        // changing any of the retained sheet pixels in rows 0-22.
+        // NOUGAT_V39_FULL_SHEET_SEEK_SPRITE_VISIBILITY
+        // Render all 33 rows of the exact approved seek sprite.
+        // Transparent pixels remain transparent over the existing player background.
+        // No extra colour, strip, fill, shadow band, or texture is added below the seek bar.
+        const int compositeH = targetH;
         for (int y=0; y<compositeH; ++y) {
             for (int x=0; x<targetW; ++x) {
                 const std::size_t i=(static_cast<std::size_t>(y)*targetW+static_cast<std::size_t>(x))*4U;
                 const unsigned a=scaled[i+3U];
                 if (a==0U) continue;
+                // NOUGAT_V39_SEEK_ALPHA_SILHOUETTE_V7
+                // The seek asset now carries the exact visible sheet RGB with a cleaned
+                // alpha silhouette. Do not crop fixed rows here; the asset alpha alone
+                // decides which pixels belong to the control and which are background.
                 const unsigned long dst=XGetPixel(image,x,y);
                 const unsigned char dr=visual_mask_to_component(dst,visual->red_mask);
                 const unsigned char dg=visual_mask_to_component(dst,visual->green_mask);
@@ -4633,7 +4675,7 @@ public:
             } else if (operation == 2) {
                 {
                     std::lock_guard<std::mutex> lock(state->mutex);
-                    state->progress = 0.35;
+                    state->progress = 0.30;
                 }
                 mediaServer.stop();
             } else {
@@ -7130,6 +7172,46 @@ public:
     }
 
     static std::string live_tv_builtin_network_logo(const reddmedia::LiveTvChannel& channel) {
+        // NOUGAT_V39_EXACT_CHANNEL_ART_BEGIN
+        // Exact owner-observed PSIP IDs are checked before fuzzy aliases.
+        if (channel.id == "12.3") return "heroes";
+        if (channel.id == "12.4") return "outlaw";
+        if (channel.id == "15.1") return "hsn";
+        if (channel.id == "15.2") return "qvc";
+        if (channel.id == "15.3") return "hsn2";
+        if (channel.id == "15.4") return "qvc2";
+        if (channel.id == "15.5") return "qvc3";
+        if (channel.id == "24.1") return "fox";
+        if (channel.id == "26.8") return "oan_plus";
+        if (channel.id == "26.9") return "rav";
+        if (channel.id == "26.12") return "silverspur";
+        if (channel.id == "26.13") return "divercity";
+        if (channel.id == "26.14") return "quinnly";
+        if (channel.id == "28.2") return "daystar_espanol";
+        if (channel.id == "30.1") return "heartland";
+        if (channel.id == "30.3") return "hasbro_legends";
+        if (channel.id == "30.4") return "action_channel";
+        if (channel.id == "30.5") return "family_channel";
+        if (channel.id == "30.6") return "revival";
+        if (channel.id == "30.7") return "greater_love";
+        if (channel.id == "33.2") return "catchy";
+        if (channel.id == "33.3") return "365blk";
+        if (channel.id == "33.4") return "starttv";
+        if (channel.id == "34.1") return "sonlife";
+        if (channel.id == "34.2") return "great_american";
+        if (channel.id == "34.3") return "moviesphere_gold";
+        if (channel.id == "34.4") return "oxygen";
+        if (channel.id == "34.5") return "jtv";
+        if (channel.id == "34.6") return "ntd";
+        if (channel.id == "34.7") return "defy";
+        if (channel.id == "36.1") return "roar";
+        if (channel.id == "36.2") return "the_nest";
+        if (channel.id == "36.3") return "charge";
+        if (channel.id == "36.4") return "true_crime";
+        if (channel.id == "46.1") return "univision";
+        if (channel.id == "46.2") return "grit";
+        // NOUGAT_V39_EXACT_CHANNEL_ART_END
+
         const std::string hay=lower_copy(channel.name+" "+channel.id+" "+channel.service);
         const auto has=[&hay](const char* value){ return hay.find(value)!=std::string::npos; };
         if (has("pbs kids") || has("pbskid") || has("kptskid")) return "pbs_kids";
@@ -7148,6 +7230,30 @@ public:
         if (has("busted")) return "busted";
         if (has("ion plus") || has("ionplus") || has("ion plu")) return "ion_plus";
         if (has("ion")) return "ion";
+
+        // v0.0.39 owner-approved complete local Wichita-area logo pass.
+        // Match PSIP short names as well as human-readable network names so
+        // every identifiable service uses real bundled artwork rather than a
+        // duplicate channel-number badge.
+        if (has("kagw") || has("cozi")) return "cozi";
+        if (has("jtv") || has("jewelry")) return "jtv";
+        if (has("cbn")) return "cbn";
+        if (has("trucrmz") || has("true crime")) return "truecrime";
+        if (has("buzzr")) return "buzzr";
+        if (has("biz tv") || has("biztv")) return "biztv";
+        if (has("newsmax")) return "newsmax";
+        if (has(" oan") || has("one america")) return "oan";
+        if (has(" rav") || has("america's voice") || has("americas voice")) return "rav";
+        if (has("wthrn") || has("weathernation") || has("weather nation")) return "weathernation";
+        if (has("diya")) return "diya";
+        if (has("kwkd") || has("daystar")) {
+            if (has("espanol") || has("español")) return "daystar_espanol";
+            return "daystar";
+        }
+        if (has("comet")) return "comet";
+        if (has("retro") || has("rtv")) return "retro";
+        if (has("univision")) return "univision";
+        if (has("mynetwork") || has("mytv") || has("my tv")) return "mynetworktv";
         return {};
     }
 
@@ -7182,24 +7288,22 @@ public:
         }
         return false;
     }
-
-    void draw_live_tv_channel_logo(Drawable target, const Rect& slot, const reddmedia::LiveTvChannel& channel,
+    void draw_live_tv_channel_logo(Drawable target, const Rect& slot,
+                                   const reddmedia::LiveTvChannel& channel,
                                    const ViewPalette& palette) {
         reddmedia::LibraryPoster logo;
-        if (cached_live_tv_logo(channel,logo)) {
-            fill_round(target,slot,5,rgb8(247,236,217));
-            draw_contain_pixels_rounded(target,slot,logo,5,rgb8(247,236,217));
-            outline_round(target,slot,5,palette.border);
+        if (cached_live_tv_logo(channel, logo)) {
+            fill_round(target, slot, 5, rgb8(247,236,217));
+            draw_contain_pixels_rounded(target, slot, logo, 5, rgb8(247,236,217));
+            outline_round(target, slot, 5, palette.border);
             return;
         }
-        // No duplicate channel-number badge. If no real network art is known,
-        // identify the station by its call sign/name only.
-        fill_round(target,slot,5,rgb8(247,236,217));
-        outline_round(target,slot,5,palette.border);
-        std::string call=channel.name.empty()?channel.id:channel.name;
-        if (call.size()>5U) call=call.substr(0,5U);
-        const int tx=slot.x+std::max(2,(slot.w-text_width(call))/2);
-        text(target,tx,slot.y+slot.h/2+5,head_to_width(call,slot.w-4),rgb8(54,36,22));
+
+        // v0.0.39: real channel artwork only. Do not invent station art from
+        // call signs, channel numbers, initials, or truncated text. The v39
+        // channel-logo audit makes unresolved real artwork an acceptance failure.
+        fill_round(target, slot, 5, rgb8(247,236,217));
+        outline_round(target, slot, 5, palette.border);
     }
 
     void refresh_live_tv_tuners(bool announce=true) {
@@ -7313,11 +7417,93 @@ public:
         if (!fullscreen && currentView == ViewMode::LiveTV) redraw();
     }
 
+    void start_live_tv_current_mux_guide_harvest(bool manual=false) {
+        if (!currentMediaIsLiveTv || liveTvPlayingChannel < 0 ||
+            liveTvPlayingChannel >= static_cast<int>(liveTvChannels.size())) return;
+        if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size())) return;
+        if (liveTvGuideWorker.joinable()) {
+            bool busy=false;
+            { std::lock_guard<std::mutex> lock(liveTvGuideState->mutex); busy=liveTvGuideState->busy; }
+            if (busy) {
+                if (manual) liveTvStatus="Current multiplex guide collection is already running.";
+                return;
+            }
+            liveTvGuideWorker.join();
+        }
+
+        const reddmedia::TunerDevice tuner=liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)];
+        const reddmedia::LiveTvChannel current=liveTvChannels[static_cast<std::size_t>(liveTvPlayingChannel)];
+        const reddmedia::NougatTunerBackend backend=tunerBackend;
+        const auto state=liveTvGuideState;
+        std::vector<reddmedia::LiveTvChannel> channels=liveTvChannels;
+        {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->busy=true; state->updated=true; state->cancel=false; state->finished=false; state->success=false;
+            state->completed=0; state->total=1; state->programs_found=0; state->current_mux_only=true;
+            state->channels=channels; state->programs=liveTvPrograms;
+            state->status="Updating guide from the current Live TV multiplex...";
+        }
+        if (manual) liveTvStatus="Updating current-channel guide without interrupting playback...";
+        liveTvLastCurrentMuxHarvestMs=now_ms();
+        liveTvGuideWorker=std::thread([state,tuner,current,backend,channels]() mutable {
+            std::vector<reddmedia::LiveTvProgram> programs;
+            std::string status;
+            const bool ok=backend.refresh_current_multiplex_guide(tuner,current,channels,programs,status);
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->busy=false; state->finished=true; state->success=ok;
+            state->completed=1; state->total=1;
+            state->status=status.empty() ? (ok ? "Current multiplex guide updated." : "Current multiplex guide update failed.") : status;
+            state->channels=std::move(channels); state->programs=std::move(programs);
+            state->programs_found=static_cast<int>(state->programs.size()); state->updated=true;
+        });
+    }
     void start_live_tv_guide_refresh() {
+        if (liveTvTunerUse == LiveTvTunerUse::Watching) {
+            liveTvGuideRefreshQueued = true;
+            if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size()) ||
+                liveTvPlayingChannel < 0 || liveTvPlayingChannel >= static_cast<int>(liveTvChannels.size())) {
+                liveTvStatus = "Full broadcast-guide refresh queued until the tuner is idle. Current playback continues.";
+                return;
+            }
+            if (liveTvGuideWorker.joinable()) {
+                bool guideBusy = false;
+                { std::lock_guard<std::mutex> lock(liveTvGuideState->mutex); guideBusy = liveTvGuideState->busy; }
+                if (guideBusy) {
+                    liveTvStatus = "Current-multiplex PSIP harvest is already running; full sweep remains queued.";
+                    return;
+                }
+                liveTvGuideWorker.join();
+            }
+            const reddmedia::TunerDevice tuner = liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)];
+            const reddmedia::LiveTvChannel current = liveTvChannels[static_cast<std::size_t>(liveTvPlayingChannel)];
+            const reddmedia::NougatTunerBackend backend = tunerBackend;
+            const auto state = liveTvGuideState;
+            const std::vector<reddmedia::LiveTvChannel> channels = liveTvChannels;
+            const std::vector<reddmedia::LiveTvProgram> cachedPrograms = liveTvPrograms;
+            {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->busy = true; state->updated = true; state->cancel = false; state->finished = false; state->success = false;
+                state->current_mux_only = true; state->completed = 0; state->total = 1;
+                state->programs_found = static_cast<int>(cachedPrograms.size());
+                state->channels = channels; state->programs = cachedPrograms;
+                state->status = "Harvesting PSIP from the current RF multiplex while playback continues...";
+            }
+            liveTvStatus = "Harvesting current-multiplex PSIP; full other-frequency refresh is queued until the tuner is idle.";
+            liveTvGuideWorker = std::thread([state,tuner,current,backend,channels,cachedPrograms]() mutable {
+                std::vector<reddmedia::LiveTvProgram> programs = cachedPrograms;
+                std::string status;
+                const bool ok = backend.harvest_current_multiplex_guide(tuner,current,channels,programs,status);
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->busy = false; state->finished = true; state->success = ok; state->completed = 1; state->total = 1;
+                state->status = status.empty() ? (ok ? "Current RF multiplex PSIP harvested during playback."
+                                                   : "Current RF multiplex PSIP was not received; full sweep remains queued.") : status;
+                state->channels = channels; state->programs = std::move(programs);
+                state->programs_found = static_cast<int>(state->programs.size()); state->updated = true;
+            });
+            return;
+        }
         if (liveTvTunerUse != LiveTvTunerUse::Idle) {
-            liveTvStatus = liveTvTunerUse == LiveTvTunerUse::Watching
-                ? "Stop Live TV playback before refreshing the broadcast guide."
-                : "The tuner is already busy.";
+            liveTvStatus = "The tuner is already busy; guide refresh remains available when it returns idle.";
             return;
         }
         if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size())) {
@@ -7329,58 +7515,79 @@ public:
             return;
         }
         if (liveTvGuideWorker.joinable()) {
-            bool busy=false;
-            { std::lock_guard<std::mutex> lock(liveTvGuideState->mutex); busy=liveTvGuideState->busy; }
-            if (busy) { liveTvStatus="Broadcast guide refresh is already running."; return; }
+            bool busy = false;
+            { std::lock_guard<std::mutex> lock(liveTvGuideState->mutex); busy = liveTvGuideState->busy; }
+            if (busy) { liveTvStatus = "Broadcast guide refresh is already running."; return; }
             liveTvGuideWorker.join();
         }
-        const reddmedia::TunerDevice tuner=liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)];
-        const reddmedia::NougatTunerBackend backend=tunerBackend;
-        const auto state=liveTvGuideState;
-        std::vector<reddmedia::LiveTvChannel> channels=liveTvChannels;
+        const reddmedia::TunerDevice tuner = liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)];
+        const reddmedia::NougatTunerBackend backend = tunerBackend;
+        const auto state = liveTvGuideState;
+        std::vector<reddmedia::LiveTvChannel> channels = liveTvChannels;
+        const std::vector<reddmedia::LiveTvProgram> cachedPrograms = liveTvPrograms;
         {
             std::lock_guard<std::mutex> lock(state->mutex);
-            state->busy=true; state->updated=true; state->cancel=false; state->finished=false; state->success=false;
-            state->completed=0; state->total=0; state->programs_found=0;
-            state->channels=channels; state->programs.clear(); state->status="Refreshing ATSC broadcast guide...";
+            state->busy = true; state->updated = true; state->cancel = false; state->finished = false; state->success = false;
+            state->current_mux_only = false; state->completed = 0; state->total = 0;
+            state->programs_found = static_cast<int>(cachedPrograms.size());
+            state->channels = channels; state->programs = cachedPrograms; state->status = "Refreshing ATSC broadcast guide...";
         }
-        liveTvTunerUse=LiveTvTunerUse::GuideRefreshing;
-        liveTvStatus="Refreshing ATSC broadcast guide...";
-        liveTvGuideWorker=std::thread([state,tuner,backend,channels]() mutable {
-            std::vector<reddmedia::LiveTvProgram> programs;
+        liveTvTunerUse = LiveTvTunerUse::GuideRefreshing;
+        liveTvStatus = "Refreshing ATSC broadcast guide...";
+        liveTvGuideWorker = std::thread([state,tuner,backend,channels,cachedPrograms]() mutable {
+            std::vector<reddmedia::LiveTvProgram> programs = cachedPrograms;
             std::string status;
-            const bool ok=backend.refresh_guide(tuner,channels,programs,status,[state](const reddmedia::ChannelScanProgress& progress){
+            const bool ok = backend.refresh_guide(tuner,channels,programs,status,[state](const reddmedia::ChannelScanProgress& progress){
                 std::lock_guard<std::mutex> lock(state->mutex);
-                state->completed=progress.completed; state->total=progress.total;
-                state->programs_found=progress.channels_found; state->status=progress.message; state->updated=true;
+                state->completed = progress.completed; state->total = progress.total;
+                state->programs_found = progress.channels_found; state->status = progress.message; state->updated = true;
                 return !state->cancel;
             });
             std::lock_guard<std::mutex> lock(state->mutex);
-            state->busy=false; state->finished=true; state->success=ok;
-            state->status=status.empty() ? (ok ? "Broadcast guide refreshed." : "Broadcast guide refresh failed.") : status;
-            state->channels=std::move(channels); state->programs=std::move(programs);
-            state->programs_found=static_cast<int>(state->programs.size()); state->updated=true;
+            state->busy = false; state->finished = true; state->success = ok;
+            state->status = status.empty() ? (ok ? "Broadcast guide refreshed." : "Broadcast guide refresh failed.") : status;
+            state->channels = std::move(channels); state->programs = std::move(programs);
+            state->programs_found = static_cast<int>(state->programs.size()); state->updated = true;
         });
     }
-
     void poll_live_tv_guide() {
-        bool updated=false,busy=false,finished=false,success=false;
+        bool updated = false, busy = false, finished = false, success = false, currentMuxOnly = false;
         std::string status;
         std::vector<reddmedia::LiveTvChannel> channels;
         std::vector<reddmedia::LiveTvProgram> programs;
         {
             std::lock_guard<std::mutex> lock(liveTvGuideState->mutex);
-            updated=liveTvGuideState->updated; if (updated) liveTvGuideState->updated=false;
-            busy=liveTvGuideState->busy; finished=liveTvGuideState->finished; success=liveTvGuideState->success;
-            status=liveTvGuideState->status; channels=liveTvGuideState->channels; programs=liveTvGuideState->programs;
+            updated = liveTvGuideState->updated; if (updated) liveTvGuideState->updated = false;
+            busy = liveTvGuideState->busy; finished = liveTvGuideState->finished; success = liveTvGuideState->success;
+            currentMuxOnly = liveTvGuideState->current_mux_only;
+            status = liveTvGuideState->status; channels = liveTvGuideState->channels; programs = liveTvGuideState->programs;
         }
         if (!updated) return;
-        liveTvStatus=status;
+        liveTvStatus = status;
         if (!busy && finished) {
-            liveTvTunerUse=LiveTvTunerUse::Idle;
-            if (success) { liveTvChannels=std::move(channels); liveTvPrograms=std::move(programs); }
+            liveTvTunerUse = (currentMuxOnly && currentMediaIsLiveTv) ? LiveTvTunerUse::Watching : LiveTvTunerUse::Idle;
+            if (success || currentMuxOnly) { liveTvChannels = std::move(channels); liveTvPrograms = std::move(programs); }
         }
-        if (!fullscreen && currentView==ViewMode::LiveTV) redraw();
+        if (!fullscreen && currentView == ViewMode::LiveTV) redraw();
+    }
+    // NOUGAT_V39_DIAGNOSTIC_REPAIR: guide worker ownership
+    // NOUGAT_V39_DIAGNOSTIC_REPAIR: guide worker ownership
+
+    void maybe_auto_refresh_live_tv_guide() {
+        if (liveTvChannels.empty() || liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size())) return;
+        const std::string guidePath=tunerBackend.guide_path();
+        long long modified=0;
+        struct stat st{};
+        if (stat(guidePath.c_str(),&st)==0) modified=static_cast<long long>(st.st_mtime);
+        const long long nowUnix=static_cast<long long>(std::time(nullptr));
+        const bool stale=modified<=0 || nowUnix-modified >= 4LL*3600LL;
+        if (!stale && !liveTvPrograms.empty()) return;
+        if (liveTvTunerUse==LiveTvTunerUse::Watching) {
+            liveTvFullGuideRefreshQueued=true;
+            start_live_tv_current_mux_guide_harvest(false);
+        } else if (liveTvTunerUse==LiveTvTunerUse::Idle && now_ms()-liveTvLastAutoGuideRefreshMs>=30000LL) {
+            start_live_tv_guide_refresh();
+        }
     }
 
     std::string live_tv_clock(long long unixTime) const {
@@ -7905,7 +8112,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.38";
+        input.app_version = "Nougat Media Suite v0.0.39";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -7953,6 +8160,72 @@ public:
         input.up_next_visible = upNextVisible;
         input.up_next_seconds = up_next_seconds_remaining();
         input.up_next_title = upNextVisible ? library_display_title(upNextEpisode) : "None";
+        input.playback_is_live_tv = currentMediaIsLiveTv;
+        input.live_tv_tuner_count = static_cast<int>(liveTvTuners.size());
+        input.live_tv_channel_count = liveTvChannels.size();
+        input.live_tv_guide_program_count = liveTvPrograms.size();
+        {
+            std::set<std::string> guideChannels;
+            for (const auto& program : liveTvPrograms) if (!program.channel_id.empty()) guideChannels.insert(program.channel_id);
+            input.live_tv_guide_channels_with_data = guideChannels.size();
+        }
+        {
+            struct stat guideStat{};
+            if (stat(tunerBackend.guide_path().c_str(), &guideStat) == 0) input.live_tv_guide_cache_mtime = static_cast<long long>(guideStat.st_mtime);
+        }
+        {
+            bool guideBusy=false;
+            bool currentMux=false;
+            std::lock_guard<std::mutex> lock(liveTvGuideState->mutex);
+            guideBusy=liveTvGuideState->busy;
+            currentMux=liveTvGuideState->current_mux_only;
+            input.live_tv_guide_refresh_busy=guideBusy;
+            input.live_tv_current_mux_harvest_active=guideBusy && currentMux;
+        }
+        input.live_tv_full_refresh_queued=liveTvFullGuideRefreshQueued;
+        switch (liveTvTunerUse) {
+        case LiveTvTunerUse::Idle: input.live_tv_tuner_use="Idle"; break;
+        case LiveTvTunerUse::Scanning: input.live_tv_tuner_use="Scanning channels"; break;
+        case LiveTvTunerUse::GuideRefreshing: input.live_tv_tuner_use="Refreshing guide"; break;
+        case LiveTvTunerUse::Watching: input.live_tv_tuner_use="Watching Live TV"; break;
+        }
+        if (liveTvSelectedTuner >= 0 && liveTvSelectedTuner < static_cast<int>(liveTvTuners.size())) {
+            const auto& tuner=liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)];
+            input.live_tv_tuner_name=tuner.name;
+            input.live_tv_tuner_backend=tuner.backend;
+            input.live_tv_tuner_status=tuner.status;
+            input.live_tv_frontend_path=tuner.frontend_path;
+            if (!tuner.frontend_path.empty()) {
+                const std::filesystem::path parent=std::filesystem::path(tuner.frontend_path).parent_path();
+                input.live_tv_demux_path=(parent/"demux0").string();
+                input.live_tv_dvr_path=(parent/"dvr0").string();
+                input.live_tv_net_path=(parent/"net0").string();
+            }
+            reddmedia::TunerRuntimeStatus runtime;
+            std::string runtimeStatus;
+            tunerBackend.probe_runtime_status(tuner,runtime,runtimeStatus);
+            input.live_tv_frontend_accessible=runtime.frontend_accessible;
+            input.live_tv_demux_accessible=runtime.demux_accessible;
+            input.live_tv_dvr_accessible=runtime.dvr_accessible;
+            input.live_tv_net_accessible=runtime.net_accessible;
+            input.live_tv_signal_lock=runtime.signal_lock;
+            input.live_tv_signal_percent=runtime.signal_percent;
+            input.live_tv_quality_percent=runtime.quality_percent;
+            input.live_tv_delivery_systems=runtime.delivery_systems;
+        }
+        if (currentMediaIsLiveTv && liveTvPlayingChannel >= 0 && liveTvPlayingChannel < static_cast<int>(liveTvChannels.size())) {
+            const auto& channel=liveTvChannels[static_cast<std::size_t>(liveTvPlayingChannel)];
+            input.live_tv_current_channel=channel.id;
+            input.live_tv_current_station=channel.name;
+            input.live_tv_current_frequency=channel.frequency;
+            input.live_tv_current_rf=channel.physical_channel;
+            input.live_tv_current_program_number=channel.program_number;
+            if (const auto* program=current_live_tv_program(static_cast<long long>(std::time(nullptr)))) {
+                input.live_tv_current_program_title=program->title;
+                input.live_tv_current_program_start=program->start_unix;
+                input.live_tv_current_program_end=program->start_unix+program->duration_seconds;
+            }
+        }
         input.search_data_dir = nougat.data_directory();
         input.search_node_running = nougat.node_running();
         input.search_node_port = nougat.node_port();
@@ -7960,7 +8233,10 @@ public:
             std::lock_guard<std::mutex> lock(nougatState->mutex);
             input.search_node_id = nougatState->node_id;
             input.search_peer_count = nougatState->peers.size();
-            input.search_probe_error = nougatState->status;
+            input.search_status = nougatState->status;
+            const std::string lowerStatus=lower_copy(nougatState->status);
+            if (lowerStatus.find("error")!=std::string::npos || lowerStatus.find("fail")!=std::string::npos ||
+                lowerStatus.find("could not")!=std::string::npos) input.search_probe_error=nougatState->status;
         }
         const P2PStatus p2p_status = p2p.status();
         input.p2p_version = p2p.libtorrent_version();
@@ -7997,38 +8273,109 @@ public:
         input.stream_provider = stream_platform_name(streamPlatform);
         input.stream_status = ytdlpStatus;
         input.stream_process_running = ytdlpPid > 0 || ytdlpStream.running();
+        // NOUGAT_V39_DIAGNOSTIC_REPAIR: capture Live TV evidence and diagnostic-history destination.
+        input.diagnostic_history_path = home_dir() + "/.config/reddmedia/diagnostics/history.jsonl";
+        input.live_tv_selected_tuner = liveTvSelectedTuner;
+        input.live_tv_playback_active = currentMediaIsLiveTv;
+        input.live_tv_guide_refresh_queued = liveTvGuideRefreshQueued;
+        input.live_tv_guide_path = tunerBackend.guide_path();
+        input.live_tv_guide_program_count = liveTvPrograms.size();
+        struct stat liveTvGuideStat{};
+        if (!input.live_tv_guide_path.empty() && ::stat(input.live_tv_guide_path.c_str(), &liveTvGuideStat) == 0)
+            input.live_tv_guide_mtime = liveTvGuideStat.st_mtime;
+        switch (liveTvTunerUse) {
+            case LiveTvTunerUse::Idle: input.live_tv_tuner_use = "Idle"; break;
+            case LiveTvTunerUse::Scanning: input.live_tv_tuner_use = "Scanning"; break;
+            case LiveTvTunerUse::GuideRefreshing: input.live_tv_tuner_use = "Guide Refreshing"; break;
+            case LiveTvTunerUse::Watching: input.live_tv_tuner_use = "Watching"; break;
+        }
+        if (currentMediaIsLiveTv && liveTvPlayingChannel >= 0 && liveTvPlayingChannel < static_cast<int>(liveTvChannels.size())) {
+            const auto& playing = liveTvChannels[static_cast<std::size_t>(liveTvPlayingChannel)];
+            input.live_tv_current_channel = playing.id + " " + playing.name;
+            input.live_tv_current_rf = playing.physical_channel;
+        }
+        {
+            std::lock_guard<std::mutex> lock(liveTvScanState->mutex);
+            input.live_tv_signal_tested = liveTvScanState->physical_channel > 0 || liveTvScanState->frequency_hz > 0U;
+            input.live_tv_signal_locked = liveTvScanState->locked;
+            input.live_tv_signal_percent = liveTvScanState->signal_percent;
+            input.live_tv_quality_percent = liveTvScanState->quality_percent;
+        }
+        for (const auto& tuner : liveTvTuners) {
+            reddmedia::DiagnosticTunerSnapshot snapshot;
+            snapshot.name = tuner.name; snapshot.frontend_path = tuner.frontend_path;
+            snapshot.backend = tuner.backend; snapshot.status = tuner.status; snapshot.readable = tuner.readable;
+            snapshot.delivery_systems = tuner.frontend_path.empty() ? "V4L2 / unknown" : "ATSC 1.0 / 8VSB";
+            if (!tuner.frontend_path.empty()) {
+                const std::size_t slash = tuner.frontend_path.rfind('/');
+                if (slash != std::string::npos) {
+                    const std::string base = tuner.frontend_path.substr(0, slash + 1U);
+                    snapshot.demux_path = base + "demux0"; snapshot.dvr_path = base + "dvr0";
+                }
+            }
+            input.live_tv_tuners.push_back(std::move(snapshot));
+        }
+        for (const auto& channel : liveTvChannels) {
+            reddmedia::DiagnosticChannelSnapshot snapshot;
+            snapshot.id = channel.id; snapshot.name = channel.name; snapshot.service = channel.service;
+            snapshot.frequency = channel.frequency; snapshot.program_number = channel.program_number;
+            snapshot.physical_channel = channel.physical_channel;
+            for (const auto& program : liveTvPrograms) if (program.channel_id == channel.id) ++snapshot.guide_programs;
+            reddmedia::LibraryPoster diagnosticLogo;
+            snapshot.logo_resolved = cached_live_tv_logo(channel, diagnosticLogo);
+            input.live_tv_channels.push_back(std::move(snapshot));
+        }
+        input.live_tv_psip_state = liveTvPrograms.empty() ? "No cached PSIP guide events" : "PSIP guide cache populated";
+        {
+            std::lock_guard<std::mutex> lock(liveTvGuideState->mutex);
+            input.live_tv_current_mux_psip_receiving = liveTvGuideState->busy && liveTvGuideState->current_mux_only;
+            if (input.live_tv_current_mux_psip_receiving) input.live_tv_psip_state = "Receiving PSIP from current RF multiplex during playback";
+        }
         return input;
     }
 
-    void start_debug_task() {
+    void start_debug_task(bool deep = false) {
         {
             std::lock_guard<std::mutex> lock(debugState->mutex);
             if (debugState->busy) return;
         }
         if (debugWorker.joinable()) debugWorker.join();
         reddmedia::DiagnosticInput input = diagnostic_input();
+        input.search_test_requested = deep;
         {
             std::lock_guard<std::mutex> lock(debugState->mutex);
             debugState->busy = true;
             debugState->updated = false;
             debugState->progress = 0.10;
-            debugState->status = "Running evidence-based health checks...";
+            debugState->status = "Running deep evidence-based diagnostics...";
         }
         redraw();
         const std::shared_ptr<DebugUiState> state = debugState;
         const std::shared_ptr<reddmedia::JellyfinApiClient> client = libraryClient;
         const reddmedia::DiagnosticEngine engine = diagnosticEngine;
-        debugWorker = std::thread([state, client, engine, input]() mutable {
+        debugWorker = std::thread([state, client, engine, input, deep]() mutable {
             {
                 std::lock_guard<std::mutex> lock(state->mutex);
                 state->progress = 0.35;
+            }
+            if (deep) {
+                const auto probe_start = std::chrono::steady_clock::now();
+                const std::string executable = input.executable_path;
+                const std::string command = shell_quote(executable) + " --embedding-model-test 2>&1";
+                const std::string ai_probe = run_command_capture(command);
+                input.ai_embedding_test_attempted = true;
+                input.ai_embedding_test_passed = ai_probe.find("embedding model PASS") != std::string::npos ||
+                                                 ai_probe.find("Discover AI PASS") != std::string::npos;
+                input.ai_embedding_test_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - probe_start).count();
+                if (!input.ai_embedding_test_passed) input.ai_embedding_test_error = ai_probe.empty() ? "Embedding probe produced no output." : ai_probe;
             }
             std::string library_error;
             if (client && client->initialize(library_error)) {
                 std::vector<reddmedia::MediaFolder> folders;
                 std::vector<reddmedia::LibraryNode> nodes;
                 if (client->load_media_folders(folders, library_error) &&
-                    client->load_all_recommendation_items(nodes, library_error)) {
+                    client->load_diagnostic_catalog_items(nodes, library_error)) {
                     input.library_folders = std::move(folders);
                     input.library_nodes = std::move(nodes);
                     input.library_full_scan = true;
@@ -8036,9 +8383,12 @@ public:
             } else input.library_scan_error = library_error;
             {
                 std::lock_guard<std::mutex> lock(state->mutex);
-                state->progress = 0.65;
+                state->progress = 0.70;
             }
             reddmedia::DiagnosticReport report = engine.evaluate(input);
+            std::string historyPath;
+            std::string historyError;
+            const bool historySaved=reddmedia::DiagnosticEngine::write_history_snapshot(report,input,historyPath,historyError);
             std::lock_guard<std::mutex> lock(state->mutex);
             state->input = input;
             state->report = std::move(report);
@@ -8046,7 +8396,9 @@ public:
             state->busy = false;
             state->updated = true;
             state->progress = 1.0;
-            state->status = "Checks complete. Only evidence-backed findings are shown.";
+            state->status = historySaved
+                ? "Deep diagnostic complete. Evidence and a private history snapshot were saved."
+                : "Deep diagnostic complete. History snapshot could not be saved: " + historyError;
         });
     }
 
@@ -8901,7 +9253,7 @@ public:
         Rect panel{28, 118, std::max(240, W - 56), std::max(150, H - 148)};
         draw_primary_panel(target, panel, palette);
         text(target, panel.x + 16, panel.y + 30, "Planned processing engine: FFmpeg/libav-backed Convert, Audio Lab, Quick Edit, Batch, and full timeline Studio.", palette.text);
-        text(target, panel.x + 16, panel.y + 56, "v0.0.38 keeps the Gold Studio navigation/palette foundation; processing tools remain roadmap work.", palette.muted);
+        text(target, panel.x + 16, panel.y + 56, "v0.0.39 keeps the Gold Studio navigation/palette foundation; processing tools remain roadmap work.", palette.muted);
     }
 
     void draw_debug_screen(Drawable target) {
@@ -8913,8 +9265,8 @@ public:
         button_on(target, serverRefreshBtn, "Refresh Server");
         button_on(target, liveTvDetectBtn, "Detect Tuner");
         button_on(target, liveTvRefreshBtn, "Refresh Tuner");
-        button_on(target, debugRunBtn, "Run Checks");
-        button_on(target, debugRetryBtn, "Retry");
+        button_on(target, debugRunBtn, "Quick Diagnostic");
+        button_on(target, debugRetryBtn, "Deep Diagnostic");
         button_on(target, debugMetadataBtn, "Refresh Metadata");
         button_on(target, debugTmdbBtn, "Test TMDb");
         button_on(target, debugLogsBtn, "Open Logs");
@@ -8940,51 +9292,75 @@ public:
         debugIssueRows.clear();
         if (!has_report) {
             text(target, debugListBox.x + 14, debugListBox.y + 30,
-                 "Run Checks to inspect Nougat, server, library, playback, Search, P2P, AI, Stream, and system evidence.",
+                 "Run Quick Diagnostic for normal health or Deep Diagnostic to exercise AI and explicit subsystem probes.",
                  palette.muted);
             return;
         }
-        unsigned long health_color = col(0x1111,0xdddd,0x2222);
-        if (report.overall == reddmedia::DiagnosticSeverity::Warning) {
-            health_color = col(0xeeee,0xcccc,0x1111);
-        } else if (report.overall == reddmedia::DiagnosticSeverity::Critical) {
-            health_color = col(0xdddd,0x1111,0x1111);
-        }
+        unsigned long health_color = col(0x7777,0x7777,0x7777);
+        if (report.overall == reddmedia::DiagnosticSeverity::Passed) health_color = col(0x5588,0x8844,0x3344);
+        else if (report.overall == reddmedia::DiagnosticSeverity::NeedsAttention) health_color = col(0xcccc,0x9999,0x2222);
+        else if (report.overall == reddmedia::DiagnosticSeverity::Problem) health_color = col(0xbbbb,0x2222,0x2222);
         fill_circle(target, debugListBox.x + 14, debugListBox.y + 12, 12, health_color);
-        text(target, debugListBox.x + 34, debugListBox.y + 23,
-             std::string("Overall: ") + reddmedia::DiagnosticEngine::severity_name(report.overall) +
-             "   Checked: " + local_time_text(report.checked_at) +
-             "   Port 8096: " + (report.port_8096_open ? "open" : "closed"), dark);
-        const int issue_height = 88;
-        const int visible = std::max(1, (debugListBox.h - 46) / issue_height);
-        const int max_scroll = std::max(0, static_cast<int>(report.issues.size()) - visible);
-        debugScroll = std::max(0, std::min(debugScroll, max_scroll));
-        int y = debugListBox.y + 38;
-        for (int visible_index = 0; visible_index < visible; ++visible_index) {
-            const int issue_index = debugScroll + visible_index;
-            if (issue_index >= static_cast<int>(report.issues.size())) break;
-            const reddmedia::DiagnosticIssue& issue = report.issues[static_cast<std::size_t>(issue_index)];
-            Rect row = {debugListBox.x + 8, y, debugListBox.w - 16, issue_height - 6};
-            outline(target, row, palette.border);
-            unsigned long issue_color = col(0x1166,0x7777,0x2222);
-            if (issue.severity == reddmedia::DiagnosticSeverity::Warning) {
-                issue_color = col(0x9999,0x7777,0x0000);
-            } else if (issue.severity == reddmedia::DiagnosticSeverity::Critical) {
-                issue_color = col(0xaaaa,0x0000,0x0000);
-            }
-            text(target, row.x + 8, row.y + 17,
-                 std::string("[") + reddmedia::DiagnosticEngine::severity_name(issue.severity) +
-                 "] " + head_to_width(issue.title, row.w - 90), issue_color);
-            text(target, row.x + 8, row.y + 37,
-                 head_to_width(issue.detail, row.w - 16), dark);
-            text(target, row.x + 8, row.y + 57,
-                 "Action: " + head_to_width(issue.action, row.w - 72),
-                 palette.muted);
-            text(target, row.x + 8, row.y + 75, issue.code, palette.muted);
-            debugIssueRows.push_back(row);
-            y += issue_height;
+        text(target, debugListBox.x + 34, debugListBox.y + 22,
+             std::string("SYSTEM HEALTH: ") + reddmedia::DiagnosticEngine::severity_name(report.overall) +
+             "   Checked: " + local_time_text(report.checked_at), dark);
+        text(target, debugListBox.x + 14, debugListBox.y + 43,
+             "Passed: " + std::to_string(report.passed_count) +
+             "   Attention: " + std::to_string(report.attention_count) +
+             "   Problems: " + std::to_string(report.problem_count) +
+             "   Not Tested: " + std::to_string(report.not_tested_count) +
+             "   Info: " + std::to_string(report.information_count), palette.muted);
+
+        std::string subsystemLine="Subsystems: ";
+        for (std::size_t i=0; i<report.subsystems.size(); ++i) {
+            if (i>0) subsystemLine += "  |  ";
+            subsystemLine += report.subsystems[i].section + " " + reddmedia::DiagnosticEngine::severity_name(report.subsystems[i].severity);
         }
-        draw_visible_vertical_scrollbar(target,debugListBox,debugScroll,static_cast<int>(report.issues.size()),visible,palette);
+        text(target, debugListBox.x + 14, debugListBox.y + 64,
+             head_to_width(subsystemLine, debugListBox.w - 30), palette.muted);
+
+        std::vector<const reddmedia::DiagnosticCheck*> ordered;
+        const reddmedia::DiagnosticSeverity priorities[] = {
+            reddmedia::DiagnosticSeverity::Problem,
+            reddmedia::DiagnosticSeverity::NeedsAttention,
+            reddmedia::DiagnosticSeverity::Unknown,
+            reddmedia::DiagnosticSeverity::Information,
+            reddmedia::DiagnosticSeverity::Passed
+        };
+        for (auto wanted : priorities) {
+            for (const auto& check : report.checks) if (check.severity==wanted) ordered.push_back(&check);
+        }
+
+        const int row_height = 96;
+        const int listTop = debugListBox.y + 76;
+        const int visible = std::max(1, (debugListBox.y + debugListBox.h - listTop - 4) / row_height);
+        const int max_scroll = std::max(0, static_cast<int>(ordered.size()) - visible);
+        debugScroll = std::max(0, std::min(debugScroll, max_scroll));
+        int y = listTop;
+        for (int visible_index = 0; visible_index < visible; ++visible_index) {
+            const int check_index = debugScroll + visible_index;
+            if (check_index >= static_cast<int>(ordered.size())) break;
+            const reddmedia::DiagnosticCheck& check = *ordered[static_cast<std::size_t>(check_index)];
+            Rect row = {debugListBox.x + 8, y, debugListBox.w - 16, row_height - 6};
+            outline(target,row,palette.border);
+            unsigned long issue_color = col(0x7777,0x7777,0x7777);
+            if (check.severity == reddmedia::DiagnosticSeverity::Passed) issue_color = col(0x4466,0x7733,0x3355);
+            else if (check.severity == reddmedia::DiagnosticSeverity::Information) issue_color = palette.muted;
+            else if (check.severity == reddmedia::DiagnosticSeverity::NeedsAttention) issue_color = col(0x9999,0x7777,0x0000);
+            else if (check.severity == reddmedia::DiagnosticSeverity::Problem) issue_color = col(0xaaaa,0x0000,0x0000);
+            text(target, row.x + 8, row.y + 17,
+                 "[" + check.section + "] " + reddmedia::DiagnosticEngine::severity_name(check.severity) +
+                 " - " + head_to_width(check.name, row.w - 170), issue_color);
+            text(target, row.x + 8, row.y + 38,
+                 "Observed: " + head_to_width(check.observed, row.w - 90), dark);
+            text(target, row.x + 8, row.y + 58,
+                 "Expected: " + head_to_width(check.expected, row.w - 90), palette.muted);
+            text(target, row.x + 8, row.y + 78,
+                 "Action: " + head_to_width(check.action, row.w - 72), palette.muted);
+            debugIssueRows.push_back(row);
+            y += row_height;
+        }
+        draw_visible_vertical_scrollbar(target,debugListBox,debugScroll,static_cast<int>(ordered.size()),visible,palette);
     }
 
     bool discover_mode_selected(reddmedia::RecommendationMode mode) const {
@@ -9774,6 +10150,7 @@ public:
             liveTvGuideTimeOffsetSlots = 0;
             liveTvPrograms = tunerBackend.load_guide();
             if (liveTvTuners.empty()) refresh_live_tv_tuners(false);
+            maybe_auto_refresh_live_tv_guide();
         }
         redraw();
     }
@@ -10370,10 +10747,8 @@ public:
             if (serverStopBtn.contains(x,y)) { start_server_task(2); return; }
             if (serverRefreshBtn.contains(x,y)) { start_server_task(3); return; }
             if (liveTvDetectBtn.contains(x,y) || liveTvRefreshBtn.contains(x,y)) { refresh_live_tv_tuners(true); redraw(); return; }
-            if (debugRunBtn.contains(x,y) || debugRetryBtn.contains(x,y)) {
-                start_debug_task();
-                return;
-            }
+            if (debugRunBtn.contains(x,y)) { start_debug_task(false); return; }
+            if (debugRetryBtn.contains(x,y)) { start_debug_task(true); return; }
             if (debugMetadataBtn.contains(x,y)) {
                 if (libraryTypeChosen) start_library_task(2);
                 else {
@@ -10791,6 +11166,11 @@ public:
             poll_security_worker();
             poll_live_tv_scan();
             poll_live_tv_guide();
+            if (liveTvGuideRefreshQueued && !currentMediaIsLiveTv && liveTvTunerUse == LiveTvTunerUse::Idle) {
+                liveTvGuideRefreshQueued = false;
+                start_live_tv_guide_refresh();
+            }
+            // NOUGAT_V39_DIAGNOSTIC_REPAIR: queued full sweep after playback
             if (!fullscreen && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); maybe_auto_scan_completed_p2p(); redraw(); }
             if (playerActivityOverlayVisible && now_ms() - lastPlayerActivityMotionMs >= 3000) {
                 playerActivityOverlayVisible = false;
@@ -10894,7 +11274,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.38\n");
+        printf("Nougat Media Suite v0.0.39\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -11600,6 +11980,135 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    if (argc > 1 && std::string(argv[1]) == "--v39-diagnostics-live-tv-self-test") {
+        reddmedia::DiagnosticInput input;
+        input.app_version = "Nougat Media Suite v0.0.39";
+        input.executable_path = argv[0];
+        input.project_root = "/tmp";
+        input.current_view = "Debug";
+        input.server_state = reddmedia::MediaServerState::Stopped;
+        input.runtime_path = "/tmp";
+        input.data_path = "/tmp";
+        input.config_path = "/tmp";
+        input.cache_path = "/tmp";
+        input.log_path = "/tmp";
+        input.library_full_scan = true;
+        reddmedia::LibraryNode movie;
+        movie.kind = reddmedia::LibraryNodeKind::Movie;
+        movie.id = "diag-movie";
+        movie.name = "Diagnostic movie";
+        movie.path = "/dev/null";
+        input.library_nodes.push_back(movie);
+        input.vlc_probe_attempted = true;
+        input.vlc_loaded = true;
+        input.vlc_version = "self-test";
+        input.playback_active = true;
+        input.playback_is_live_tv = true;
+        input.playback_state = "Playing";
+        input.volume_percent = 55;
+        input.live_tv_tuner_count = 1;
+        input.live_tv_tuner_name = "Self-test tuner";
+        input.live_tv_tuner_backend = "Linux DVB";
+        input.live_tv_tuner_use = "Watching";
+        input.live_tv_frontend_path = "/dev/null";
+        input.live_tv_demux_path = "/dev/null";
+        input.live_tv_dvr_path = "/dev/null";
+        input.live_tv_net_path = "/dev/null";
+        input.live_tv_frontend_accessible = true;
+        input.live_tv_demux_accessible = true;
+        input.live_tv_dvr_accessible = true;
+        input.live_tv_net_accessible = true;
+        input.live_tv_signal_lock = true;
+        input.live_tv_channel_count = 2;
+        input.live_tv_guide_program_count = 1;
+        input.live_tv_guide_channels_with_data = 1;
+        input.live_tv_guide_cache_mtime = static_cast<long long>(std::time(nullptr));
+        input.live_tv_current_mux_harvest_active = true;
+        input.live_tv_full_refresh_queued = true;
+        input.live_tv_current_channel = "8.1";
+        input.live_tv_current_station = "KPTS-HD";
+        input.live_tv_current_rf = 17;
+        input.live_tv_current_program_number = 3;
+        input.live_tv_current_program_title = "Diagnostic Program";
+        input.search_node_running = false;
+        input.search_status = "Idle";
+
+        reddmedia::DiagnosticEngine engine;
+        const reddmedia::DiagnosticReport report = engine.evaluate(input);
+        const auto check_severity = [&report](const char* code, reddmedia::DiagnosticSeverity severity) {
+            for (const auto& check : report.checks) {
+                if (check.code == code) return check.severity == severity;
+            }
+            return false;
+        };
+        const bool metadataInfo = check_severity("METADATA_OVERVIEWS", reddmedia::DiagnosticSeverity::Information);
+        const bool searchIdle = check_severity("SEARCH_NODE", reddmedia::DiagnosticSeverity::Unknown);
+        const bool liveMux = check_severity("TV_CURRENT_MUX_GUIDE", reddmedia::DiagnosticSeverity::Passed);
+        const bool queuedInfo = check_severity("TV_FULL_REFRESH_QUEUED", reddmedia::DiagnosticSeverity::Information);
+        const std::string txt = reddmedia::DiagnosticEngine::report_text(report, input);
+        const std::string json = reddmedia::DiagnosticEngine::report_json(report, input);
+        const bool structured = txt.find("SYSTEM HEALTH:") != std::string::npos &&
+            txt.find("Passed:") != std::string::npos && txt.find("Not Tested:") != std::string::npos &&
+            json.find("\"subsystems\"") != std::string::npos && json.find("\"checks\"") != std::string::npos;
+        const bool saneOverall = report.overall != reddmedia::DiagnosticSeverity::Problem;
+        if (!metadataInfo || !searchIdle || !liveMux || !queuedInfo || !structured || !saneOverall) {
+            std::fprintf(stderr,
+                "Nougat v0.0.39 diagnostic self-test FAIL. metadata=%d idle=%d livemux=%d queued=%d structured=%d overall=%d\n",
+                metadataInfo?1:0, searchIdle?1:0, liveMux?1:0, queuedInfo?1:0, structured?1:0, saneOverall?1:0);
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.39 PASS: subsystem diagnostics, sane severity, Search idle state, Live TV awareness, guide coverage, and current-multiplex harvesting active.\n");
+        return 0;
+    }
+
+    if (argc > 1 && std::string(argv[1]) == "--v39-diagnostic-self-test") {
+        reddmedia::DiagnosticInput input;
+        input.app_version = "Nougat Media Suite v0.0.39";
+        input.executable_path = resolved_executable_path();
+        input.project_root = exe_dir();
+        input.current_view = "System";
+        input.server_state = reddmedia::MediaServerState::Stopped;
+        input.search_test_requested = false;
+        input.search_node_running = false;
+        input.library_full_scan = true;
+        input.vlc_probe_attempted = true; input.vlc_loaded = true; input.vlc_version = "self-test";
+        reddmedia::LibraryNode node; node.name = "Metadata-optional fixture"; node.path = input.executable_path;
+        input.library_nodes.push_back(node);
+        const reddmedia::DiagnosticReport report = reddmedia::DiagnosticEngine().evaluate(input);
+        bool search_idle = false, metadata_info = false;
+        for (const auto& issue : report.issues) {
+            if (issue.subsystem == "Search" && issue.severity == reddmedia::DiagnosticSeverity::NotTested) search_idle = true;
+            if (issue.code.find("METADATA") != std::string::npos && issue.severity == reddmedia::DiagnosticSeverity::Information) metadata_info = true;
+        }
+        if (!search_idle || !metadata_info) {
+            std::fprintf(stderr, "Nougat v0.0.39 diagnostic self-test FAIL. search-idle=%d metadata-info=%d\n", search_idle?1:0, metadata_info?1:0);
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.39 diagnostic self-test PASS: Search idle is Not Tested and optional metadata is Information.\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v39-channel-logo-audit") {
+        App app;
+        const std::vector<reddmedia::LiveTvChannel> channels = app.tunerBackend.load_channels();
+        if (channels.empty()) {
+            std::fprintf(stderr, "Nougat v0.0.39 channel-logo audit FAIL: no persisted Live TV channels were found.\n");
+            return 1;
+        }
+        int unresolved = 0;
+        for (const auto& channel : channels) {
+            reddmedia::LibraryPoster logo;
+            if (!app.cached_live_tv_logo(channel, logo)) {
+                ++unresolved;
+                std::fprintf(stderr, "UNRESOLVED CHANNEL ART: %s %s\n", channel.id.c_str(), channel.name.c_str());
+            }
+        }
+        if (unresolved != 0) {
+            std::fprintf(stderr, "Nougat v0.0.39 channel-logo audit FAIL: %d/%zu channel(s) do not resolve to real artwork.\n", unresolved, channels.size());
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.39 channel-logo audit PASS: %zu/%zu persisted channels resolve to real artwork.\n", channels.size(), channels.size());
+        return 0;
+    }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
         P2PEngine engine;
         printf("%s\n", engine.libtorrent_version().c_str());

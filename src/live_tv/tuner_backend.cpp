@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -249,12 +250,12 @@ std::vector<unsigned short> collect_eit_pids(const std::string& demux_path) {
     filter.pid = 0x1ffb;
     filter.filter.filter[0] = 0xC7; // Master Guide Table.
     filter.filter.mask[0] = 0xFF;
-    filter.timeout = 900;
+    filter.timeout = 2200;
     filter.flags = DMX_IMMEDIATE_START | DMX_CHECK_CRC;
     if (ioctl(fd, DMX_SET_FILTER, &filter) != 0) { close(fd); return pids; }
 
     unsigned char buffer[8192];
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1050);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(2600);
     while (std::chrono::steady_clock::now() < deadline) {
         pollfd pfd{fd, POLLIN, 0};
         if (poll(&pfd, 1, 160) <= 0 || !(pfd.revents & POLLIN)) continue;
@@ -268,9 +269,10 @@ std::vector<unsigned short> collect_eit_pids(const std::string& demux_path) {
             const unsigned type = (static_cast<unsigned>(buffer[offset]) << 8) | buffer[offset + 1U];
             const unsigned short pid = static_cast<unsigned short>(((buffer[offset + 2U] & 0x1fU) << 8) | buffer[offset + 3U]);
             const unsigned desc_len = ((buffer[offset + 9U] & 0x0fU) << 8) | buffer[offset + 10U];
-            // EIT-0 and EIT-1 are enough for the first classic-guide window
-            // while keeping an idle-tuner refresh reasonably quick.
-            if (type >= 0x0100U && type <= 0x0101U && pid != 0U &&
+            // v0.0.39 waits for the first four ATSC EIT tables. Some broadcasters
+            // rotate the current subchannels slowly enough that the old EIT-0/EIT-1
+            // one-second pass left otherwise healthy channel rows blank.
+            if (type >= 0x0100U && type <= 0x0103U && pid != 0U &&
                 std::find(pids.begin(), pids.end(), pid) == pids.end()) pids.push_back(pid);
             offset += 11U + desc_len;
         }
@@ -291,13 +293,13 @@ void collect_eit_from_pid(const std::string& demux_path,
     filter.pid = pid;
     filter.filter.filter[0] = 0xCB;
     filter.filter.mask[0] = 0xFF;
-    filter.timeout = 900;
+    filter.timeout = 2800;
     filter.flags = DMX_IMMEDIATE_START | DMX_CHECK_CRC;
     if (ioctl(fd, DMX_SET_FILTER, &filter) != 0) { close(fd); return; }
 
     std::set<std::string> seen;
     unsigned char buffer[8192];
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1100);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(3400);
     while (std::chrono::steady_clock::now() < deadline) {
         pollfd pfd{fd, POLLIN, 0};
         if (poll(&pfd, 1, 130) <= 0 || !(pfd.revents & POLLIN)) continue;
@@ -353,7 +355,7 @@ void collect_vct(const std::string& demux_path, int physical_channel, unsigned f
     filter.pid = 0x1ffb;
     filter.filter.filter[0] = 0xC8;
     filter.filter.mask[0] = 0xFE; // C8 terrestrial VCT or C9 cable VCT.
-    filter.timeout = 1200;
+    filter.timeout = 1800;
     filter.flags = DMX_IMMEDIATE_START | DMX_CHECK_CRC;
     if (ioctl(fd, DMX_SET_FILTER, &filter) != 0) {
         close(fd);
@@ -361,7 +363,7 @@ void collect_vct(const std::string& demux_path, int physical_channel, unsigned f
     }
 
     unsigned char buffer[4096];
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1300);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(2200);
     while (std::chrono::steady_clock::now() < deadline) {
         pollfd pfd{fd, POLLIN, 0};
         const int ready = poll(&pfd, 1, 180);
@@ -565,24 +567,101 @@ bool NougatTunerBackend::live_playback_input(const TunerDevice& tuner,
     return true;
 }
 
+bool NougatTunerBackend::harvest_current_multiplex_guide(
+        const TunerDevice& tuner,
+        const LiveTvChannel& current_channel,
+        const std::vector<LiveTvChannel>& channels,
+        std::vector<LiveTvProgram>& programs,
+        std::string& status) const {
+    if (tuner.frontend_path.empty() || !tuner.readable) {
+        status = "A readable Linux DVB frontend is required to harvest current-multiplex PSIP.";
+        return false;
+    }
+    unsigned frequency = 0U;
+    try { frequency = static_cast<unsigned>(std::stoul(current_channel.frequency)); } catch (...) { frequency = 0U; }
+    if (frequency == 0U) {
+        status = "The playing channel has no RF frequency metadata; rescan channels.";
+        return false;
+    }
+    const std::string demux_path = sibling_device_path(tuner.frontend_path, "demux0");
+    if (access(demux_path.c_str(), R_OK | W_OK) != 0) {
+        status = "DVB demux0 is unavailable for current-multiplex PSIP harvesting.";
+        return false;
+    }
+    std::map<std::uint16_t, std::string> source_to_channel;
+    for (const auto& channel : channels) {
+        if (channel.frequency == current_channel.frequency && channel.source_id != 0U)
+            source_to_channel[channel.source_id] = channel.id;
+    }
+    if (source_to_channel.empty()) {
+        std::map<std::string, LiveTvChannel> multiplex;
+        collect_vct(demux_path, current_channel.physical_channel, frequency, multiplex);
+        for (const auto& item : multiplex)
+            if (item.second.source_id != 0U) source_to_channel[item.second.source_id] = item.first;
+    }
+    if (source_to_channel.empty()) {
+        status = "Current RF multiplex did not yield a usable ATSC VCT/source map; cached guide data was preserved.";
+        return false;
+    }
+    const std::vector<LiveTvProgram> preserved = programs.empty() ? load_guide() : programs;
+    std::vector<LiveTvProgram> fresh;
+    const std::vector<unsigned short> eit_pids = collect_eit_pids(demux_path);
+    for (unsigned short pid : eit_pids) collect_eit_from_pid(demux_path, pid, source_to_channel, fresh);
+    std::map<std::string, LiveTvProgram> merged;
+    for (const auto& program : preserved) {
+        const std::string key = program.channel_id + "|" + std::to_string(program.start_unix) + "|" + std::to_string(program.event_id);
+        merged[key] = program;
+    }
+    for (const auto& program : fresh) {
+        const std::string key = program.channel_id + "|" + std::to_string(program.start_unix) + "|" + std::to_string(program.event_id);
+        merged[key] = program;
+    }
+    programs.clear();
+    for (auto& item : merged) programs.push_back(std::move(item.second));
+    std::sort(programs.begin(), programs.end(), [](const LiveTvProgram& a, const LiveTvProgram& b) {
+        if (a.channel_id != b.channel_id) return a.channel_id < b.channel_id;
+        return a.start_unix < b.start_unix;
+    });
+    std::string error;
+    if (!save_guide(programs, error)) {
+        status = "Current-multiplex PSIP was read, but the guide cache could not be saved: " + error;
+        return false;
+    }
+    if (fresh.empty()) {
+        status = "No fresh EIT events were received from the current RF multiplex; existing guide data was preserved and the full sweep remains queued.";
+        return false;
+    }
+    status = "Current RF multiplex PSIP harvested during playback: " + std::to_string(fresh.size()) +
+             " fresh event(s), " + std::to_string(programs.size()) + " cached total.";
+    return true;
+}
 bool NougatTunerBackend::refresh_guide(const TunerDevice& tuner,
                                        std::vector<LiveTvChannel>& channels,
                                        std::vector<LiveTvProgram>& programs,
                                        std::string& status,
                                        const ChannelScanCallback& callback) const {
-    programs.clear();
+    // Preserve still-useful cached events while refreshing. The old v0.0.38
+    // implementation cleared the cache first, so a slow broadcaster could
+    // temporarily erase otherwise valid guide rows.
+    std::vector<LiveTvProgram> merged = load_guide();
+    const long long now = static_cast<long long>(std::time(nullptr));
+    merged.erase(std::remove_if(merged.begin(), merged.end(), [now](const LiveTvProgram& p) {
+        return p.start_unix + std::max(0, p.duration_seconds) < now - 6LL * 3600LL;
+    }), merged.end());
+
     if (tuner.frontend_path.empty() || !tuner.readable) {
+        programs = std::move(merged);
         status = "A readable Linux DVB frontend is required to refresh the broadcast guide.";
         return false;
     }
     if (channels.empty()) channels = load_channels();
-    if (channels.empty()) { status = "No stored channels. Scan channels before refreshing the guide."; return false; }
+    if (channels.empty()) { programs = std::move(merged); status = "No stored channels. Scan channels before refreshing the guide."; return false; }
 
     const int frontend_fd = open(tuner.frontend_path.c_str(), O_RDWR | O_CLOEXEC);
-    if (frontend_fd < 0) { status = std::string("Could not open DVB frontend for guide refresh: ") + std::strerror(errno); return false; }
+    if (frontend_fd < 0) { programs = std::move(merged); status = std::string("Could not open DVB frontend for guide refresh: ") + std::strerror(errno); return false; }
     const std::string demux_path = sibling_device_path(tuner.frontend_path, "demux0");
     if (access(demux_path.c_str(), R_OK | W_OK) != 0) {
-        close(frontend_fd); status = "DVB demux0 is unavailable for guide refresh."; return false;
+        close(frontend_fd); programs = std::move(merged); status = "DVB demux0 is unavailable for guide refresh."; return false;
     }
 
     std::vector<unsigned> frequencies;
@@ -598,20 +677,27 @@ bool NougatTunerBackend::refresh_guide(const TunerDevice& tuner,
         progress.frequency_hz = frequency;
         progress.completed = index;
         progress.total = total;
-        progress.channels_found = static_cast<int>(programs.size());
+        progress.channels_found = static_cast<int>(merged.size());
         progress.message = "Guide: tuning multiplex " + std::to_string(index + 1) + "/" + std::to_string(total) + "...";
-        if (callback && !callback(progress)) { close(frontend_fd); status = "Guide refresh cancelled."; return false; }
+        if (callback && !callback(progress)) { close(frontend_fd); programs = std::move(merged); status = "Guide refresh cancelled."; return false; }
 
         std::string tune_error;
         if (!tune_atsc(frontend_fd, frequency, tune_error)) continue;
         fe_status_t frontend_status{};
-        if (!wait_for_lock(frontend_fd, frontend_status, 900)) continue;
+        if (!wait_for_lock(frontend_fd, frontend_status, 1400)) continue;
 
         int physical = 0;
-        for (const auto& channel : channels) if (channel.frequency == std::to_string(frequency) && channel.physical_channel > 0) { physical = channel.physical_channel; break; }
+        std::map<std::uint16_t, std::string> source_to_channel;
+        for (const auto& channel : channels) {
+            if (channel.frequency != std::to_string(frequency)) continue;
+            if (physical <= 0 && channel.physical_channel > 0) physical = channel.physical_channel;
+            // v0.0.39 fallback: persisted source_id values are authoritative
+            // enough to decode EIT even if this pass misses the rotating VCT.
+            if (channel.source_id != 0U) source_to_channel[channel.source_id] = channel.id;
+        }
+
         std::map<std::string, LiveTvChannel> multiplex;
         collect_vct(demux_path, physical, frequency, multiplex);
-        std::map<std::uint16_t, std::string> source_to_channel;
         for (const auto& item : multiplex) {
             if (item.second.source_id != 0U) source_to_channel[item.second.source_id] = item.first;
             for (auto& saved : channels) {
@@ -621,25 +707,158 @@ bool NougatTunerBackend::refresh_guide(const TunerDevice& tuner,
                 if (saved.physical_channel <= 0) saved.physical_channel = item.second.physical_channel;
             }
         }
+
+        std::vector<LiveTvProgram> fresh;
         const std::vector<unsigned short> eit_pids = collect_eit_pids(demux_path);
-        for (unsigned short pid : eit_pids) collect_eit_from_pid(demux_path, pid, source_to_channel, programs);
+        for (unsigned short pid : eit_pids) collect_eit_from_pid(demux_path, pid, source_to_channel, fresh);
+
+        // Replace cached events with matching channel/start/event identities,
+        // then append new events. Other channels remain cached until their RF
+        // multiplex is successfully harvested.
+        for (const LiveTvProgram& incoming : fresh) {
+            merged.erase(std::remove_if(merged.begin(), merged.end(), [&incoming](const LiveTvProgram& old) {
+                return old.channel_id == incoming.channel_id &&
+                       (old.event_id == incoming.event_id || old.start_unix == incoming.start_unix);
+            }), merged.end());
+            merged.push_back(incoming);
+        }
 
         progress.completed = index + 1;
         progress.locked = true;
-        progress.channels_found = static_cast<int>(programs.size());
+        progress.channels_found = static_cast<int>(merged.size());
         progress.message = "Guide: " + std::to_string(index + 1) + "/" + std::to_string(total) +
-            " multiplexes | " + std::to_string(programs.size()) + " program(s) cached";
-        if (callback && !callback(progress)) { close(frontend_fd); status = "Guide refresh cancelled."; return false; }
+            " multiplexes | " + std::to_string(merged.size()) + " program(s) cached";
+        if (callback && !callback(progress)) { close(frontend_fd); programs = std::move(merged); status = "Guide refresh cancelled."; return false; }
     }
     close(frontend_fd);
-    std::sort(programs.begin(), programs.end(), [](const LiveTvProgram& a, const LiveTvProgram& b) {
+
+    std::sort(merged.begin(), merged.end(), [](const LiveTvProgram& a, const LiveTvProgram& b) {
         if (a.channel_id != b.channel_id) return a.channel_id < b.channel_id;
-        return a.start_unix < b.start_unix;
+        if (a.start_unix != b.start_unix) return a.start_unix < b.start_unix;
+        return a.event_id < b.event_id;
     });
+    merged.erase(std::unique(merged.begin(), merged.end(), [](const LiveTvProgram& a, const LiveTvProgram& b) {
+        return a.channel_id == b.channel_id && a.start_unix == b.start_unix && a.event_id == b.event_id;
+    }), merged.end());
+    programs = std::move(merged);
+
     std::string error;
     if (!save_channels(channels, error)) { status = "Guide collected, but channel enrichment could not be saved: " + error; return false; }
     if (!save_guide(programs, error)) { status = "Guide collected, but guide cache could not be saved: " + error; return false; }
     status = "Broadcast guide refreshed: " + std::to_string(programs.size()) + " program(s) cached.";
+    return true;
+}
+
+bool NougatTunerBackend::refresh_current_multiplex_guide(const TunerDevice& tuner,
+                                                         const LiveTvChannel& current_channel,
+                                                         std::vector<LiveTvChannel>& channels,
+                                                         std::vector<LiveTvProgram>& programs,
+                                                         std::string& status) const {
+    if (tuner.frontend_path.empty() || !tuner.readable) {
+        status = "Current-multiplex guide harvest requires an accessible DVB tuner.";
+        return false;
+    }
+    if (channels.empty()) channels = load_channels();
+    if (channels.empty() || current_channel.frequency.empty()) {
+        status = "Current channel metadata is unavailable for guide harvest.";
+        return false;
+    }
+    const std::string demux_path = sibling_device_path(tuner.frontend_path, "demux0");
+    if (access(demux_path.c_str(), R_OK | W_OK) != 0) {
+        status = "DVB demux0 is unavailable while Live TV is playing.";
+        return false;
+    }
+
+    unsigned frequency = 0;
+    try { frequency = static_cast<unsigned>(std::stoul(current_channel.frequency)); } catch (...) { frequency = 0; }
+    if (frequency == 0U) { status = "Current channel has no usable RF frequency."; return false; }
+
+    std::map<std::uint16_t, std::string> source_to_channel;
+    int physical = current_channel.physical_channel;
+    for (const auto& channel : channels) {
+        if (channel.frequency != current_channel.frequency) continue;
+        if (physical <= 0 && channel.physical_channel > 0) physical = channel.physical_channel;
+        if (channel.source_id != 0U) source_to_channel[channel.source_id] = channel.id;
+    }
+
+    // demux0 can filter PSIP tables from the already tuned multiplex while
+    // dvr0 continues feeding libVLC. No FE_SET_PROPERTY retune occurs here.
+    std::map<std::string, LiveTvChannel> multiplex;
+    collect_vct(demux_path, physical, frequency, multiplex);
+    for (const auto& item : multiplex) {
+        if (item.second.source_id != 0U) source_to_channel[item.second.source_id] = item.first;
+        for (auto& saved : channels) {
+            if (saved.id != item.first) continue;
+            saved.source_id = item.second.source_id;
+            if (saved.program_number <= 0) saved.program_number = item.second.program_number;
+            if (saved.physical_channel <= 0) saved.physical_channel = item.second.physical_channel;
+        }
+    }
+
+    std::vector<LiveTvProgram> fresh;
+    const std::vector<unsigned short> eit_pids = collect_eit_pids(demux_path);
+    for (unsigned short pid : eit_pids) collect_eit_from_pid(demux_path, pid, source_to_channel, fresh);
+
+    std::vector<LiveTvProgram> merged = load_guide();
+    const long long now = static_cast<long long>(std::time(nullptr));
+    merged.erase(std::remove_if(merged.begin(), merged.end(), [now](const LiveTvProgram& p) {
+        return p.start_unix + std::max(0, p.duration_seconds) < now - 6LL * 3600LL;
+    }), merged.end());
+    for (const LiveTvProgram& incoming : fresh) {
+        merged.erase(std::remove_if(merged.begin(), merged.end(), [&incoming](const LiveTvProgram& old) {
+            return old.channel_id == incoming.channel_id &&
+                   (old.event_id == incoming.event_id || old.start_unix == incoming.start_unix);
+        }), merged.end());
+        merged.push_back(incoming);
+    }
+    std::sort(merged.begin(), merged.end(), [](const LiveTvProgram& a, const LiveTvProgram& b) {
+        if (a.channel_id != b.channel_id) return a.channel_id < b.channel_id;
+        if (a.start_unix != b.start_unix) return a.start_unix < b.start_unix;
+        return a.event_id < b.event_id;
+    });
+    merged.erase(std::unique(merged.begin(), merged.end(), [](const LiveTvProgram& a, const LiveTvProgram& b) {
+        return a.channel_id == b.channel_id && a.start_unix == b.start_unix && a.event_id == b.event_id;
+    }), merged.end());
+    programs = std::move(merged);
+
+    std::string error;
+    if (!save_channels(channels, error)) { status = "Current multiplex guide collected, but channel enrichment could not be saved: " + error; return false; }
+    if (!save_guide(programs, error)) { status = "Current multiplex guide collected, but guide cache could not be saved: " + error; return false; }
+    status = "Live guide updated from the current RF multiplex: " + std::to_string(fresh.size()) + " fresh program(s).";
+    return true;
+}
+
+bool NougatTunerBackend::probe_runtime_status(const TunerDevice& tuner,
+                                              TunerRuntimeStatus& runtime,
+                                              std::string& status) const {
+    runtime = {};
+    runtime.frontend_accessible = !tuner.frontend_path.empty() && access(tuner.frontend_path.c_str(), R_OK | W_OK) == 0;
+    if (tuner.frontend_path.empty()) { status = "No DVB frontend path."; return false; }
+    const std::string demux_path = sibling_device_path(tuner.frontend_path, "demux0");
+    const std::string dvr_path = sibling_device_path(tuner.frontend_path, "dvr0");
+    const std::string net_path = sibling_device_path(tuner.frontend_path, "net0");
+    runtime.demux_accessible = access(demux_path.c_str(), R_OK | W_OK) == 0;
+    runtime.dvr_accessible = access(dvr_path.c_str(), R_OK) == 0;
+    runtime.net_accessible = access(net_path.c_str(), R_OK | W_OK) == 0;
+
+    const int fd = open(tuner.frontend_path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0) { status = std::string("Could not open DVB frontend status: ") + std::strerror(errno); return false; }
+    dvb_frontend_info info{};
+    if (ioctl(fd, FE_GET_INFO, &info) == 0) {
+        switch (info.type) {
+        case FE_ATSC: runtime.delivery_systems = "ATSC / Clear QAM (frontend type)"; break;
+        case FE_QPSK: runtime.delivery_systems = "DVB-S family (frontend type)"; break;
+        case FE_QAM: runtime.delivery_systems = "DVB-C/QAM family (frontend type)"; break;
+        case FE_OFDM: runtime.delivery_systems = "DVB-T/OFDM family (frontend type)"; break;
+        default: runtime.delivery_systems = "Unknown frontend type"; break;
+        }
+    }
+    fe_status_t frontend_status{};
+    if (ioctl(fd, FE_READ_STATUS, &frontend_status) == 0) runtime.signal_lock = (frontend_status & FE_HAS_LOCK) != 0;
+    runtime.signal_percent = legacy_metric_percent(fd, FE_READ_SIGNAL_STRENGTH);
+    runtime.quality_percent = legacy_metric_percent(fd, FE_READ_SNR);
+    close(fd);
+    status = "Tuner runtime status captured.";
     return true;
 }
 

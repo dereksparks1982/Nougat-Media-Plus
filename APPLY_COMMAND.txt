@@ -1,14 +1,14 @@
-Nougat Media Suite v0.0.38 repaired changed-files candidate
+Nougat Media Suite v0.0.39 rejected-build repair
 
 Package:
-Nougat_Media_Suite_v0_0_38_REPAIRED_CANDIDATE_2_CHANGED_FILES_ONLY.zip
+Nougat_Media_Suite_v0_0_39_REJECTED_BUILD_DIAGNOSTIC_NAME_UI_SHEET_REPAIR_CHANGED_FILES_ONLY.zip
 
 Apply from Ubuntu Terminal:
 cd "$HOME/Downloads"
-package="Nougat_Media_Suite_v0_0_38_REPAIRED_CANDIDATE_2_CHANGED_FILES_ONLY.zip"
-candidate="$HOME/Downloads/Nougat_Media_Suite_v0_0_38_REPAIR_$(date +%Y%m%d_%H%M%S)"
+package="Nougat_Media_Suite_v0_0_39_REJECTED_BUILD_DIAGNOSTIC_NAME_UI_SHEET_REPAIR_CHANGED_FILES_ONLY.zip"
+candidate="$HOME/Downloads/Nougat_Media_Suite_v0_0_39_REPAIR_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$candidate"
 unzip "$package" -d "$candidate"
-bash "$candidate/INSTALL_NOUGAT_MEDIA_SUITE_v0_0_38.sh"
+bash "$candidate/INSTALL_NOUGAT_MEDIA_SUITE_v0_0_39.sh"
 
-The installer accepts only the exact accepted v0.0.37 touched baseline or the exact known rejected v0.0.38 repair base. It snapshots touched state, validates package hashes fail-closed, builds with warnings as errors, runs retained regression gates, performs the full native build, and atomically replaces the root Nougat_Media_Suite_v38 executable only after validation passes.
+The installer requires the pushed v0.0.38 Git HEAD (9957aa6a4ba439d86cd5b35f580d9cb3a9be1ed1), accepts either v0.0.38 source or the uncommitted rejected v0.0.39 source at that HEAD, runs a no-write dry-run patch/source/diagnostic/full-program warnings-as-errors compile preflight first, snapshots all touched files, repairs in place, builds with warnings-as-errors, runs retained runtime regressions through v0.0.39, installs the root executable, and rolls back automatically if any gate fails.
