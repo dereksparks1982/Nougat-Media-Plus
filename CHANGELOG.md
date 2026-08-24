@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.0.38 - Library, Live TV and Player Exact-Sheet Polish
+
+- Continue Watching adds local movies/episodes after 10 seconds of actual playback, avoiding accidental-open clutter.
+- Repaired Library Search focus/caret/typing visibility and empty-query reset semantics without moving the approved Search row.
+- Reworked Library card text so titles win visible space and technical media details move to stitched hover/focus information.
+- Restored the system-wide loading/progress surface to its original lane directly beneath the top tabs. Determinate loading uses the literal approved-sheet PROGRESS BAR, sized only high enough to contain the percentage, with the percentage carried inside the moving caramel fill.
+- Unified player pointer and media/Live TV information under one three-second activity timer.
+- Preserved the literal approved-sheet seek and VOLUME artwork. The seek keeps its stitched body while only the separate pale underside crop-shadow is omitted; VOLUME keeps its current geometry/artwork and only its small underside crop-shadow is omitted. The VOLUME percentage is black.
+- Added visible approved-sheet-style vertical scrollbars to existing vertically scrollable surfaces, including Discover, Live TV Guide, Search results/Crawl/Peers, and System diagnostics, while preserving all existing mouse-wheel scrolling.
+- Live TV Guide remains the single guide destination: the redundant Channels control is removed, Guide stays in place, and the guide grid remains the default Live TV surface.
+- Moved only Detect Tuner and Refresh Tuner from Live TV to System; Scan Channels, Watch Live, Guide, Refresh Guide, and Record remain on Live TV.
+- Replaced duplicate numbered channel-logo badges with locally packaged real broadcaster/network artwork where identified (including NBC, PBS, PBS Kids, Telemundo, ABC, CBS, FOX, CW, MeTV, ION, ION Plus, Create, Bounce, Busted, and ShopLC); unknown stations fall back to call-sign text rather than another channel number.
+- Live TV retains remembered/keyboard channel selection, current-program identity, and aligned broadcast program timing.
+- Made installer baseline hash validation fail-closed.
+- Preserved the accepted Live TV playback/timeshift path while documenting further timeshift characterization for later DVR work.
+
 ## v0.0.37 - Native Live TV Watch + Classic Guide + System/Visual Repair
 - Renamed Debug to System and moved server Start/Stop/Refresh controls out of Library.
 - Unified Continue Watching card size with normal Home cards.

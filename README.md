@@ -1,6 +1,26 @@
-# Nougat Media Suite v0.0.37
+# Nougat Media Suite v0.0.38
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+
+## v0.0.38 - Library, Live TV and Player Exact-Sheet Polish
+
+v0.0.38 continues from accepted v0.0.37 and focuses on the explicitly approved owner-visible repairs without changing the proven Live TV playback pipeline or relocating unrelated UI.
+
+### v0.0.38 changes
+
+- Library Search behaves as a true focused text field with visible dark text/caret, immediate typing, select-all/backspace behavior, and empty-query reset, in its existing approved position.
+- Continue Watching admits local movies/episodes after 10 seconds of actual playback, filtering out shorter accidental opens.
+- Library cards prioritize complete titles, wrap when practical, and move codec/resolution/audio details into a Nougat-style hover/focus popup.
+- The loading/progress bar is back in its original system-wide lane directly below the top navigation. Determinate loading uses the literal approved-sheet PROGRESS BAR; its height is only large enough to contain the percentage, and the percentage rides inside the moving caramel fill.
+- Player pointer and title/program information share one three-second activity timer in normal, resized, maximized and fullscreen playback.
+- The approved-sheet seek and volume artwork remains the authority. Seek retains its stitched artwork and drops only the separate pale underside crop-shadow. Volume keeps its current centered geometry and artwork, drops only its small pale underside crop-shadow, and restores the percentage text to black.
+- Existing mouse-wheel scrolling remains unchanged. Visible approved-sheet-style vertical scrollbars are added to vertically scrollable surfaces that lacked one, including Discover, Live TV Guide, Search results/Crawl/Peers, and System diagnostics; Library/Home retain their existing scrollbars.
+- Live TV uses Guide as the single guide-view control. The redundant Channels button is removed and the guide grid remains the default Live TV surface.
+- Detect Tuner and Refresh Tuner move to System with the other system/hardware controls. Scan Channels, Watch Live, Guide, Refresh Guide, and Record remain on Live TV.
+- Live TV channel icon slots use locally packaged real network/broadcaster marks where identified (NBC, PBS, PBS Kids, Telemundo, ABC, CBS, FOX, CW, MeTV, ION, ION Plus, Create, Bounce, Busted, ShopLC). Unknown stations use call-sign text rather than duplicate numbered badges.
+- Live TV retains remembered selection, Up/Down + Enter tuning, current-program identity, and aligned broadcast program timing.
+- Installer baseline validation is fail-closed so a hash mismatch cannot print FAIL and later report the same preflight as passed.
 
 ## v0.0.37 - Native Live TV Watch + Classic Guide + System/Visual Repair
 

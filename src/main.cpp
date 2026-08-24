@@ -747,7 +747,10 @@ public:
         for (const auto& entry : records_) {
             const ResumeRecord& record = entry.second;
             if (record.completed || record.path.empty() || !exists_file(record.path)) continue;
-            if (record.position_ms < 30000) continue;
+            // v0.0.38 owner rule: ten seconds of actual local playback is
+            // enough to enter Continue Watching. Accidental opens below that
+            // threshold stay out of the Home shelf.
+            if (record.position_ms < 10000) continue;
             if (record.duration_ms > 0 && record.position_ms >= std::max<long long>(0, record.duration_ms - 30000)) continue;
             result.push_back(record);
         }
@@ -912,7 +915,7 @@ public:
     Rect nougatSearchRect, nougatSearchBtn, nougatRawBtn, nougatPeersToggleBtn, nougatResultsBox;
     Rect nougatCrawlSeedRect, nougatCrawlMinusBtn, nougatCrawlPlusBtn, nougatSameDomainBtn, nougatStartCrawlBtn, nougatCrawlLogBox;
     Rect nougatPeerEntryRect, nougatAddPeerBtn, nougatRemovePeerBtn, nougatNodeBtn, nougatPeerListBox;
-    Rect liveTvDetectBtn, liveTvRefreshBtn, liveTvScanBtn, liveTvWatchBtn, liveTvChannelsBtn, liveTvGuideBtn, liveTvGuideRefreshBtn, liveTvNowBtn, liveTvRecordBtn, liveTvListBox;
+    Rect liveTvDetectBtn, liveTvRefreshBtn, liveTvScanBtn, liveTvWatchBtn, liveTvGuideBtn, liveTvGuideRefreshBtn, liveTvRecordBtn, liveTvListBox;
     VlcApi api; std::string vlcErr;
     libvlc_instance_t* inst=nullptr; libvlc_media_player_t* mp=nullptr;
     bool running=true, paused=false, fullscreen=false, hasMedia=false, needResumePrompt=false;
@@ -1000,17 +1003,23 @@ public:
     static constexpr int kSheetSeekH = 20;
     static constexpr int kSheetSeekSpriteH = 33;
     static constexpr int kSheetSeekFrames = 101;
+    static constexpr int kSheetProgressW = 279;
+    static constexpr int kSheetProgressH = 40;
+    static constexpr int kSheetProgressFrames = 101;
     static constexpr int kServerStatusDiameter = 20;
     std::vector<unsigned char> sheetVolumeRgb;
     bool sheetVolumeLoaded = false;
     std::vector<unsigned char> sheetSeekRgba;
     bool sheetSeekLoaded = false;
+    std::vector<unsigned char> sheetProgressRgb;
+    bool sheetProgressLoaded = false;
     StreamPlatform streamPlatform = StreamPlatform::YouTube;
     LibraryDisplayMode libraryMovieView = LibraryDisplayMode::Grid;
     LibraryDisplayMode libraryTvView = LibraryDisplayMode::Grid;
     std::string librarySearchQuery;
     bool librarySearchFocused = false;
     bool librarySearchSelectAll = false;
+    bool librarySelectionFromKeyboard = false;
     bool tvAutoplayArmed = false;
     bool playbackEndHandled = false;
     std::vector<reddmedia::LibraryNode> tvAutoplayQueue;
@@ -1040,7 +1049,8 @@ public:
     bool stoppedPlaybackVisible = false;
     long long stoppedPlaybackPositionMs = 0;
     long long lastResumePersistMs = 0;
-    long long lastFullscreenOverlayMotionMs = 0;
+    long long lastPlayerActivityMotionMs = 0;
+    bool playerActivityOverlayVisible = false;
     std::shared_ptr<HomeUiState> homeState = std::make_shared<HomeUiState>();
     std::thread homeWorker;
     std::atomic<bool> homeNeedsRefresh{false};
@@ -1087,7 +1097,9 @@ public:
     std::vector<LiveTvHitbox> liveTvChannelHitboxes;
     int liveTvSelectedTuner = -1;
     int liveTvSelectedChannel = -1;
-    bool liveTvGuideMode = false;
+    std::map<std::string, reddmedia::LibraryPoster> liveTvLogoCache;
+    std::set<std::string> liveTvLogoAttempted;
+    bool liveTvGuideMode = true;
     int liveTvGuideChannelScroll = 0;
     int liveTvGuideTimeOffsetSlots = 0;
     Time liveTvLastClickTime = 0;
@@ -1671,6 +1683,15 @@ public:
                component_to_visual_mask(b, visual->blue_mask);
     }
 
+    static unsigned char visual_mask_to_component(unsigned long pixel, unsigned long mask) {
+        if (mask == 0) return 0;
+        int shift = 0;
+        unsigned long scaledMask = mask;
+        while ((scaledMask & 1UL) == 0UL) { scaledMask >>= 1U; ++shift; }
+        const unsigned long value = (pixel & mask) >> shift;
+        return static_cast<unsigned char>((value * 255UL + scaledMask / 2UL) / scaledMask);
+    }
+
     struct SheetRgb { unsigned char r=0, g=0, b=0; };
 
     SheetRgb sheet_rgb_from_pixel(unsigned long pixel) const {
@@ -2085,6 +2106,7 @@ public:
         init_quilt_tiles();
         sheetVolumeLoaded = load_sheet_volume_frames();
         sheetSeekLoaded = load_sheet_seek_frames();
+        sheetProgressLoaded = load_sheet_progress_frames();
         layout();
         video = XCreateSimpleWindow(d, win, 10, 42, W-20, H-120, 0, BlackPixel(d,screen), BlackPixel(d,screen));
         XSelectInput(d, video, ExposureMask|ButtonPressMask|PointerMotionMask|EnterWindowMask|LeaveWindowMask|KeyPressMask);
@@ -2117,6 +2139,7 @@ public:
         else mediaServer.refresh();
         liveTvChannels = tunerBackend.load_channels();
         liveTvPrograms = tunerBackend.load_guide();
+        restore_live_tv_last_channel();
         {
             std::lock_guard<std::mutex> lock(serverState->mutex);
             serverState->status = server_control_label();
@@ -2254,8 +2277,9 @@ public:
         // actual track inside that sprite.
         const int volumeHousingW = kSheetVolumeW;
         const int volumeHousingH = kSheetVolumeH;
-        const int volumePercentReserve = 58;
-        const int volumeHousingX = std::max(10, (W - volumeHousingW - volumePercentReserve) / 2);
+        // v0.0.38: center the physical sheet housing itself. The percentage is
+        // positioned afterward and never participates in centering math.
+        const int volumeHousingX = std::max(10, (W - volumeHousingW) / 2);
         const int volumeHousingY = H - 83;
         volumeHousingRect = {volumeHousingX, volumeHousingY, volumeHousingW, volumeHousingH};
         volRect = {volumeHousingX + 50, volumeHousingY + 15, 229, 16};
@@ -2340,7 +2364,10 @@ public:
         libraryVerticalScrollTrack = {libraryScrollX, libraryListBox.y, 12, libraryListBox.h};
 
         const Rect liveFrame=page_content_frame(ViewMode::LiveTV);
-        layout_button_row({&liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvChannelsBtn,&liveTvGuideBtn,&liveTvGuideRefreshBtn,&liveTvNowBtn,&liveTvRecordBtn},
+        // v0.0.38 owner-approved Live TV toolbar: tuner administration moved
+        // to System; redundant Channels button removed. Guide stays in place
+        // as the single guide-view control.
+        layout_button_row({&liveTvScanBtn,&liveTvWatchBtn,&liveTvGuideBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn},
                           kPageControlY, liveTvButtonsScrollX);
         liveTvListBox={liveFrame.x+16,96,std::max(180,liveFrame.w-32),std::max(100,liveFrame.y+liveFrame.h-108)};
 
@@ -2356,7 +2383,7 @@ public:
         // v0.0.37: System owns administrative server controls. Library stays
         // focused on media/catalog actions, while Start/Stop/Refresh Server
         // live with diagnostics, logs, exports, and maintenance tools here.
-        layout_button_row({&serverStartBtn,&serverStopBtn,&serverRefreshBtn,
+        layout_button_row({&serverStartBtn,&serverStopBtn,&serverRefreshBtn,&liveTvDetectBtn,&liveTvRefreshBtn,
                            &debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugLogsBtn,&debugCopyBtn,
                            &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn},
                           kPageControlY, debugButtonsScrollX);
@@ -2507,12 +2534,30 @@ public:
         return identity;
     }
 
+    const reddmedia::LiveTvProgram* current_live_tv_program(long long now_unix) const {
+        if (!currentMediaIsLiveTv || liveTvPlayingChannel < 0 ||
+            liveTvPlayingChannel >= static_cast<int>(liveTvChannels.size())) return nullptr;
+        const std::string& channel_id = liveTvChannels[static_cast<std::size_t>(liveTvPlayingChannel)].id;
+        for (const auto& program : liveTvPrograms) {
+            if (program.channel_id != channel_id || program.duration_seconds <= 0) continue;
+            const long long end = program.start_unix + program.duration_seconds;
+            if (program.start_unix <= now_unix && now_unix < end) return &program;
+        }
+        return nullptr;
+    }
+
     std::string current_media_identity() const {
+        if (currentMediaIsLiveTv && !liveTvPlayingLabel.empty()) {
+            std::string identity = liveTvPlayingLabel;
+            if (const auto* program = current_live_tv_program(static_cast<long long>(std::time(nullptr)))) {
+                if (!program->title.empty()) identity += "  •  " + program->title;
+            }
+            return identity;
+        }
         if (activeLibraryItemValid && !activeLibraryItem.path.empty() && activeLibraryItem.path == currentPath) {
             return media_identity_for_node(activeLibraryItem);
         }
         if (!currentPath.empty()) return stem_only(currentPath);
-        if (currentMediaIsLiveTv && !liveTvPlayingLabel.empty()) return liveTvPlayingLabel;
         if (currentMediaIsYtDlpStream && !ytdlpUrl.empty()) return ytdlpUrl;
         return "";
     }
@@ -3313,8 +3358,7 @@ public:
             button_on(video, videoBackLibraryBtn, "Back to Library");
             return;
         }
-        if (fullscreen && hasMedia && vlcErr.empty() &&
-            now_ms() - lastFullscreenOverlayMotionMs < 3000) {
+        if (fullscreen && hasMedia && vlcErr.empty() && playerActivityOverlayVisible) {
             const std::string identity = current_media_identity();
             if (!identity.empty()) {
                 const Rect label{18, 18, std::min(videoW - 36, std::max(220, text_width(identity) + 28)), 34};
@@ -3372,7 +3416,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.37";
+        const std::string versionLabel = "v0.0.38";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -3681,7 +3725,6 @@ public:
     }
 
     void draw_seek_time_row(Drawable target) {
-        const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
         const unsigned long caramel = rgb8(170,91,24);
         const unsigned long caramelLight = rgb8(218,156,82);
         const unsigned long creamTrack = rgb8(247,236,217);
@@ -3692,11 +3735,24 @@ public:
         draw_quilted_background(target, {0, std::max(0, seekRect.y-7), W, seekRect.h+46}, ViewMode::VideoPlayer);
 
         long long t=0,l=0;
-        if (mp) { t=playback_time_ms(); l=playback_length_ms(); }
+        bool liveProgramTiming=false;
+        long long liveProgramStart=0;
+        long long liveProgramEnd=0;
+        if (currentMediaIsLiveTv) {
+            const long long nowUnix=static_cast<long long>(std::time(nullptr));
+            if (const auto* program=current_live_tv_program(nowUnix)) {
+                liveProgramStart=program->start_unix;
+                liveProgramEnd=program->start_unix+program->duration_seconds;
+                l=static_cast<long long>(program->duration_seconds)*1000LL;
+                t=std::max(0LL,std::min(l,(nowUnix-liveProgramStart)*1000LL));
+                liveProgramTiming=true;
+            }
+        }
+        if (!liveProgramTiming && mp) { t=playback_time_ms(); l=playback_length_ms(); }
         int pos = 0;
         int seekPercent = 0;
         if (l > 0) {
-            update_chapter_marks(false);
+            if (!currentMediaIsLiveTv) update_chapter_marks(false);
             pos = std::max(0, std::min(seekRect.w, (int)((double)t / (double)l * seekRect.w)));
             seekPercent = std::max(0, std::min(100, static_cast<int>((t * 100 + l / 2) / l)));
         }
@@ -3717,7 +3773,7 @@ public:
             draw_sheet_knob(target, knobCenterX, seekRect.y + seekRect.h / 2, knobD,
                             trackBorder, rgb8(225,188,132), rgb8(249,222,177));
         }
-        if (l > 0) {
+        if (l > 0 && !currentMediaIsLiveTv) {
             for (long long markMs : chapterMarksMs) {
                 if (markMs <= 0 || markMs >= l) continue;
                 int mx = seekRect.x + (int)((double)markMs / (double)l * seekRect.w);
@@ -3729,11 +3785,27 @@ public:
         const std::string currentText = format_time(t);
         const std::string totalText = format_time(l);
         const int timeY = seekRect.y + seekRect.h / 2 + 5;
-        const int sideGap = 12;
-        text(target, std::max(10, seekRect.x - sideGap - text_width(currentText)),
-             timeY, currentText, palette.text);
-        text(target, std::min(W - text_width(totalText) - 10, seekRect.x + seekRect.w + sideGap),
-             timeY, totalText, palette.text);
+        const int leftTextX = 24;
+        const int rightEdge = W - 24;
+        const unsigned long timingText = rgb8(0, 0, 0);
+        text(target, leftTextX, timeY, currentText, timingText);
+        text(target, rightEdge - text_width(totalText), timeY, totalText, timingText);
+
+        if (liveProgramTiming) {
+            const auto clockText=[](long long unixTime) {
+                std::time_t raw=static_cast<std::time_t>(unixTime);
+                std::tm local{};
+                localtime_r(&raw,&local);
+                char buffer[32]{};
+                std::strftime(buffer,sizeof(buffer),"%-I:%M %p",&local);
+                return std::string(buffer);
+            };
+            const std::string startText=clockText(liveProgramStart);
+            const std::string endText=clockText(liveProgramEnd);
+            const int clockY=timeY+17;
+            text(target,leftTextX,clockY,startText,timingText);
+            text(target,rightEdge-text_width(endText),clockY,endText,timingText);
+        }
     }
 
     bool load_sheet_seek_frames() {
@@ -3784,11 +3856,9 @@ public:
                 int sx=0;
                 if (x < cap) sx = std::min(kSheetSeekW-1,x);
                 else if (x >= targetW-cap) sx = std::max(0,kSheetSeekW-(targetW-x));
-                else if (x >= dstCenter-knobHalf && x <= dstCenter+knobHalf) {
-                    sx = srcCenter + (x-dstCenter);
-                } else if (x < dstCenter-knobHalf) {
-                    sx = map_segment(x,cap,std::max(cap+1,dstCenter-knobHalf),
-                                     cap,std::max(cap+1,srcCenter-knobHalf));
+                else if (x >= dstCenter-knobHalf && x <= dstCenter+knobHalf) sx = srcCenter + (x-dstCenter);
+                else if (x < dstCenter-knobHalf) {
+                    sx = map_segment(x,cap,std::max(cap+1,dstCenter-knobHalf),cap,std::max(cap+1,srcCenter-knobHalf));
                 } else {
                     sx = map_segment(x,std::min(targetW-cap-1,dstCenter+knobHalf),targetW-cap,
                                      std::min(kSheetSeekW-cap-1,srcCenter+knobHalf),kSheetSeekW-cap);
@@ -3800,55 +3870,101 @@ public:
             }
         }
 
+        const int spriteY = seekRect.y - (targetH - kSheetSeekH) / 2;
+        XImage* image = XGetImage(d, target, seekRect.x, spriteY,
+                                  static_cast<unsigned>(targetW), static_cast<unsigned>(targetH),
+                                  AllPlanes, ZPixmap);
+        if (!image) return;
+        Visual* visual = DefaultVisual(d, screen);
+        // Preserve the literal RGBA sheet artwork, including the stitched edge
+        // and antialiasing, by compositing it onto the already-painted quilt.
+        // Rows 26-32 are the separate pale underside crop-shadow region, not
+        // the stitched progress-bar body. Leave those rows transparent so the
+        // quilt continues directly beneath the approved component without
+        // changing any of the retained sheet pixels in rows 0-25.
+        const int compositeH = std::min(targetH, 26);
+        for (int y=0; y<compositeH; ++y) {
+            for (int x=0; x<targetW; ++x) {
+                const std::size_t i=(static_cast<std::size_t>(y)*targetW+static_cast<std::size_t>(x))*4U;
+                const unsigned a=scaled[i+3U];
+                if (a==0U) continue;
+                const unsigned long dst=XGetPixel(image,x,y);
+                const unsigned char dr=visual_mask_to_component(dst,visual->red_mask);
+                const unsigned char dg=visual_mask_to_component(dst,visual->green_mask);
+                const unsigned char db=visual_mask_to_component(dst,visual->blue_mask);
+                const auto blend=[a](unsigned char src,unsigned char bg) {
+                    return static_cast<unsigned char>((static_cast<unsigned>(src)*a + static_cast<unsigned>(bg)*(255U-a) + 127U)/255U);
+                };
+                XPutPixel(image,x,y,visual_pixel(blend(scaled[i],dr),blend(scaled[i+1U],dg),blend(scaled[i+2U],db)));
+            }
+        }
+        if (compositeH > 0) {
+            XPutImage(d,target,gc,image,0,0,seekRect.x,spriteY,
+                      static_cast<unsigned>(targetW),static_cast<unsigned>(compositeH));
+        }
+        XDestroyImage(image);
+    }
+
+    bool load_sheet_progress_frames() {
+        const std::string path = exe_dir() + "/assets/ui/nougat_progress_sheet_frames.bin";
+        std::ifstream in(path, std::ios::binary);
+        if (!in) return false;
+        char magic[8] = {};
+        std::uint32_t width=0, height=0, frames=0, channels=0;
+        in.read(magic, 8);
+        in.read(reinterpret_cast<char*>(&width), sizeof(width));
+        in.read(reinterpret_cast<char*>(&height), sizeof(height));
+        in.read(reinterpret_cast<char*>(&frames), sizeof(frames));
+        in.read(reinterpret_cast<char*>(&channels), sizeof(channels));
+        if (!in || std::memcmp(magic, "NPROGSP1", 8) != 0 ||
+            width != kSheetProgressW || height != kSheetProgressH ||
+            frames != kSheetProgressFrames || channels != 3U) return false;
+        const std::size_t expected = static_cast<std::size_t>(width) * height * frames * channels;
+        sheetProgressRgb.assign(expected, 0);
+        in.read(reinterpret_cast<char*>(sheetProgressRgb.data()), static_cast<std::streamsize>(expected));
+        if (!in || static_cast<std::size_t>(in.gcount()) != expected) {
+            sheetProgressRgb.clear();
+            return false;
+        }
+        return true;
+    }
+
+    void draw_sheet_progress_frame(Drawable target, const Rect& r, int percent) {
+        if (!sheetProgressLoaded || sheetProgressRgb.empty() || r.w <= 0 || r.h <= 0) return;
+        percent = std::max(0, std::min(100, percent));
+        const std::size_t frameBytes = static_cast<std::size_t>(kSheetProgressW) * kSheetProgressH * 3U;
+        const unsigned char* source = sheetProgressRgb.data() + frameBytes * static_cast<std::size_t>(percent);
         const int depth = DefaultDepth(d, screen);
         const int bytesPerPixel = depth <= 16 ? 2 : 4;
         char* imageData = static_cast<char*>(std::calloc(
-            static_cast<std::size_t>(targetW) * targetH, static_cast<std::size_t>(bytesPerPixel)));
+            static_cast<std::size_t>(r.w) * r.h, static_cast<std::size_t>(bytesPerPixel)));
         if (!imageData) return;
-        for (int y=0; y<targetH; ++y) {
-            for (int x=0; x<targetW; ++x) {
-                const std::size_t si=(static_cast<std::size_t>(y)*targetW+static_cast<std::size_t>(x))*4U;
-                const unsigned long pixel=visual_pixel(scaled[si],scaled[si+1U],scaled[si+2U]);
+        const int srcTop=3;
+        const int srcBottom=34; // omit pale external underside shadow from sheet crop
+        const int cap=18;
+        for (int y=0; y<r.h; ++y) {
+            const int sy=srcTop + (r.h<=1 ? 0 : y*(srcBottom-srcTop)/(r.h-1));
+            for (int x=0; x<r.w; ++x) {
+                int sx=0;
+                if (x<cap) sx=x*cap/std::max(1,cap);
+                else if (x>=r.w-cap) sx=kSheetProgressW-cap + (x-(r.w-cap))*cap/std::max(1,cap);
+                else sx=cap + (x-cap)*std::max(1,kSheetProgressW-2*cap)/std::max(1,r.w-2*cap);
+                sx=std::max(0,std::min(kSheetProgressW-1,sx));
+                const std::size_t si=(static_cast<std::size_t>(sy)*kSheetProgressW+static_cast<std::size_t>(sx))*3U;
+                const unsigned long pixel=visual_pixel(source[si],source[si+1U],source[si+2U]);
                 std::memcpy(imageData +
-                    (static_cast<std::size_t>(y)*targetW+static_cast<std::size_t>(x))*static_cast<std::size_t>(bytesPerPixel),
+                    (static_cast<std::size_t>(y)*r.w+static_cast<std::size_t>(x))*static_cast<std::size_t>(bytesPerPixel),
                     &pixel, static_cast<std::size_t>(bytesPerPixel));
             }
         }
-        XImage* image=XCreateImage(d,DefaultVisual(d,screen),depth,ZPixmap,0,imageData,targetW,targetH,32,0);
+        XImage* image=XCreateImage(d,DefaultVisual(d,screen),depth,ZPixmap,0,imageData,r.w,r.h,32,0);
         if (!image) { std::free(imageData); return; }
-        const int spriteY = seekRect.y - (targetH - kSheetSeekH) / 2;
-
-        // X11 ZPixmap has no alpha compositing. Copy only solid interior runs.
-        // The old >=128 span conversion promoted translucent anti-alias pixels
-        // into an opaque white halo. A solid threshold plus boundary-white
-        // suppression keeps the sheet model while removing that rectangle/halo.
-        for (int row=0; row<targetH; ++row) {
-            int run=-1;
-            for (int x=0; x<=targetW; ++x) {
-                bool opaque=false;
-                if (x<targetW) {
-                    const std::size_t i=(static_cast<std::size_t>(row)*targetW+static_cast<std::size_t>(x))*4U;
-                    const unsigned a=scaled[i+3U];
-                    opaque=a>=220U;
-                    if (opaque && scaled[i]>238U && scaled[i+1U]>238U && scaled[i+2U]>232U) {
-                        bool exterior=false;
-                        for (int oy=-1;oy<=1 && !exterior;++oy) for (int ox=-1;ox<=1;++ox) {
-                            const int nx=x+ox, ny=row+oy;
-                            if (nx<0||nx>=targetW||ny<0||ny>=targetH) { exterior=true; break; }
-                            const std::size_t ni=(static_cast<std::size_t>(ny)*targetW+static_cast<std::size_t>(nx))*4U;
-                            if (scaled[ni+3U]<80U) { exterior=true; break; }
-                        }
-                        if (exterior) opaque=false;
-                    }
-                }
-                if (opaque && run<0) run=x;
-                if ((!opaque || x==targetW) && run>=0) {
-                    const int last=x-1;
-                    XPutImage(d,target,gc,image,run,row,seekRect.x+run,spriteY+row,
-                              static_cast<unsigned>(last-run+1),1);
-                    run=-1;
-                }
-            }
+        const int radius=std::max(4,r.h/2);
+        for (int row=0; row<r.h; ++row) {
+            const int edgeRow=std::min(row,r.h-1-row);
+            const int inset=edgeRow>=radius ? 0 : rounded_top_inset_for_row(edgeRow,radius);
+            const int width=std::max(0,r.w-inset*2);
+            if (width>0) XPutImage(d,target,gc,image,inset,row,r.x+inset,r.y+row,static_cast<unsigned>(width),1);
         }
         XDestroyImage(image);
     }
@@ -3898,7 +4014,7 @@ public:
                                    kSheetVolumeW,kSheetVolumeH,32,0);
         if (!image) { std::free(imageData); return; }
         const int cornerRadius = 11;
-        for (int row=1; row<kSheetVolumeH-1; ++row) {
+        for (int row=1; row<kSheetVolumeH-2; ++row) {
             const int edgeRow = std::min(row, kSheetVolumeH - 1 - row);
             const int roundedInset = edgeRow >= cornerRadius ? 0 : rounded_top_inset_for_row(edgeRow, cornerRadius);
             const int inset = std::max(1, roundedInset + 1);
@@ -3940,8 +4056,6 @@ public:
         vol = std::max(0,std::min(200,vol));
         volumePercent = vol;
 
-        // Actual sheet label is above the housing, left aligned.
-        text(target, volumeHousingRect.x + 8, volumeHousingRect.y - 5, "VOLUME", palette.text);
         if (sheetVolumeLoaded) {
             draw_sheet_volume_frame(target, vol);
         } else {
@@ -3962,7 +4076,7 @@ public:
             draw_speaker_icon(target, volumeHousingRect.x + volumeHousingRect.w - 34, volumeHousingRect.y + 14, true, icon);
         }
         text(target, volumeHousingRect.x + volumeHousingRect.w + 10, volumeHousingRect.y + 27,
-             std::to_string(vol) + "%", rgb8(166, 95, 28));
+             std::to_string(vol) + "%", rgb8(0, 0, 0));
     }
 
     bool episode_navigation_available(int delta) const {
@@ -3970,6 +4084,24 @@ public:
         const int target = tvAutoplayIndex + delta;
         return target >= 0 && target < static_cast<int>(tvAutoplayQueue.size()) &&
                exists_file(tvAutoplayQueue[static_cast<std::size_t>(target)].path);
+    }
+
+    int relative_live_tv_channel_index(int delta) const {
+        if (!currentMediaIsLiveTv || delta == 0 || liveTvChannels.empty()) return -1;
+        const int current = liveTvPlayingChannel >= 0 ? liveTvPlayingChannel : liveTvSelectedChannel;
+        if (current < 0 || current >= static_cast<int>(liveTvChannels.size())) return -1;
+        const int target = current + delta;
+        return target >= 0 && target < static_cast<int>(liveTvChannels.size()) ? target : -1;
+    }
+
+    bool live_tv_channel_navigation_available(int delta) const {
+        return relative_live_tv_channel_index(delta) >= 0;
+    }
+
+    void play_relative_live_tv_channel(int delta) {
+        const int target = relative_live_tv_channel_index(delta);
+        if (target < 0) return;
+        watch_live_tv_channel(target);
     }
 
     void play_relative_episode(int delta) {
@@ -3992,18 +4124,22 @@ public:
         draw_quilted_background(target, {0, kTopBarH, W, std::max(1, H - kTopBarH)}, ViewMode::VideoPlayer);
         button_on(target, openBtn, "Open");
         button_on(target, rewindBtn, "Rewind 10s");
-        if (episode_navigation_available(-1)) button_on(target, previousBtn, "Previous");
+        if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(-1)) ||
+            (!currentMediaIsLiveTv && episode_navigation_available(-1))) button_on(target, previousBtn, "Previous");
         else draw_disabled_player_button(target, previousBtn, "Previous");
         button_on(target, playBtn, "Play/Pause");
-        if (episode_navigation_available(1)) button_on(target, nextBtn, "Next");
+        if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(1)) ||
+            (!currentMediaIsLiveTv && episode_navigation_available(1))) button_on(target, nextBtn, "Next");
         else draw_disabled_player_button(target, nextBtn, "Next");
         button_on(target, forwardBtn, "Fast Forward 10s");
         button_on(target, stopBtn, "Stop");
         button_on(target, fsBtn, "Fullscreen");
         const int titleStripY = std::max(kTopBarH + 8, seekRect.y - 30);
         draw_quilted_background(target, {10, titleStripY, std::max(1, W - 20), 20}, ViewMode::VideoPlayer);
-        const std::string identity = current_media_identity();
-        if (!identity.empty()) text(target, 16, titleStripY + 15, head_to_width(identity, W - 32), palette_for(ViewMode::VideoPlayer).text);
+        if (playerActivityOverlayVisible) {
+            const std::string identity = current_media_identity();
+            if (!identity.empty()) text(target, 16, titleStripY + 15, head_to_width(identity, W - 32), palette_for(ViewMode::VideoPlayer).text);
+        }
         draw_seek_time_row(target);
         draw_volume_bar(target);
     }
@@ -4014,7 +4150,7 @@ public:
         label.clear();
         if (currentView == ViewMode::Home) {
             std::lock_guard<std::mutex> lock(homeState->mutex);
-            if (homeState->busy) { progress = homeState->progress; label = "Loading..."; return true; }
+            if (homeState->busy) { progress = homeState->progress; determinate = true; label = "Loading..."; return true; }
         }
         {
             std::lock_guard<std::mutex> lock(serverState->mutex);
@@ -4047,7 +4183,7 @@ public:
         }
         if (currentView == ViewMode::Discover) {
             std::lock_guard<std::mutex> lock(discoverState->mutex);
-            if (discoverState->busy) { progress = discoverState->progress; label = "Working..."; return true; }
+            if (discoverState->busy) { progress = discoverState->progress; determinate = true; label = "Working..."; return true; }
         }
         if (currentView == ViewMode::Debug) {
             {
@@ -4074,7 +4210,7 @@ public:
             }
             {
                 std::lock_guard<std::mutex> lock(discoverState->mutex);
-                if (discoverState->busy) { progress = discoverState->progress; label = "Working..."; return true; }
+                if (discoverState->busy) { progress = discoverState->progress; determinate = true; label = "Working..."; return true; }
             }
         }
         return false;
@@ -4086,34 +4222,38 @@ public:
         std::string label;
         if (!loading_state(progress, determinate, label)) return;
 
-        // Keep the activity surface below the top-tab notch.  The old y=27 bar
-        // painted over the selected Home/Library/Debug arrow while work was active.
-        const int strip_y = kTopBarH;
-        const int label_w = determinate ? 58 : 0;
-        const int track_w = std::max(1, W - label_w);
-        const Rect track = {2, strip_y + 1, std::max(1, track_w - 4), 10};
-        const unsigned long trackBorder = rgb8(166,112,56);
-        const unsigned long creamTrack = rgb8(244,229,205);
-        const unsigned long caramel = rgb8(184,111,43);
-        draw_sheet_track(target, track, trackBorder, creamTrack, rgb8(255,246,227));
-        if (determinate) {
-            progress = std::max(0.0, std::min(1.0, progress));
-            const int loaded = std::max(progress > 0.0 ? 2 : 0,
-                                        std::min(track.w, static_cast<int>(progress * track.w)));
-            draw_sheet_track_fill(target, track, loaded, trackBorder, caramel, rgb8(224,173,105));
-            const int percent = static_cast<int>(std::lround(progress * 100.0));
-            Rect chip{track_w, strip_y, label_w, 18};
-            draw_concept_field(target, chip, creamTrack, trackBorder, false);
-            const std::string percent_text = std::to_string(percent) + "%";
-            text(target, chip.x + std::max(4, (chip.w - text_width(percent_text)) / 2),
-                 chip.y + 14, percent_text, rgb8(72,39,20));
-        } else {
-            const int chunk = std::max(80, track.w / 5);
-            const int position = static_cast<int>((now_ms() / 8) % (track.w + chunk)) - chunk;
-            const int begin = std::max(0, position);
-            const int end = std::min(track.w, position + chunk);
-            if (end > begin) draw_sheet_track_segment(target, track, begin, end - begin, trackBorder, caramel, rgb8(224,173,105));
+        // Owner-approved placement: system-wide loading surface remains in its
+        // original lane immediately below the top tabs. No page content is
+        // re-anchored or moved to accommodate it.
+        const int barH=22; // approved percent-bar body: tall enough to contain 0%..100% text cleanly
+        const Rect bar{2,kTopBarH+1,std::max(1,W-4),barH};
+        if (determinate && sheetProgressLoaded) {
+            progress=std::max(0.0,std::min(1.0,progress));
+            const int percent=std::max(0,std::min(100,static_cast<int>(std::lround(progress*100.0))));
+            const std::string pct=std::to_string(percent)+"%";
+            const int textW=text_width(pct);
+            const int trackW=std::max(1,bar.w-20);
+            const int minVisualPercent=std::min(100,std::max(0,(textW+16)*100/trackW));
+            const int renderPercent=std::max(percent,minVisualPercent);
+            draw_sheet_progress_frame(target,bar,renderPercent);
+            const int fillLeft=bar.x+8;
+            const int fillRight=bar.x+bar.w-8;
+            const int leading=fillLeft+(fillRight-fillLeft)*renderPercent/100;
+            const int pctX=std::max(fillLeft+4,std::min(leading-textW-4,fillRight-textW-4));
+            const int pctY=fontInfo ? bar.y + (bar.h + fontInfo->ascent - fontInfo->descent) / 2 : bar.y + bar.h - 5;
+            text(target,pctX,pctY,pct,rgb8(255,244,224));
+            return;
         }
+
+        // Indeterminate work keeps the same approved top lane and the existing
+        // mouse/UI geometry. It does not relocate any page controls.
+        const ViewPalette palette=palette_for(currentView);
+        draw_sheet_track(target,bar,palette.border,palette.field,palette.buttonLight);
+        const int chunk=std::max(80,bar.w/5);
+        const int position=static_cast<int>((now_ms()/8)%(bar.w+chunk))-chunk;
+        const int begin=std::max(0,position);
+        const int finish=std::min(bar.w,position+chunk);
+        if (finish>begin) draw_sheet_track_segment(target,bar,begin,finish-begin,palette.border,palette.button,palette.buttonLight);
     }
 
     void draw_player_controls_only() {
@@ -4124,20 +4264,27 @@ public:
         // VOLUME housing or the time text as pointer/drag updates arrived.
         // Keep a single stable region from above the seek row through the
         // bottom buttons and always remove any stale page clip before drawing.
-        const int y0 = std::max(kTopBarH, seekRect.y - 10);
+        const int titleStripY = std::max(kTopBarH + 8, seekRect.y - 30);
+        const int y0 = std::max(kTopBarH, titleStripY);
         const int h = std::max(0, H - y0);
         if (h <= 0) return;
         XSetClipMask(d, gc, None);
         Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
         draw_quilted_background(buffer, {0, y0, W, h}, ViewMode::VideoPlayer);
+        if (playerActivityOverlayVisible) {
+            const std::string identity = current_media_identity();
+            if (!identity.empty()) text(buffer, 16, titleStripY + 15, head_to_width(identity, W - 32), palette_for(ViewMode::VideoPlayer).text);
+        }
         draw_seek_time_row(buffer);
         draw_volume_bar(buffer);
         button_on(buffer, openBtn, "Open");
         button_on(buffer, rewindBtn, "Rewind 10s");
-        if (episode_navigation_available(-1)) button_on(buffer, previousBtn, "Previous");
+        if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(-1)) ||
+            (!currentMediaIsLiveTv && episode_navigation_available(-1))) button_on(buffer, previousBtn, "Previous");
         else draw_disabled_player_button(buffer, previousBtn, "Previous");
         button_on(buffer, playBtn, "Play/Pause");
-        if (episode_navigation_available(1)) button_on(buffer, nextBtn, "Next");
+        if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(1)) ||
+            (!currentMediaIsLiveTv && episode_navigation_available(1))) button_on(buffer, nextBtn, "Next");
         else draw_disabled_player_button(buffer, nextBtn, "Next");
         button_on(buffer, forwardBtn, "Fast Forward 10s");
         button_on(buffer, stopBtn, "Stop");
@@ -4555,9 +4702,9 @@ public:
             }
             libraryState->busy = true;
             libraryState->updated = false;
-            libraryState->progress = 0.0;
-            libraryState->progress_determinate = false;
-            libraryState->progress_label = "Scanning...";
+            libraryState->progress = 0.02;
+            libraryState->progress_determinate = true;
+            libraryState->progress_label = "Starting...";
             if (operation == 1) libraryState->status = "Linking folder and scanning Jellyfin library...";
             else if (operation == 2) libraryState->status = "Scanning Jellyfin library for changes...";
             else if (operation == 3) libraryState->status = "Unlinking folder and refreshing Jellyfin library...";
@@ -4576,55 +4723,57 @@ public:
         const std::shared_ptr<LibraryUiState> state = libraryState;
         libraryWorker = std::thread([client, engine, metadata_cache, state, operation, folder, parent,
                                      media_type, type_chosen, cache_key, cached_nodes]() mutable {
-            const auto set_indeterminate = [state](const std::string& status, const std::string& label) {
+            const auto set_stage = [state](double progress, const std::string& status, const std::string& label) {
                 std::lock_guard<std::mutex> lock(state->mutex);
                 if (!status.empty()) state->status = status;
-                state->progress = 0.0;
-                state->progress_determinate = false;
+                state->progress = std::max(0.0, std::min(0.99, progress));
+                state->progress_determinate = true;
                 state->progress_label = label;
             };
             const auto set_measured = [state](std::size_t completed, std::size_t total,
                                               const std::string& status) {
                 std::lock_guard<std::mutex> lock(state->mutex);
                 if (!status.empty()) state->status = status;
-                state->progress_determinate = total > 0U;
-                state->progress = total > 0U
+                state->progress_determinate = true;
+                const double ratio = total > 0U
                     ? std::max(0.0, std::min(1.0, static_cast<double>(completed) / static_cast<double>(total)))
-                    : 0.0;
+                    : 1.0;
+                state->progress = 0.45 + ratio * 0.50;
                 state->progress_label = total > 0U
                     ? std::to_string(completed) + " / " + std::to_string(total)
-                    : "Scanning...";
+                    : "Metadata ready";
             };
 
             std::string error;
             bool ok = client->initialize(error);
+            if (ok) set_stage(0.06, "Connected to Nougat media server.", "Connected");
             if (ok && operation == 1) {
-                set_indeterminate("Linking folder and scanning Jellyfin library...", "Scanning...");
+                set_stage(0.10, "Linking folder and scanning Jellyfin library...", "Linking...");
                 ok = client->add_media_folder(folder, media_type, error);
             }
             if (ok && operation == 2) {
-                set_indeterminate("Scanning Jellyfin library for changes...", "Scanning...");
+                set_stage(0.10, "Scanning Jellyfin library for changes...", "Scanning...");
                 ok = client->refresh_library(error);
             }
             if (ok && operation == 3) {
-                set_indeterminate("Unlinking folder and refreshing Jellyfin library...", "Scanning...");
+                set_stage(0.10, "Unlinking folder and refreshing Jellyfin library...", "Unlinking...");
                 ok = client->unlink_media_folder(folder, media_type, error);
             }
 
             std::vector<reddmedia::MediaFolder> folders;
             if (ok) {
-                set_indeterminate("Reading linked media folders...", "Reading...");
+                set_stage(0.25, "Reading linked media folders...", "Folders...");
                 ok = client->load_media_folders(folders, error);
             }
 
             std::vector<reddmedia::LibraryNode> nodes;
             if (ok && operation == 5) {
-                set_indeterminate(cached_nodes.empty() ? "Loading library level..." :
-                                  "Cached metadata ready. Checking this library level...", "Reading...");
+                set_stage(0.38, cached_nodes.empty() ? "Loading library level..." :
+                                  "Cached metadata ready. Checking this library level...", "Titles...");
                 ok = client->load_library_children(parent, nodes, error);
             } else if (ok && type_chosen && operation != 0) {
-                set_indeterminate(cached_nodes.empty() ? "Loading library titles..." :
-                                  "Cached metadata ready. Checking for library changes...", "Reading...");
+                set_stage(0.38, cached_nodes.empty() ? "Loading library titles..." :
+                                  "Cached metadata ready. Checking for library changes...", "Titles...");
                 ok = client->load_library_roots(media_type, nodes, error);
             }
 
@@ -4686,7 +4835,7 @@ public:
                     }
                     set_measured(index + 1U, total, "Updating metadata...");
                 }
-                if (nodes.empty()) set_indeterminate("Library check complete.", "Ready");
+                if (nodes.empty()) set_stage(0.95, "Library check complete.", "Ready");
             }
 
             if (ok && !cache_key.empty()) {
@@ -5437,11 +5586,13 @@ public:
                 fail_refresh("LOCAL is waiting for the Nougat media server: " + error);
                 return;
             }
+            { std::lock_guard<std::mutex> lock(state->mutex); state->progress = 0.08; }
             std::vector<reddmedia::LibraryNode> nodes;
             if (!client->load_all_recommendation_items(nodes, error)) {
                 fail_refresh("Could not load LOCAL media: " + error);
                 return;
             }
+            { std::lock_guard<std::mutex> lock(state->mutex); state->progress = 0.18; }
             nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [](const auto& node) {
                 return node.kind != reddmedia::LibraryNodeKind::Movie &&
                        node.kind != reddmedia::LibraryNodeKind::Series;
@@ -5461,6 +5612,7 @@ public:
                 }
             }
 
+            { std::lock_guard<std::mutex> lock(state->mutex); state->progress = 0.25; }
             std::map<std::string, reddmedia::LibraryNode> series_by_id;
             std::map<std::string, reddmedia::LibraryNode> item_by_id;
             for (const auto& node : nodes) {
@@ -5499,6 +5651,8 @@ public:
                     if (found) break;
                 }
             }
+
+            { std::lock_guard<std::mutex> lock(state->mutex); state->progress = 0.34; }
 
             // v0.0.29 Continue Watching artwork hierarchy:
             // episode Primary still -> matching season poster -> series poster -> Nougat fallback.
@@ -5638,6 +5792,7 @@ public:
                 continue_artwork_nodes[record.path] = std::move(art);
             }
 
+            { std::lock_guard<std::mutex> lock(state->mutex); state->progress = 0.48; }
             std::map<std::string, double> genre_weights;
             auto learn_history = [&genre_weights](const std::vector<reddmedia::ViewingRecord>& history) {
                 const long long now = static_cast<long long>(std::time(nullptr));
@@ -5710,6 +5865,8 @@ public:
                 for (const auto& genre : node.genres) append_genre(genre);
             }
 
+            { std::lock_guard<std::mutex> lock(state->mutex); state->progress = 0.64; }
+
             // Load portrait poster artwork at a display-useful resolution.  Reject
             // tiny or landscape sources instead of stretching them into mush.
             std::map<std::string, reddmedia::LibraryPoster> artwork;
@@ -5751,8 +5908,8 @@ public:
                 ++done;
                 if ((done % 3U) == 0U) {
                     std::lock_guard<std::mutex> lock(state->mutex);
-                    state->progress = std::min(0.95, 0.25 + static_cast<double>(done) /
-                        static_cast<double>(std::max<std::size_t>(1U, artwork_nodes.size())) * 0.7);
+                    state->progress = std::min(0.98, 0.68 + static_cast<double>(done) /
+                        static_cast<double>(std::max<std::size_t>(1U, artwork_nodes.size())) * 0.30);
                 }
             }
 
@@ -5859,6 +6016,36 @@ public:
             XCopyArea(d, source, target, gc, inset, y, static_cast<unsigned>(width), 1,
                       area.x + inset, area.y + y);
         }
+    }
+
+    void copy_pixmap_rounded(Pixmap source, Drawable target, const Rect& area, int radius) {
+        if (area.w <= 0 || area.h <= 0) return;
+        for (int y = 0; y < area.h; ++y) {
+            const int edgeRow = std::min(y, area.h - 1 - y);
+            const int inset = std::min(area.w / 2, rounded_top_inset_for_row(edgeRow, radius));
+            const int width = area.w - inset * 2;
+            if (width <= 0) continue;
+            XCopyArea(d, source, target, gc, inset, y, static_cast<unsigned>(width), 1,
+                      area.x + inset, area.y + y);
+        }
+    }
+
+    void draw_contain_pixels_rounded(Drawable target, const Rect& area,
+                                     const reddmedia::LibraryPoster& poster, int radius,
+                                     unsigned long background) {
+        if (area.w <= 0 || area.h <= 0 || poster.width <= 0 || poster.height <= 0 || poster.rgb.empty()) return;
+        Pixmap tmp = XCreatePixmap(d, win, static_cast<unsigned>(area.w),
+                                   static_cast<unsigned>(area.h), DefaultDepth(d, screen));
+        if (!tmp) return;
+        GC windowGc = gc;
+        GC imageGc = XCreateGC(d, tmp, 0, nullptr);
+        if (!imageGc) { XFreePixmap(d, tmp); return; }
+        gc = imageGc;
+        draw_contain_poster_pixels(tmp, {0,0,area.w,area.h}, poster, background);
+        gc = windowGc;
+        XFreeGC(d, imageGc);
+        copy_pixmap_rounded(tmp, target, area, radius);
+        XFreePixmap(d, tmp);
     }
 
     void draw_cover_pixels_top_rounded(Drawable target, const Rect& area,
@@ -6000,6 +6187,21 @@ public:
         outline_round(target, thumb, thumbRadius, palette.buttonDark);
         Rect thumbInset{thumb.x + 2, thumb.y + 2, std::max(1, thumb.w - 4), std::max(1, thumb.h - 4)};
         outline_round(target, thumbInset, std::max(2, thumbRadius - 2), palette.buttonLight);
+    }
+
+    void draw_visible_vertical_scrollbar(Drawable target, const Rect& box, int offset, int total, int visible,
+                                         const ViewPalette& palette) {
+        if (box.w < 24 || box.h < 28 || total <= 0 || visible <= 0) return;
+        const int maxScroll=std::max(0,total-visible);
+        offset=std::max(0,std::min(offset,maxScroll));
+        Rect track{box.x+box.w-13,box.y+5,10,std::max(18,box.h-10)};
+        const int thumbH=maxScroll>0 ? std::max(30,std::min(track.h,track.h*visible/std::max(visible,total))) : track.h;
+        const int travel=std::max(0,track.h-thumbH);
+        const int thumbY=track.y+(maxScroll>0 ? travel*offset/maxScroll : 0);
+        Rect thumb{track.x,thumbY,track.w,thumbH};
+        // Same approved-sheet scrollbar treatment already used by Home/Library.
+        // This is visual only; existing mouse-wheel behavior is intentionally untouched.
+        draw_home_scrollbar_component(target,track,thumb,palette);
     }
 
     void update_home_vertical_scroll_from_pointer(int pointerY, bool centerThumb) {
@@ -6691,6 +6893,53 @@ public:
         return true;
     }
 
+    std::pair<std::string,std::string> library_title_lines(const std::string& title, int width) {
+        if (title.empty()) return {"",""};
+        if (text_width(title)<=width) return {title,""};
+        std::size_t best=std::string::npos;
+        for (std::size_t pos=title.find(' '); pos!=std::string::npos; pos=title.find(' ',pos+1)) {
+            if (text_width(title.substr(0,pos))<=width) best=pos;
+            else break;
+        }
+        if (best==std::string::npos) return {head_to_width(title,width),""};
+        const std::string first=title.substr(0,best);
+        std::string second=title.substr(best+1);
+        second=head_to_width(second,width);
+        return {first,second};
+    }
+
+    void draw_library_info_popup(Drawable target, const std::vector<reddmedia::LibraryNode>& nodes) {
+        int nodeIndex=-1;
+        for (std::size_t i=0;i<libraryRows.size();++i) {
+            if (libraryRows[i].contains(pointerWindowX,pointerWindowY) && i<libraryRowNodeIndices.size()) {
+                nodeIndex=libraryRowNodeIndices[i]; break;
+            }
+        }
+        if (nodeIndex<0 && librarySelectionFromKeyboard) nodeIndex=librarySelected;
+        if (nodeIndex<0 || nodeIndex>=static_cast<int>(nodes.size())) return;
+        const auto& item=nodes[static_cast<std::size_t>(nodeIndex)];
+        const std::string fullTitle=library_display_title(item);
+        if (item.technical_details.empty() && text_width(fullTitle)<=360) return;
+        const ViewPalette palette=palette_for(ViewMode::Library);
+        const int popupW=std::min(440,std::max(300,W-56));
+        const int popupH=78;
+        int px=pointerWindowX+18;
+        int py=pointerWindowY+18;
+        if (nodeIndex==librarySelected && librarySelectionFromKeyboard) { px=libraryListBox.x+18; py=libraryListBox.y+18; }
+        px=std::max(18,std::min(W-popupW-18,px));
+        py=std::max(kTopBarH+18,std::min(H-popupH-18,py));
+        Rect popup{px,py,popupW,popupH};
+        fill_round(target,popup,8,palette.panel);
+        outline_round(target,popup,8,palette.border);
+        Rect inner{popup.x+2,popup.y+2,popup.w-4,popup.h-4};
+        outline_round_dashed(target,inner,6,palette.buttonLight,2);
+        const auto lines=library_title_lines(fullTitle,popup.w-20);
+        text(target,popup.x+10,popup.y+22,lines.first,palette.text);
+        int y=40;
+        if (!lines.second.empty()) { text(target,popup.x+10,popup.y+y,lines.second,palette.text); y+=17; }
+        if (!item.technical_details.empty()) text(target,popup.x+10,popup.y+y,head_to_width(item.technical_details,popup.w-20),palette.muted);
+    }
+
     void draw_library_screen(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::Library);
         draw_quilted_background(target,{0,32,W,H-32},ViewMode::Library);
@@ -6721,20 +6970,28 @@ public:
                               static_cast<unsigned short>(std::max(1,librarySearchRect.h-6))};
         XSetClipRectangles(d, gc, 0, 0, &searchClip, 1, Unsorted);
         const int searchBaseline = librarySearchRect.y + librarySearchRect.h/2 + 5;
+        // The Library page palette uses cream text on its green surface, but the
+        // approved-sheet INPUT FIELD itself is cream.  Use the sheet's dark
+        // chocolate input ink here so typed text can never disappear into the field.
+        const unsigned long searchInputText = rgb8(54,36,28);
+        const unsigned long searchPlaceholderText = rgb8(124,95,71);
         if (librarySearchQuery.empty()) {
-            // Keep the requested placeholder plainly legible inside the exact-sheet field.
-            text(target, librarySearchRect.x+10, searchBaseline, "Search", palette.text);
+            text(target, librarySearchRect.x+10, searchBaseline, "Search", searchPlaceholderText);
+            if (librarySearchFocused && ((now_ms()/500) % 2 == 0)) {
+                const int caretX = librarySearchRect.x+10;
+                line(target,caretX,librarySearchRect.y+6,caretX,librarySearchRect.y+librarySearchRect.h-7,searchInputText);
+            }
         } else {
             const std::string visibleSearch = tail_to_width(librarySearchQuery, librarySearchRect.w-22);
             if (librarySearchFocused && librarySearchSelectAll) {
                 const int selectedW = std::min(text_width(visibleSearch)+4, std::max(1,librarySearchRect.w-16));
                 fill(target,{librarySearchRect.x+7,librarySearchRect.y+5,selectedW,librarySearchRect.h-10},palette.selection);
             }
-            text(target, librarySearchRect.x+10, searchBaseline, visibleSearch, palette.text);
-            if (librarySearchFocused && !librarySearchSelectAll) {
+            text(target, librarySearchRect.x+10, searchBaseline, visibleSearch, searchInputText);
+            if (librarySearchFocused && !librarySearchSelectAll && ((now_ms()/500) % 2 == 0)) {
                 int caretX = librarySearchRect.x+10+text_width(visibleSearch);
                 caretX = std::min(caretX,librarySearchRect.x+librarySearchRect.w-9);
-                line(target,caretX,librarySearchRect.y+6,caretX,librarySearchRect.y+librarySearchRect.h-7,palette.text);
+                line(target,caretX,librarySearchRect.y+6,caretX,librarySearchRect.y+librarySearchRect.h-7,searchInputText);
             }
         }
         apply_page_clip(ViewMode::Library);
@@ -6785,10 +7042,6 @@ public:
                     if(!details.empty()) details+="  |  ";
                     details+=std::to_string(item.child_count)+(item.kind==reddmedia::LibraryNodeKind::Series?" seasons/items":" items");
                 }
-                if(!item.technical_details.empty()) {
-                    if(!details.empty()) details+="  |  ";
-                    details+=item.technical_details;
-                }
                 const int actionW=60;
                 const int detailsW=std::min(340,std::max(120,row.w/3));
                 text(target,row.x+8,row.y+20,head_to_width(library_display_title(item),row.w-detailsW-actionW-30),palette.text);
@@ -6811,8 +7064,9 @@ public:
                 outline(target,row,palette.border);
                 draw_library_poster(target,{row.x+4,row.y+4,row.w-8,grid.posterHeight},item);
                 const int title_y=row.y+grid.posterHeight+18;
-                text(target,row.x+6,title_y,head_to_width(library_display_title(item),row.w-12),palette.text);
-                if(!item.technical_details.empty()) text(target,row.x+6,title_y+14,head_to_width(item.technical_details,row.w-12),palette.muted);
+                const auto titleLines=library_title_lines(library_display_title(item),row.w-12);
+                text(target,row.x+6,title_y,titleLines.first,palette.text);
+                if(!titleLines.second.empty()) text(target,row.x+6,title_y+14,titleLines.second,palette.text);
                 const bool container=item.kind==reddmedia::LibraryNodeKind::MovieCollection || item.kind==reddmedia::LibraryNodeKind::Series || item.kind==reddmedia::LibraryNodeKind::Season;
                 text(target,row.x+6,row.y+row.h-5,container?"Open":"Play",col(0x9f9f,0xd0d0,0xa7a7));
                 libraryRows.push_back(row);
@@ -6839,12 +7093,120 @@ public:
             libraryVerticalScrollThumb = libraryVerticalScrollTrack;
         }
         draw_home_scrollbar_component(target, libraryVerticalScrollTrack, libraryVerticalScrollThumb, palette);
+        draw_library_info_popup(target,nodes);
+    }
+
+    std::string live_tv_last_channel_file() const {
+        return config_dir() + "/live_tv_last_channel.txt";
+    }
+
+    void save_live_tv_last_channel() {
+        if (liveTvSelectedChannel < 0 || liveTvSelectedChannel >= static_cast<int>(liveTvChannels.size())) return;
+        ensure_config_dir();
+        std::ofstream out(live_tv_last_channel_file(), std::ios::trunc);
+        if (out) out << liveTvChannels[static_cast<std::size_t>(liveTvSelectedChannel)].id << "\n";
+    }
+
+    void restore_live_tv_last_channel() {
+        if (liveTvChannels.empty()) { liveTvSelectedChannel = -1; return; }
+        std::ifstream in(live_tv_last_channel_file());
+        std::string wanted;
+        std::getline(in, wanted);
+        if (!wanted.empty()) {
+            for (std::size_t i=0; i<liveTvChannels.size(); ++i) {
+                if (liveTvChannels[i].id == wanted) { liveTvSelectedChannel = static_cast<int>(i); return; }
+            }
+        }
+        if (liveTvSelectedChannel < 0 || liveTvSelectedChannel >= static_cast<int>(liveTvChannels.size())) liveTvSelectedChannel = 0;
+    }
+
+    static std::string live_tv_logo_key(const reddmedia::LiveTvChannel& channel) {
+        std::string key = channel.id + "_" + channel.name;
+        for (char& c : key) {
+            const unsigned char u=static_cast<unsigned char>(c);
+            if (!std::isalnum(u) && c!='.' && c!='-' && c!='_') c='_';
+        }
+        return key;
+    }
+
+    static std::string live_tv_builtin_network_logo(const reddmedia::LiveTvChannel& channel) {
+        const std::string hay=lower_copy(channel.name+" "+channel.id+" "+channel.service);
+        const auto has=[&hay](const char* value){ return hay.find(value)!=std::string::npos; };
+        if (has("pbs kids") || has("pbskid") || has("kptskid")) return "pbs_kids";
+        if (has("telemundo") || has("t'mundo") || has("tmundo")) return "telemundo";
+        if (has("ksnw") || has(" nbc")) return "nbc";
+        if (has("kpts") || has(" pbs")) return "pbs";
+        if (has("kake") || has(" abc")) return "abc";
+        if (has("kwch") || has(" cbs")) return "cbs";
+        if (has("ksas") || has(" fox")) return "fox";
+        if (has("kscw") || has(" cw")) return "cw";
+        if (has("metv") || has("me tv")) return "metv";
+        if (has("create")) return "create";
+        if (has("bounce")) return "bounce";
+        if (has("shoplc") || has("shop lc")) return "shoplc";
+        if (has("explore")) return "pbs";
+        if (has("busted")) return "busted";
+        if (has("ion plus") || has("ionplus") || has("ion plu")) return "ion_plus";
+        if (has("ion")) return "ion";
+        return {};
+    }
+
+    static bool load_bmp_file(const std::string& path, reddmedia::LibraryPoster& poster) {
+        std::ifstream in(path,std::ios::binary);
+        if (!in) return false;
+        std::ostringstream bytes; bytes << in.rdbuf();
+        std::string error;
+        return reddmedia::decode_library_poster_bmp(bytes.str(),poster,error);
+    }
+
+    bool cached_live_tv_logo(const reddmedia::LiveTvChannel& channel, reddmedia::LibraryPoster& poster) {
+        const std::string key=live_tv_logo_key(channel);
+        const auto cached=liveTvLogoCache.find(key);
+        if (cached!=liveTvLogoCache.end()) { poster=cached->second; return true; }
+        if (!liveTvLogoAttempted.insert(key).second) return false;
+
+        // Owner-approved local network artwork. These files ship with Nougat so
+        // Live TV does not need a runtime web request to identify NBC/PBS/etc.
+        const std::string network=live_tv_builtin_network_logo(channel);
+        if (!network.empty()) {
+            reddmedia::LibraryPoster decoded;
+            if (load_bmp_file(exe_dir()+"/assets/channel_logos/builtin/"+network+".bmp",decoded)) {
+                liveTvLogoCache[key]=decoded; poster=decoded; return true;
+            }
+        }
+
+        // Preserve the existing optional user-supplied station-specific cache.
+        reddmedia::LibraryPoster decoded;
+        if (load_bmp_file(home_dir()+"/.cache/reddmedia/live_tv_logos/"+key+".bmp",decoded)) {
+            liveTvLogoCache[key]=decoded; poster=decoded; return true;
+        }
+        return false;
+    }
+
+    void draw_live_tv_channel_logo(Drawable target, const Rect& slot, const reddmedia::LiveTvChannel& channel,
+                                   const ViewPalette& palette) {
+        reddmedia::LibraryPoster logo;
+        if (cached_live_tv_logo(channel,logo)) {
+            fill_round(target,slot,5,rgb8(247,236,217));
+            draw_contain_pixels_rounded(target,slot,logo,5,rgb8(247,236,217));
+            outline_round(target,slot,5,palette.border);
+            return;
+        }
+        // No duplicate channel-number badge. If no real network art is known,
+        // identify the station by its call sign/name only.
+        fill_round(target,slot,5,rgb8(247,236,217));
+        outline_round(target,slot,5,palette.border);
+        std::string call=channel.name.empty()?channel.id:channel.name;
+        if (call.size()>5U) call=call.substr(0,5U);
+        const int tx=slot.x+std::max(2,(slot.w-text_width(call))/2);
+        text(target,tx,slot.y+slot.h/2+5,head_to_width(call,slot.w-4),rgb8(54,36,22));
     }
 
     void refresh_live_tv_tuners(bool announce=true) {
         std::string status;
         liveTvTuners = tunerBackend.detect(status);
         liveTvChannels = tunerBackend.load_channels();
+        restore_live_tv_last_channel();
         if (liveTvTuners.empty()) liveTvSelectedTuner = -1;
         else if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size())) liveTvSelectedTuner = 0;
         liveTvStatus = status;
@@ -6946,7 +7308,7 @@ public:
         liveTvStatus = status;
         if (!busy && finished) {
             liveTvTunerUse = LiveTvTunerUse::Idle;
-            if (success) { liveTvChannels = std::move(channels); liveTvSelectedChannel = liveTvChannels.empty() ? -1 : 0; }
+            if (success) { liveTvChannels = std::move(channels); restore_live_tv_last_channel(); }
         }
         if (!fullscreen && currentView == ViewMode::LiveTV) redraw();
     }
@@ -7037,6 +7399,8 @@ public:
         if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size())) { liveTvStatus="Detect and select a tuner first."; redraw(); return; }
         if (liveTvTunerUse == LiveTvTunerUse::Scanning || liveTvTunerUse == LiveTvTunerUse::GuideRefreshing) { liveTvStatus="The tuner is busy. Wait for the current tuner job to finish."; redraw(); return; }
         if (currentMediaIsLiveTv) cleanup_player();
+        liveTvSelectedChannel=index;
+        save_live_tv_last_channel();
         const auto& channel=liveTvChannels[static_cast<std::size_t>(index)];
         std::string mrl,status; std::vector<std::string> options;
         if (!tunerBackend.live_playback_input(liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)],channel,mrl,options,status)) { liveTvStatus=status; redraw(); return; }
@@ -7070,14 +7434,10 @@ public:
             guideBusy=liveTvGuideState->busy;
         }
 
-        button_on(target,liveTvDetectBtn,"Detect Tuner");
-        button_on(target,liveTvRefreshBtn,"Refresh Tuner");
         button_on(target,liveTvScanBtn,scanBusy ? "Scanning..." : "Scan Channels");
         button_on(target,liveTvWatchBtn,"Watch Live");
-        button_on(target,liveTvChannelsBtn,"Channels");
         button_on(target,liveTvGuideBtn,"Guide");
         button_on(target,liveTvGuideRefreshBtn,guideBusy ? "Guide..." : "Refresh Guide");
-        button_on(target,liveTvNowBtn,"Now");
         button_on(target,liveTvRecordBtn,"Record");
 
         draw_primary_panel(target, liveTvListBox, palette);
@@ -7089,7 +7449,7 @@ public:
         if (liveTvGuideMode) {
             const int top=liveTvListBox.y+66;
             const int left=liveTvListBox.x+8;
-            const int channelW=132;
+            const int channelW=166;
             const int headerH=34;
             const int rowH=46;
             const int gridX=left+channelW;
@@ -7120,8 +7480,10 @@ public:
                 Rect channelRect{left,ry,channelW,rowH};
                 fill(target,channelRect,index==liveTvSelectedChannel?palette.selection:palette.panel);
                 outline(target,channelRect,palette.border);
-                text(target,channelRect.x+7,channelRect.y+18,channel.id+"  "+channel.name,palette.text);
-                text(target,channelRect.x+7,channelRect.y+36,"RF "+std::to_string(channel.physical_channel),palette.muted);
+                const Rect logoSlot{channelRect.x+6,channelRect.y+7,32,32};
+                draw_live_tv_channel_logo(target,logoSlot,channel,palette);
+                text(target,channelRect.x+44,channelRect.y+18,head_to_width(channel.name,channelRect.w-50),palette.text);
+                text(target,channelRect.x+44,channelRect.y+36,head_to_width(channel.id+"  RF "+std::to_string(channel.physical_channel),channelRect.w-50),palette.muted);
                 liveTvChannelHitboxes.push_back({channelRect,index});
 
                 Rect rowBg{gridX,ry,gridW,rowH};
@@ -7152,6 +7514,7 @@ public:
                 const int nx=gridX+static_cast<int>((now-base)*gridW/(windowEnd-base));
                 line(target,nx,top,nx,std::min(liveTvListBox.y+liveTvListBox.h-8,top+headerH+visibleRows*rowH),rgb8(244,197,72));
             }
+            draw_visible_vertical_scrollbar(target,liveTvListBox,liveTvGuideChannelScroll,static_cast<int>(liveTvChannels.size()),visibleRows,palette);
             if (liveTvPrograms.empty()) {
                 text(target,left+8,liveTvListBox.y+liveTvListBox.h-12,
                      "Press Refresh Guide to collect ATSC PSIP program listings.",palette.muted);
@@ -7170,7 +7533,7 @@ public:
             if (scanQuality>=0) { text(target,liveTvListBox.x+12,y,"Signal quality: "+std::to_string(scanQuality)+"%",palette.muted); y+=20; }
         }
         if (liveTvTuners.empty()) {
-            text(target,liveTvListBox.x+12,y,"No tuner detected yet. Press Detect Tuner.",palette.muted); y+=36;
+            text(target,liveTvListBox.x+12,y,"No tuner detected yet. Open System and press Detect Tuner.",palette.muted); y+=36;
         } else {
             // One owner-visible row per independently usable DVB frontend. Raw
             // VBI/video nodes stay implementation details instead of fake tuners.
@@ -7197,15 +7560,13 @@ public:
             liveTvChannelHitboxes.push_back({hit,index});
             y+=26;
         }
+        draw_visible_vertical_scrollbar(target,liveTvListBox,liveTvGuideChannelScroll,static_cast<int>(liveTvChannels.size()),visibleRows,palette);
     }
 
     void handle_live_tv_click(int x,int y, Time eventTime) {
-        if (liveTvDetectBtn.contains(x,y) || liveTvRefreshBtn.contains(x,y)) { refresh_live_tv_tuners(true); redraw(); return; }
         if (liveTvScanBtn.contains(x,y)) { start_live_tv_scan(); redraw(); return; }
-        if (liveTvChannelsBtn.contains(x,y)) { liveTvGuideMode=false; redraw(); return; }
         if (liveTvGuideBtn.contains(x,y)) { liveTvGuideMode=true; liveTvPrograms=tunerBackend.load_guide(); redraw(); return; }
         if (liveTvGuideRefreshBtn.contains(x,y)) { liveTvGuideMode=true; start_live_tv_guide_refresh(); redraw(); return; }
-        if (liveTvNowBtn.contains(x,y)) { liveTvGuideTimeOffsetSlots=0; liveTvGuideMode=true; redraw(); return; }
         if (liveTvWatchBtn.contains(x,y)) { watch_live_tv_channel(liveTvSelectedChannel); return; }
         if (liveTvRecordBtn.contains(x,y)) { liveTvStatus="Recording is reserved for the next DVR stage; Watch Live and Guide are active first."; redraw(); return; }
 
@@ -7214,11 +7575,29 @@ public:
             const bool doubleClick=hit.channel_index==liveTvLastClickChannel && liveTvLastClickTime!=0 &&
                 eventTime>=liveTvLastClickTime && eventTime-liveTvLastClickTime<=450;
             liveTvSelectedChannel=hit.channel_index;
+            save_live_tv_last_channel();
             liveTvLastClickChannel=hit.channel_index; liveTvLastClickTime=eventTime;
             if (doubleClick) { liveTvLastClickTime=0; watch_live_tv_channel(hit.channel_index); return; }
             liveTvStatus="Selected "+liveTvChannels[static_cast<std::size_t>(hit.channel_index)].id+" "+
                 liveTvChannels[static_cast<std::size_t>(hit.channel_index)].name+". Double-click or press Watch Live.";
             redraw(); return;
+        }
+    }
+
+    void handle_live_tv_key(KeySym ks) {
+        const int count=static_cast<int>(liveTvChannels.size());
+        if (count<=0) return;
+        if (liveTvSelectedChannel<0 || liveTvSelectedChannel>=count) liveTvSelectedChannel=0;
+        if (ks==XK_Up || ks==XK_Down) {
+            liveTvSelectedChannel=std::max(0,std::min(count-1,liveTvSelectedChannel+(ks==XK_Up?-1:1)));
+            save_live_tv_last_channel();
+            const int visibleRows=std::max(1,(liveTvListBox.h-108)/46);
+            if (liveTvSelectedChannel<liveTvGuideChannelScroll) liveTvGuideChannelScroll=liveTvSelectedChannel;
+            else if (liveTvSelectedChannel>=liveTvGuideChannelScroll+visibleRows)
+                liveTvGuideChannelScroll=std::max(0,liveTvSelectedChannel-visibleRows+1);
+            redraw();
+        } else if (ks==XK_Return || ks==XK_KP_Enter) {
+            watch_live_tv_channel(liveTvSelectedChannel);
         }
     }
 
@@ -7526,7 +7905,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.37";
+        input.app_version = "Nougat Media Suite v0.0.38";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -8441,6 +8820,7 @@ public:
                 if (i==nougatPeerSelected) fill_round(target,{nougatPeerListBox.x+6,y-16,(int)nougatPeerListBox.w-12,21},5,searchPalette.selection);
                 text(target,nougatPeerListBox.x+9,y,peers[(size_t)i],searchPalette.text); y+=22;
             }
+            draw_visible_vertical_scrollbar(target,nougatPeerListBox,nougatPeerScroll,static_cast<int>(peers.size()),visible,searchPalette);
             text(target,28,H-20,status,searchPalette.text);
             return;
         }
@@ -8477,6 +8857,7 @@ public:
                 nougatResultHitboxes.push_back({card,open,tor,copy,i});
                 y+=card_h;
             }
+            draw_visible_vertical_scrollbar(target,nougatResultsBox,nougatResultScroll,static_cast<int>(results.size()),visible,searchPalette);
             return;
         }
         text(target,28,102,"Seed URL",nougat_cream());
@@ -8496,9 +8877,10 @@ public:
         for (int i=nougatCrawlScroll; i<(int)lines.size() && i<nougatCrawlScroll+visible; ++i) {
             const bool selected=nougatOutputSelectionStart>=0 && i>=std::min(nougatOutputSelectionStart,nougatOutputSelectionEnd) && i<=std::max(nougatOutputSelectionStart,nougatOutputSelectionEnd);
             if (selected) fill_round(target,{nougatCrawlLogBox.x+6,y-14,(int)nougatCrawlLogBox.w-12,18},4,searchPalette.selection);
-            text(target,nougatCrawlLogBox.x+9,y,head_to_width(lines[(size_t)i],nougatCrawlLogBox.w-18),searchPalette.text);
+            text(target,nougatCrawlLogBox.x+9,y,head_to_width(lines[(size_t)i],nougatCrawlLogBox.w-30),searchPalette.text);
             y+=18;
         }
+        draw_visible_vertical_scrollbar(target,nougatCrawlLogBox,nougatCrawlScroll,static_cast<int>(lines.size()),visible,searchPalette);
         text(target,28,174,status,searchPalette.text);
     }
 
@@ -8519,7 +8901,7 @@ public:
         Rect panel{28, 118, std::max(240, W - 56), std::max(150, H - 148)};
         draw_primary_panel(target, panel, palette);
         text(target, panel.x + 16, panel.y + 30, "Planned processing engine: FFmpeg/libav-backed Convert, Audio Lab, Quick Edit, Batch, and full timeline Studio.", palette.text);
-        text(target, panel.x + 16, panel.y + 56, "v0.0.37 keeps the Gold Studio navigation/palette foundation; processing tools remain roadmap work.", palette.muted);
+        text(target, panel.x + 16, panel.y + 56, "v0.0.38 keeps the Gold Studio navigation/palette foundation; processing tools remain roadmap work.", palette.muted);
     }
 
     void draw_debug_screen(Drawable target) {
@@ -8529,6 +8911,8 @@ public:
         button_on(target, serverStartBtn, "Start Server");
         button_on(target, serverStopBtn, "Stop Server");
         button_on(target, serverRefreshBtn, "Refresh Server");
+        button_on(target, liveTvDetectBtn, "Detect Tuner");
+        button_on(target, liveTvRefreshBtn, "Refresh Tuner");
         button_on(target, debugRunBtn, "Run Checks");
         button_on(target, debugRetryBtn, "Retry");
         button_on(target, debugMetadataBtn, "Refresh Metadata");
@@ -8600,6 +8984,7 @@ public:
             debugIssueRows.push_back(row);
             y += issue_height;
         }
+        draw_visible_vertical_scrollbar(target,debugListBox,debugScroll,static_cast<int>(report.issues.size()),visible,palette);
     }
 
     bool discover_mode_selected(reddmedia::RecommendationMode mode) const {
@@ -8804,6 +9189,7 @@ public:
                 discoverProviderRows.push_back({row, provider.id});
                 row_y += row_height;
             }
+            draw_visible_vertical_scrollbar(target,services_box,discoverServicesScroll,static_cast<int>(providers.size()),visible,palette);
             return;
         }
         draw_discover_selector(target, discoverUsualTab, "Usual",
@@ -8929,9 +9315,10 @@ public:
                 detail.rfind("-- ", 0U) == 0U || detail.rfind("[MY] ", 0U) == 0U) {
                 color = col(0xd2d2,0xa8a8,0xd9d9);
             }
-            text(target, details_x, line_y, head_to_width(detail, details_width), color);
+            text(target, details_x, line_y, head_to_width(detail, details_width-14), color);
             line_y += line_height;
         }
+        draw_visible_vertical_scrollbar(target,discoverResultBox,discoverDetailsScroll,static_cast<int>(detail_lines.size()),visible_lines,palette);
         if (result.item.id.find("tmdb:") != 0U) {
             button_on(target, discoverOpenBtn,
                       result.item.local_path.empty() ? "Open in Library" : "Play in Nougat Media Suite");
@@ -9382,7 +9769,12 @@ public:
         close_context_menu();
         apply_video_layout();
         if (currentView == ViewMode::Home) start_home_task();
-        if (currentView == ViewMode::LiveTV && liveTvTuners.empty()) refresh_live_tv_tuners(false);
+        if (currentView == ViewMode::LiveTV) {
+            liveTvGuideMode = true;
+            liveTvGuideTimeOffsetSlots = 0;
+            liveTvPrograms = tunerBackend.load_guide();
+            if (liveTvTuners.empty()) refresh_live_tv_tuners(false);
+        }
         redraw();
     }
     void scroll_button_row(int& offset, int button_count, int delta, int viewport_width = -1) {
@@ -9584,7 +9976,7 @@ public:
             &ytdlpDownloadBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn,
             &p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn,&p2pRemoveBtn,
             &p2pSpeedBtn,&p2pSeedRulesBtn,&p2pQueueUpBtn,&p2pQueueDownBtn,&p2pReannounceBtn,&p2pRecheckBtn,&p2pPriorityBtn,
-            &liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvChannelsBtn,&liveTvGuideBtn,&liveTvGuideRefreshBtn,&liveTvNowBtn,&liveTvRecordBtn
+            &liveTvScanBtn,&liveTvWatchBtn,&liveTvGuideBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn
         };
         for (const Rect* target : targets) {
             if (target->contains(old_x, old_y) != target->contains(new_x, new_y)) return true;
@@ -9611,8 +10003,8 @@ public:
         if (target == win && y >= kPageControlY && y < kPageControlBottom + 4) {
             if (currentView == ViewMode::Stream) { scroll_button_row(streamSourceScrollX,6,delta); return true; }
             if (currentView == ViewMode::Nougat) { scroll_button_row(nougatPanelButtonsScrollX,5,delta); return true; }
-            if (currentView == ViewMode::LiveTV) { scroll_button_row(liveTvButtonsScrollX,9,delta); return true; }
-            if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,12,delta); return true; }
+            if (currentView == ViewMode::LiveTV) { scroll_button_row(liveTvButtonsScrollX,5,delta); return true; }
+            if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,14,delta); return true; }
             if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,11,delta); return true; }
             if (currentView == ViewMode::Library) {
                 const Rect frame=page_content_frame(ViewMode::Library);
@@ -9624,7 +10016,7 @@ public:
         if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,4,delta); return true; }
         if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && y >= 224 && y < 266) { scroll_button_row(p2pButtonsScrollX,5,delta); return true; }
         if (currentView == ViewMode::LiveTV && target == win && liveTvListBox.contains(x,y)) {
-            const int visible = liveTvGuideMode ? std::max(1,(liveTvListBox.h-108)/46) : std::max(1,(liveTvListBox.h-180)/26);
+            const int visible = std::max(1,(liveTvListBox.h-108)/46);
             const int maxScroll=std::max(0,static_cast<int>(liveTvChannels.size())-visible);
             liveTvGuideChannelScroll=std::max(0,std::min(maxScroll,liveTvGuideChannelScroll+(button==Button4?-1:1)));
             redraw(); return true;
@@ -9853,6 +10245,7 @@ public:
                 librarySearchFocused = false;
                 librarySearchSelectAll = false;
                 librarySelected = -1;
+                librarySelectionFromKeyboard = false;
                 libraryScroll = 0;
                 redraw();
                 return;
@@ -9885,6 +10278,7 @@ public:
             for (std::size_t row = 0; row < libraryRows.size(); ++row) {
                 if (libraryRows[row].contains(x,y)) {
                     if (row < libraryRowNodeIndices.size()) librarySelected = libraryRowNodeIndices[row];
+                    librarySelectionFromKeyboard = false;
                     redraw();
                     open_selected_library_item();
                     return;
@@ -9975,6 +10369,7 @@ public:
             if (serverStartBtn.contains(x,y)) { start_server_task(1); return; }
             if (serverStopBtn.contains(x,y)) { start_server_task(2); return; }
             if (serverRefreshBtn.contains(x,y)) { start_server_task(3); return; }
+            if (liveTvDetectBtn.contains(x,y) || liveTvRefreshBtn.contains(x,y)) { refresh_live_tv_tuners(true); redraw(); return; }
             if (debugRunBtn.contains(x,y) || debugRetryBtn.contains(x,y)) {
                 start_debug_task();
                 return;
@@ -10032,9 +10427,17 @@ public:
         }
         if (openBtn.contains(x,y)) { do_open(); return; }
         if (rewindBtn.contains(x,y)) { seek_relative(-10000); return; }
-        if (previousBtn.contains(x,y)) { play_relative_episode(-1); return; }
+        if (previousBtn.contains(x,y)) {
+            if (currentMediaIsLiveTv) play_relative_live_tv_channel(-1);
+            else play_relative_episode(-1);
+            return;
+        }
         if (playBtn.contains(x,y)) { toggle_play(); return; }
-        if (nextBtn.contains(x,y)) { play_relative_episode(1); return; }
+        if (nextBtn.contains(x,y)) {
+            if (currentMediaIsLiveTv) play_relative_live_tv_channel(1);
+            else play_relative_episode(1);
+            return;
+        }
         if (forwardBtn.contains(x,y)) { seek_relative(10000); return; }
         if (stopBtn.contains(x,y)) { stop_media(); return; }
         if (fsBtn.contains(x,y)) { toggle_fullscreen(); return; }
@@ -10174,8 +10577,11 @@ public:
                             if (hover_changed) redraw();
                         }
                     } else if (e.xmotion.window == video) {
-                        lastFullscreenOverlayMotionMs = now_ms();
+                        const bool wasHidden = !playerActivityOverlayVisible;
+                        lastPlayerActivityMotionMs = now_ms();
+                        playerActivityOverlayVisible = true;
                         if (fullscreen) draw_video_message();
+                        else if (wasHidden && currentView == ViewMode::VideoPlayer) draw_player_controls_only();
                     }
                     handle_nougat_motion(e.xmotion);
                     if (volumeDragging && currentView==ViewMode::VideoPlayer && mp) {
@@ -10183,7 +10589,7 @@ public:
                         volumePercent=v; api.set_volume(mp,v); draw_volume_only();
                     }
                 }
-                else if (e.type == EnterNotify && e.xcrossing.window == video) { pointerInVideo=true; lastMouse=time(nullptr); show_pointer(); }
+                else if (e.type == EnterNotify && e.xcrossing.window == video) { pointerInVideo=true; lastMouse=time(nullptr); lastPlayerActivityMotionMs=now_ms(); playerActivityOverlayVisible=true; show_pointer(); if (fullscreen) draw_video_message(); else if (currentView==ViewMode::VideoPlayer) draw_player_controls_only(); }
                 else if (e.type == LeaveNotify && e.xcrossing.window == video) { pointerInVideo=false; show_pointer(); }
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
@@ -10224,6 +10630,8 @@ public:
                                 buf[n]=0; ytdlpUrl += std::string(buf, n); redraw();
                             }
                         }
+                    } else if (currentView == ViewMode::LiveTV) {
+                        handle_live_tv_key(ks);
                     } else if (currentView == ViewMode::Library) {
                         if (librarySearchFocused) {
                             if (ks == XK_Escape) {
@@ -10284,6 +10692,7 @@ public:
                                 const int amount = ks == XK_Up ? grid.columns : 1;
                                 const int position = std::max(0, selected_position() - amount);
                                 librarySelected = visibleIndices[static_cast<std::size_t>(position)];
+                                librarySelectionFromKeyboard = true;
                                 if (position < libraryScroll) libraryScroll = position;
                                 redraw();
                             } else if ((ks == XK_Down || ks == XK_Right) && count > 0) {
@@ -10291,6 +10700,7 @@ public:
                                 const int amount = ks == XK_Down ? grid.columns : 1;
                                 const int position = std::min(count - 1, std::max(0, selected_position()) + amount);
                                 librarySelected = visibleIndices[static_cast<std::size_t>(position)];
+                                librarySelectionFromKeyboard = true;
                                 if (position >= libraryScroll + grid.visibleItems) {
                                     libraryScroll = std::max(0, position - grid.visibleItems + grid.columns);
                                 }
@@ -10363,6 +10773,12 @@ public:
                 if (currentView == ViewMode::Home && mediaServer.state() == reddmedia::MediaServerState::Ready) start_home_task();
                 if (!fullscreen) redraw();
             }
+            static long long lastLibrarySearchCaretRedrawMs = 0;
+            if (!fullscreen && currentView == ViewMode::Library && librarySearchFocused &&
+                now_ms() - lastLibrarySearchCaretRedrawMs >= 500) {
+                lastLibrarySearchCaretRedrawMs = now_ms();
+                redraw();
+            }
             double loading_progress = 0.0;
             bool loading_determinate = false;
             std::string loading_label;
@@ -10376,7 +10792,12 @@ public:
             poll_live_tv_scan();
             poll_live_tv_guide();
             if (!fullscreen && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); maybe_auto_scan_completed_p2p(); redraw(); }
-            if (pointerInVideo && time(nullptr) - lastMouse >= 3) hide_pointer();
+            if (playerActivityOverlayVisible && now_ms() - lastPlayerActivityMotionMs >= 3000) {
+                playerActivityOverlayVisible = false;
+                if (pointerInVideo) hide_pointer();
+                if (fullscreen) draw_video_message();
+                else if (currentView == ViewMode::VideoPlayer) draw_player_controls_only();
+            }
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
         }
@@ -10473,7 +10894,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.37\n");
+        printf("Nougat Media Suite v0.0.38\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -11064,8 +11485,9 @@ int main(int argc, char** argv) {
         const bool seekWide=app.seekRect.w>App::kSheetSeekW && app.seekRect.x>=80 &&
             app.seekRect.x+app.seekRect.w<=app.W-80;
         const bool statusButton=App::kServerStatusDiameter==20;
-        const bool liveButtons=app.liveTvChannelsBtn.y==App::kPageControlY && app.liveTvGuideBtn.y==App::kPageControlY &&
-            app.liveTvGuideRefreshBtn.y==App::kPageControlY && app.liveTvNowBtn.y==App::kPageControlY;
+        const bool liveButtons=app.liveTvGuideBtn.y==App::kPageControlY &&
+            app.liveTvGuideRefreshBtn.y==App::kPageControlY && app.liveTvScanBtn.y==App::kPageControlY &&
+            app.liveTvDetectBtn.y==App::kPageControlY && app.liveTvRefreshBtn.y==App::kPageControlY;
         reddmedia::TunerDevice fakeTuner; fakeTuner.frontend_path="/dev/dvb/adapter2/frontend0"; fakeTuner.readable=true;
         reddmedia::LiveTvChannel fakeChannel; fakeChannel.id="3.1"; fakeChannel.name="KSNW-DT";
         fakeChannel.frequency="479000000"; fakeChannel.program_number=3; fakeChannel.physical_channel=15;
@@ -11073,7 +11495,7 @@ int main(int argc, char** argv) {
         const bool liveInput=app.tunerBackend.live_playback_input(fakeTuner,fakeChannel,mrl,options,status) && mrl=="atsc://" &&
             std::find(options.begin(),options.end(),":dvb-adapter=2")!=options.end() &&
             std::find(options.begin(),options.end(),":program=3")!=options.end();
-        const bool guideModel=app.liveTvTunerUse==LiveTvTunerUse::Idle && !app.liveTvGuideMode;
+        const bool guideModel=app.liveTvTunerUse==LiveTvTunerUse::Idle && app.liveTvGuideMode;
         const Rect libraryFrame=app.page_content_frame(ViewMode::Library);
         const bool librarySearchButton=app.librarySearchRect.y==app.librarySearchBtn.y &&
             app.librarySearchBtn.x==app.librarySearchRect.x+app.librarySearchRect.w+8 &&
@@ -11103,6 +11525,78 @@ int main(int argc, char** argv) {
             return 1;
         }
         std::printf("Nougat Media Suite v0.0.37 PASS: System controls, working Library Search+button, full-size Continue Watching, wide exact-sheet seek, stitched Server state, logical Live TV controls, native ATSC Watch Live input, and persisted guide model active.\n");
+        return 0;
+    }
+
+    if (argc > 1 && std::string(argv[1]) == "--v38-library-live-tv-player-self-test") {
+        App app;
+        app.W=1000; app.H=650; app.layout();
+        const bool volumeGeometry = std::abs((app.volumeHousingRect.x + app.volumeHousingRect.w / 2) - app.W / 2) <= 1 &&
+            app.volumeHousingRect.w==App::kSheetVolumeW && app.volumeHousingRect.h==App::kSheetVolumeH;
+        const bool progressSheet = App::kSheetProgressW==279 && App::kSheetProgressH==40 && App::kSheetProgressFrames==101;
+        const bool liveGuideDefault = app.liveTvGuideMode && app.liveTvGuideTimeOffsetSlots==0 &&
+            app.liveTvGuideBtn.y==App::kPageControlY && app.liveTvGuideBtn.w>0;
+        const bool tunerAdminInSystem = app.liveTvDetectBtn.y==App::kPageControlY && app.liveTvRefreshBtn.y==App::kPageControlY &&
+            app.liveTvDetectBtn.x==app.serverRefreshBtn.x+App::kCompactButtonW &&
+            app.liveTvRefreshBtn.x==app.liveTvDetectBtn.x+App::kCompactButtonW &&
+            app.liveTvScanBtn.y==App::kPageControlY;
+        const auto wrapped = app.library_title_lines("This Is A Deliberately Long Library Title For Wrapping", 150);
+        const bool titleWrap = !wrapped.first.empty() && !wrapped.second.empty();
+        const bool activityDefault = !app.playerActivityOverlayVisible && app.lastPlayerActivityMotionMs==0;
+
+        reddmedia::LiveTvChannel nbcChannel; nbcChannel.id="3.1"; nbcChannel.name="KSNW-DT";
+        reddmedia::LiveTvChannel pbsChannel; pbsChannel.id="8.1"; pbsChannel.name="KPTS-HD";
+        reddmedia::LiveTvChannel createChannel; createChannel.id="8.3"; createChannel.name="Create";
+        reddmedia::LiveTvChannel bounceChannel; bounceChannel.id="10.3"; bounceChannel.name="BOUNCE";
+        reddmedia::LiveTvChannel shopChannel; shopChannel.id="10.5"; shopChannel.name="SHOPLC";
+        const bool networkLogos = App::live_tv_builtin_network_logo(nbcChannel)=="nbc" &&
+            App::live_tv_builtin_network_logo(pbsChannel)=="pbs" &&
+            App::live_tv_builtin_network_logo(createChannel)=="create" &&
+            App::live_tv_builtin_network_logo(bounceChannel)=="bounce" &&
+            App::live_tv_builtin_network_logo(shopChannel)=="shoplc";
+
+        reddmedia::LiveTvChannel channel;
+        channel.id="8.1"; channel.name="KPTS-HD"; channel.physical_channel=17; channel.program_number=3;
+        app.liveTvChannels={channel};
+        app.liveTvSelectedChannel=0;
+        app.liveTvPlayingChannel=0;
+        app.currentMediaIsLiveTv=true;
+        app.liveTvPlayingLabel="8.1 KPTS-HD";
+        const long long now=static_cast<long long>(std::time(nullptr));
+        reddmedia::LiveTvProgram program;
+        program.channel_id="8.1"; program.title="Program Test"; program.start_unix=now-600; program.duration_seconds=1800;
+        app.liveTvPrograms={program};
+        const auto* current=app.current_live_tv_program(now);
+        const bool liveProgram = current && current->title=="Program Test" &&
+            app.current_media_identity().find("Program Test")!=std::string::npos;
+
+        app.save_live_tv_last_channel();
+        app.liveTvSelectedChannel=-1;
+        app.restore_live_tv_last_channel();
+        const bool lastChannel = app.liveTvSelectedChannel==0;
+
+        reddmedia::LiveTvChannel channel2; channel2.id="8.2"; channel2.name="Explore";
+        reddmedia::LiveTvChannel channel3; channel3.id="8.3"; channel3.name="Create";
+        app.liveTvChannels={channel,channel2,channel3};
+        app.currentMediaIsLiveTv=true;
+        app.liveTvPlayingChannel=1;
+        app.liveTvSelectedChannel=1;
+        const bool liveTvTransportNav = app.relative_live_tv_channel_index(-1)==0 &&
+            app.relative_live_tv_channel_index(1)==2 &&
+            app.live_tv_channel_navigation_available(-1) && app.live_tv_channel_navigation_available(1);
+        app.liveTvPlayingChannel=0;
+        const bool liveTvTransportBounds = !app.live_tv_channel_navigation_available(-1) &&
+            app.live_tv_channel_navigation_available(1);
+
+        if (!volumeGeometry || !progressSheet || !liveGuideDefault || !tunerAdminInSystem || !networkLogos || !titleWrap || !activityDefault ||
+            !liveProgram || !lastChannel || !liveTvTransportNav || !liveTvTransportBounds) {
+            std::fprintf(stderr,
+                "Nougat v0.0.38 self-test FAIL. volume=%d progress=%d guide=%d tuneradmin=%d logos=%d wrap=%d activity=%d program=%d last=%d livetvnav=%d bounds=%d\n",
+                volumeGeometry?1:0,progressSheet?1:0,liveGuideDefault?1:0,tunerAdminInSystem?1:0,networkLogos?1:0,titleWrap?1:0,activityDefault?1:0,
+                liveProgram?1:0,lastChannel?1:0,liveTvTransportNav?1:0,liveTvTransportBounds?1:0);
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.38 PASS: exact-sheet player/progress geometry, Guide-default Live TV, System tuner administration, real network-logo mapping, remembered channel, Live TV Previous/Next channel navigation, Library title wrapping, unified player activity state, and Live TV program identity active.\n");
         return 0;
     }
 

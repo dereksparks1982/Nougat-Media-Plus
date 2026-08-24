@@ -1,0 +1,404 @@
+{
+  "target_version": "0.0.38",
+  "accepted_base_version": "0.0.37",
+  "title": "Library, Live TV and Player Exact-Sheet Polish",
+  "payload": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 848,
+      "sha256": "67c5429dc004fc2522a53f91f8cb6018b0fa2680ed59f59cbdfce0daa46a9906"
+    },
+    "CHANGELOG.md": {
+      "bytes": 58819,
+      "sha256": "efb4a9a9bc7feb9c66770fd53e61ad11b68ed4c370838ec68cf82b96a1708805"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2930,
+      "sha256": "99af4463f01e6c10851e85ba714cb9d0827ccfa4b3ef8c6c421e4fbc7226a070"
+    },
+    "README.md": {
+      "bytes": 67691,
+      "sha256": "ebf9a10eed749474b8f9d2cf77806f587a8c17deb50448552845bc838cedd8c8"
+    },
+    "ROADMAP.md": {
+      "bytes": 51615,
+      "sha256": "4e21de0d6c95837f366ba836b729819ce7d7f00c28ddbe675ffc8b07048a636a"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 482,
+      "sha256": "7c072220e4fe613e54800deb8206dc4aa63f6c895ba5dfcac181bcbde6c9968b"
+    },
+    "NougatMediaSuite_v38.desktop": {
+      "bytes": 482,
+      "sha256": "7c072220e4fe613e54800deb8206dc4aa63f6c895ba5dfcac181bcbde6c9968b"
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 482,
+      "sha256": "7c072220e4fe613e54800deb8206dc4aa63f6c895ba5dfcac181bcbde6c9968b"
+    },
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_38.sh": {
+      "bytes": 19218,
+      "sha256": "37e46287f31cb54877db1c7b089aba097606f61c63f460c54d122027f2006d1b"
+    },
+    "src/main.cpp": {
+      "bytes": 612122,
+      "sha256": "9323b6dd3aa8c9864f019c68d8d6308ac4a92fe9ec3a7ad76733f8fb498b286c"
+    },
+    "assets/ui/nougat_progress_sheet_frames.bin": {
+      "bytes": 3381504,
+      "sha256": "3e1ab4aa3063e558f934cabcaeb8555f63da8b8c6f1b4c8024f4ff05a904c6ce"
+    },
+    "tools/test_nougat_media_suite_v38.py": {
+      "bytes": 11593,
+      "sha256": "1cb780117a829dbab623eb98254ced06e7637a82cc0bd4467640be5e90c93650"
+    },
+    "tools/test_installer_rollback_v38.py": {
+      "bytes": 2539,
+      "sha256": "71b854dcc0d4eb556d94c4af017a99e16f2a3b653f4eabbc0304e75a2485b832"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_38_LIBRARY_LIVE_TV_PLAYER_EXACT_SHEET_POLISH_VALIDATION.md": {
+      "bytes": 2756,
+      "sha256": "059ef73e1ff931f07174cfd352bd1fa1bce8bd4d189d9ff8547acc37b3750afe"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_38_LIBRARY_LIVE_TV_PLAYER_EXACT_SHEET_POLISH_OWNER_HANDSHAKE.md": {
+      "bytes": 1765,
+      "sha256": "d06824143a9cf7d4ce73a6a85f647d5f9fb1c095fbd7c7c0eb4a0de8c6ba7d5a"
+    },
+    "assets/channel_logos/builtin/abc.bmp": {
+      "bytes": 7734,
+      "sha256": "2e0cd0679796f80262882f6027581829dfd0183f5c36e04c9833597d234b840c"
+    },
+    "assets/channel_logos/builtin/bounce.bmp": {
+      "bytes": 7734,
+      "sha256": "14e18100c8909fb2453d15348959b34faee748f819f6dfccc838bc5b42ad61f5"
+    },
+    "assets/channel_logos/builtin/cbs.bmp": {
+      "bytes": 7734,
+      "sha256": "0cf005ac4b7700b472aca7e8cf292aeeb0596845710e198a8ced49066414b9a8"
+    },
+    "assets/channel_logos/builtin/create.bmp": {
+      "bytes": 7734,
+      "sha256": "18587ed5644b7440466c1b81fe0cf2ddc8b5d30b4787a4e217f6d96b9ad296f0"
+    },
+    "assets/channel_logos/builtin/cw.bmp": {
+      "bytes": 7734,
+      "sha256": "a94a4dff897946eea92f8227e8d43504cec2eff67c3ea57074de3450f85113ab"
+    },
+    "assets/channel_logos/builtin/fox.bmp": {
+      "bytes": 7734,
+      "sha256": "ae238e2d4704617ff3954305da65474b4df48fce13ce4127d73097a9319f2a52"
+    },
+    "assets/channel_logos/builtin/ion.bmp": {
+      "bytes": 7734,
+      "sha256": "fd8a0c9a1ec9f65b341f8dd3ba5a3765cccebc03f0d190bdea434b52f24c37db"
+    },
+    "assets/channel_logos/builtin/metv.bmp": {
+      "bytes": 7734,
+      "sha256": "9f53c3f979526232d66cf1451aa7c33c149d97040d272bf320e9968750168cbf"
+    },
+    "assets/channel_logos/builtin/nbc.bmp": {
+      "bytes": 7734,
+      "sha256": "b901bdd567d2bf27d2af3a15294a20965c5f6da2d856dcc2b32d8cef1b1b2d36"
+    },
+    "assets/channel_logos/builtin/pbs.bmp": {
+      "bytes": 7734,
+      "sha256": "85d5a200a0ee6dda51e554aed9ce7a38e9c29d32aa5f8e9ffa4bd17387b47fee"
+    },
+    "assets/channel_logos/builtin/pbs_kids.bmp": {
+      "bytes": 7734,
+      "sha256": "e21f0bbbfe98a1da565b01932d865ebae1e668786fd589be72b6109f4b7b093c"
+    },
+    "assets/channel_logos/builtin/shoplc.bmp": {
+      "bytes": 7734,
+      "sha256": "eeadf9103905bcba6698def2e926e5393a7c47141ed61e31d0433d3e02fb27ee"
+    },
+    "assets/channel_logos/builtin/telemundo.bmp": {
+      "bytes": 7734,
+      "sha256": "210a4b6d1409cc507f8fe48f21d123ac4871fe7bf9d83bb686e8b62708379cdc"
+    },
+    "assets/channel_logos/builtin/busted.bmp": {
+      "bytes": 7734,
+      "sha256": "2b48f6bd84a2c0e62c94dcaeacc34e106f22e934b53cf1a029433db8d76d4dfa"
+    },
+    "assets/channel_logos/builtin/ion_plus.bmp": {
+      "bytes": 7734,
+      "sha256": "2313b5d6bd1bbe5c1501731b49db0ce5efb9c67cb43073c0a90f63677a4c1b8c"
+    },
+    "tools/test_nougat_diagnostics_v26.py": {
+      "bytes": 5267,
+      "sha256": "0ecb30febf74abf14656dbbad433cafb1bdacf9a3c699feba3e7ef6d16b45728"
+    }
+  },
+  "base_state": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 459,
+      "sha256": "ef7feb4b572afa19a1b02db09fe248845ac9dc4f571e99a043cf4f2e78465a9f"
+    },
+    "CHANGELOG.md": {
+      "bytes": 56532,
+      "sha256": "9ac7f424b1b2a5c3e24052ec0f49a67e33cc3410f6fe1478ca8f555bb7138eec"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2930,
+      "sha256": "2e9e0f06f28b4e0497a2b14d519c6c37b8fc3e860c9c841bfbc5acba88c1d8d5"
+    },
+    "README.md": {
+      "bytes": 65078,
+      "sha256": "e5acd2a169a5d045b2d148634ac6f6a2298125259612f406e65815b4c6a2ddab"
+    },
+    "ROADMAP.md": {
+      "bytes": 50688,
+      "sha256": "189294eaa17d5880b72ac7d305604a9253fc1e4195b4b83bb86aec1aad82d752"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 482,
+      "sha256": "f14a92c1ab7841d45562cc28f191ab97b9f6d5f6bbb990f3b19736f99f559fde"
+    },
+    "NougatMediaSuite_v38.desktop": {
+      "absent": true
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 482,
+      "sha256": "f14a92c1ab7841d45562cc28f191ab97b9f6d5f6bbb990f3b19736f99f559fde"
+    },
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_38.sh": {
+      "absent": true
+    },
+    "src/main.cpp": {
+      "bytes": 583460,
+      "sha256": "a96187be3de787b045fafe18e510e3ae24ab24e417f5526614fed7ae4dba7d20"
+    },
+    "assets/ui/nougat_progress_sheet_frames.bin": {
+      "absent": true
+    },
+    "tools/test_nougat_media_suite_v38.py": {
+      "absent": true
+    },
+    "tools/test_installer_rollback_v38.py": {
+      "absent": true
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_38_LIBRARY_LIVE_TV_PLAYER_EXACT_SHEET_POLISH_VALIDATION.md": {
+      "absent": true
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_38_LIBRARY_LIVE_TV_PLAYER_EXACT_SHEET_POLISH_OWNER_HANDSHAKE.md": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/abc.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/bounce.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/cbs.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/create.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/cw.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/fox.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/ion.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/metv.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/nbc.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/pbs.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/pbs_kids.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/shoplc.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/telemundo.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/busted.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/ion_plus.bmp": {
+      "absent": true
+    },
+    "tools/test_nougat_diagnostics_v26.py": {
+      "bytes": 4993,
+      "sha256": "bb893eeda9c6e67e57e374945be8dbc31e30bf12bb9c4adf1c05564f5609316c"
+    }
+  },
+  "remove_after_success": [
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_37.sh",
+    "NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v37.json",
+    "NougatMediaSuite_v37.desktop",
+    "Nougat_Media_Suite_v37"
+  ],
+  "preserve_generated_runtime_prefixes": [
+    "components/ai/runtime/",
+    "components/jellyfin/runtime/",
+    "components/security/runtime/"
+  ],
+  "preserve_owner_archives": [
+    "1.zip",
+    "2.zip"
+  ],
+  "retained_base_assets": {
+    "docs/design/NOUGAT_UI_COMPONENT_SHEET_APPROVED.png": {
+      "bytes": 2376676,
+      "sha256": "cd57f3840bf113f293d5fcfe9b34652098f629d40ffb7587da00e5c938bf2889"
+    },
+    "assets/ui/nougat_seek_sheet_frames.bin": {
+      "bytes": 5039520,
+      "sha256": "edc27c16675e1114d64be3e233f20361f21a167666bf4257943705d8aeab9b16"
+    },
+    "assets/ui/nougat_volume_sheet_frames.bin": {
+      "bytes": 9494259,
+      "sha256": "38197798a97e9ecadf3934daca692446bea586b36e2038c533aa5c92f51077e2"
+    }
+  },
+  "known_owner_validation": [
+    "approved UI component sheet remains the literal visual authority; no unapproved control relocation or artwork redesign",
+    "progress bar keeps the approved stitched artwork; stitching remains visible on caramel and cream sections and the rejected pale underside strip is omitted",
+    "volume control is untouched by this final repair pass",
+    "system-wide percent/loading bar stays in the original lane below the top tabs, uses the approved-sheet percent-bar artwork, contains the percentage inside the caramel fill, and Discover uses determinate percentage behavior",
+    "Library Search typed text/caret are visible without moving the Search row",
+    "Continue Watching admits local media after 10 seconds of actual playback",
+    "existing mouse-wheel scrolling is preserved while visible approved-sheet-style vertical scrollbars are added to scrollable surfaces",
+    "Live TV Guide is the single guide control/default surface; redundant Channels is removed",
+    "only Detect Tuner and Refresh Tuner move to System; other Live TV controls remain in Live TV",
+    "real locally packaged broadcaster/network logos replace duplicate numbered badges where identified, including Busted and ION Plus; rounded logo cards clip artwork to the rounded slot",
+    "remembered/keyboard channel selection, current-program identity, aligned program timing, and accepted ATSC Watch Live are preserved",
+    "while Live TV is playing, player Previous tunes one channel back and Next tunes one channel forward in the existing guide/channel order; non-Live-TV behavior is unchanged",
+    "diagnostic interpretation redesign remains v0.0.39 work and is not mixed into v0.0.38"
+  ],
+  "repair_base_version": "0.0.38-rejected-candidate",
+  "repair_base_state": {
+    "APPLY_COMMAND.txt": {
+      "bytes": 829,
+      "sha256": "04583c87ca9e5d7f7761f32fdc9f22fe8f19b8a9553d6cf751da654fefa39acd"
+    },
+    "CHANGELOG.md": {
+      "bytes": 58801,
+      "sha256": "3229a25de6118c37e7900662c5e8d336638365845519ee1dae529b1065f012bf"
+    },
+    "CMakeLists.txt": {
+      "bytes": 2930,
+      "sha256": "99af4463f01e6c10851e85ba714cb9d0827ccfa4b3ef8c6c421e4fbc7226a070"
+    },
+    "README.md": {
+      "bytes": 67673,
+      "sha256": "d72d1d57c3c4aad02c6dc4c414770af7bc7e2c4094fa9468338cf2982408ae48"
+    },
+    "ROADMAP.md": {
+      "bytes": 51615,
+      "sha256": "4e21de0d6c95837f366ba836b729819ce7d7f00c28ddbe675ffc8b07048a636a"
+    },
+    "NougatMediaSuite.desktop": {
+      "bytes": 482,
+      "sha256": "7c072220e4fe613e54800deb8206dc4aa63f6c895ba5dfcac181bcbde6c9968b"
+    },
+    "NougatMediaSuite_v38.desktop": {
+      "bytes": 482,
+      "sha256": "7c072220e4fe613e54800deb8206dc4aa63f6c895ba5dfcac181bcbde6c9968b"
+    },
+    "com.elderredsoftworks.NougatMediaSuite.desktop": {
+      "bytes": 482,
+      "sha256": "7c072220e4fe613e54800deb8206dc4aa63f6c895ba5dfcac181bcbde6c9968b"
+    },
+    "INSTALL_NOUGAT_MEDIA_SUITE_v0_0_38.sh": {
+      "bytes": 18963,
+      "sha256": "e54106924b47681e9c34f9ecc2e305de50785b5a3fe4570e4c2f99b0cbda32d2"
+    },
+    "src/main.cpp": {
+      "bytes": 607973,
+      "sha256": "49989e062bd94f13b2a00cc6388f617babf78d8b368248ec4fc81ff15523321c"
+    },
+    "assets/ui/nougat_progress_sheet_frames.bin": {
+      "bytes": 3381504,
+      "sha256": "3e1ab4aa3063e558f934cabcaeb8555f63da8b8c6f1b4c8024f4ff05a904c6ce"
+    },
+    "tools/test_nougat_media_suite_v38.py": {
+      "bytes": 10046,
+      "sha256": "cf8beac55395e788cf1d7995fcd6d3255d480c67ffb3e6cf26fc3823305ecdd6"
+    },
+    "tools/test_installer_rollback_v38.py": {
+      "bytes": 2444,
+      "sha256": "34208d03cc543fe223f6c19ec6a444980ae4f8f0066104cb6d4c26c5be66bedd"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_38_LIBRARY_LIVE_TV_PLAYER_EXACT_SHEET_POLISH_VALIDATION.md": {
+      "bytes": 2625,
+      "sha256": "168fc3384a6120db1877b7dffa172db980c598a24ceaf65212c306440048ee6b"
+    },
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_38_LIBRARY_LIVE_TV_PLAYER_EXACT_SHEET_POLISH_OWNER_HANDSHAKE.md": {
+      "bytes": 1634,
+      "sha256": "0931d432951a9858ad54cff9082687a730c5d8630ebe7d60251fc3edc2ff5bec"
+    },
+    "assets/channel_logos/builtin/abc.bmp": {
+      "bytes": 7734,
+      "sha256": "2e0cd0679796f80262882f6027581829dfd0183f5c36e04c9833597d234b840c"
+    },
+    "assets/channel_logos/builtin/bounce.bmp": {
+      "bytes": 7734,
+      "sha256": "14e18100c8909fb2453d15348959b34faee748f819f6dfccc838bc5b42ad61f5"
+    },
+    "assets/channel_logos/builtin/cbs.bmp": {
+      "bytes": 7734,
+      "sha256": "0cf005ac4b7700b472aca7e8cf292aeeb0596845710e198a8ced49066414b9a8"
+    },
+    "assets/channel_logos/builtin/create.bmp": {
+      "bytes": 7734,
+      "sha256": "18587ed5644b7440466c1b81fe0cf2ddc8b5d30b4787a4e217f6d96b9ad296f0"
+    },
+    "assets/channel_logos/builtin/cw.bmp": {
+      "bytes": 7734,
+      "sha256": "a94a4dff897946eea92f8227e8d43504cec2eff67c3ea57074de3450f85113ab"
+    },
+    "assets/channel_logos/builtin/fox.bmp": {
+      "bytes": 7734,
+      "sha256": "ae238e2d4704617ff3954305da65474b4df48fce13ce4127d73097a9319f2a52"
+    },
+    "assets/channel_logos/builtin/ion.bmp": {
+      "bytes": 7734,
+      "sha256": "fd8a0c9a1ec9f65b341f8dd3ba5a3765cccebc03f0d190bdea434b52f24c37db"
+    },
+    "assets/channel_logos/builtin/metv.bmp": {
+      "bytes": 7734,
+      "sha256": "9f53c3f979526232d66cf1451aa7c33c149d97040d272bf320e9968750168cbf"
+    },
+    "assets/channel_logos/builtin/nbc.bmp": {
+      "bytes": 7734,
+      "sha256": "b901bdd567d2bf27d2af3a15294a20965c5f6da2d856dcc2b32d8cef1b1b2d36"
+    },
+    "assets/channel_logos/builtin/pbs.bmp": {
+      "bytes": 7734,
+      "sha256": "85d5a200a0ee6dda51e554aed9ce7a38e9c29d32aa5f8e9ffa4bd17387b47fee"
+    },
+    "assets/channel_logos/builtin/pbs_kids.bmp": {
+      "bytes": 7734,
+      "sha256": "e21f0bbbfe98a1da565b01932d865ebae1e668786fd589be72b6109f4b7b093c"
+    },
+    "assets/channel_logos/builtin/shoplc.bmp": {
+      "bytes": 7734,
+      "sha256": "eeadf9103905bcba6698def2e926e5393a7c47141ed61e31d0433d3e02fb27ee"
+    },
+    "assets/channel_logos/builtin/telemundo.bmp": {
+      "bytes": 7734,
+      "sha256": "210a4b6d1409cc507f8fe48f21d123ac4871fe7bf9d83bb686e8b62708379cdc"
+    },
+    "assets/channel_logos/builtin/busted.bmp": {
+      "absent": true
+    },
+    "assets/channel_logos/builtin/ion_plus.bmp": {
+      "absent": true
+    },
+    "tools/test_nougat_diagnostics_v26.py": {
+      "bytes": 4993,
+      "sha256": "bb893eeda9c6e67e57e374945be8dbc31e30bf12bb9c4adf1c05564f5609316c"
+    }
+  }
+}

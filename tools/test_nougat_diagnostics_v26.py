@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import http.server, json, os, pathlib, shutil, socketserver, subprocess, sys, tempfile, threading, tarfile
+import errno, http.server, json, os, pathlib, shutil, socketserver, subprocess, sys, tempfile, threading, tarfile
 
 ROOT=pathlib.Path(sys.argv[1] if len(sys.argv)>1 else '.').resolve()
 
@@ -50,9 +50,15 @@ with tempfile.TemporaryDirectory(prefix='nougat-v26-diag-') as raw:
     temp=pathlib.Path(raw); compiler=shutil.which('g++'); need(compiler is not None,'g++ required')
     source=temp/'h.cpp'; source.write_text(HARNESS); binary=temp/'harness'
     subprocess.run([compiler,'-std=c++17','-Wall','-Wextra','-Werror',f'-I{ROOT/"src"}',str(source),str(ROOT/'src/diagnostics/diagnostic_engine.cpp'),'-o',str(binary)],check=True)
-    try: server=Server(('127.0.0.1',8096),Handler)
-    except OSError as exc: raise SystemExit(f'FAIL: diagnostic v26 test requires free port 8096: {exc}')
-    thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
+    server=None; thread=None
+    try:
+        server=Server(('127.0.0.1',8096),Handler)
+    except OSError as exc:
+        if exc.errno not in (errno.EADDRINUSE, 98):
+            raise SystemExit(f'FAIL: diagnostic v26 port probe setup failed: {exc}')
+        print('diagnostics-v26-port=busy existing-local-service-used')
+    if server is not None:
+        thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
     try:
         runtime=temp/'runtime'; runtime.mkdir(); model=temp/'model.gguf'; model.write_bytes(b'model'); media=temp/'movie.mkv'; media.write_bytes(b'video')
         ytdlp=temp/'yt-dlp'; ytdlp.write_text('#!/bin/sh\n'); ytdlp.chmod(0o755)
@@ -69,5 +75,7 @@ with tempfile.TemporaryDirectory(prefix='nougat-v26-diag-') as raw:
         need(b'super-secret-token' not in content and b'private-value' not in content,'support bundle leaked credential material')
         need(b'[REDACTED SENSITIVE LINE]' in content,'support bundle did not show redaction marker')
     finally:
-        server.shutdown(); server.server_close(); thread.join(timeout=2)
+        if server is not None:
+            server.shutdown(); server.server_close()
+            if thread is not None: thread.join(timeout=2)
 print('diagnostics-v26=pass txt=pass json=pass support-bundle=pass redaction=pass unknown-not-green-by-assumption=pass')

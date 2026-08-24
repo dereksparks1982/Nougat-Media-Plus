@@ -30,6 +30,21 @@
 - Preserve the current app lettering until a separately approved system-wide typography pass.
 - Preserve v0.0.35's owner-validated ATSC 1.0 scan behavior unchanged except for regression checks.
 
+## v0.0.38 candidate — Library + Live TV + Player Exact-Sheet Polish
+
+- Finish Library Search visible typing/caret behavior and title-first card details without moving the approved Library layout.
+- Keep the system-wide loading bar in its original top lane; use the literal approved-sheet progress component, sized to contain the percent, with the percent inside the caramel fill.
+- Keep the approved seek/VOLUME art unchanged except for removing the specifically rejected pale underside crop-shadows; VOLUME percent remains black and its current geometry stays untouched.
+- Unify pointer and media/program information under a single three-second player activity timer.
+- Keep Guide as the sole Live TV guide-view control and the default Live TV surface; remove only the redundant Channels control.
+- Move only Detect Tuner and Refresh Tuner to System.
+- Use real local broadcaster/network logo assets where identified; use call-sign text when no matching logo is known.
+- Add visible approved-sheet-style vertical scrollbars to existing vertically scrollable pages/panels while preserving mouse-wheel behavior.
+- Retain remembered/keyboard Live TV channel selection, PSIP current-program identity, and aligned program timing.
+- Characterize the already-working VLC pause buffer before any dedicated DVR/timeshift pipeline is considered.
+- Make installer baseline validation fail-closed.
+- Keep the Diagnostic Center interpretation redesign for v0.0.39 rather than mixing it into this repair candidate.
+
 ## v0.0.37 candidate — Native Live TV Watch + Classic Guide
 - Make `Watch Live` on a persisted ATSC channel such as 3.1 tune the stored DVB frontend/frequency, select the correct MPEG transport-stream program, and feed the live broadcast into Nougat's existing native player. Double-clicking a selected channel uses the same path.
 - Expose one logical tuner per independently usable DVB frontend instead of showing sibling V4L2/VBI device nodes as separate tuners.
@@ -38,11 +53,6 @@
 - Keep ETT-rich descriptions, XMLTV supplementation, DVR/recording, timeshift, favorites, and multi-tuner scheduling as later Live TV stages after owner validation of v0.0.37 tuning and EIT grid behavior.
 - Support clean Stop, retune, and channel changes without destabilizing the accepted v0.0.35 channel scan/persistence path.
 - Validate first on the owner's already working tuner/channel database before expanding into guide, recording, timeshift, favorites, or channel-surfing features.
-
-## v0.0.38 agenda — Unified Player Activity Overlay
-- Unify the video-surface mouse pointer and media-title/info overlay under one activity timer in fullscreen, maximized, normal, and half-screen/resized player states.
-- Any mouse movement over the video shows both pointer and title/info at the same time and resets a 3-second idle timer. After 3 seconds with no mouse movement, both disappear together.
-- Eliminate the current behavior where the title/info disappears as soon as motion stops while the pointer remains visible, and prevent flicker from separate hide timers.
 
 ## Studio / Nougat Media Processing Engine — post-v0.0.35
 - Build one reusable native media-processing engine around FFmpeg/libav rather than reinventing codecs. Share it across Convert, Audio Lab, Quick Edit, Batch, and the eventual timeline editor.
