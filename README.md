@@ -10,6 +10,22 @@ Nougat's **Library** organizes local Movies and TV into collections, series, sea
 
 Nougat also includes built-in **P2P downloading and stream-while-downloading playback**, on-demand **security analysis**, evidence-based **system diagnostics**, local recommendation AI, persistent viewing history, and an integrated Jellyfin-backed catalog/server foundation. v0.0.46 adds cancellable process-group security scanning with a faster tiered bulk-scan path, verified-start World TV handling, and the versioned local-only foundation for future phone, tablet, laptop, and TV-browser access to locally owned media. The LAN design explicitly requires local media access to remain independent of WAN Internet connectivity and does not require a cloud login, automatic router port forwarding, or a cloud relay.
 
+
+## v0.0.47 - World TV Channels, Playback Reliability, and Desktop Identity
+
+v0.0.47 expands World TV as a normal channel surface and repairs owner-tested playback and desktop-identity failures.
+
+- Adds Al Quran Al Kareem TV, including its Kaaba live view, as an ordinary World TV channel using the official Aloula live source resolver.
+- Adds a larger Russian television group including Russia 24, Russia 1, Russia-K, Channel One Russia, NTV, MIR 24, RBC TV, TV Center, Big Asia, Duma TV, and Vmeste RF, plus additional Turkish and Asian channels.
+- Treats World TV like television: real station/network artwork is required before a channel is exposed, and available current-program guide information is shown in the channel list and player identity.
+- Adds alternate-source resolution, pre-play visible-video probing, startup verification, stall/buffering detection, and bounded reconnect so dead/black feeds fail truthfully instead of sitting on a black screen.
+- Shows the World TV station identity and logo in the native Video Player when the mouse is active, matching the Live TV player behavior.
+- Restores true-fullscreen mouse transport controls as three approved-sheet square buttons: [<] rewind, [^] play/pause, [>] fast-forward.
+- Gives World TV its own orange page/tab color family instead of sharing Live TV teal.
+- Repairs top-tab scrolling so the System tab can be fully exposed.
+- Repairs GNOME dock/app-switcher identity by installing and validating the canonical Nougat desktop entry and approved N icon, in addition to the existing executable icon metadata.
+- Preserves the v0.0.46 scanner, Secure Search privacy, LAN foundation, native-player, Library, Discover, Stream, Studio, Games, P2P, and diagnostics behavior outside this approved scope.
+
 ## v0.0.46 - World TV Repair, Scanner Control, and LAN Media Foundation
 
 v0.0.46 repairs owner-reported release and runtime failures while preserving the v0.0.45 Secure Search privacy contract.

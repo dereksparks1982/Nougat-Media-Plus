@@ -53,6 +53,7 @@
 #include "search/secure_search.hpp"
 #include "security/scanner_process.hpp"
 #include "lan/lan_media_service.hpp"
+#include "world_tv/world_tv_service.hpp"
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -774,15 +775,35 @@ struct LiveTvHitbox {
     Rect rect;
     int channel_index = -1;
 };
-struct WorldTvStation {
-    std::string name;
-    std::string country;
-    std::string language;
-    std::string source_url;
-    std::string homepage;
-    int max_height = 1080;
+struct WorldTvResolveUiState {
+    std::mutex mutex;
+    bool busy = false;
+    bool updated = false;
+    int station_index = -1;
+    bool reconnect = false;
+    reddmedia::WorldTvResolveResult result;
 };
-
+struct WorldTvArtworkUiState {
+    std::mutex mutex;
+    bool busy = false;
+    bool updated = false;
+    int completed = 0;
+    int total = 0;
+    std::map<int,std::string> paths;
+    std::set<int> failed;
+};
+struct WorldTvGuideUiState {
+    std::mutex mutex;
+    bool busy = false;
+    bool updated = false;
+    int station_index = -1;
+    reddmedia::WorldTvGuideInfo guide;
+};
+struct WorldTvArtwork {
+    int width = 0;
+    int height = 0;
+    std::vector<unsigned char> rgb;
+};
 struct GameEntry {
     std::string title;
     std::string path;
@@ -1093,14 +1114,16 @@ struct FramePreviewState {
 };
 class App {
 public:
-    Display* d=nullptr; int screen=0; Window win=0, video=0, videoActivityOverlayWindow=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr; XFontStruct* boldFontInfo=nullptr; XFontStruct* sectionFontInfo=nullptr; XFontStruct* metadataFontInfo=nullptr;
-    Pixmap quiltTiles[11] = {};
+    Display* d=nullptr; int screen=0; Window win=0, video=0, videoActivityOverlayWindow=0, fullscreenTransportWindow=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr; XFontStruct* boldFontInfo=nullptr; XFontStruct* sectionFontInfo=nullptr; XFontStruct* metadataFontInfo=nullptr;
+    Pixmap quiltTiles[12] = {};
     Pixmap streamQuiltTiles[6] = {};
     int W=1000,H=650;
     int videoW=980, videoH=530;
     Rect openBtn, rewindBtn, previousBtn, playBtn, nextBtn, forwardBtn, stopBtn, fsBtn, seekRect, volRect, volumeHousingRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn, videoRestartBtn, videoCancelBtn, videoBackLibraryBtn;
     Rect videoUpNextPlayBtn, videoUpNextSeriesBtn, videoUpNextReplayBtn;
+    Rect fullscreenRewindRect, fullscreenPlayRect, fullscreenForwardRect;
+    int fullscreenTransportHover=-1;
     Rect homeTab, videoPlayerTab, libraryTab, discoverTab, liveTvTab, worldTvTab, nougatTab, ytdlpTab, studioTab, gamesTab, debugTab;
     Rect libraryMoviesBtn, libraryTvBtn, libraryGridBtn, libraryListViewBtn, libraryAddFolderBtn, libraryUnlinkFolderBtn;
     Rect libraryRefreshBtn, libraryBackBtn, librarySearchRect, librarySearchBtn, libraryListBox;
@@ -1149,7 +1172,6 @@ public:
     long long worldTvNextReconnectMs=0;
     long long worldTvStartupDeadlineMs=0;
     bool worldTvPlaybackVerified=false;
-    long long kaabaBadgeLastClickMs=0;
     std::string liveTvPlayingLabel;
     long long sessionTime=0;
     Cursor blankCursor=0, normalCursor=0;
@@ -1337,7 +1359,23 @@ public:
     int worldTvScroll = 0;
     Time worldTvLastClickTime = 0;
     int worldTvLastClickIndex = -1;
-    std::string worldTvStatus = "World TV ready. Direct international broadcast feeds only.";
+    std::string worldTvStatus = "World TV preparing station artwork and live sources...";
+    reddmedia::WorldTvService worldTvService{exe_dir() + "/components/world_tv/nougat_world_tv_worker.py"};
+    std::shared_ptr<WorldTvResolveUiState> worldTvResolveState = std::make_shared<WorldTvResolveUiState>();
+    std::shared_ptr<WorldTvArtworkUiState> worldTvArtworkState = std::make_shared<WorldTvArtworkUiState>();
+    std::shared_ptr<WorldTvGuideUiState> worldTvGuideState = std::make_shared<WorldTvGuideUiState>();
+    std::thread worldTvResolveWorker;
+    std::thread worldTvArtworkWorker;
+    std::thread worldTvGuideWorker;
+    std::map<int,WorldTvArtwork> worldTvArtworkCache;
+    std::map<int,reddmedia::WorldTvGuideInfo> worldTvGuideCache;
+    std::set<int> worldTvGuideAttempted;
+    std::vector<int> worldTvRowStationIndices;
+    std::string worldTvResolvedUrl;
+    long long worldTvLastProgressMs = 0;
+    long long worldTvLastPlaybackTimeMs = -1;
+    long long worldTvBufferingSinceMs = 0;
+    long long worldTvLastGuideRefreshMs = 0;
     bool liveTvFullGuideRefreshQueued = false;
     long long liveTvLastCurrentMuxHarvestMs = 0;
     long long liveTvLastAutoGuideRefreshMs = 0;
@@ -1632,7 +1670,7 @@ public:
             case ViewMode::Library: return 2;
             case ViewMode::Discover: return 3;
             case ViewMode::LiveTV: return 8;
-            case ViewMode::WorldTV: return 8;
+            case ViewMode::WorldTV: return 11;
             case ViewMode::Nougat: return 4;
             case ViewMode::Stream: return 5;
             case ViewMode::Studio: return 9;
@@ -1680,7 +1718,7 @@ public:
             case ViewMode::Library:     r=77;  g=120; b=61;  blendPercent=56; break; // forest/candy green
             case ViewMode::Discover:    r=158; g=51;  b=68;  blendPercent=56; break; // cherry/wine red
             case ViewMode::LiveTV:      r=37;  g=109; b=126; blendPercent=52; break; // broadcast teal
-            case ViewMode::WorldTV:     r=37;  g=109; b=126; blendPercent=52; break; // World TV broadcast teal
+            case ViewMode::WorldTV:     r=201; g=116; b=38;  blendPercent=56; break; // World TV orange
             case ViewMode::Nougat:      r=241; g=227; b=194; blendPercent=8;  break; // Search stays cream
             case ViewMode::Stream:      r=205; g=76;  b=67;  blendPercent=22; break;
             case ViewMode::Studio:      r=221; g=176; b=70;  blendPercent=48; break; // Gold Studio: true yellow/gold quilt
@@ -1741,12 +1779,12 @@ public:
     }
 
     void init_quilt_tiles() {
-        const ViewMode views[11] = {
+        const ViewMode views[12] = {
             ViewMode::Home, ViewMode::VideoPlayer, ViewMode::Library, ViewMode::Discover,
             ViewMode::Nougat, ViewMode::Stream, ViewMode::P2P, ViewMode::Debug, ViewMode::LiveTV,
-            ViewMode::Studio, ViewMode::Games
+            ViewMode::Studio, ViewMode::Games, ViewMode::WorldTV
         };
-        for (int i=0; i<11; ++i) quiltTiles[i] = create_quilt_tile(views[i]);
+        for (int i=0; i<12; ++i) quiltTiles[i] = create_quilt_tile(views[i]);
         const StreamPlatform providers[6] = {
             StreamPlatform::YouTube, StreamPlatform::Vimeo, StreamPlatform::Rumble,
             StreamPlatform::RuTube, StreamPlatform::VK, StreamPlatform::OK
@@ -1903,11 +1941,16 @@ public:
             rgb8(91,28,39), cream, rgb8(235,205,211),
             rgb8(184,69,86), rgb8(160,52,69), rgb8(91,28,39),
             rgb8(203,92,108), cream, rgb8(211,144,55)};
-        if (view == ViewMode::LiveTV || view == ViewMode::WorldTV) return {
+        if (view == ViewMode::LiveTV) return {
             rgb8(35,91,105), rgb8(44,112,128), rgb8(244,232,205),
             rgb8(24,68,80), cream, rgb8(207,229,232),
             rgb8(57,135,151), rgb8(43,111,127), rgb8(23,66,77),
             rgb8(91,159,172), cream, rgb8(211,144,55)};
+        if (view == ViewMode::WorldTV) return {
+            rgb8(139,72,24), rgb8(169,91,30), rgb8(244,232,205),
+            rgb8(96,48,16), cream, rgb8(239,211,183),
+            rgb8(202,116,38), rgb8(184,98,30), rgb8(100,49,15),
+            rgb8(232,154,78), cream, rgb8(218,127,43)};
         if (view == ViewMode::Stream) return stream_palette_for(streamPlatform);
         if (view == ViewMode::Studio) return {
             rgb8(194,148,47), rgb8(222,181,85), rgb8(250,239,213),
@@ -2415,6 +2458,9 @@ public:
         videoActivityOverlayWindow = XCreateSimpleWindow(d, video, 18, 18, 220, 34, 0,
                                                          rgb8(184,111,43), rgb8(32,25,21));
         XSelectInput(d, videoActivityOverlayWindow, ExposureMask);
+        fullscreenTransportWindow = XCreateSimpleWindow(d, video, 0, 0, 190, 68, 0,
+                                                        rgb8(24,18,15), rgb8(24,18,15));
+        XSelectInput(d, fullscreenTransportWindow, ExposureMask|ButtonPressMask|PointerMotionMask|EnterWindowMask|LeaveWindowMask);
         seekPreviewWindow = XCreateSimpleWindow(d, win, 0, 0, 260, 176, 0, rgb8(90,55,35), rgb8(35,25,22));
         XSelectInput(d, seekPreviewWindow, ExposureMask);
         xextHandle = dlopen("libXext.so.6", RTLD_NOW | RTLD_LOCAL);
@@ -2446,6 +2492,7 @@ public:
         liveTvChannels = tunerBackend.load_channels();
         liveTvPrograms = tunerBackend.load_guide();
         restore_live_tv_last_channel();
+        start_world_tv_artwork_prefetch();
         // v0.0.42: silently discover an already-connected tuner at startup so
         // stale guide maintenance can happen without forcing a visit to Live TV.
         if (!liveTvChannels.empty()) {
@@ -2762,7 +2809,7 @@ public:
         if (currentView == ViewMode::Home || currentView == ViewMode::Library || currentView == ViewMode::Discover ||
             currentView == ViewMode::Nougat || currentView == ViewMode::Stream || currentView == ViewMode::Studio || currentView == ViewMode::Games || currentView == ViewMode::P2P ||
             currentView == ViewMode::Debug || currentView == ViewMode::LiveTV || currentView == ViewMode::WorldTV) {
-            if (videoActivityOverlayWindow) XUnmapWindow(d, videoActivityOverlayWindow);
+            hide_player_activity_overlay_window();
             XUnmapWindow(d, video);
             return;
         }
@@ -2907,6 +2954,9 @@ public:
                 if (!program->title.empty()) identity += "  •  " + program->title;
             }
             return identity;
+        }
+        if (currentMediaIsWorldTv && !liveTvPlayingLabel.empty()) {
+            std::string identity=liveTvPlayingLabel; const std::string program=current_world_tv_program_title(); if(!program.empty()) identity += "  •  " + program; return identity;
         }
         if (activeLibraryItemValid && !activeLibraryItem.path.empty() && activeLibraryItem.path == currentPath) {
             return media_identity_for_node(activeLibraryItem);
@@ -3395,26 +3445,38 @@ public:
         return true;
     }
 
-    bool open_world_tv_location(const std::string& mrl, int stationIndex, const std::string& label) {
+    bool open_world_tv_location(const std::string& mrl, int stationIndex, const std::string& label,
+                                const std::string& referrer, const std::string& userAgent) {
         cancel_tv_autoplay();
         if (!inst || !api.media_new_location || mrl.empty()) return false;
         p2pStream.stop();
         cleanup_player();
+
         libvlc_media_t* media = api.media_new_location(inst, mrl.c_str());
         if (!media) return false;
         if (api.media_add_option) {
-            api.media_add_option(media, ":network-caching=1200");
-            api.media_add_option(media, ":live-caching=1200");
+            api.media_add_option(media, ":network-caching=1800");
+            api.media_add_option(media, ":live-caching=1800");
             api.media_add_option(media, ":http-reconnect=true");
             api.media_add_option(media, ":adaptive-maxheight=1080");
             api.media_add_option(media, ":preferred-resolution=1080");
+            if (!referrer.empty()) {
+                const std::string option=":http-referrer="+referrer;
+                api.media_add_option(media, option.c_str());
+            }
+            if (!userAgent.empty()) {
+                const std::string option=":http-user-agent="+userAgent;
+                api.media_add_option(media, option.c_str());
+            }
         }
+
         mp = api.player_new_from_media(media);
         api.media_release(media);
         if (!mp) return false;
+
         api.set_xwindow(mp, (unsigned int)video);
         api.set_volume(mp, volumePercent);
-        playbackEndHandled = false;
+        playbackEndHandled=false;
         currentPath.clear();
         currentMediaIsP2P=false;
         currentMediaIsYtDlpStream=false;
@@ -3424,15 +3486,32 @@ public:
         worldTvPlayingIndex=stationIndex;
         liveTvPlayingChannel=-1;
         liveTvPlayingLabel=label;
-        hasMedia=true; paused=false; needResumePrompt=false;
-        subtitlePath.clear(); subtitlesOn=false; subtitleDelayUs=0;
-        chapterMarksMs.clear(); chapterNames.clear(); chapterMarksAreReal=false; chapterScanComplete=false;
-        playbackCacheValid=false; cachedPlaybackTimeMs=0; cachedPlaybackLengthMs=0;
+        hasMedia=true;
+        paused=false;
+        needResumePrompt=false;
+        resumePromptVisible=false;
+        stoppedPlaybackVisible=false;
+        stoppedPlaybackPositionMs=0;
+        subtitlePath.clear();
+        subtitlesOn=false;
+        subtitleDelayUs=0;
+        chapterMarksMs.clear();
+        chapterNames.clear();
+        chapterMarksAreReal=false;
+        chapterScanComplete=false;
+        playbackCacheValid=false;
+        cachedPlaybackTimeMs=0;
+        cachedPlaybackLengthMs=0;
+
         const int rc=api.play(mp);
         if (rc != 0) {
-            api.player_release(mp); mp=nullptr; hasMedia=false;
-            currentMediaIsNetwork=false; currentMediaIsWorldTv=false;
-            worldTvPlayingIndex=-1; liveTvPlayingLabel.clear();
+            api.player_release(mp);
+            mp=nullptr;
+            hasMedia=false;
+            currentMediaIsNetwork=false;
+            currentMediaIsWorldTv=false;
+            worldTvPlayingIndex=-1;
+            liveTvPlayingLabel.clear();
             return false;
         }
         switch_view(ViewMode::VideoPlayer);
@@ -3717,6 +3796,52 @@ public:
     }
     void hide_player_activity_overlay_window() {
         if (videoActivityOverlayWindow) XUnmapWindow(d, videoActivityOverlayWindow);
+        if (fullscreenTransportWindow) XUnmapWindow(d, fullscreenTransportWindow);
+        fullscreenTransportHover=-1;
+    }
+
+    int fullscreen_transport_hit(int x,int y) const {
+        if(fullscreenRewindRect.contains(x,y)) return 0;
+        if(fullscreenPlayRect.contains(x,y)) return 1;
+        if(fullscreenForwardRect.contains(x,y)) return 2;
+        return -1;
+    }
+
+    void draw_fullscreen_transport_overlay() {
+        if(!fullscreenTransportWindow||!fullscreen||!hasMedia||!playerActivityOverlayVisible||
+           resumePromptVisible||stoppedPlaybackVisible||upNextVisible||needResumePrompt){
+            if(fullscreenTransportWindow) XUnmapWindow(d,fullscreenTransportWindow);
+            fullscreenTransportHover=-1;
+            return;
+        }
+        constexpr int buttonSize=52;
+        constexpr int gap=8;
+        constexpr int pad=8;
+        const int overlayW=pad*2+buttonSize*3+gap*2;
+        const int overlayH=pad*2+buttonSize;
+        const int overlayX=std::max(0,(videoW-overlayW)/2);
+        const int overlayY=std::max(0,videoH-overlayH-24);
+        fullscreenRewindRect={pad,pad,buttonSize,buttonSize};
+        fullscreenPlayRect={pad+buttonSize+gap,pad,buttonSize,buttonSize};
+        fullscreenForwardRect={pad+(buttonSize+gap)*2,pad,buttonSize,buttonSize};
+        XMoveResizeWindow(d,fullscreenTransportWindow,overlayX,overlayY,
+                          static_cast<unsigned>(overlayW),static_cast<unsigned>(overlayH));
+        XMapRaised(d,fullscreenTransportWindow);
+        fill(fullscreenTransportWindow,{0,0,overlayW,overlayH},rgb8(24,18,15));
+        const ViewPalette palette=palette_for(ViewMode::VideoPlayer);
+        const auto draw_transport=[&](const Rect& r,const char* label,int index){
+            const SheetControlState state=fullscreenTransportHover==index
+                ? SheetControlState::Hover : SheetControlState::Normal;
+            // Literal approved-sheet button grammar owns the square around each symbol.
+            draw_sheet_button_surface(fullscreenTransportWindow,r,palette,state);
+            const int tx=r.x+std::max(0,(r.w-text_width(label))/2);
+            const int ty=r.y+r.h/2+5;
+            text(fullscreenTransportWindow,tx,ty,label,sheet_button_ink(palette,state));
+        };
+        draw_transport(fullscreenRewindRect,"<",0);
+        draw_transport(fullscreenPlayRect,"^",1);
+        draw_transport(fullscreenForwardRect,">",2);
+        XFlush(d);
     }
 
     void draw_player_activity_overlay_window() {
@@ -3725,21 +3850,33 @@ public:
             hide_player_activity_overlay_window();
             return;
         }
+        if(fullscreen) draw_fullscreen_transport_overlay();
+        else if(fullscreenTransportWindow) XUnmapWindow(d,fullscreenTransportWindow);
+
         const std::string identity = current_media_identity();
         if (identity.empty()) {
-            hide_player_activity_overlay_window();
+            if(videoActivityOverlayWindow) XUnmapWindow(d,videoActivityOverlayWindow);
             return;
         }
-        const int overlayW = std::max(1, std::min(std::max(220, text_width(identity) + 28), std::max(1, videoW - 36)));
-        const int overlayH = 34;
-        XMoveResizeWindow(d, videoActivityOverlayWindow, 18, 18,
-                          static_cast<unsigned>(overlayW), static_cast<unsigned>(overlayH));
-        XMapRaised(d, videoActivityOverlayWindow);
-        fill(videoActivityOverlayWindow, {0,0,overlayW,overlayH}, rgb8(32,25,21));
-        fill_round(videoActivityOverlayWindow, {0,0,overlayW,overlayH}, 8, rgb8(32,25,21));
-        outline_round(videoActivityOverlayWindow, {0,0,overlayW,overlayH}, 8, rgb8(184,111,43));
-        text(videoActivityOverlayWindow, 12, 22,
-             head_to_width(identity, overlayW - 24), rgb8(248,235,214));
+        const bool world=currentMediaIsWorldTv&&worldTvPlayingIndex>=0;
+        const int logoReserve=world?86:0;
+        const int overlayH=world?62:34;
+        const int overlayW=std::max(1,std::min(std::max(220,text_width(identity)+28+logoReserve),std::max(1,videoW-36)));
+        XMoveResizeWindow(d,videoActivityOverlayWindow,18,18,
+                          static_cast<unsigned>(overlayW),static_cast<unsigned>(overlayH));
+        XMapRaised(d,videoActivityOverlayWindow);
+        fill(videoActivityOverlayWindow,{0,0,overlayW,overlayH},rgb8(32,25,21));
+        fill_round(videoActivityOverlayWindow,{0,0,overlayW,overlayH},8,rgb8(32,25,21));
+        outline_round(videoActivityOverlayWindow,{0,0,overlayW,overlayH},8,
+                      world?rgb8(218,127,43):rgb8(184,111,43));
+        int textX=12;
+        if(world){
+            const Rect logo{8,7,72,48};
+            draw_world_tv_logo(videoActivityOverlayWindow,logo,worldTvPlayingIndex);
+            textX=88;
+        }
+        text(videoActivityOverlayWindow,textX,world?35:22,
+             head_to_width(identity,overlayW-textX-12),rgb8(248,235,214));
         XFlush(d);
     }
 
@@ -3844,7 +3981,8 @@ public:
         if (view == ViewMode::VideoPlayer) return col(0xd2a5,0xa5a5,0x6d6d);
         if (view == ViewMode::Library) return col(0x8faa,0xaaaa,0x7777);
         if (view == ViewMode::Discover) return col(0xbd7a,0x7a7a,0xd1d1);
-        if (view == ViewMode::LiveTV || view == ViewMode::WorldTV) return rgb8(57,135,151);
+        if (view == ViewMode::LiveTV) return rgb8(57,135,151);
+        if (view == ViewMode::WorldTV) return rgb8(218,127,43);
         if (view == ViewMode::Nougat) return col(0xd2a5,0xa5a5,0x6d6d);
         if (view == ViewMode::Stream) return stream_palette_for(streamPlatform).accent;
         if (view == ViewMode::Games) return rgb8(93,122,164);
@@ -3867,7 +4005,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.46";
+        const std::string versionLabel = "v0.0.47";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -4574,6 +4712,24 @@ public:
         return relative_live_tv_channel_index(delta) >= 0;
     }
 
+    int relative_world_tv_station_index(int delta) {
+        if (!currentMediaIsWorldTv || delta==0) return -1;
+        const auto visible=world_tv_visible_indices();
+        const auto found=std::find(visible.begin(),visible.end(),worldTvPlayingIndex);
+        if (found==visible.end()) return -1;
+        const int pos=static_cast<int>(std::distance(visible.begin(),found));
+        const int target=pos+delta;
+        if (target<0 || target>=static_cast<int>(visible.size())) return -1;
+        return visible[static_cast<std::size_t>(target)];
+    }
+    bool world_tv_station_navigation_available(int delta) {
+        return relative_world_tv_station_index(delta)>=0;
+    }
+    void play_relative_world_tv_station(int delta) {
+        const int target=relative_world_tv_station_index(delta);
+        if (target>=0) watch_world_tv_station(target);
+    }
+
     void play_relative_live_tv_channel(int delta) {
         const int target = relative_live_tv_channel_index(delta);
         if (target < 0) return;
@@ -4601,11 +4757,13 @@ public:
         button_on(target, openBtn, "Open");
         button_on(target, rewindBtn, "Rewind 10s");
         if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(-1)) ||
-            (!currentMediaIsLiveTv && episode_navigation_available(-1))) button_on(target, previousBtn, "Previous");
+            (currentMediaIsWorldTv && world_tv_station_navigation_available(-1)) ||
+            (!currentMediaIsLiveTv && !currentMediaIsWorldTv && episode_navigation_available(-1))) button_on(target, previousBtn, "Previous");
         else draw_disabled_player_button(target, previousBtn, "Previous");
         button_on(target, playBtn, "Play/Pause");
         if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(1)) ||
-            (!currentMediaIsLiveTv && episode_navigation_available(1))) button_on(target, nextBtn, "Next");
+            (currentMediaIsWorldTv && world_tv_station_navigation_available(1)) ||
+            (!currentMediaIsLiveTv && !currentMediaIsWorldTv && episode_navigation_available(1))) button_on(target, nextBtn, "Next");
         else draw_disabled_player_button(target, nextBtn, "Next");
         button_on(target, forwardBtn, "Fast Forward 10s");
         button_on(target, stopBtn, "Stop");
@@ -4900,14 +5058,7 @@ public:
         redraw();
     }
 
-    void open_kaaba_live() {
-        ytdlpUrl="https://www.youtube.com/live/Cm1v4bteXbI";
-        streamPlatform=StreamPlatform::YouTube;
-        ytdlpStatus="Kaaba Live: opening verified official KSA Qur'an TV in Nougat's native player...";
-        direct_watch_stream();
-    }
-
-        void direct_watch_stream() {
+    void direct_watch_stream() {
         if (ytdlpUrl.empty()) {
             ytdlpStatus = "Paste a video URL first.";
             redraw();
@@ -8217,170 +8368,264 @@ public:
         }
     }
 
-        static const std::vector<WorldTvStation>& world_tv_catalog() {
-        // v0.0.45: direct linear international television only. No YouTube
-        // URLs are accepted here. Each source is a broadcaster/CDN HLS feed
-        // whose advertised maximum is 1080p or lower; libVLC is also given an
-        // adaptive-maxheight/preferred-resolution 1080 ceiling at playback.
-        static const std::vector<WorldTvStation> stations = {
-            {"France 24 Français", "France", "French", "https://live.france24.com/hls/live/2037179/F24_FR_HI_HLS/master_5000.m3u8", "https://www.france24.com/fr/direct/", 1080},
-            {"France 24 Arabic", "France", "Arabic", "https://live.france24.com/hls/live/2037222/F24_AR_HI_HLS/master_5000.m3u8", "https://www.france24.com/ar/live/", 1080},
-            {"France 24 Español", "France", "Spanish", "https://live.france24.com/hls/live/2037220/F24_ES_HI_HLS/master_2300.m3u8", "https://www.france24.com/es/en-vivo/", 720},
-            {"Al Jazeera Arabic", "Qatar", "Arabic", "https://live-hls-apps-aja-fa.getaj.net/AJA/index.m3u8", "https://www.aljazeera.net/live/", 1080},
-            {"Al Jazeera English", "Qatar", "English", "https://live-hls-apps-aje-fa.getaj.net/AJE/index.m3u8", "https://www.aljazeera.com/live/", 1080},
-            {"DW", "Germany", "English", "https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8", "https://www.dw.com/en/live-tv/channel-english", 1080},
-            {"AlMamlaka", "Jordan", "Arabic", "https://almamlka-live.ercdn.net/almamlka/almamlka.m3u8", "https://www.almamlakatv.com/live", 1080},
-            {"VTV1", "Vietnam", "Vietnamese", "https://ott1.nethubtv.vn/live/vtv1/playlist.m3u8", "https://vtv.vn/truyen-hinh-truc-tuyen/vtv1.htm", 1080},
-            {"TRANS7", "Indonesia", "Indonesian", "https://video.detik.com/trans7/smil:trans7.smil/index.m3u8", "https://www.trans7.co.id/live-streaming", 1080},
-            {"TRANS TV", "Indonesia", "Indonesian", "https://video.detik.com/transtv/smil:transtv.smil/index.m3u8", "https://www.transtv.co.id/live", 1080},
-            {"TVK", "Cambodia", "Khmer", "https://live.kh.malimarcdn.com/live/tvk.stream/playlist.m3u8", "https://www.tvk.gov.kh/", 1080},
-            {"EBS Kids", "South Korea", "Korean", "https://ebsonair.ebs.co.kr/ebsufamilypc/familypc1m/chunklist_w1898633944.m3u8", "https://www.ebs.co.kr/", 720},
-            {"CMC TV", "Croatia", "Croatian", "https://stream.cmctv.hr:49998/cmc/live.m3u8", "https://cmctv.hr/", 1080},
-            {"Al Araby TV", "Qatar/United Kingdom", "Arabic", "https://alaraby.cdn.octivid.com/alaraby/smil:alaraby.stream.smil/chunklist.m3u8", "https://www.alaraby.com/live", 1080}
+    static const std::vector<reddmedia::WorldTvStation>& world_tv_catalog() {
+        // v0.0.47: World TV is a real channel catalog. Entries use official or
+        // directory-verified non-YouTube linear sources, real station artwork,
+        // and guide data where a trustworthy XMLTV source exists. Direct URLs
+        // are preferences, not blind truth; the resolver probes the picture and
+        // can move to another current feed when a source dies or only renders black.
+        static const std::vector<reddmedia::WorldTvStation> stations = {
+            {"France24French.fr", "", "France 24 Français", "France", "French", "https://live.france24.com/hls/live/2037179/F24_FR_HI_HLS/master_5000.m3u8", "https://www.france24.com/fr/direct/", "", 1080},
+            {"France24Arabic.fr", "", "France 24 Arabic", "France", "Arabic", "https://live.france24.com/hls/live/2037222/F24_AR_HI_HLS/master_5000.m3u8", "https://www.france24.com/ar/live/", "", 1080},
+            {"France24Spanish.fr", "", "France 24 Español", "France", "Spanish", "https://live.france24.com/hls/live/2037220/F24_ES_HI_HLS/master_2300.m3u8", "https://www.france24.com/es/en-vivo/", "", 1080},
+            {"AlJazeeraArabic.qa", "", "Al Jazeera Arabic", "Qatar", "Arabic", "https://live-hls-apps-aja-fa.getaj.net/AJA/index.m3u8", "https://www.aljazeera.net/live/", "", 1080},
+            {"AlJazeeraEnglish.qa", "", "Al Jazeera English", "Qatar", "English", "https://live-hls-apps-aje-fa.getaj.net/AJE/index.m3u8", "https://www.aljazeera.com/live/", "", 1080},
+            {"DWEnglish.de", "", "DW", "Germany", "English", "https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8", "https://www.dw.com/en/live-tv/channel-english", "", 1080},
+            {"AlMamlakaTV.jo", "", "AlMamlaka", "Jordan", "Arabic", "https://almamlka-live.ercdn.net/almamlka/almamlka.m3u8", "https://www.almamlakatv.com/live", "", 1080},
+            {"VTV1.vn", "", "VTV1", "Vietnam", "Vietnamese", "https://ott1.nethubtv.vn/live/vtv1/playlist.m3u8", "https://vtv.vn/truyen-hinh-truc-tuyen/vtv1.htm", "", 1080},
+            {"Trans7.id", "", "TRANS7", "Indonesia", "Indonesian", "https://video.detik.com/trans7/smil:trans7.smil/index.m3u8", "https://www.trans7.co.id/live-streaming", "", 1080},
+            {"TransTV.id", "", "TRANS TV", "Indonesia", "Indonesian", "https://video.detik.com/transtv/smil:transtv.smil/index.m3u8", "https://www.transtv.co.id/live", "", 1080},
+            {"TVK.kh", "", "TVK", "Cambodia", "Khmer", "https://live.kh.malimarcdn.com/live/tvk.stream/playlist.m3u8", "https://www.tvk.gov.kh/", "", 1080},
+            {"EBSKids.kr", "", "EBS Kids", "South Korea", "Korean", "https://ebsonair.ebs.co.kr/ebsufamilypc/familypc1m/chunklist_w1898633944.m3u8", "https://www.ebs.co.kr/", "", 720},
+            {"CMCTV.hr", "", "CMC TV", "Croatia", "Croatian", "https://stream.cmctv.hr:49998/cmc/live.m3u8", "https://cmctv.hr/", "", 1080},
+            {"AlArabyTV.qa", "", "Al Araby TV", "Qatar / United Kingdom", "Arabic", "https://alaraby.cdn.octivid.com/alaraby/smil:alaraby.stream.smil/chunklist.m3u8", "https://www.alaraby.com/live", "", 1080},
+            {"AlQuranAlKareemTV.sa", "", "Al Quran Al Kareem TV", "Saudi Arabia", "Arabic", "", "https://www.aloula.sa/", "aloula-quran", 1080},
+
+            {"Russia24.ru", "SD", "Russia 24", "Russia", "Russian", "https://stream.smotrim.ru/hls2/russia24nl_smotrim/playlist_5.m3u8", "https://smotrim.ru/channel/3", "", 1080},
+            {"Russia1.ru", "HD", "Russia 1", "Russia", "Russian", "https://stream.smotrim.ru/hls2/russia_hd/playlist_6.m3u8", "https://smotrim.ru/channel/1", "", 1080},
+            {"RussiaK.ru", "HD", "Russia-K", "Russia", "Russian", "https://stream.smotrim.ru/hls2/russia_k/playlist_5.m3u8", "https://smotrim.ru/channel/2", "", 1080},
+            {"ChannelOne.ru", "", "Channel One Russia", "Russia", "Russian", "", "https://www.1tv.ru/live", "", 1080},
+            {"NTV.ru", "SD", "NTV Russia", "Russia", "Russian", "https://cdn.ntv.ru/vitrina/index.m3u8", "https://www.ntv.ru/air/ntv/", "", 1080},
+            {"Mir24.ru", "", "MIR 24", "Russia", "Russian", "", "https://mir24.tv/live", "", 1080},
+            {"RBKTV.ru", "SD", "RBC TV", "Russia", "Russian", "", "https://tv.rbc.ru/", "", 1080},
+            {"TVCentr.ru", "SD", "TV Center", "Russia", "Russian", "https://tvc-hls.cdnvideo.ru/tvc-res/smil:vd9221.smil/playlist.m3u8", "https://www.tvc.ru/channel/onair", "", 1080},
+            {"BigAsia.ru", "SD", "Big Asia", "Russia", "Russian", "http://live-bigasia.cdnvideo.ru/bigasia/bigasia.smil/playlist.m3u8", "https://bigasia.ru/", "", 720},
+            {"DumaTV.ru", "SD", "Duma TV", "Russia", "Russian", "https://dumatv.iptv2022.com/playlist.m3u8", "https://dumatv.ru/", "", 1080},
+            {"VmesteRF.ru", "SD", "Vmeste RF", "Russia", "Russian", "", "https://vmeste-rf.tv/", "", 1080},
+            {"Mir.ru", "SD", "MIR", "Russia", "Russian", "", "https://mir24.tv/", "", 1080},
+            {"OTR.ru", "SD", "OTR", "Russia", "Russian", "", "https://otr-online.ru/", "", 1080},
+            {"RENTV.ru", "SD", "REN TV", "Russia", "Russian", "", "https://ren.tv/live", "", 1080},
+            {"TelekanalSpas.ru", "SD", "Spas", "Russia", "Russian", "https://spas.mediacdn.ru/cdn/spas/playlist.m3u8", "https://spastv.ru/", "", 1080},
+            {"STS.ru", "SD", "STS", "Russia", "Russian", "", "https://ctc.ru/online/", "", 1080},
+            {"Moskva24.ru", "SD", "Moskva 24", "Russia", "Russian", "https://stream.smotrim.ru/hls2/givc9/playlist_4.m3u8", "https://www.m24.ru/live", "", 1080},
+            {"SanktPeterburg.ru", "HD", "Sankt-Peterburg", "Russia", "Russian", "https://stream.smotrim.ru/hls2/ext_spbtv/playlist_5.m3u8", "https://topspb.tv/online/", "", 1080},
+            {"Soyuz.ru", "SD", "Soyuz", "Russia", "Russian", "https://hls-tvsoyuz.cdnvideo.ru/tvsoyuz/soyuz/playlist.m3u8", "https://tv-soyuz.ru/", "", 1080},
+
+            {"TRTWorld.tr", "SD", "TRT World", "Türkiye", "English", "https://tv-trtworld.medya.trt.com.tr/master.m3u8", "https://www.trtworld.com/live", "", 1080},
+            {"TRTHaber.tr", "SD", "TRT Haber", "Türkiye", "Turkish", "https://tv-trthaber.medya.trt.com.tr/master.m3u8", "https://www.trthaber.com/canli-yayin-izle/trt-haber/", "", 1080},
+            {"TRT1.tr", "SD", "TRT 1", "Türkiye", "Turkish", "https://tv-trt1.medya.trt.com.tr/master.m3u8", "https://www.trt1.com.tr/canli-izle", "", 1080},
+            {"NTV.tr", "", "NTV Türkiye", "Türkiye", "Turkish", "", "https://www.ntv.com.tr/canli-yayin/ntv", "", 1080},
+            {"TRTArabi.tr", "SD", "TRT Arabi", "Türkiye", "Arabic", "https://tv-trtarabi.medya.trt.com.tr/master.m3u8", "https://www.trtarabi.com/live", "", 1080},
+            {"TRTAvaz.tr", "SD", "TRT Avaz", "Türkiye", "Turkish / Turkic", "https://tv-trtavaz.medya.trt.com.tr/master.m3u8", "https://www.trtavaz.com.tr/", "", 1080},
+            {"TRTBelgesel.tr", "SD", "TRT Belgesel", "Türkiye", "Turkish", "https://tv-trtbelgesel.medya.trt.com.tr/master.m3u8", "https://www.trtbelgesel.com.tr/", "", 1080},
+            {"TRTTurk.tr", "SD", "TRT Türk", "Türkiye", "Turkish", "https://tv-trtturk.medya.trt.com.tr/master.m3u8", "https://www.trtturk.com.tr/", "", 1080},
+            {"TGRTHaber.tr", "SD", "TGRT Haber", "Türkiye", "Turkish", "https://canli.tgrthaber.com/tgrt.m3u8", "https://www.tgrthaber.com/canli-yayin", "", 1080},
+            {"ArirangTV.kr", "", "Arirang TV", "South Korea", "English / Korean", "", "https://www.arirang.com/", "", 1080},
+            {"NHKWorldJapan.jp", "", "NHK World Japan", "Japan", "English", "", "https://www3.nhk.or.jp/nhkworld/en/live/", "", 1080},
+            {"CNAInternational.sg", "", "CNA", "Singapore", "English", "", "https://www.channelnewsasia.com/watch", "", 1080},
+            {"DDNews.in", "", "DD News", "India", "Hindi / English", "", "https://ddnews.gov.in/", "", 1080}
         };
         return stations;
     }
 
-        void watch_world_tv_station(int index, bool reconnect=false) {
-        const auto& stations = world_tv_catalog();
-        if (index < 0 || index >= static_cast<int>(stations.size())) {
-            worldTvStatus = "Select a World TV station first.";
-            redraw();
-            return;
-        }
-        const auto& station = stations[static_cast<std::size_t>(index)];
-        const std::string lowerUrl = lower_copy(station.source_url);
-        if (lowerUrl.find("youtube.com") != std::string::npos || lowerUrl.find("youtu.be") != std::string::npos) {
-            worldTvStatus = "Rejected source: World TV does not accept YouTube channels.";
-            redraw();
-            return;
-        }
-        if (station.max_height <= 0 || station.max_height > 1080) {
-            worldTvStatus = "Rejected source: World TV playback is capped at 1080p.";
-            redraw();
-            return;
-        }
-        worldTvSelected = index;
-        worldTvStatus = (reconnect ? "Reconnecting " : "Opening ") + station.name +
-            " from its direct broadcaster stream (1080p maximum)...";
-        bool opened = false;
-        for (int attempt=0; attempt<2 && !opened; ++attempt) {
-            opened = open_world_tv_location(station.source_url, index, station.name);
-            if (!opened && attempt==0) std::this_thread::sleep_for(std::chrono::milliseconds(120));
-        }
-        if (!opened) {
-            currentMediaIsWorldTv=false;
+    std::string world_tv_artwork_path(const reddmedia::WorldTvStation& station) const {
+        std::string leaf=station.channel_id;
+        if (!station.feed_id.empty()) leaf += "_" + station.feed_id;
+        for (char& c:leaf) if (!std::isalnum(static_cast<unsigned char>(c)) && c!='.' && c!='-' && c!='_') c='_';
+        const std::string dir=home_dir()+"/.cache/reddmedia/world_tv/artwork";
+        std::error_code ec; std::filesystem::create_directories(dir,ec);
+        return dir+"/"+leaf+".ppm";
+    }
+
+    static bool load_world_tv_ppm(const std::string& path, WorldTvArtwork& art) {
+        std::ifstream in(path,std::ios::binary); if(!in) return false;
+        auto token=[&in](){ std::string out; char c=0; for(;;){ if(!in.get(c)) return out; if(c=='#'){ std::string skip; std::getline(in,skip); continue; } if(!std::isspace(static_cast<unsigned char>(c))){ out.push_back(c); break; } } while(in.get(c)){ if(std::isspace(static_cast<unsigned char>(c))) break; out.push_back(c); } return out; };
+        if(token()!="P6") return false;
+        const std::string w=token(),h=token(),m=token();
+        if(w.empty()||h.empty()||m!="255") return false;
+        const int width=std::atoi(w.c_str()),height=std::atoi(h.c_str());
+        if(width<=0||height<=0||width>1024||height>1024) return false;
+        std::vector<unsigned char> rgb(static_cast<std::size_t>(width)*static_cast<std::size_t>(height)*3U);
+        in.read(reinterpret_cast<char*>(rgb.data()),static_cast<std::streamsize>(rgb.size()));
+        if(in.gcount()!=static_cast<std::streamsize>(rgb.size())) return false;
+        art.width=width; art.height=height; art.rgb=std::move(rgb); return true;
+    }
+
+    bool cached_world_tv_logo(int stationIndex, WorldTvArtwork& art) {
+        auto found=worldTvArtworkCache.find(stationIndex);
+        if(found!=worldTvArtworkCache.end()){ art=found->second; return !art.rgb.empty(); }
+        const auto& stations=world_tv_catalog();
+        if(stationIndex<0||stationIndex>=static_cast<int>(stations.size())) return false;
+        WorldTvArtwork loaded;
+        if(!load_world_tv_ppm(world_tv_artwork_path(stations[static_cast<std::size_t>(stationIndex)]),loaded)) return false;
+        worldTvArtworkCache[stationIndex]=loaded; art=std::move(loaded); return true;
+    }
+
+    bool draw_world_tv_logo(Drawable target,const Rect& slot,int stationIndex) {
+        WorldTvArtwork art; if(!cached_world_tv_logo(stationIndex,art)||slot.w<=0||slot.h<=0) return false;
+        const int depth=DefaultDepth(d,screen); constexpr int bpp=4;
+        char* data=static_cast<char*>(std::calloc(static_cast<std::size_t>(slot.w)*static_cast<std::size_t>(slot.h),bpp));
+        if(!data) return false;
+        for(int y=0;y<slot.h;++y){ const int sy=std::min(art.height-1,y*art.height/std::max(1,slot.h)); for(int x=0;x<slot.w;++x){ const int sx=std::min(art.width-1,x*art.width/std::max(1,slot.w)); const std::size_t si=(static_cast<std::size_t>(sy)*art.width+sx)*3U; const unsigned long px=visual_pixel(art.rgb[si],art.rgb[si+1U],art.rgb[si+2U]); std::memcpy(data+(static_cast<std::size_t>(y)*slot.w+x)*bpp,&px,bpp); }}
+        XImage* image=XCreateImage(d,DefaultVisual(d,screen),depth,ZPixmap,0,data,slot.w,slot.h,32,0);
+        if(!image){ std::free(data); return false; }
+        XPutImage(d,target,gc,image,0,0,slot.x,slot.y,static_cast<unsigned>(slot.w),static_cast<unsigned>(slot.h));
+        XDestroyImage(image); return true;
+    }
+
+    std::vector<int> world_tv_visible_indices() {
+        std::vector<int> out; const auto& stations=world_tv_catalog();
+        for(int i=0;i<static_cast<int>(stations.size());++i){ WorldTvArtwork art; if(cached_world_tv_logo(i,art)) out.push_back(i); }
+        return out;
+    }
+
+    void start_world_tv_artwork_prefetch() {
+        const auto stations=world_tv_catalog();
+        bool busy=false,complete=false; { std::lock_guard<std::mutex> lock(worldTvArtworkState->mutex); busy=worldTvArtworkState->busy; complete=!busy&&worldTvArtworkState->total==static_cast<int>(stations.size())&&worldTvArtworkState->completed==worldTvArtworkState->total; }
+        if (busy || complete) return;
+        if (worldTvArtworkWorker.joinable()) worldTvArtworkWorker.join();
+        const auto service=worldTvService; const auto state=worldTvArtworkState;
+        std::vector<std::string> paths; paths.reserve(stations.size()); for(const auto& s:stations) paths.push_back(world_tv_artwork_path(s));
+        { std::lock_guard<std::mutex> lock(state->mutex); state->busy=true; state->updated=true; state->completed=0; state->total=static_cast<int>(stations.size()); state->paths.clear(); state->failed.clear(); }
+        worldTvArtworkWorker=std::thread([state,stations,paths,service]() mutable {
+            for(std::size_t i=0;i<stations.size();++i){ std::string error; const bool ok=service.refresh_artwork(stations[i].channel_id,stations[i].feed_id,paths[i],error); std::lock_guard<std::mutex> lock(state->mutex); if(ok) state->paths[static_cast<int>(i)]=paths[i]; else state->failed.insert(static_cast<int>(i)); ++state->completed; state->updated=true; }
+            std::lock_guard<std::mutex> lock(state->mutex); state->busy=false; state->updated=true;
+        });
+    }
+
+    void poll_world_tv_artwork() {
+        bool updated=false,busy=false; std::map<int,std::string> paths; int completed=0,total=0;
+        { std::lock_guard<std::mutex> lock(worldTvArtworkState->mutex); updated=worldTvArtworkState->updated; if(updated) worldTvArtworkState->updated=false; busy=worldTvArtworkState->busy; paths=worldTvArtworkState->paths; completed=worldTvArtworkState->completed; total=worldTvArtworkState->total; }
+        if(!updated) return;
+        for(const auto& item:paths){ if(worldTvArtworkCache.find(item.first)!=worldTvArtworkCache.end()) continue; WorldTvArtwork art; if(load_world_tv_ppm(item.second,art)) worldTvArtworkCache[item.first]=std::move(art); }
+        if(!busy&&worldTvArtworkWorker.joinable()) worldTvArtworkWorker.join();
+        const auto visible=world_tv_visible_indices();
+        if(busy) worldTvStatus="Loading verified station artwork: "+std::to_string(completed)+"/"+std::to_string(total)+"...";
+        else worldTvStatus="World TV ready: "+std::to_string(visible.size())+" stations have verified real artwork.";
+        if(!fullscreen&&currentView==ViewMode::WorldTV) redraw();
+    }
+
+    void start_world_tv_guide_refresh(int index) {
+        const auto& stations=world_tv_catalog();
+        if (index < 0 || index >= static_cast<int>(stations.size())) return;
+        bool busy=false; { std::lock_guard<std::mutex> lock(worldTvGuideState->mutex); busy=worldTvGuideState->busy; }
+        if (busy) return;
+        if (worldTvGuideWorker.joinable()) worldTvGuideWorker.join();
+        const auto station=stations[static_cast<std::size_t>(index)]; const auto service=worldTvService; const auto state=worldTvGuideState;
+        { std::lock_guard<std::mutex> lock(state->mutex); state->busy=true; state->updated=false; state->station_index=index; state->guide=reddmedia::WorldTvGuideInfo{}; }
+        worldTvGuideAttempted.insert(index); worldTvLastGuideRefreshMs=now_ms();
+        worldTvGuideWorker=std::thread([state,station,service]() mutable { const auto guide=service.guide(station.channel_id,station.feed_id); std::lock_guard<std::mutex> lock(state->mutex); state->guide=guide; state->busy=false; state->updated=true; });
+    }
+
+    void poll_world_tv_guide() {
+        bool updated=false,busy=false; int index=-1; reddmedia::WorldTvGuideInfo guide;
+        { std::lock_guard<std::mutex> lock(worldTvGuideState->mutex); updated=worldTvGuideState->updated; if(updated) worldTvGuideState->updated=false; busy=worldTvGuideState->busy; index=worldTvGuideState->station_index; guide=worldTvGuideState->guide; }
+        if (!updated) return;
+        if (!busy && worldTvGuideWorker.joinable()) worldTvGuideWorker.join();
+        if (index >= 0) worldTvGuideCache[index]=guide;
+        if(!fullscreen&&(currentView==ViewMode::WorldTV||currentView==ViewMode::VideoPlayer)) redraw();
+    }
+
+    std::string current_world_tv_program_title() const {
+        const auto found=worldTvGuideCache.find(worldTvPlayingIndex); if(found==worldTvGuideCache.end()||!found->second.available) return {};
+        const long long now=static_cast<long long>(std::time(nullptr)); const auto& g=found->second;
+        if(g.current_start>0&&g.current_end>g.current_start&&g.current_start<=now&&now<g.current_end) return g.current_title;
+        return {};
+    }
+
+    void watch_world_tv_station(int index,bool reconnect=false) {
+        const auto& stations=world_tv_catalog();
+        if(index<0||index>=static_cast<int>(stations.size())){ worldTvStatus="Select a World TV station first."; redraw(); return; }
+        WorldTvArtwork art; if(!cached_world_tv_logo(index,art)){ worldTvStatus="Station artwork is not verified yet; the channel is not exposed until its real logo is available."; start_world_tv_artwork_prefetch(); redraw(); return; }
+        bool busy=false; { std::lock_guard<std::mutex> lock(worldTvResolveState->mutex); busy=worldTvResolveState->busy; }
+        if(busy){ worldTvStatus="A World TV source check is already running."; redraw(); return; }
+        if(worldTvResolveWorker.joinable()) worldTvResolveWorker.join();
+        const auto station=stations[static_cast<std::size_t>(index)]; const auto service=worldTvService; const auto state=worldTvResolveState; const std::string exclude=reconnect?worldTvResolvedUrl:std::string();
+        worldTvSelected=index; worldTvStatus=(reconnect?"Checking an alternate live source for ":"Verifying live video for ")+station.name+"...";
+        { std::lock_guard<std::mutex> lock(state->mutex); state->busy=true; state->updated=false; state->station_index=index; state->reconnect=reconnect; state->result=reddmedia::WorldTvResolveResult{}; }
+        worldTvResolveWorker=std::thread([state,station,service,exclude]() mutable { const auto result=service.resolve(station.channel_id,station.feed_id,station.preferred_url,station.resolver,station.max_height,exclude); std::lock_guard<std::mutex> lock(state->mutex); state->result=result; state->busy=false; state->updated=true; });
+        start_world_tv_guide_refresh(index); redraw();
+    }
+
+    void poll_world_tv_resolver() {
+        bool updated=false,busy=false,reconnect=false; int index=-1; reddmedia::WorldTvResolveResult result;
+        { std::lock_guard<std::mutex> lock(worldTvResolveState->mutex); updated=worldTvResolveState->updated; if(updated) worldTvResolveState->updated=false; busy=worldTvResolveState->busy; reconnect=worldTvResolveState->reconnect; index=worldTvResolveState->station_index; result=worldTvResolveState->result; }
+        if (!updated) return;
+        if (!busy && worldTvResolveWorker.joinable()) worldTvResolveWorker.join();
+        const auto& stations=world_tv_catalog();
+        if (index < 0 || index >= static_cast<int>(stations.size())) return;
+        if(!result.ok||result.url.empty()){
             worldTvReconnectEnabled=false;
-            worldTvStatus = "VLC could not open the direct live stream for " + station.name + ".";
-            switch_view(ViewMode::WorldTV);
-            redraw();
-            return;
+            if (currentMediaIsWorldTv) cleanup_player();
+            liveTvPlayingLabel.clear();
+            worldTvStatus="Unable to verify usable video for "+stations[static_cast<std::size_t>(index)].name+". "+result.error;
+            if(currentView==ViewMode::VideoPlayer) switch_view(ViewMode::WorldTV); else redraw(); return;
         }
+        if(!open_world_tv_location(result.url,index,stations[static_cast<std::size_t>(index)].name,result.referrer,result.user_agent)){
+            worldTvReconnectEnabled=false; worldTvStatus="Nougat's native player could not open the verified source for "+stations[static_cast<std::size_t>(index)].name+"."; switch_view(ViewMode::WorldTV); redraw(); return;
+        }
+        worldTvResolvedUrl=result.url;
         worldTvReconnectEnabled=true;
         if (!reconnect) worldTvReconnectAttempts=0;
         worldTvNextReconnectMs=0;
         worldTvPlaybackVerified=false;
-        worldTvStartupDeadlineMs=now_ms()+12000;
+        worldTvStartupDeadlineMs=now_ms()+18000;
+        worldTvLastProgressMs=now_ms();
+        worldTvLastPlaybackTimeMs=-1;
+        worldTvBufferingSinceMs=0;
     }
 
     void poll_world_tv_reconnect() {
-        if (!currentMediaIsWorldTv || !worldTvReconnectEnabled || !mp || !api.get_state) return;
+        if(!currentMediaIsWorldTv||!worldTvReconnectEnabled||!mp||!api.get_state) return;
         const int state=api.get_state(mp);
         const long long now=now_ms();
-
-        if (state==3 || state==4) {
-            if (!worldTvPlaybackVerified) {
-                worldTvPlaybackVerified=true;
-                worldTvStartupDeadlineMs=0;
-                worldTvReconnectAttempts=0;
-                const auto& stations=world_tv_catalog();
-                if (worldTvPlayingIndex>=0 && worldTvPlayingIndex<static_cast<int>(stations.size()))
-                    worldTvStatus="Playing "+stations[static_cast<std::size_t>(worldTvPlayingIndex)].name+".";
-                redraw();
-            }
-            return;
-        }
-
-        const bool startupTimedOut=!worldTvPlaybackVerified && worldTvStartupDeadlineMs>0 &&
-                                   now>=worldTvStartupDeadlineMs;
-        const bool hardFailure=(state==5 || state==6 || state==7);
-        if (!startupTimedOut && !hardFailure) return;
-        if (now<worldTvNextReconnectMs) return;
-
-        if (worldTvReconnectAttempts>=3) {
+        bool stalled=false;
+        if(state==3||state==4){
+            if(state==3){ const long long position=api.get_time?api.get_time(mp):-1; if(position>0){ if(worldTvLastPlaybackTimeMs<=0||position!=worldTvLastPlaybackTimeMs){ worldTvLastPlaybackTimeMs=position; worldTvLastProgressMs=now; } else if(worldTvPlaybackVerified&&worldTvLastPlaybackTimeMs>0&&now-worldTvLastProgressMs>22000) stalled=true; } }
+            worldTvBufferingSinceMs=0;
+            if(!worldTvPlaybackVerified){ worldTvPlaybackVerified=true; worldTvStartupDeadlineMs=0; worldTvReconnectAttempts=0; const auto& stations=world_tv_catalog(); if(worldTvPlayingIndex>=0&&worldTvPlayingIndex<static_cast<int>(stations.size())) worldTvStatus="Playing "+stations[static_cast<std::size_t>(worldTvPlayingIndex)].name+"."; redraw(); }
+            if(!stalled) return;
+        } else if(state==2){ if(worldTvBufferingSinceMs==0) worldTvBufferingSinceMs=now; if(worldTvPlaybackVerified&&now-worldTvBufferingSinceMs>20000) stalled=true; }
+        const bool startupTimedOut=!worldTvPlaybackVerified&&worldTvStartupDeadlineMs>0&&now>=worldTvStartupDeadlineMs;
+        const bool hardFailure=(state==5||state==6||state==7);
+        if (!startupTimedOut && !hardFailure && !stalled) return;
+        if (now < worldTvNextReconnectMs) return;
+        if (worldTvReconnectAttempts >= 3) {
+            const std::string station=liveTvPlayingLabel;
             worldTvReconnectEnabled=false;
-            worldTvStartupDeadlineMs=0;
-            worldTvStatus=startupTimedOut
-                ? "World TV source did not begin verified playback after three attempts."
-                : "World TV source failed after three automatic reconnect attempts.";
-            redraw();
+            cleanup_player();
+            liveTvPlayingLabel.clear();
+            worldTvStatus=(stalled?"World TV playback stalled repeatedly for ":"World TV source failed repeatedly for ")+station+".";
+            if (currentView==ViewMode::VideoPlayer) switch_view(ViewMode::WorldTV);
+            else redraw();
             return;
         }
-
         const int index=worldTvPlayingIndex;
         ++worldTvReconnectAttempts;
         worldTvNextReconnectMs=now+2500;
-        worldTvStatus="World TV playback not yet verified. Retrying source...";
+        worldTvStatus="World TV playback was not healthy. Checking an alternate source...";
         redraw();
-        if (index>=0) watch_world_tv_station(index,true);
+        if (index >= 0) watch_world_tv_station(index,true);
     }
 
-            void draw_world_tv_screen(Drawable target) {
-        const ViewPalette palette=palette_for(ViewMode::WorldTV);
-        const Rect frame=page_content_frame(ViewMode::WorldTV);
-        draw_quilted_background(target,frame,ViewMode::WorldTV);
-        button_on(target,worldTvPlayBtn,"Watch Live");
-        button_on(target,worldTvOfficialBtn,"Official Site");
-        draw_primary_panel(target,worldTvListBox,palette);
-        worldTvHitboxes.clear();
+    void draw_world_tv_screen(Drawable target) {
+        const ViewPalette palette=palette_for(ViewMode::WorldTV); const Rect frame=page_content_frame(ViewMode::WorldTV); draw_quilted_background(target,frame,ViewMode::WorldTV);
+        button_on(target,worldTvPlayBtn,"Watch Live"); button_on(target,worldTvOfficialBtn,"Official Site"); draw_primary_panel(target,worldTvListBox,palette); worldTvHitboxes.clear(); worldTvRowStationIndices.clear();
         section_text(target,worldTvListBox.x+12,worldTvListBox.y+24,"WORLD TV",palette.text);
-        text(target,worldTvListBox.x+12,worldTvListBox.y+46,
-             "Direct international linear television. No YouTube catalog entries. Playback maximum: 1080p.",palette.muted);
-        text(target,worldTvListBox.x+12,worldTvListBox.y+66,
-             head_to_width("Status: "+worldTvStatus,worldTvListBox.w-24),palette.text);
-        const auto& stations=world_tv_catalog();
-        const int rowH=38;
-        const int top=worldTvListBox.y+80;
-        const int visible=std::max(1,(worldTvListBox.y+worldTvListBox.h-top-8)/rowH);
-        const int maxScroll=std::max(0,static_cast<int>(stations.size())-visible);
-        worldTvScroll=std::max(0,std::min(worldTvScroll,maxScroll));
-        int y=top;
-        for (int slot=0; slot<visible; ++slot) {
-            const int index=worldTvScroll+slot;
-            if (index>=static_cast<int>(stations.size())) break;
-            const auto& station=stations[static_cast<std::size_t>(index)];
-            Rect row{worldTvListBox.x+8,y,worldTvListBox.w-26,rowH-3};
-            if (index==worldTvSelected) fill(target,row,palette.selection);
-            outline(target,row,palette.border);
-            text(target,row.x+8,row.y+17,head_to_width(station.name,row.w-250),palette.text);
-            text(target,row.x+std::max(130,row.w-240),row.y+17,
-                 head_to_width(station.country+" | "+station.language+" | <="+std::to_string(station.max_height)+"p",232),palette.muted);
-            worldTvHitboxes.push_back(row);
-            y+=rowH;
-        }
-        draw_visible_vertical_scrollbar(target,worldTvListBox,worldTvScroll,static_cast<int>(stations.size()),visible,palette);
+        text(target,worldTvListBox.x+12,worldTvListBox.y+46,"International linear television with verified real station artwork. No YouTube catalog entries.",palette.muted);
+        text(target,worldTvListBox.x+12,worldTvListBox.y+66,head_to_width("Status: "+worldTvStatus,worldTvListBox.w-24),palette.text);
+        const auto& stations=world_tv_catalog(); const auto visibleStations=world_tv_visible_indices();
+        if(visibleStations.empty()){ text(target,worldTvListBox.x+14,worldTvListBox.y+112,"Loading and verifying station artwork...",palette.text); return; }
+        if(std::find(visibleStations.begin(),visibleStations.end(),worldTvSelected)==visibleStations.end()) worldTvSelected=visibleStations.front();
+        const int rowH=88; const int top=worldTvListBox.y+82; const int visible=std::max(1,(worldTvListBox.y+worldTvListBox.h-top-8)/rowH); const int maxScroll=std::max(0,static_cast<int>(visibleStations.size())-visible); worldTvScroll=std::max(0,std::min(worldTvScroll,maxScroll)); int y=top;
+        for(int slot=0;slot<visible;++slot){ const int position=worldTvScroll+slot; if(position>=static_cast<int>(visibleStations.size())) break; const int index=visibleStations[static_cast<std::size_t>(position)]; const auto& station=stations[static_cast<std::size_t>(index)]; Rect row{worldTvListBox.x+8,y,worldTvListBox.w-26,rowH-4}; if(index==worldTvSelected) fill(target,row,palette.selection); else fill(target,row,palette.panel); outline(target,row,palette.border); const Rect logo{row.x+8,row.y+8,88,68}; if(!draw_world_tv_logo(target,logo,index)) continue; text(target,row.x+106,row.y+20,head_to_width(station.name,row.w-116),palette.text); text(target,row.x+106,row.y+39,head_to_width(station.country+" | "+station.language+" | <="+std::to_string(station.max_height)+"p",row.w-116),palette.muted); const auto gi=worldTvGuideCache.find(index); if(gi!=worldTvGuideCache.end()&&gi->second.available&&!gi->second.current_title.empty()){ text(target,row.x+106,row.y+58,head_to_width("Now: "+gi->second.current_title,row.w-116),palette.text); if(!gi->second.next_title.empty()) text(target,row.x+106,row.y+76,head_to_width("Next: "+gi->second.next_title,row.w-116),palette.muted); } else text(target,row.x+106,row.y+58,"Program guide unavailable or not loaded yet",palette.muted); worldTvHitboxes.push_back(row); worldTvRowStationIndices.push_back(index); y+=rowH; }
+        draw_visible_vertical_scrollbar(target,worldTvListBox,worldTvScroll,static_cast<int>(visibleStations.size()),visible,palette);
     }
 
     void handle_world_tv_click(int x,int y,Time eventTime) {
-        const auto& stations=world_tv_catalog();
-        if (worldTvPlayBtn.contains(x,y)) { watch_world_tv_station(worldTvSelected); return; }
-        if (worldTvOfficialBtn.contains(x,y)) {
-            if (worldTvSelected>=0 && worldTvSelected<static_cast<int>(stations.size()))
-                open_external_url(stations[static_cast<std::size_t>(worldTvSelected)].homepage);
-            return;
-        }
-        for (std::size_t slot=0; slot<worldTvHitboxes.size(); ++slot) {
-            if (!worldTvHitboxes[slot].contains(x,y)) continue;
-            const int index=worldTvScroll+static_cast<int>(slot);
-            if (index<0 || index>=static_cast<int>(stations.size())) return;
-            const bool doubleClick=index==worldTvLastClickIndex && worldTvLastClickTime!=0 &&
-                eventTime>=worldTvLastClickTime && eventTime-worldTvLastClickTime<=450;
-            worldTvSelected=index; worldTvLastClickIndex=index; worldTvLastClickTime=eventTime;
-            worldTvStatus="Selected "+stations[static_cast<std::size_t>(index)].name+". Double-click or press Watch Live.";
-            redraw();
-            if (doubleClick) { worldTvLastClickTime=0; watch_world_tv_station(index); }
-            return;
-        }
+        const auto& stations=world_tv_catalog(); if(worldTvPlayBtn.contains(x,y)){ watch_world_tv_station(worldTvSelected); return; }
+        if(worldTvOfficialBtn.contains(x,y)){ if(worldTvSelected>=0&&worldTvSelected<static_cast<int>(stations.size())) open_external_url(stations[static_cast<std::size_t>(worldTvSelected)].homepage); return; }
+        for(std::size_t slot=0;slot<worldTvHitboxes.size()&&slot<worldTvRowStationIndices.size();++slot){ if(!worldTvHitboxes[slot].contains(x,y)) continue; const int index=worldTvRowStationIndices[slot]; if(index<0||index>=static_cast<int>(stations.size())) return; const bool doubleClick=index==worldTvLastClickIndex&&worldTvLastClickTime!=0&&eventTime>=worldTvLastClickTime&&eventTime-worldTvLastClickTime<=450; worldTvSelected=index; worldTvLastClickIndex=index; worldTvLastClickTime=eventTime; worldTvStatus="Selected "+stations[static_cast<std::size_t>(index)].name+". Double-click or press Watch Live."; start_world_tv_guide_refresh(index); redraw(); if(doubleClick){ worldTvLastClickTime=0; watch_world_tv_station(index); } return; }
     }
 
     void draw_live_tv_screen(Drawable target) {
@@ -9075,7 +9320,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.46";
+        input.app_version = "Nougat Media Suite v0.0.47";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -11977,6 +12222,7 @@ public:
             { std::lock_guard<std::mutex> lock(gameState->mutex); loaded = gameState->loaded; }
             if (!loaded) start_game_scan();
         }
+        if (currentView == ViewMode::WorldTV) { start_world_tv_artwork_prefetch(); start_world_tv_guide_refresh(worldTvSelected); }
         if (currentView == ViewMode::LiveTV) {
             liveTvTunersMode = false;
             liveTvGuideMode = true;
@@ -11999,7 +12245,7 @@ public:
         scroll_button_row(controlsScrollX, 8, delta, std::max(kCompactButtonW, W - 20));
     }
     void scroll_top_navigation(int delta) {
-        scroll_button_row(topNavScrollX, 10, delta, topNavViewportW);
+        scroll_button_row(topNavScrollX, 11, delta, topNavViewportW);
     }
 
     void close_context_menu() {
@@ -12477,6 +12723,15 @@ public:
     }
 
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
+        if(target==fullscreenTransportWindow){
+            if(button!=Button1) return;
+            const int hit=fullscreen_transport_hit(x,y);
+            lastPlayerActivityMotionMs=now_ms(); playerActivityOverlayVisible=true;
+            if(hit==0) seek_relative(-10000);
+            else if(hit==1) toggle_play();
+            else if(hit==2) seek_relative(10000);
+            draw_fullscreen_transport_overlay(); return;
+        }
         if (contextMenuOpen && target == contextMenu) { handle_context_menu_click(x,y); return; }
         if (contextMenuOpen) close_context_menu();
         if (currentView == ViewMode::Stream && target == win && ytdlpUrlRect.contains(x,y) && button == Button3) {
@@ -12551,16 +12806,7 @@ public:
             nougat_media_suite_icon::kTopBar14Size,
             nougat_media_suite_icon::kTopBar14Size
         };
-        if (target==win && y<kTopBarH && nougatBrandBadge.contains(x,y)) {
-            const long long clickNow=now_ms();
-            if (kaabaBadgeLastClickMs>0 && clickNow-kaabaBadgeLastClickMs<=500) {
-                kaabaBadgeLastClickMs=0;
-                open_kaaba_live();
-            } else {
-                kaabaBadgeLastClickMs=clickNow;
-            }
-            return;
-        }
+        if (target==win && y<kTopBarH && nougatBrandBadge.contains(x,y)) return;
         const bool topNavHit = y < kTopBarH && x >= topNavClipX && x < topNavClipRight;
         if (topNavHit && homeTab.contains(x,y)) {
             if (currentView != ViewMode::Home) switch_view(ViewMode::Home);
@@ -12852,12 +13098,14 @@ public:
         if (rewindBtn.contains(x,y)) { seek_relative(-10000); return; }
         if (previousBtn.contains(x,y)) {
             if (currentMediaIsLiveTv) play_relative_live_tv_channel(-1);
+            else if (currentMediaIsWorldTv) play_relative_world_tv_station(-1);
             else play_relative_episode(-1);
             return;
         }
         if (playBtn.contains(x,y)) { toggle_play(); return; }
         if (nextBtn.contains(x,y)) {
             if (currentMediaIsLiveTv) play_relative_live_tv_channel(1);
+            else if (currentMediaIsWorldTv) play_relative_world_tv_station(1);
             else play_relative_episode(1);
             return;
         }
@@ -12898,6 +13146,12 @@ public:
         pendingSeek = false;
         currentMediaIsYtDlpStream = false;
         currentMediaIsNetwork = false;
+        if (currentMediaIsWorldTv) {
+            currentMediaIsWorldTv=false;
+            worldTvPlayingIndex=-1;
+            worldTvResolvedUrl.clear();
+            if (!currentMediaIsLiveTv) liveTvPlayingLabel.clear();
+        }
         if (currentMediaIsLiveTv) {
             currentMediaIsLiveTv=false;
             liveTvPlayingChannel=-1;
@@ -12942,6 +13196,8 @@ public:
                         XFlush(d);
                     } else if (videoActivityOverlayWindow && e.xexpose.window == videoActivityOverlayWindow) {
                         draw_player_activity_overlay_window();
+                    } else if (fullscreenTransportWindow && e.xexpose.window == fullscreenTransportWindow) {
+                        draw_fullscreen_transport_overlay();
                     } else if (seekPreviewWindow && e.xexpose.window == seekPreviewWindow) {
                         draw_seek_preview_window();
                     } else if (contextMenuOpen && e.xexpose.window == contextMenu) {
@@ -13021,11 +13277,22 @@ public:
                             }
                         }
                     }
+                    if(e.xmotion.window==fullscreenTransportWindow){
+                        const int hover=fullscreen_transport_hit(e.xmotion.x,e.xmotion.y);
+                        const bool changed=hover!=fullscreenTransportHover;
+                        fullscreenTransportHover=hover; lastPlayerActivityMotionMs=now_ms();
+                        playerActivityOverlayVisible=true; if(changed) draw_fullscreen_transport_overlay();
+                    }
                     handle_nougat_motion(e.xmotion);
                     if (volumeDragging && currentView==ViewMode::VideoPlayer && mp) {
                         const int v=std::max(0,std::min(200,(e.xmotion.x-volRect.x)*200/std::max(1,volRect.w)));
                         volumePercent=v; api.set_volume(mp,v); draw_volume_only();
                     }
+                }
+                else if (e.type == EnterNotify && e.xcrossing.window == fullscreenTransportWindow) {
+                    lastPlayerActivityMotionMs=now_ms(); playerActivityOverlayVisible=true;
+                    fullscreenTransportHover=fullscreen_transport_hit(e.xcrossing.x,e.xcrossing.y);
+                    draw_fullscreen_transport_overlay();
                 }
                 else if (e.type == EnterNotify && e.xcrossing.window == video) {
                     pointerInVideo=true; lastMouse=time(nullptr); show_pointer();
@@ -13041,6 +13308,7 @@ public:
                         }
                     }
                 }
+                else if (e.type == LeaveNotify && e.xcrossing.window == fullscreenTransportWindow && e.xcrossing.detail != NotifyInferior) { fullscreenTransportHover=-1; draw_fullscreen_transport_overlay(); }
                 else if (e.type == LeaveNotify && e.xcrossing.window == video && e.xcrossing.detail != NotifyInferior) { pointerInVideo=false; show_pointer(); }
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
@@ -13250,6 +13518,9 @@ public:
             poll_security_worker();
             poll_game_scan();
             poll_game_artwork_downloads();
+            poll_world_tv_resolver();
+            poll_world_tv_artwork();
+            poll_world_tv_guide();
             poll_world_tv_reconnect();
             poll_live_tv_scan();
             poll_live_tv_guide();
@@ -13345,6 +13616,9 @@ public:
             { std::lock_guard<std::mutex> lock(liveTvScanState->mutex); liveTvScanState->cancel = true; }
             liveTvScanWorker.join();
         }
+        if (worldTvResolveWorker.joinable()) worldTvResolveWorker.join();
+        if (worldTvArtworkWorker.joinable()) worldTvArtworkWorker.join();
+        if (worldTvGuideWorker.joinable()) worldTvGuideWorker.join();
         if (liveTvGuideWorker.joinable()) {
             { std::lock_guard<std::mutex> lock(liveTvGuideState->mutex); liveTvGuideState->cancel = true; }
             liveTvGuideWorker.join();
@@ -13372,6 +13646,7 @@ public:
         if (inst) api.release(inst);
         inst=nullptr;
         if (videoActivityOverlayWindow && d) { XDestroyWindow(d, videoActivityOverlayWindow); videoActivityOverlayWindow = 0; }
+        if (fullscreenTransportWindow && d) { XDestroyWindow(d, fullscreenTransportWindow); fullscreenTransportWindow = 0; }
         if (seekPreviewWindow && d) { XDestroyWindow(d, seekPreviewWindow); seekPreviewWindow = 0; }
         if (xextHandle) { dlclose(xextHandle); xextHandle = nullptr; xShapeCombineMask = nullptr; }
         free_quilt_tiles();
@@ -13386,7 +13661,116 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.46\n");
+        printf("Nougat Media Suite v0.0.47\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v47-fullscreen-controls-self-test") {
+        App app;
+        app.d=XOpenDisplay(nullptr);
+        if(!app.d){ std::fprintf(stderr,"Nougat v0.0.47 fullscreen controls FAIL: X display unavailable.\n"); return 1; }
+        app.screen=DefaultScreen(app.d);
+        app.W=800; app.H=500; app.videoW=800; app.videoH=500;
+        app.win=XCreateSimpleWindow(app.d,RootWindow(app.d,app.screen),0,0,800,500,0,
+                                    BlackPixel(app.d,app.screen),BlackPixel(app.d,app.screen));
+        app.gc=XCreateGC(app.d,app.win,0,nullptr);
+        app.fontInfo=XLoadQueryFont(app.d,"fixed");
+        if(app.fontInfo) XSetFont(app.d,app.gc,app.fontInfo->fid);
+        app.video=XCreateSimpleWindow(app.d,app.win,0,0,800,500,0,
+                                      BlackPixel(app.d,app.screen),BlackPixel(app.d,app.screen));
+        app.fullscreenTransportWindow=XCreateSimpleWindow(app.d,app.video,0,0,190,68,0,
+                                                           BlackPixel(app.d,app.screen),BlackPixel(app.d,app.screen));
+        app.fullscreen=true;
+        app.hasMedia=true;
+        app.playerActivityOverlayVisible=true;
+        app.currentPath="fullscreen-self-test";
+        app.draw_fullscreen_transport_overlay();
+        XSync(app.d,False);
+        XWindowAttributes attrs{};
+        const bool mapped=XGetWindowAttributes(app.d,app.fullscreenTransportWindow,&attrs)!=0&&attrs.map_state!=IsUnmapped;
+        const bool geometry=app.fullscreenRewindRect.w==52&&app.fullscreenPlayRect.w==52&&app.fullscreenForwardRect.w==52&&
+                            app.fullscreenRewindRect.x<app.fullscreenPlayRect.x&&app.fullscreenPlayRect.x<app.fullscreenForwardRect.x;
+        if(app.fontInfo) XFreeFont(app.d,app.fontInfo);
+        XFreeGC(app.d,app.gc);
+        XDestroyWindow(app.d,app.win);
+        XCloseDisplay(app.d);
+        app.d=nullptr;
+        app.win=0;
+        if(!(mapped&&geometry)){
+            std::fprintf(stderr,"Nougat v0.0.47 fullscreen controls FAIL: mapped=%d geometry=%d\n",mapped?1:0,geometry?1:0);
+            return 1;
+        }
+        std::printf("Nougat v0.0.47 fullscreen controls PASS: sheet-square [<] [^] [>] overlay mapped.\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v47-nav-self-test") {
+        App app;
+        app.W=1000;
+        app.H=650;
+        app.layout();
+        app.topNavScrollX=app.clamp_button_scroll(100000,11,app.topNavViewportW);
+        app.layout();
+        const bool visible=app.debugTab.x>=app.topNavClipX &&
+                           app.debugTab.x+app.debugTab.w<=app.topNavClipRight;
+        if (!visible) {
+            std::fprintf(stderr,"Nougat v0.0.47 top navigation FAIL: System tab remains clipped.\n");
+            return 1;
+        }
+        std::printf("Nougat v0.0.47 top navigation PASS: System tab fully reachable.\n");
+        return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v47-window-identity-self-test") {
+        App app;
+        app.d=XOpenDisplay(nullptr);
+        if (!app.d) {
+            std::fprintf(stderr,"Nougat v0.0.47 window identity FAIL: X display unavailable.\n");
+            return 1;
+        }
+        app.screen=DefaultScreen(app.d);
+        app.win=XCreateSimpleWindow(app.d,RootWindow(app.d,app.screen),0,0,64,64,0,
+                                    BlackPixel(app.d,app.screen),BlackPixel(app.d,app.screen));
+        app.set_window_title();
+        app.set_window_identity();
+        XSync(app.d,False);
+        XClassHint hint{};
+        const bool classOk=XGetClassHint(app.d,app.win,&hint)!=0 && hint.res_class &&
+                           std::string(hint.res_class)=="NougatMediaSuite";
+        if (hint.res_name) XFree(hint.res_name);
+        if (hint.res_class) XFree(hint.res_class);
+        auto prop=[&app](const char* name) {
+            Atom atom=XInternAtom(app.d,name,False),actual=None;
+            int format=0;
+            unsigned long items=0,after=0;
+            unsigned char* data=nullptr;
+            std::string out;
+            if (XGetWindowProperty(app.d,app.win,atom,0,4096,False,AnyPropertyType,
+                                   &actual,&format,&items,&after,&data)==Success &&
+                data && format==8) {
+                out.assign(reinterpret_cast<char*>(data),items);
+            }
+            if (data) XFree(data);
+            return out;
+        };
+        Atom iconAtom=XInternAtom(app.d,"_NET_WM_ICON",False),actual=None;
+        int fmt=0;
+        unsigned long items=0,after=0;
+        unsigned char* iconData=nullptr;
+        const bool iconOk=XGetWindowProperty(app.d,app.win,iconAtom,0,8,False,AnyPropertyType,
+                                             &actual,&fmt,&items,&after,&iconData)==Success &&
+                          iconData && fmt==32 && items>=3;
+        if (iconData) XFree(iconData);
+        const bool gtkOk=prop("_GTK_APPLICATION_ID")=="com.elderredsoftworks.NougatMediaSuite";
+        const std::string bamf=prop("_BAMF_DESKTOP_FILE");
+        const bool bamfOk=bamf.find("com.elderredsoftworks.NougatMediaSuite.desktop")!=std::string::npos;
+        XDestroyWindow(app.d,app.win);
+        XCloseDisplay(app.d);
+        app.d=nullptr;
+        app.win=0;
+        if (!(classOk && gtkOk && bamfOk && iconOk)) {
+            std::fprintf(stderr,"Nougat v0.0.47 window identity FAIL: class=%d gtk=%d bamf=%d icon=%d\n",
+                         classOk?1:0,gtkOk?1:0,bamfOk?1:0,iconOk?1:0);
+            return 1;
+        }
+        std::printf("Nougat v0.0.47 window identity PASS: GNOME/X11 app identity and N icon properties present.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v44-release-self-test") {
@@ -13402,7 +13786,7 @@ int main(int argc, char** argv) {
             wide.rows >= 2 && wide.columns >= 7 &&
             wide.posterHeight == wide.tileWidth * 3 / 2;
         const bool games_layout_ok = ([&app](){ app.gamesDisplayMode=GamesDisplayMode::Grid; app.gamesListBox={20,170,920,470}; const LibraryGridMetrics g=app.games_grid_metrics(); return g.rows>=2 && g.columns>=6 && g.posterHeight==g.tileWidth*3/2; })();
-        const bool world_tv_ok = ([&app](){ const auto& stations=app.world_tv_catalog(); return !stations.empty() && std::all_of(stations.begin(),stations.end(),[](const WorldTvStation& s){ const std::string u=lower_copy(s.source_url); return s.max_height>0 && s.max_height<=1080 && u.find("youtube.com")==std::string::npos && u.find("youtu.be")==std::string::npos; }); })();
+        const bool world_tv_ok = ([&app](){ const auto& stations=app.world_tv_catalog(); return !stations.empty() && std::all_of(stations.begin(),stations.end(),[](const reddmedia::WorldTvStation& s){ const std::string u=lower_copy(s.preferred_url); return s.max_height>0 && s.max_height<=1080 && u.find("youtube.com")==std::string::npos && u.find("youtu.be")==std::string::npos; }); })();
         const bool formats_ok =
             game_system_for_path("probe.nes") == "NES" &&
             game_system_for_path("probe.a26") == "Atari 2600" &&
@@ -13415,10 +13799,10 @@ int main(int argc, char** argv) {
             !safe_zip_game_entry("/probe.nes") &&
             !safe_zip_game_entry("folder/readme.txt");
         if (grid_ok && games_layout_ok && world_tv_ok && formats_ok && zip_ok) {
-            printf("Nougat Media Suite v0.0.46 release self-test PASS\n");
+            printf("Nougat Media Suite v0.0.47 release self-test PASS\n");
             return 0;
         }
-        fprintf(stderr, "Nougat Media Suite v0.0.46 release self-test FAIL: grid=%d formats=%d zip=%d\n",
+        fprintf(stderr, "Nougat Media Suite v0.0.47 release self-test FAIL: grid=%d formats=%d zip=%d\n",
                 grid_ok ? 1 : 0, formats_ok ? 1 : 0, zip_ok ? 1 : 0);
         return 1;
     }

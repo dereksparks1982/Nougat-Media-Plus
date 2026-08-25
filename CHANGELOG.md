@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.0.47 - World TV Channels, Playback Reliability, and Desktop Identity
+
+- Expands World TV with Al Quran Al Kareem TV, a larger Russian channel group, and additional Turkish and Asian channels without YouTube catalog entries.
+- Requires real station artwork for exposed World TV channels and uses available current/next guide data.
+- Adds visible-video probing, alternate-source resolution, stall detection, and bounded reconnect for black/dead/unstable streams.
+- Shows World TV station logo/identity in the native player activity overlay and adds Previous/Next channel navigation.
+- Restores the true-fullscreen [<] [^] [>] mouse transport overlay using the approved sheet button surfaces.
+- Gives World TV a distinct orange interface family.
+- Repairs top navigation so the System tab is fully reachable.
+- Installs and validates the canonical GNOME desktop identity and approved N icon for the running app/dock.
+
 ## v0.0.46 - World TV Repair, Scanner Control, and LAN Media Foundation
 
 - Repairs World TV video-window ownership and verifies actual libVLC startup before reporting playback.
