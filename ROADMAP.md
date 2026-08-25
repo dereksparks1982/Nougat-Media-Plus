@@ -19,7 +19,15 @@
 - Make the on-video media/episode description use the same three-second activity timer as the mouse pointer in fullscreen, maximized, and normal window sizes.
 - Add release-integrity checks that keep version, executable, README, CHANGELOG, ROADMAP, launcher, and validation records aligned.
 
-## v0.0.42 planned — Home LAN Web Viewer / Streaming
+## v0.0.42 candidate — Persistence, Intelligence, Live TV, Security, and Games
+- Preserve Movies/TV library mappings across build replacement and recover Jellyfin virtual-folder links from Nougat-owned persistent state.
+- Improve metadata identification and recommendation performance with deterministic structure evidence, provider-ID matching, and reusable embedding caches.
+- Repair Discover Live TV, My Services, responsive Home/Library card geometry, player Live TV-to-local handoff, and subtitle context-menu usability.
+- Persist/maintain the ATSC guide automatically when the tuner is idle and add the owner-approved World TV internet-broadcaster surface.
+- Expand Virus Scan with library, quick, and system scan modes.
+- Add the top-level Games tab after Studio with persistent user ROM folders, legal bundled starter content, backend discovery, controller visibility, and real emulator launch.
+
+## v0.0.43 planned — Home LAN Web Viewer / Streaming
 - Add an opt-in LAN-only Nougat web service for phones and other browsers connected to the same home network.
 - Provide mobile-friendly Home, Movies, TV, Continue Watching, artwork, and exact resume state from Nougat's existing catalog/history rather than a second media database.
 - Start with direct browser-compatible streaming and establish an HLS/transcoding path for formats a phone browser cannot play directly.
@@ -82,7 +90,7 @@
 - Support clean Stop, retune, and channel changes without destabilizing the accepted v0.0.35 channel scan/persistence path.
 - Validate first on the owner's already working tuner/channel database before expanding into guide, recording, timeshift, favorites, or channel-surfing features.
 
-## v0.0.43 planned — Games / Unified Emulation
+## Games / Unified Emulation — promoted into v0.0.42 by owner direction
 - Add a top-level `Games` tab immediately after `Studio`. Games is a Nougat media category, not a separate application.
 - Present one unified Nougat game-library/emulator experience while allowing different mature emulator cores/backends underneath per system.
 - Target the broad practical emulation range available on Linux at implementation time: Nintendo, Sega, PlayStation, Xbox where mature emulation exists, Atari, arcade/MAME, classic computers/handhelds, and other supported systems.

@@ -8,6 +8,7 @@ renames, or opens the scanned file.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import mimetypes
@@ -16,6 +17,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -451,29 +453,253 @@ def render_one(r: dict[str, Any], compact: bool = False) -> str:
     return "\n".join(lines)
 
 
-def scan_folder(folder: Path, online: bool) -> str:
-    files = [p for p in folder.rglob("*") if p.is_file() and not p.is_symlink()]
-    lines = ["VERDICT=NO THREATS DETECTED", "NOUGAT SECURITY ANALYSIS — FOLDER", "", f"Folder: {folder}", f"Files: {len(files)}", ""]
-    worst = 0
-    details: list[str] = []
-    for i, p in enumerate(files, 1):
+
+NETWORK_FS_TYPES = {
+    "nfs", "nfs4", "cifs", "smb3", "sshfs", "fuse.sshfs", "9p",
+    "ceph", "glusterfs", "davfs", "fuse.rclone",
+}
+PSEUDO_ROOTS = (Path("/proc"), Path("/sys"), Path("/dev"), Path("/run"))
+MAPPING_REGISTRY = Path.home() / ".config" / "reddmedia" / "server" / "library_mappings.tsv"
+
+
+def _decode_mount_path(value: str) -> str:
+    return (value.replace("\\040", " ").replace("\\011", "\\t")
+                 .replace("\\012", "\\n").replace("\\134", "\\"))
+
+
+def network_mount_points() -> set[Path]:
+    mounts: set[Path] = set()
+    try:
+        for line in Path("/proc/self/mountinfo").read_text(encoding="utf-8", errors="replace").splitlines():
+            fields = line.split()
+            if "-" not in fields or len(fields) < 10:
+                continue
+            dash = fields.index("-")
+            if dash + 1 >= len(fields):
+                continue
+            fs_type = fields[dash + 1].lower()
+            if fs_type in NETWORK_FS_TYPES:
+                mounts.add(Path(_decode_mount_path(fields[4])))
+    except Exception:
+        pass
+    return mounts
+
+
+def _is_under(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _skip_path(path: Path, network_mounts: set[Path], allow_run_media: bool = False) -> bool:
+    absolute = path if path.is_absolute() else path.resolve(strict=False)
+    for pseudo in PSEUDO_ROOTS:
+        if allow_run_media and pseudo == Path("/run") and _is_under(absolute, Path("/run/media")):
+            continue
+        if absolute == pseudo or _is_under(absolute, pseudo):
+            return True
+    for mount in network_mounts:
+        if absolute == mount or _is_under(absolute, mount):
+            return True
+    return False
+
+
+def iter_regular_files(roots: list[Path], *, recent_after: float | None = None,
+                       allow_run_media: bool = False) -> tuple[list[Path], list[str]]:
+    """Enumerate scan targets without following symlinks or entering unsafe mounts."""
+    found: list[Path] = []
+    notes: list[str] = []
+    network_mounts = network_mount_points()
+    seen: set[str] = set()
+    for original in roots:
+        root = original.expanduser()
         try:
-            r = scan_one(p, online=online)
-            severity = {"NO THREATS DETECTED": 0, "ANALYSIS INCOMPLETE": 1, "SUSPICIOUS": 2, "THREAT DETECTED": 3}.get(r["verdict"], 1)
+            root = root.resolve(strict=False)
+        except Exception:
+            pass
+        key = str(root)
+        if key in seen:
+            continue
+        seen.add(key)
+        if not root.exists():
+            notes.append(f"Unavailable path skipped: {root}")
+            continue
+        if root.is_symlink() or _skip_path(root, network_mounts, allow_run_media=allow_run_media):
+            notes.append(f"Unsafe/remote path skipped: {root}")
+            continue
+        if root.is_file():
+            try:
+                if recent_after is None or root.stat().st_mtime >= recent_after:
+                    found.append(root)
+            except (OSError, PermissionError) as exc:
+                notes.append(f"Could not inspect {root}: {exc}")
+            continue
+        if not root.is_dir():
+            continue
+
+        def onerror(exc: OSError) -> None:
+            name = getattr(exc, "filename", None) or str(root)
+            notes.append(f"Could not read {name}: {exc.strerror or exc}")
+
+        for dirpath, dirnames, filenames in os.walk(root, topdown=True, followlinks=False, onerror=onerror):
+            current = Path(dirpath)
+            kept: list[str] = []
+            for name in dirnames:
+                child = current / name
+                try:
+                    if child.is_symlink() or _skip_path(child, network_mounts, allow_run_media=allow_run_media):
+                        continue
+                except OSError:
+                    continue
+                kept.append(name)
+            dirnames[:] = kept
+            for name in filenames:
+                candidate = current / name
+                try:
+                    if candidate.is_symlink() or not candidate.is_file():
+                        continue
+                    if recent_after is not None and candidate.stat().st_mtime < recent_after:
+                        continue
+                    found.append(candidate)
+                except (OSError, PermissionError) as exc:
+                    notes.append(f"Could not inspect {candidate}: {exc}")
+    return found, notes
+
+
+def load_mapped_library_roots(kind: str) -> list[Path]:
+    wanted = kind.strip().lower()
+    roots: list[Path] = []
+    try:
+        with MAPPING_REGISTRY.open("r", encoding="utf-8", newline="") as handle:
+            for row in csv.reader(handle, delimiter="\t", quotechar='"'):
+                if len(row) >= 2 and row[0].strip().lower() == wanted and row[1].strip():
+                    roots.append(Path(row[1].strip()).expanduser())
+    except FileNotFoundError:
+        return []
+    except Exception:
+        return []
+    return roots
+
+
+def emit_progress(path: Path, scanned: int, total: int, detections: int, started: float) -> None:
+    elapsed_ms = int((time.monotonic() - started) * 1000.0)
+    clean_path = str(path).replace("\n", " ").replace("\r", " ")
+    print(f"PROGRESS={scanned}|{total}|{detections}|{elapsed_ms}|{clean_path}", flush=True)
+
+
+def scan_collection(roots: list[Path], label: str, online: bool, *,
+                    recent_after: float | None = None, allow_run_media: bool = False) -> str:
+    started = time.monotonic()
+    files, notes = iter_regular_files(roots, recent_after=recent_after, allow_run_media=allow_run_media)
+    lines = [
+        "VERDICT=NO THREATS DETECTED",
+        f"NOUGAT SECURITY ANALYSIS — {label}",
+        "",
+        "Roots: " + (", ".join(str(p) for p in roots) if roots else "(none)"),
+        f"Files discovered: {len(files)}",
+        "Community threat-intelligence lookups: " + ("enabled" if online else "skipped for this bulk scan"),
+        "",
+    ]
+    worst = 0
+    detections = 0
+    incomplete = 0
+    suspicious = 0
+    errors = 0
+    details: list[str] = []
+    sample_lines: list[str] = []
+    for i, path in enumerate(files, 1):
+        try:
+            result = scan_one(path, online=online)
+            severity = {"NO THREATS DETECTED": 0, "ANALYSIS INCOMPLETE": 1,
+                        "SUSPICIOUS": 2, "THREAT DETECTED": 3}.get(result["verdict"], 1)
             worst = max(worst, severity)
-            lines.append(f"[{i}/{len(files)}] {render_one(r, compact=True)}")
-            if severity:
-                details.append(render_one(r))
+            if result["verdict"] == "THREAT DETECTED":
+                detections += 1
+            elif result["verdict"] == "SUSPICIOUS":
+                suspicious += 1
+            elif result["verdict"] == "ANALYSIS INCOMPLETE":
+                incomplete += 1
+            if len(sample_lines) < 180 or severity >= 2:
+                sample_lines.append(f"[{i}/{len(files)}] {render_one(result, compact=True)}")
+            if severity >= 2 and len(details) < 40:
+                details.append(render_one(result))
+        except (OSError, PermissionError) as exc:
+            worst = max(worst, 1)
+            errors += 1
+            if len(sample_lines) < 180:
+                sample_lines.append(f"[{i}/{len(files)}] UNREADABLE: {path}: {exc}")
         except Exception as exc:
             worst = max(worst, 1)
-            lines.append(f"[{i}/{len(files)}] ERROR: {p}: {exc}")
+            errors += 1
+            if len(sample_lines) < 180:
+                sample_lines.append(f"[{i}/{len(files)}] ERROR: {path}: {exc}")
+        emit_progress(path, i, len(files), detections + suspicious, started)
+
     verdict = ["NO THREATS DETECTED", "ANALYSIS INCOMPLETE", "SUSPICIOUS", "THREAT DETECTED"][worst]
     lines[0] = "VERDICT=" + verdict
+    elapsed = time.monotonic() - started
+    lines.extend([
+        f"Files scanned: {len(files)}",
+        f"Threat detections: {detections}",
+        f"Suspicious files: {suspicious}",
+        f"Incomplete analyses: {incomplete}",
+        f"Unreadable/error files: {errors}",
+        f"Elapsed: {elapsed:.1f} seconds",
+        "",
+    ])
+    if notes:
+        lines.append("Traversal notes:")
+        for note in notes[:60]:
+            lines.append("  • " + note)
+        if len(notes) > 60:
+            lines.append(f"  • ... {len(notes) - 60} additional traversal note(s) omitted")
+        lines.append("")
+    lines.extend(sample_lines)
+    if len(files) > len(sample_lines):
+        lines.append(f"... {len(files) - len(sample_lines)} additional clean/ordinary file result(s) omitted from the on-screen report")
     if details:
-        lines.extend(["", "FLAGGED FILE DETAILS", "====================", ""])
-        lines.append("\n\n".join(details))
-    lines.extend(["", "RESULT: " + verdict, "Policy: WARN ME FIRST. Nougat did not move, delete, quarantine, rename, or open any scanned file."])
+        lines.extend(["", "FLAGGED FILE DETAILS", "====================", "", "\n\n".join(details)])
+    lines.extend(["", "RESULT: " + verdict,
+                  "Policy: WARN ME FIRST. Nougat did not move, delete, quarantine, rename, or open any scanned file."])
     return "\n".join(lines)
+
+
+def scan_folder(folder: Path, online: bool) -> str:
+    return scan_collection([folder], "FOLDER", online)
+
+
+def quick_scan_roots() -> list[Path]:
+    home = Path.home()
+    return [home / "Downloads", home / "Desktop", home / ".local" / "bin",
+            home / ".config" / "autostart", Path("/tmp")]
+
+
+def system_scan_roots(profile: str) -> tuple[list[Path], float | None, bool, str]:
+    home = Path.home()
+    p = profile.lower()
+    if p == "full":
+        return [Path("/")], None, False, "FULL SYSTEM"
+    if p == "critical":
+        return [Path("/bin"), Path("/sbin"), Path("/usr/bin"), Path("/usr/sbin"),
+                Path("/usr/local/bin"), Path("/usr/local/sbin"), Path("/etc")], None, False, "CRITICAL SYSTEM AREAS"
+    if p == "startup":
+        roots = [home / ".config" / "autostart", home / ".config" / "systemd" / "user",
+                 Path("/etc/xdg/autostart"), Path("/etc/systemd/system"), Path("/usr/lib/systemd/system"),
+                 home / ".bashrc", home / ".profile", home / ".xprofile", home / ".xsessionrc"]
+        return roots, None, False, "STARTUP LOCATIONS"
+    if p == "downloads":
+        return [home / "Downloads"], None, False, "DOWNLOADS"
+    if p == "removable":
+        user = os.environ.get("USER", "")
+        roots = [Path("/media") / user, Path("/run/media") / user, Path("/mnt")]
+        return roots, None, True, "REMOVABLE DRIVES"
+    if p == "changed":
+        recent_after = time.time() - 7 * 24 * 60 * 60
+        roots = [home, Path("/etc"), Path("/usr/local/bin"), Path("/usr/local/sbin")]
+        return roots, recent_after, False, "NEW/CHANGED FILES (7 DAYS)"
+    raise ValueError(f"Unknown system scan profile: {profile}")
 
 
 def main() -> int:
@@ -482,6 +708,9 @@ def main() -> int:
     mode.add_argument("--file")
     mode.add_argument("--auto-file", help="Scan a completed Nougat download unless unchanged scan history proves it was already scanned")
     mode.add_argument("--folder")
+    mode.add_argument("--mapped-library", choices=("movies", "tv"))
+    mode.add_argument("--quick-scan", action="store_true")
+    mode.add_argument("--system-scan", choices=("full", "critical", "startup", "downloads", "removable", "changed"))
     mode.add_argument("--history", action="store_true")
     ap.add_argument("--offline", action="store_true", help="Skip community reputation lookups")
     args = ap.parse_args()
@@ -489,6 +718,21 @@ def main() -> int:
         if args.history:
             print(render_history())
             return 0
+        if args.mapped_library:
+            roots = load_mapped_library_roots(args.mapped_library)
+            if not roots:
+                raise ValueError(f"No persistent {args.mapped_library.title()} library folders are mapped")
+            print(scan_collection(roots, f"{args.mapped_library.upper()} LIBRARY", online=not args.offline))
+            return 0
+        if args.quick_scan:
+            print(scan_collection(quick_scan_roots(), "QUICK SCAN", online=not args.offline))
+            return 0
+        if args.system_scan:
+            roots, recent_after, allow_run_media, label = system_scan_roots(args.system_scan)
+            print(scan_collection(roots, label, online=not args.offline,
+                                  recent_after=recent_after, allow_run_media=allow_run_media))
+            return 0
+
         target = Path(args.file or args.auto_file or args.folder).expanduser().resolve()
         if args.file or args.auto_file:
             if not target.is_file():

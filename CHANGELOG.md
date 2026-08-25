@@ -1,4 +1,16 @@
 # Changelog
+## v0.0.42 - Persistent Libraries, Live TV Maintenance, Security, Intelligence, and Games
+
+- Adds persistent Movies/TV mapping recovery and startup-resilient private Jellyfin session behavior.
+- Adds metadata title-structure correction, provider matching groundwork, and persistent recommendation embedding caches.
+- Repairs Discover to Live TV UI deadlock, My Services scrolling/header layout, and responsive Library/Home card fill.
+- Adds persistent/automatic Live TV guide maintenance, exact `Refreshing` active state, and `World TV`.
+- Expands Virus Scan with Movies, TV, Quick, and System scanning paths.
+- Adds a functional Games tab with persistent ROM folders, system/backend detection, controller visibility, and emulator launch.
+- Repairs Live TV to local-media player ownership handoff and the full-row subtitle On/Off context-menu toggle.
+- Moves the player volume and transport rows upward slightly without changing the seek bar.
+- Same-version repair: restores the mandatory Nougat identity gate after the rejected generic-root-executable icon regression. The exact N comes from the owner-supplied approved UI sheet, and installer validation now proves Files/Nautilus custom-icon metadata, icon-theme assets, canonical launchers, and embedded X11 icon data before handoff.
+
 ## v0.0.41 - Housekeeping, Archives, IMDb, Live TV and Player Activity Repair
 
 - Adds the Search `Archive` directory with Archive.org, Minerva Archive, and the curated archive/library links.

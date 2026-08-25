@@ -45,14 +45,14 @@ bool normalize_library_poster_bmp(const std::string& source_bytes,
     char output_template[] = "/tmp/reddmedia-poster-output.XXXXXX";
     const int input_fd = mkstemp(input_template);
     if (input_fd < 0) {
-        error = "ReddMedia could not create a temporary poster input.";
+        error = "Nougat could not create a temporary poster input.";
         return false;
     }
     const int output_fd = mkstemp(output_template);
     if (output_fd < 0) {
         close(input_fd);
         unlink(input_template);
-        error = "ReddMedia could not create a temporary poster output.";
+        error = "Nougat could not create a temporary poster output.";
         return false;
     }
     close(output_fd);
@@ -68,7 +68,7 @@ bool normalize_library_poster_bmp(const std::string& source_bytes,
     if (!input_ok) {
         unlink(input_template);
         unlink(output_template);
-        error = "ReddMedia could not prepare the poster image.";
+        error = "Nougat could not prepare the poster image.";
         return false;
     }
 
@@ -76,7 +76,7 @@ bool normalize_library_poster_bmp(const std::string& source_bytes,
     if (child < 0) {
         unlink(input_template);
         unlink(output_template);
-        error = "ReddMedia could not start the poster decoder.";
+        error = "Nougat could not start the poster decoder.";
         return false;
     }
     if (child == 0) {
@@ -96,7 +96,7 @@ bool normalize_library_poster_bmp(const std::string& source_bytes,
     unlink(input_template);
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         unlink(output_template);
-        error = "ReddMedia could not decode this poster image with FFmpeg.";
+        error = "Nougat could not decode this poster image with FFmpeg.";
         return false;
     }
 
@@ -128,7 +128,7 @@ bool decode_library_poster_bmp(const std::string& bytes,
     const std::uint32_t compression = read_u32(bytes, 30U);
     if (width <= 0 || signed_height == 0 || planes != 1U ||
         (bits != 24U && bits != 32U) || compression != 0U) {
-        error = "ReddMedia supports uncompressed 24-bit or 32-bit catalog posters.";
+        error = "Nougat supports uncompressed 24-bit or 32-bit catalog posters.";
         return false;
     }
     const int height = signed_height < 0 ? -signed_height : signed_height;

@@ -12,6 +12,10 @@ struct MediaFolder {
     std::string library_name;
     std::string path;
     LibraryMediaType media_type = LibraryMediaType::Movies;
+    // v0.0.42: remembered mappings remain visible even when a removable or
+    // temporarily unavailable path is not mounted. Jellyfin-linked entries
+    // normally report available=true; registry-only entries can be false.
+    bool available = true;
 };
 
 struct LibraryNode {
@@ -106,9 +110,16 @@ private:
     bool load_state();
     bool save_state(std::string& error) const;
     bool validate_saved_token();
+    bool query_media_folders(std::vector<MediaFolder>& folders, std::string& error) const;
+    bool load_mapping_registry(std::vector<MediaFolder>& folders) const;
+    bool save_mapping_registry(const std::vector<MediaFolder>& folders, std::string& error) const;
+    bool restore_mapping_registry(std::string& error);
+    bool update_mapping_registry(const std::string& path, LibraryMediaType media_type,
+                                 bool present, std::string& error) const;
     std::string authorization(bool include_token) const;
 
     std::string state_file_;
+    std::string mapping_state_file_;
     std::string username_;
     std::string access_token_;
     std::string user_id_;

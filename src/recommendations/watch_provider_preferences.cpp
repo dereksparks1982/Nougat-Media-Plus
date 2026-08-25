@@ -94,7 +94,7 @@ bool WatchProviderPreferences::load() {
 
 bool WatchProviderPreferences::save(std::string& error) const {
     if (!ensure_private_directory(parent_directory(settings_file_))) {
-        error = "ReddMedia could not create its private watch-service settings folder.";
+        error = "Nougat could not create its private watch-service settings folder.";
         return false;
     }
     std::ostringstream contents;
@@ -105,14 +105,14 @@ bool WatchProviderPreferences::save(std::string& error) const {
     const std::string temporary = settings_file_ + ".new";
     const int descriptor = open(temporary.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0600);
     if (descriptor < 0) {
-        error = "ReddMedia could not save My Services.";
+        error = "Nougat could not save My Services.";
         return false;
     }
     const bool written = write_all(descriptor, contents.str());
     const bool closed = close(descriptor) == 0;
     if (!written || !closed || rename(temporary.c_str(), settings_file_.c_str()) != 0) {
         unlink(temporary.c_str());
-        error = "ReddMedia could not save My Services.";
+        error = "Nougat could not save My Services.";
         return false;
     }
     chmod(settings_file_.c_str(), 0600);

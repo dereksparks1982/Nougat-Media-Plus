@@ -61,6 +61,22 @@ std::string trim_copy(std::string value) {
     return value;
 }
 
+std::string url_encode_query(const std::string& value) {
+    static constexpr char hex[] = "0123456789ABCDEF";
+    std::string encoded;
+    for (const unsigned char c : value) {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~') {
+            encoded.push_back(static_cast<char>(c));
+        } else {
+            encoded.push_back('%');
+            encoded.push_back(hex[(c >> 4U) & 0x0fU]);
+            encoded.push_back(hex[c & 0x0fU]);
+        }
+    }
+    return encoded;
+}
+
 TmdbCredentialType detect_credential_type(const std::string& credential) {
     if (credential.empty()) return TmdbCredentialType::NotConfigured;
     const bool safe = std::all_of(credential.begin(), credential.end(), [](unsigned char character) {
@@ -477,14 +493,14 @@ bool TmdbClient::save_credential(const std::string& credential_input, std::strin
     std::string json;
     if (!request_json("/3/configuration", json, error, &credential)) return false;
     if (!ensure_directory(parent_directory(credential_file_))) {
-        error = "ReddMedia could not create its private TMDb settings folder.";
+        error = "Nougat Media Suite could not create its private TMDb settings folder.";
         return false;
     }
     const std::string temporary = credential_file_ + ".new";
     if (!write_private_file(temporary, credential + "\n") ||
         rename(temporary.c_str(), credential_file_.c_str()) != 0) {
         unlink(temporary.c_str());
-        error = "ReddMedia could not store the validated TMDb credential.";
+        error = "Nougat Media Suite could not store the validated TMDb credential.";
         return false;
     }
     chmod(credential_file_.c_str(), 0600);
@@ -493,7 +509,7 @@ bool TmdbClient::save_credential(const std::string& credential_input, std::strin
 
 bool TmdbClient::clear_credential(std::string& error) {
     if (unlink(credential_file_.c_str()) != 0 && errno != ENOENT) {
-        error = "ReddMedia could not clear the saved TMDb credential.";
+        error = "Nougat Media Suite could not clear the saved TMDb credential.";
         return false;
     }
     unlink((credential_file_ + ".new").c_str());
@@ -536,6 +552,98 @@ bool TmdbClient::discover(RecommendationMediaType type,
         return false;
     }
     items = std::move(loaded);
+    return true;
+}
+
+bool TmdbClient::search_title(RecommendationMediaType type,
+                              const std::string& title,
+                              int year,
+                              std::vector<MediaDescriptor>& items,
+                              std::string& error) const {
+    items.clear();
+    if (trim_copy(title).empty()) {
+        error = "A title is required for metadata matching.";
+        return false;
+    }
+    const std::string kind = type == RecommendationMediaType::Movie ? "movie" : "tv";
+    std::string target = "/3/search/" + kind + "?include_adult=false&language=en-US&query=" +
+        url_encode_query(title);
+    if (year > 0) {
+        target += type == RecommendationMediaType::Movie
+            ? "&year=" + std::to_string(year)
+            : "&first_air_date_year=" + std::to_string(year);
+    }
+    std::string json;
+    if (!request_json(target, json, error)) return false;
+    std::vector<MediaDescriptor> loaded;
+    for (const std::string& object : json_array_objects(json, "results")) {
+        const int id = json_int_value(object, "id");
+        const std::string candidate_title = json_string_value(
+            object, type == RecommendationMediaType::Movie ? "title" : "name");
+        if (id <= 0 || candidate_title.empty()) continue;
+        MediaDescriptor item;
+        item.tmdb_id = std::to_string(id);
+        item.id = "tmdb:" + kind + ":" + item.tmdb_id;
+        item.title = candidate_title;
+        item.overview = json_string_value(object, "overview");
+        item.poster_path = json_string_value(object, "poster_path");
+        item.genres = json_int_array(object, "genre_ids");
+        item.media_type = type;
+        item.year = release_year(json_string_value(
+            object, type == RecommendationMediaType::Movie ? "release_date" : "first_air_date"));
+        loaded.push_back(std::move(item));
+    }
+    if (loaded.empty()) {
+        error = "TMDb returned no title candidates for " + title + ".";
+        return false;
+    }
+    items = std::move(loaded);
+    return true;
+}
+
+bool TmdbClient::external_imdb_id(RecommendationMediaType type,
+                                  const std::string& tmdb_id,
+                                  std::string& imdb_id,
+                                  std::string& error) const {
+    imdb_id.clear();
+    if (tmdb_id.empty() || !std::all_of(tmdb_id.begin(), tmdb_id.end(), [](unsigned char c) {
+            return std::isdigit(c) != 0;
+        })) {
+        error = "A valid TMDb title ID is required for exact IMDb lookup.";
+        return false;
+    }
+    const std::string kind = type == RecommendationMediaType::Movie ? "movie" : "tv";
+    std::string json;
+    if (!request_json("/3/" + kind + "/" + tmdb_id + "/external_ids", json, error)) return false;
+    imdb_id = json_string_value(json, "imdb_id");
+    if (imdb_id.size() < 3U || imdb_id[0] != 't' || imdb_id[1] != 't' ||
+        !std::all_of(imdb_id.begin() + 2, imdb_id.end(), [](unsigned char c) {
+            return std::isdigit(c) != 0;
+        })) {
+        imdb_id.clear();
+        error = "TMDb did not provide an exact IMDb title ID for this match.";
+        return false;
+    }
+    return true;
+}
+
+bool TmdbClient::tv_season_count(const std::string& tmdb_id,
+                                 int& season_count,
+                                 std::string& error) const {
+    season_count = 0;
+    if (tmdb_id.empty() || !std::all_of(tmdb_id.begin(), tmdb_id.end(), [](unsigned char c) {
+            return std::isdigit(c) != 0;
+        })) {
+        error = "A valid TMDb TV ID is required for season-count matching.";
+        return false;
+    }
+    std::string json;
+    if (!request_json("/3/tv/" + tmdb_id + "?language=en-US", json, error)) return false;
+    season_count = json_int_value(json, "number_of_seasons");
+    if (season_count <= 0) {
+        error = "TMDb did not provide a usable season count for this TV candidate.";
+        return false;
+    }
     return true;
 }
 

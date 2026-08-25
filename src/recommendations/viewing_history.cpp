@@ -154,7 +154,7 @@ ViewingHistory::~ViewingHistory() {
 bool ViewingHistory::open_database(std::string& error) {
     if (database_) return true;
     if (!ensure_directory(parent_directory(database_path_))) {
-        error = "ReddMedia could not create its private viewing-history folder.";
+        error = "Nougat could not create its private viewing-history folder.";
         return false;
     }
     const char* libraries[] = {"libsqlite3.so.0", "libsqlite3.so", nullptr};
@@ -170,7 +170,7 @@ bool ViewingHistory::open_database(std::string& error) {
     if (api().open_v2(database_path_.c_str(), &database,
                       kSqliteOpenReadWrite | kSqliteOpenCreate | kSqliteOpenFullMutex,
                       nullptr) != kSqliteOk || !database) {
-        error = "ReddMedia could not open its private viewing-history database.";
+        error = "Nougat could not open its private viewing-history database.";
         if (database) api().close_v2(database);
         close_database();
         return false;
@@ -190,7 +190,7 @@ bool ViewingHistory::open_database(std::string& error) {
         "ON viewing_history(media_type, last_watched DESC);";
     char* message = nullptr;
     if (api().exec(database, schema, nullptr, nullptr, &message) != kSqliteOk) {
-        error = message ? message : "ReddMedia could not initialize viewing history.";
+        error = message ? message : "Nougat could not initialize viewing history.";
         if (message) api().free_memory(message);
         close_database();
         return false;
@@ -201,7 +201,7 @@ bool ViewingHistory::open_database(std::string& error) {
         const std::string migration_message = message ? message : "";
         if (message) api().free_memory(message);
         if (migration_message.find("duplicate column") == std::string::npos) {
-            error = migration_message.empty() ? "ReddMedia could not upgrade viewing history." : migration_message;
+            error = migration_message.empty() ? "Nougat could not upgrade viewing history." : migration_message;
             close_database();
             return false;
         }

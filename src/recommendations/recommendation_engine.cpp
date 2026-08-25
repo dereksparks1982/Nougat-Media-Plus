@@ -22,6 +22,21 @@ std::string normalized_title(const MediaDescriptor& item) {
     return result;
 }
 
+std::string normalized_words(const std::string& value) {
+    std::string result;
+    bool separator = false;
+    for (const unsigned char c : value) {
+        if (std::isalnum(c) != 0) {
+            if (separator && !result.empty()) result.push_back(' ');
+            result.push_back(static_cast<char>(std::tolower(c)));
+            separator = false;
+        } else {
+            separator = true;
+        }
+    }
+    return result;
+}
+
 std::string metadata_text(const MediaDescriptor& item) {
     std::ostringstream text;
     text << media_type_name(item.media_type) << ". Title: " << item.title;
@@ -157,6 +172,69 @@ bool RecommendationEngine::load_movie_poster_path(const std::string& tmdb_id,
     return tmdb_.movie_poster_path(tmdb_id, poster_path, error);
 }
 
+bool RecommendationEngine::resolve_metadata_identity(RecommendationMediaType type,
+                                                    const std::string& title,
+                                                    int year,
+                                                    int observed_seasons,
+                                                    MediaDescriptor& resolved,
+                                                    std::string& imdb_id,
+                                                    std::string& error) const {
+    resolved = {};
+    imdb_id.clear();
+    std::vector<MediaDescriptor> candidates;
+    if (!tmdb_.search_title(type, title, year, candidates, error)) return false;
+
+    const std::string wanted = normalized_words(title);
+    struct ScoredCandidate {
+        MediaDescriptor item;
+        int score = 0;
+        int season_count = 0;
+    };
+    std::vector<ScoredCandidate> scored;
+    for (MediaDescriptor candidate : candidates) {
+        const std::string candidate_name = normalized_words(candidate.title);
+        if (candidate_name != wanted) continue;
+        ScoredCandidate entry;
+        entry.item = std::move(candidate);
+        entry.score = 100; // exact canonical-title match is required for auto-apply
+        if (year > 0) {
+            if (entry.item.year == year) entry.score += 80;
+            else if (entry.item.year > 0) entry.score -= 60;
+        }
+        if (type == RecommendationMediaType::Television && observed_seasons > 1) {
+            std::string detail_error;
+            if (tmdb_.tv_season_count(entry.item.tmdb_id, entry.season_count, detail_error)) {
+                if (entry.season_count == observed_seasons) entry.score += 90;
+                else {
+                    const int difference = std::abs(entry.season_count - observed_seasons);
+                    entry.score += std::max(-45, 45 - difference * 15);
+                }
+            }
+        }
+        scored.push_back(std::move(entry));
+    }
+    if (scored.empty()) {
+        error = "No exact canonical-title provider match was found for " + title + ".";
+        return false;
+    }
+    std::sort(scored.begin(), scored.end(), [](const ScoredCandidate& left, const ScoredCandidate& right) {
+        if (left.score != right.score) return left.score > right.score;
+        if (left.item.year != right.item.year) return left.item.year < right.item.year;
+        return left.item.tmdb_id < right.item.tmdb_id;
+    });
+    if (scored.size() > 1U && scored[0].score == scored[1].score) {
+        error = "Metadata candidates are still ambiguous after title, year, and season evidence; Nougat left the provider identity unchanged.";
+        return false;
+    }
+    resolved = scored.front().item;
+    std::string imdb_error;
+    if (!tmdb_.external_imdb_id(type, resolved.tmdb_id, imdb_id, imdb_error)) {
+        // A TMDb identity is still useful, but never fabricate an IMDb ID.
+        imdb_id.clear();
+    }
+    return true;
+}
+
 bool RecommendationEngine::external_candidates(
     const RecommendationRequest& request,
     const std::vector<MediaDescriptor>& local_items,
@@ -204,7 +282,7 @@ bool RecommendationEngine::usual_recommendation(
     if (!history_.recent(request.media_type, history, error, 25)) return false;
     if (history.empty()) {
         error = std::string("Watch a ") + media_type_name(request.media_type) +
-            " in ReddMedia before asking for a Usual recommendation.";
+            " in Nougat Media Suite before asking for a Usual recommendation.";
         return false;
     }
     std::vector<float> profile;
@@ -225,7 +303,7 @@ bool RecommendationEngine::usual_recommendation(
         total_weight += weight;
     }
     if (profile.empty() || total_weight <= 0.0) {
-        error = "ReddMedia could not build a viewing profile from history.";
+        error = "Nougat Media Suite could not build a viewing profile from history.";
         return false;
     }
     for (float& value : profile) value /= static_cast<float>(total_weight);
@@ -246,7 +324,7 @@ bool RecommendationEngine::usual_recommendation(
         return false;
     }
     result.item = *best;
-    result.reason = "Chosen from your ReddMedia viewing history and real title metadata.";
+    result.reason = "Chosen from your Nougat viewing history and real title metadata.";
     return true;
 }
 
@@ -259,7 +337,7 @@ bool RecommendationEngine::recommend(const RecommendationRequest& request,
         candidates = matching_local_items(request.media_type, local_items);
         if (candidates.empty()) {
             error = std::string("No Local ") + media_type_name(request.media_type) +
-                " titles are linked to ReddMedia.";
+                " titles are linked to Nougat Media Suite.";
             return false;
         }
     } else if (request.source == RecommendationSource::External) {
@@ -286,14 +364,14 @@ bool RecommendationEngine::recommend(const RecommendationRequest& request,
         result.item = candidates[distribution(generator)];
         result.reason = "Random choice; viewing history was not used.";
         if (result.item.media_type != request.media_type) {
-            error = "ReddMedia blocked a mismatched recommendation type.";
+            error = "Nougat Media Suite blocked a mismatched recommendation type.";
             return false;
         }
         return true;
     }
     if (!usual_recommendation(request, candidates, result, error)) return false;
     if (result.item.media_type != request.media_type) {
-        error = "ReddMedia blocked a mismatched recommendation type.";
+        error = "Nougat Media Suite blocked a mismatched recommendation type.";
         return false;
     }
     return true;

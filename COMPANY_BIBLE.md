@@ -68,13 +68,24 @@ The active Git commit, branch, worktree state, expected executable, rollback sna
 
 ## 7. Nougat Media Suite identity law
 
-The owner-approved rounded-square chocolate/nougat **N + play triangle** artwork is Nougat Media Suite's active identity beginning with v0.0.21.
+The owner-approved rounded-square chocolate/caramel **N** emblem at the top center of `docs/design/NOUGAT_UI_COMPONENT_SHEET_APPROVED.png` is Nougat Media Suite's sole active icon source beginning with v0.0.21. The concept sheet itself is the authority. Do not redraw, regenerate, substitute, approximate, or replace the N with generic executable, gear, letter, or placeholder artwork.
 
-Every build, patch, repair, and hotfix must apply the approved active identity to the raw versioned executable in Files/Nautilus, the application launcher, the running window/dock/app-switcher identity, and the in-app version badge where used.
+**NO EXCEPTIONS RELEASE GATE:** every Nougat Media Suite build, patch, repair, hotfix, installer, and version bump must preserve and verify that exact approved N on every active application identity surface before the candidate may be handed to the owner. This requirement is permanent and is not optional even when the build scope is unrelated to artwork.
 
-The raw executable is a mandatory release gate. The final executable must be written first, then its `metadata::custom-icon` value must be set to the approved Nougat Media Suite asset URI and read back. Rebuilding or replacing the executable after that step invalidates the icon proof. Owner visual confirmation in Files/Nautilus remains required for acceptance.
+The mandatory identity surfaces are:
+- the raw versioned root executable as shown by Files/Nautilus;
+- the installed application launcher/menu entry;
+- the running X11 window identity and `_NET_WM_ICON`;
+- the Ubuntu/GNOME dock and app-switcher identity;
+- the in-app Nougat badge where used.
 
-The accepted red-tree artwork remains historical ReddMedia identity through v0.0.20 and must not remain as the active v0.0.21 identity.
+The final raw executable must be written first. Only after the final executable bytes are in place may the installer set `metadata::custom-icon` to the approved concept-sheet N master URI. The installer must immediately read the metadata back and prove it resolves to that exact master. Rebuilding, moving, or replacing the executable after that proof invalidates the icon gate and requires the icon assignment and verification to be repeated.
+
+Each version-changing installer must also install or refresh the approved icon-theme assets and canonical desktop launchers, verify their icon key and executable target, and refresh desktop/icon caches when the relevant host utilities are available. A generic icon on any required surface is a build rejection, not a cosmetic follow-up.
+
+Automated validation must verify the approved concept-sheet source, approved N master, embedded X11 icon-data source, launcher icon key, and raw-executable custom-icon readback. Owner visual confirmation in Files/Nautilus and the running dock remains required for final acceptance.
+
+The accepted red-tree artwork remains historical ReddMedia identity through v0.0.20 and must not remain as the active Nougat identity.
 
 ## 8. Media-server ownership law
 

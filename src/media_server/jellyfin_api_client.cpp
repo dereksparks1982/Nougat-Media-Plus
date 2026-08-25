@@ -348,6 +348,15 @@ const char* collection_type(LibraryMediaType media_type) {
     return media_type == LibraryMediaType::Movies ? "movies" : "tvshows";
 }
 
+bool directory_available(const std::string& path) {
+    struct stat information {};
+    return !path.empty() && stat(path.c_str(), &information) == 0 && S_ISDIR(information.st_mode);
+}
+
+bool same_mapping(const MediaFolder& left, const MediaFolder& right) {
+    return left.path == right.path && left.media_type == right.media_type;
+}
+
 LibraryNodeKind node_kind(const std::string& type) {
     if (type == "BoxSet") return LibraryNodeKind::MovieCollection;
     if (type == "Series") return LibraryNodeKind::Series;
@@ -463,14 +472,19 @@ std::string common_item_fields() {
 
 JellyfinApiClient::JellyfinApiClient(std::string state_file)
     : state_file_(std::move(state_file)) {
-    if (!state_file_.empty()) return;
-    const char* override_file = std::getenv("REDDMEDIA_SERVER_CLIENT_CONFIG");
-    if (override_file && *override_file) {
-        state_file_ = override_file;
-        return;
+    if (state_file_.empty()) {
+        const char* override_file = std::getenv("REDDMEDIA_SERVER_CLIENT_CONFIG");
+        if (override_file && *override_file) {
+            state_file_ = override_file;
+        } else {
+            const char* home = std::getenv("HOME");
+            state_file_ = std::string(home ? home : ".") + "/.config/reddmedia/server/client.json";
+        }
     }
-    const char* home = std::getenv("HOME");
-    state_file_ = std::string(home ? home : ".") + "/.config/reddmedia/server/client.json";
+    // Keep the compatibility directory used by accepted releases, but give
+    // library mappings their own owner-controlled state file. This survives
+    // versioned binaries and can repair Jellyfin virtual-folder loss.
+    mapping_state_file_ = parent_directory(state_file_) + "/library_mappings.tsv";
 }
 
 std::string JellyfinApiClient::authorization(bool include_token) const {
@@ -560,12 +574,12 @@ bool JellyfinApiClient::load_state() {
 
 bool JellyfinApiClient::save_state(std::string& error) const {
     if (!ensure_directory(parent_directory(state_file_))) {
-        error = "Could not create ReddMedia's private server settings folder.";
+        error = "Could not create Nougat Media Suite's private server settings folder.";
         return false;
     }
     const int file = open(state_file_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0600);
     if (file < 0) {
-        error = "Could not save ReddMedia's private server session.";
+        error = "Could not save Nougat Media Suite's private server session.";
         return false;
     }
     const std::string json = "{\n  \"Username\": \"" + json_escape(username_) +
@@ -576,13 +590,13 @@ bool JellyfinApiClient::save_state(std::string& error) const {
         const ssize_t amount = write(file, json.data() + written, json.size() - written);
         if (amount <= 0) {
             close(file);
-            error = "Could not save ReddMedia's private server session.";
+            error = "Could not save Nougat Media Suite's private server session.";
             return false;
         }
         written += static_cast<std::size_t>(amount);
     }
     if (close(file) != 0) {
-        error = "Could not finish saving ReddMedia's private server session.";
+        error = "Could not finish saving Nougat Media Suite's private server session.";
         return false;
     }
     return true;
@@ -599,13 +613,13 @@ bool JellyfinApiClient::validate_saved_token() {
 
 bool JellyfinApiClient::authenticate(std::string& error) {
     if (username_.empty()) {
-        error = "ReddMedia could not identify its local media-library account.";
+        error = "Nougat Media Suite could not identify its local media-library account.";
         return false;
     }
     const std::string body = "{\"Username\":\"" + json_escape(username_) + "\",\"Pw\":\"\"}";
     const HttpResponse response = request("POST", "/Users/AuthenticateByName", body, false);
     if (response.status != 200) {
-        error = "ReddMedia could not open its private local media-library session.";
+        error = "Nougat Media Suite could not open its private local media-library session.";
         return false;
     }
     access_token_ = json_string_value(response.body, "AccessToken");
@@ -631,14 +645,176 @@ bool JellyfinApiClient::authenticate(std::string& error) {
     return save_state(error);
 }
 
+bool JellyfinApiClient::query_media_folders(std::vector<MediaFolder>& folders,
+                                               std::string& error) const {
+    const HttpResponse response = request("GET", "/Library/VirtualFolders", "", true);
+    if (response.status != 200) {
+        error = "Nougat Media Suite could not read its linked media folders.";
+        return false;
+    }
+    std::vector<MediaFolder> loaded;
+    for (const std::string& object : json_root_array_objects(response.body)) {
+        const std::string name = json_string_value(object, "Name");
+        const std::string type = json_string_value(object, "CollectionType");
+        if (name != kMovieLibraryName && name != kTelevisionLibraryName) continue;
+        const LibraryMediaType media_type = type == "tvshows"
+            ? LibraryMediaType::Television : LibraryMediaType::Movies;
+        for (const std::string& path : json_string_array(object, "Locations")) {
+            loaded.push_back({name, path, media_type, directory_available(path)});
+        }
+    }
+    folders = std::move(loaded);
+    return true;
+}
+
+bool JellyfinApiClient::load_mapping_registry(std::vector<MediaFolder>& folders) const {
+    folders.clear();
+    std::ifstream input(mapping_state_file_);
+    if (!input) return false;
+    std::string line;
+    while (std::getline(input, line)) {
+        if (line.empty()) continue;
+        std::istringstream row(line);
+        std::string kind;
+        MediaFolder folder;
+        if (!(row >> std::quoted(kind) >> std::quoted(folder.path))) continue;
+        folder.media_type = kind == "tv" ? LibraryMediaType::Television : LibraryMediaType::Movies;
+        folder.library_name = library_name(folder.media_type);
+        folder.available = directory_available(folder.path);
+        if (!folder.path.empty()) folders.push_back(std::move(folder));
+    }
+    return true;
+}
+
+bool JellyfinApiClient::save_mapping_registry(const std::vector<MediaFolder>& folders,
+                                               std::string& error) const {
+    if (!ensure_directory(parent_directory(mapping_state_file_))) {
+        error = "Could not create Nougat Media Suite's persistent library-mapping folder.";
+        return false;
+    }
+    const std::string temporary = mapping_state_file_ + ".tmp";
+    std::ofstream out(temporary, std::ios::trunc);
+    if (!out) {
+        error = "Could not save Nougat Media Suite's persistent library mappings.";
+        return false;
+    }
+    std::vector<MediaFolder> unique;
+    for (const MediaFolder& folder : folders) {
+        if (folder.path.empty()) continue;
+        const auto duplicate = std::find_if(unique.begin(), unique.end(), [&folder](const MediaFolder& saved) {
+            return same_mapping(saved, folder);
+        });
+        if (duplicate == unique.end()) unique.push_back(folder);
+    }
+    std::sort(unique.begin(), unique.end(), [](const MediaFolder& left, const MediaFolder& right) {
+        if (left.media_type != right.media_type) return left.media_type < right.media_type;
+        return left.path < right.path;
+    });
+    for (const MediaFolder& folder : unique) {
+        out << std::quoted(folder.media_type == LibraryMediaType::Television ? "tv" : "movies")
+            << '\t' << std::quoted(folder.path) << '\n';
+    }
+    out.close();
+    chmod(temporary.c_str(), 0600);
+    if (!out) {
+        unlink(temporary.c_str());
+        error = "Could not finish saving Nougat Media Suite's persistent library mappings.";
+        return false;
+    }
+    if (rename(temporary.c_str(), mapping_state_file_.c_str()) != 0) {
+        unlink(temporary.c_str());
+        error = "Could not replace Nougat Media Suite's persistent library mappings.";
+        return false;
+    }
+    return true;
+}
+
+bool JellyfinApiClient::update_mapping_registry(const std::string& path,
+                                                 LibraryMediaType media_type,
+                                                 bool present,
+                                                 std::string& error) const {
+    std::vector<MediaFolder> registry;
+    load_mapping_registry(registry);
+    registry.erase(std::remove_if(registry.begin(), registry.end(), [&](const MediaFolder& folder) {
+        return folder.path == path && folder.media_type == media_type;
+    }), registry.end());
+    if (present) registry.push_back({library_name(media_type), path, media_type, directory_available(path)});
+    return save_mapping_registry(registry, error);
+}
+
+bool JellyfinApiClient::restore_mapping_registry(std::string& error) {
+    std::vector<MediaFolder> current;
+    if (!query_media_folders(current, error)) return false;
+
+    std::vector<MediaFolder> registry;
+    const bool registry_exists = load_mapping_registry(registry);
+    if (!registry_exists) {
+        // First v0.0.42 launch snapshots the accepted Jellyfin mappings. This is
+        // deliberately non-destructive and is the migration from older builds.
+        if (!current.empty()) return save_mapping_registry(current, error);
+        return true;
+    }
+
+    bool changed = false;
+    for (const MediaFolder& live : current) {
+        const auto found = std::find_if(registry.begin(), registry.end(), [&live](const MediaFolder& saved) {
+            return same_mapping(saved, live);
+        });
+        if (found == registry.end()) {
+            registry.push_back(live);
+            changed = true;
+        }
+    }
+
+    for (const MediaFolder& saved : registry) {
+        const auto found = std::find_if(current.begin(), current.end(), [&saved](const MediaFolder& live) {
+            return same_mapping(saved, live);
+        });
+        if (found != current.end() || !directory_available(saved.path)) continue;
+
+        bool library_exists = false;
+        for (const MediaFolder& live : current) {
+            if (live.media_type == saved.media_type) {
+                library_exists = true;
+                break;
+            }
+        }
+        HttpResponse added;
+        if (library_exists) {
+            const std::string body = "{\"Name\":\"" +
+                json_escape(library_name(saved.media_type)) + "\",\"Path\":\"" +
+                json_escape(saved.path) + "\"}";
+            added = request("POST", "/Library/VirtualFolders/Paths?refreshLibrary=false",
+                            body, true, 30);
+        } else {
+            const std::string target = "/Library/VirtualFolders?name=" +
+                url_encode(library_name(saved.media_type)) + "&collectionType=" +
+                collection_type(saved.media_type) + "&paths=" + url_encode(saved.path) +
+                "&refreshLibrary=false";
+            const std::string auto_collections = saved.media_type == LibraryMediaType::Movies
+                ? ",\"AutomaticallyAddToCollection\":true" : "";
+            const std::string body = "{\"LibraryOptions\":{\"Enabled\":true,"
+                "\"EnableRealtimeMonitor\":true" + auto_collections + "}}";
+            added = request("POST", target, body, true, 30);
+        }
+        if (added.status != 204) {
+            error = "Nougat Media Suite remembered a library mapping, but Jellyfin could not restore it: " + saved.path;
+            return false;
+        }
+        current.push_back(saved);
+        changed = true;
+    }
+
+    if (changed && !save_mapping_registry(registry, error)) return false;
+    return true;
+}
+
 bool JellyfinApiClient::initialize(std::string& error) {
     if (initialized_) return true;
     load_state();
 
     // Jellyfin 10.11 starts a temporary setup server before the real API is
-    // ready. Its /System/Info/Public response is therefore a liveness signal,
-    // not a readiness signal. /Startup/User is served by the real API: 200
-    // means first-time setup is open, while 401/403 means setup is complete.
+    // ready. /Startup/User is the readiness probe, not merely a liveness probe.
     HttpResponse startup_user;
     for (int attempt = 0; attempt < 60; ++attempt) {
         startup_user = request("GET", "/Startup/User", "", false);
@@ -650,43 +826,80 @@ bool JellyfinApiClient::initialize(std::string& error) {
     }
     if (startup_user.status != 200 && startup_user.status != 401 &&
         startup_user.status != 403) {
-        error = "ReddMedia's local media catalog is not ready yet.";
+        error = "Nougat Media Suite's local media catalog is not ready yet.";
         return false;
     }
 
     if (startup_user.status == 200) {
         const std::string configuration =
-            "{\"ServerName\":\"ReddMedia\",\"UICulture\":\"en-US\","
+            "{\"ServerName\":\"Nougat Media Suite\",\"UICulture\":\"en-US\","
             "\"MetadataCountryCode\":\"US\",\"PreferredMetadataLanguage\":\"en\"}";
         if (request("POST", "/Startup/Configuration", configuration, false).status != 204) {
-            error = "ReddMedia could not configure its local media catalog.";
+            error = "Nougat Media Suite could not configure its local media catalog.";
             return false;
         }
         const std::string remote =
             "{\"EnableRemoteAccess\":false,\"EnableAutomaticPortMapping\":false}";
         if (request("POST", "/Startup/RemoteAccess", remote, false).status != 204) {
-            error = "ReddMedia could not lock the media catalog to local use.";
+            error = "Nougat Media Suite could not lock the media catalog to local use.";
             return false;
         }
         username_ = json_string_value(startup_user.body, "Name");
         if (username_.empty()) {
-            error = "ReddMedia's local media-library account has no name.";
+            error = "Nougat Media Suite's local media-library account has no name.";
             return false;
         }
         if (request("POST", "/Startup/Complete", "{}", false).status != 204) {
-            error = "ReddMedia could not finish local media-library setup.";
+            error = "Nougat Media Suite could not finish local media-library setup.";
             return false;
         }
-    } else if (validate_saved_token()) {
-        initialized_ = true;
-        return true;
-    } else if (username_.empty()) {
-        error = "The hidden catalog was configured outside ReddMedia. Remove ~/.config/reddmedia/server and ~/.local/share/reddmedia/server, then reopen ReddMedia.";
-        return false;
+    } else {
+        // A saved token can briefly be rejected while the persistent Jellyfin
+        // process finishes bringing its database/users online. Do not throw
+        // away a good session on the first transient 401/empty response.
+        for (int attempt = 0; attempt < 8; ++attempt) {
+            if (validate_saved_token()) {
+                initialized_ = true;
+                std::string mapping_error;
+                if (!restore_mapping_registry(mapping_error)) {
+                    error = mapping_error;
+                    initialized_ = false;
+                    return false;
+                }
+                return true;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
+        if (username_.empty()) {
+            error = "Nougat Media Suite found a preconfigured local catalog but no recoverable private session. "
+                    "Its persistent server data was left untouched.";
+            return false;
+        }
     }
 
-    if (!authenticate(error)) return false;
+    std::string auth_error;
+    bool authenticated = false;
+    for (int attempt = 0; attempt < 8; ++attempt) {
+        auth_error.clear();
+        if (authenticate(auth_error)) {
+            authenticated = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    }
+    if (!authenticated) {
+        error = auth_error.empty()
+            ? "Nougat Media Suite could not open its private local media-library session."
+            : auth_error;
+        return false;
+    }
     initialized_ = true;
+    std::string mapping_error;
+    if (!restore_mapping_registry(mapping_error)) {
+        error = mapping_error;
+        initialized_ = false;
+        return false;
+    }
     return true;
 }
 
@@ -697,22 +910,34 @@ bool JellyfinApiClient::add_media_folder(const std::string& path, std::string& e
 bool JellyfinApiClient::load_media_folders(std::vector<MediaFolder>& folders,
                                            std::string& error) {
     if (!initialize(error)) return false;
-    const HttpResponse response = request("GET", "/Library/VirtualFolders", "", true);
-    if (response.status != 200) {
-        error = "ReddMedia could not read its linked media folders.";
-        return false;
-    }
     std::vector<MediaFolder> loaded;
-    for (const std::string& object : json_root_array_objects(response.body)) {
-        const std::string name = json_string_value(object, "Name");
-        const std::string type = json_string_value(object, "CollectionType");
-        if (name != kMovieLibraryName && name != kTelevisionLibraryName) continue;
-        const LibraryMediaType media_type = type == "tvshows"
-            ? LibraryMediaType::Television : LibraryMediaType::Movies;
-        for (const std::string& path : json_string_array(object, "Locations")) {
-            loaded.push_back({name, path, media_type});
+    if (!query_media_folders(loaded, error)) return false;
+
+    std::vector<MediaFolder> registry;
+    load_mapping_registry(registry);
+    bool registry_changed = false;
+    for (const MediaFolder& live : loaded) {
+        const auto found = std::find_if(registry.begin(), registry.end(), [&live](const MediaFolder& saved) {
+            return same_mapping(saved, live);
+        });
+        if (found == registry.end()) {
+            registry.push_back(live);
+            registry_changed = true;
         }
     }
+    for (MediaFolder saved : registry) {
+        const auto found = std::find_if(loaded.begin(), loaded.end(), [&saved](const MediaFolder& live) {
+            return same_mapping(saved, live);
+        });
+        if (found == loaded.end()) {
+            // The mapping is still owner state even when a removable drive is
+            // absent. Keep it visible without pretending Jellyfin currently has
+            // an active link to an unavailable path.
+            saved.available = directory_available(saved.path);
+            loaded.push_back(std::move(saved));
+        }
+    }
+    if (registry_changed && !save_mapping_registry(registry, error)) return false;
     folders = std::move(loaded);
     return true;
 }
@@ -737,7 +962,7 @@ bool JellyfinApiClient::add_media_folder(const std::string& path,
     // never touched.
     const HttpResponse legacy_response = request("GET", "/Library/VirtualFolders", "", true);
     if (legacy_response.status != 200) {
-        error = "ReddMedia could not inspect its existing media-folder links.";
+        error = "Nougat Media Suite could not inspect its existing media-folder links.";
         return false;
     }
     for (const std::string& object : json_root_array_objects(legacy_response.body)) {
@@ -752,7 +977,7 @@ bool JellyfinApiClient::add_media_folder(const std::string& path,
             : "/Library/VirtualFolders/Paths?name=" + url_encode(name) +
               "&path=" + url_encode(path) + "&refreshLibrary=false";
         if (request("DELETE", target, "", true, 30).status != 204) {
-            error = "ReddMedia could not migrate the existing v0.0.15 folder link.";
+            error = "Nougat Media Suite could not migrate the existing legacy folder link.";
             return false;
         }
     }
@@ -762,7 +987,7 @@ bool JellyfinApiClient::add_media_folder(const std::string& path,
     for (const MediaFolder& folder : folders) {
         if (folder.path == path && folder.media_type == media_type) return refresh_library(error);
         if (folder.path == path && folder.media_type != media_type) {
-            error = "That folder is already linked to the other ReddMedia library.";
+            error = "That folder is already linked to the other Nougat library.";
             return false;
         }
     }
@@ -789,9 +1014,10 @@ bool JellyfinApiClient::add_media_folder(const std::string& path,
         added = request("POST", target, body, true, 30);
     }
     if (added.status != 204) {
-        error = "ReddMedia could not link that media folder.";
+        error = "Nougat Media Suite could not link that media folder.";
         return false;
     }
+    if (!update_mapping_registry(path, media_type, true, error)) return false;
     return refresh_library(error);
 }
 
@@ -799,18 +1025,34 @@ bool JellyfinApiClient::unlink_media_folder(const std::string& path,
                                             LibraryMediaType media_type,
                                             std::string& error) {
     if (!initialize(error)) return false;
-    std::vector<MediaFolder> folders;
-    if (!load_media_folders(folders, error)) return false;
+
+    // Use Jellyfin's live folder list here instead of the merged owner registry.
+    // A remembered mapping can legitimately outlive a temporarily missing drive
+    // or a Jellyfin-side virtual-folder loss. In that state Unlink means remove
+    // the owner's remembered mapping, not issue a DELETE for a folder Jellyfin
+    // no longer has.
+    std::vector<MediaFolder> live_folders;
+    if (!query_media_folders(live_folders, error)) return false;
     int matching_type = 0;
-    bool found = false;
-    for (const MediaFolder& folder : folders) {
+    bool live_found = false;
+    for (const MediaFolder& folder : live_folders) {
         if (folder.media_type == media_type) ++matching_type;
-        if (folder.media_type == media_type && folder.path == path) found = true;
+        if (folder.media_type == media_type && folder.path == path) live_found = true;
     }
-    if (!found) {
-        error = "That folder is not linked to this ReddMedia library.";
+
+    std::vector<MediaFolder> registry;
+    load_mapping_registry(registry);
+    const bool remembered = std::any_of(registry.begin(), registry.end(), [&](const MediaFolder& folder) {
+        return folder.media_type == media_type && folder.path == path;
+    });
+    if (!live_found && !remembered) {
+        error = "That folder is not linked to this Nougat library.";
         return false;
     }
+    if (!live_found) {
+        return update_mapping_registry(path, media_type, false, error);
+    }
+
     const std::string target = matching_type <= 1
         ? "/Library/VirtualFolders?name=" + url_encode(library_name(media_type)) +
           "&refreshLibrary=false"
@@ -818,9 +1060,10 @@ bool JellyfinApiClient::unlink_media_folder(const std::string& path,
           "&path=" + url_encode(path) + "&refreshLibrary=false";
     const HttpResponse response = request("DELETE", target, "", true, 30);
     if (response.status != 204) {
-        error = "ReddMedia could not unlink that media folder.";
+        error = "Nougat Media Suite could not unlink that media folder.";
         return false;
     }
+    if (!update_mapping_registry(path, media_type, false, error)) return false;
     return refresh_library(error);
 }
 
@@ -838,7 +1081,7 @@ bool JellyfinApiClient::load_library_roots(LibraryMediaType media_type,
         "&sortBy=SortName&sortOrder=Ascending&enableImages=true" + collapse;
     const HttpResponse response = request("GET", target, "", true, 60);
     if (response.status != 200) {
-        error = "ReddMedia could not read this media library.";
+        error = "Nougat Media Suite could not read this media library.";
         return false;
     }
     std::vector<LibraryNode> loaded;
@@ -895,7 +1138,7 @@ bool JellyfinApiClient::load_library_children(const LibraryNode& parent,
         "&sortBy=" + sort_by + "&sortOrder=Ascending&enableImages=true";
     const HttpResponse response = request("GET", target, "", true, 60);
     if (response.status != 200) {
-        error = "ReddMedia could not open that library level.";
+        error = "Nougat could not open that library level.";
         return false;
     }
     std::vector<LibraryNode> loaded;
@@ -933,7 +1176,7 @@ bool JellyfinApiClient::load_all_recommendation_items(std::vector<LibraryNode>& 
         "&sortBy=SortName&sortOrder=Ascending&enableImages=true";
     const HttpResponse response = request("GET", target, "", true, 60);
     if (response.status != 200) {
-        error = "ReddMedia could not read local recommendation metadata.";
+        error = "Nougat could not read local recommendation metadata.";
         return false;
     }
     std::vector<LibraryNode> loaded;
@@ -1042,7 +1285,7 @@ bool JellyfinApiClient::refresh_library(std::string& error) {
     if (!initialize(error)) return false;
     const HttpResponse response = request("POST", "/Library/Refresh", "{}", true, 300);
     if (response.status != 204) {
-        error = "ReddMedia could not finish scanning the media library.";
+        error = "Nougat could not finish scanning the media library.";
         return false;
     }
     return true;
@@ -1057,7 +1300,7 @@ bool JellyfinApiClient::load_videos(std::vector<LibraryVideo>& videos, std::stri
         "&enableTotalRecordCount=true";
     const HttpResponse response = request("GET", target, "", true, 60);
     if (response.status != 200) {
-        error = "ReddMedia could not read the media library.";
+        error = "Nougat could not read the media library.";
         return false;
     }
 

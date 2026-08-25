@@ -3,8 +3,14 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <sys/stat.h>
 #include <thread>
+#include <unistd.h>
 
 #if !defined(REDDMEDIA_AI_STUB)
 #include <llama.h>
@@ -39,7 +45,16 @@ std::vector<float> deterministic_embedding(const std::string& text) {
 } // namespace
 
 EmbeddingEngine::EmbeddingEngine(std::string model_path)
-    : model_path_(std::move(model_path)) {}
+    : model_path_(std::move(model_path)) {
+    const char* xdg_cache = std::getenv("XDG_CACHE_HOME");
+    const char* home = std::getenv("HOME");
+    const std::string base = xdg_cache && *xdg_cache
+        ? std::string(xdg_cache)
+        : std::string(home && *home ? home : ".") + "/.cache";
+    // Compatibility path stays under reddmedia so upgrades do not abandon the
+    // cache when the executable name changes. The contents are Nougat-owned.
+    cache_dir_ = base + "/reddmedia/intelligence/embeddings";
+}
 
 EmbeddingEngine::~EmbeddingEngine() {
 #if !defined(REDDMEDIA_AI_STUB)
@@ -47,6 +62,72 @@ EmbeddingEngine::~EmbeddingEngine() {
     if (model_) llama_model_free(static_cast<llama_model*>(model_));
     if (initialized_) llama_backend_free();
 #endif
+}
+
+std::string EmbeddingEngine::cache_path_for_prompt(const std::string& prompt) const {
+    // FNV-1a is used only as a deterministic cache key, not for security.
+    std::uint64_t hash = 1469598103934665603ULL;
+    const auto absorb = [&hash](const std::string& value) {
+        for (const unsigned char c : value) {
+            hash ^= c;
+            hash *= 1099511628211ULL;
+        }
+    };
+    absorb(model_path_);
+    struct stat model_info {};
+    if (stat(model_path_.c_str(), &model_info) == 0) {
+        absorb(std::to_string(static_cast<long long>(model_info.st_size)));
+        absorb(std::to_string(static_cast<long long>(model_info.st_mtime)));
+    }
+    absorb(prompt);
+    std::ostringstream name;
+    name << std::hex << std::setw(16) << std::setfill('0') << hash;
+    return cache_dir_ + "/" + name.str() + ".emb";
+}
+
+bool EmbeddingEngine::load_cached_embedding(const std::string& prompt,
+                                            std::vector<float>& embedding) const {
+    std::ifstream in(cache_path_for_prompt(prompt), std::ios::binary);
+    if (!in) return false;
+    std::uint32_t magic = 0;
+    std::uint32_t dimensions = 0;
+    in.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+    in.read(reinterpret_cast<char*>(&dimensions), sizeof(dimensions));
+    if (!in || magic != 0x4E454D42U || dimensions == 0U || dimensions > 65536U) return false;
+    embedding.resize(dimensions);
+    in.read(reinterpret_cast<char*>(embedding.data()),
+            static_cast<std::streamsize>(embedding.size() * sizeof(float)));
+    if (!in) {
+        embedding.clear();
+        return false;
+    }
+    normalize(embedding);
+    return true;
+}
+
+void EmbeddingEngine::save_cached_embedding(const std::string& prompt,
+                                            const std::vector<float>& embedding) const {
+    if (embedding.empty()) return;
+    std::error_code ec;
+    std::filesystem::create_directories(cache_dir_, ec);
+    if (ec) return;
+    const std::string destination = cache_path_for_prompt(prompt);
+    const std::string temporary = destination + ".tmp-" + std::to_string(static_cast<long long>(getpid()));
+    std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
+    if (!out) return;
+    const std::uint32_t magic = 0x4E454D42U; // NEMB
+    const std::uint32_t dimensions = static_cast<std::uint32_t>(embedding.size());
+    out.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
+    out.write(reinterpret_cast<const char*>(&dimensions), sizeof(dimensions));
+    out.write(reinterpret_cast<const char*>(embedding.data()),
+              static_cast<std::streamsize>(embedding.size() * sizeof(float)));
+    out.close();
+    if (!out) {
+        unlink(temporary.c_str());
+        return;
+    }
+    chmod(temporary.c_str(), 0600);
+    if (rename(temporary.c_str(), destination.c_str()) != 0) unlink(temporary.c_str());
 }
 
 bool EmbeddingEngine::initialize(std::string& error) {
@@ -58,7 +139,7 @@ bool EmbeddingEngine::initialize(std::string& error) {
 #else
     std::ifstream input(model_path_, std::ios::binary);
     if (!input) {
-        error = "ReddMedia's pinned offline embedding model is missing.";
+        error = "Nougat Media Suite's pinned offline embedding model is missing.";
         return false;
     }
     llama_backend_init();
@@ -66,7 +147,7 @@ bool EmbeddingEngine::initialize(std::string& error) {
     model_params.n_gpu_layers = 0;
     llama_model* model = llama_model_load_from_file(model_path_.c_str(), model_params);
     if (!model) {
-        error = "ReddMedia could not load its pinned offline embedding model.";
+        error = "Nougat Media Suite could not load its pinned offline embedding model.";
         llama_backend_free();
         return false;
     }
@@ -85,7 +166,7 @@ bool EmbeddingEngine::initialize(std::string& error) {
     if (!context) {
         llama_model_free(model);
         llama_backend_free();
-        error = "ReddMedia could not initialize offline embedding inference.";
+        error = "Nougat Media Suite could not initialize offline embedding inference.";
         return false;
     }
     model_ = model;
@@ -98,10 +179,13 @@ bool EmbeddingEngine::initialize(std::string& error) {
 bool EmbeddingEngine::embed_document(const std::string& text,
                                      std::vector<float>& embedding,
                                      std::string& error) {
-    if (!initialize(error)) return false;
     const std::string prompt = "search_document: " + text;
+    std::lock_guard<std::mutex> lock(inference_mutex_);
+    if (load_cached_embedding(prompt, embedding)) return true;
+    if (!initialize(error)) return false;
 #if defined(REDDMEDIA_AI_STUB)
     embedding = deterministic_embedding(prompt);
+    save_cached_embedding(prompt, embedding);
     return true;
 #else
     llama_model* model = static_cast<llama_model*>(model_);
@@ -153,6 +237,7 @@ bool EmbeddingEngine::embed_document(const std::string& text,
     embedding.assign(values, values + dimensions);
     llama_batch_free(batch);
     normalize(embedding);
+    save_cached_embedding(prompt, embedding);
     return true;
 #endif
 }

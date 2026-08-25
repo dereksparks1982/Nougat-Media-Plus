@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -23,7 +24,13 @@ public:
                                    const std::vector<float>& right);
 
 private:
+    bool load_cached_embedding(const std::string& prompt, std::vector<float>& embedding) const;
+    void save_cached_embedding(const std::string& prompt, const std::vector<float>& embedding) const;
+    std::string cache_path_for_prompt(const std::string& prompt) const;
+
     std::string model_path_;
+    std::string cache_dir_;
+    mutable std::mutex inference_mutex_;
     void* model_ = nullptr;
     void* context_ = nullptr;
     bool initialized_ = false;

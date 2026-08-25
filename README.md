@@ -1,6 +1,22 @@
-# Nougat Media Suite v0.0.41
+# Nougat Media Suite v0.0.42
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+## v0.0.42 - Persistent Libraries, Live TV Maintenance, Security, Intelligence, and Games
+
+v0.0.42 builds from the sealed v0.0.41 baseline and preserves the accepted native-player and page behavior outside the owner-approved scope.
+
+- Preserves Movies/TV folder mappings in a Nougat-owned recovery registry while keeping Jellyfin's legacy-compatible persistent state paths.
+- Improves metadata identification with filesystem/season structure evidence and exact provider-ID matching, while adding reusable recommendation embedding caches.
+- Repairs Discover Live TV locking, My Services header/scrollbar behavior, Library/Home card fill, and the Live TV to local-media playback handoff.
+- Keeps Live TV guide data persistent, performs stale guide maintenance when the tuner is idle, and shows a pulsing `Refreshing` state during active guide work.
+- Adds `World TV` for verified official internet broadcaster sources without geolocation filtering or DRM/geoblock bypass.
+- Expands Virus Scan with Movies, TV, Quick, and System scans while preserving the existing controls.
+- Adds the top-level `Games` tab after Studio, persistent user ROM folders, backend discovery, controller visibility, and a playable emulator-launch path.
+- Bundles/pins legally redistributable NES starter content with upstream licensing preserved by the installer.
+- Repairs the Video Player context-menu subtitle row so the full `Subtitles On / Off` row toggles and the active state word is bold.
+- Raises the volume and transport rows slightly while leaving the approved seek bar untouched.
+
 
 ## v0.0.41 - Housekeeping, Archives, IMDb, Live TV and Player Activity Repair
 
@@ -13,7 +29,7 @@ v0.0.41 builds on accepted v0.0.40 without changing Nougat's native-player rule 
 - Scrollable Search result cards fill their available result viewport cleanly.
 - Live TV gains `Stop Live`; stopping live playback releases the tuner and lets a queued full guide sweep continue.
 - The video identity overlay and mouse pointer now share the same three-second activity window in fullscreen, maximized, and normal window sizes.
-- v0.0.42 is reserved for the opt-in Home LAN phone-browser media viewer/streaming foundation.
+- The Home LAN phone-browser media viewer/streaming foundation remains roadmap work after v0.0.42.
 
 
 ## v0.0.40 - System Loading, Live TV Tuner Navigation, Search Repair, and Crawler UI

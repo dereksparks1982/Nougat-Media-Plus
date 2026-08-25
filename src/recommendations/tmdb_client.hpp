@@ -29,6 +29,20 @@ public:
                   std::vector<MediaDescriptor>& items,
                   int& total_pages,
                   std::string& error) const;
+    // v0.0.42 deterministic metadata identity resolver support. Search results
+    // are only candidates; callers decide whether evidence is strong enough.
+    bool search_title(RecommendationMediaType type,
+                      const std::string& title,
+                      int year,
+                      std::vector<MediaDescriptor>& items,
+                      std::string& error) const;
+    bool external_imdb_id(RecommendationMediaType type,
+                          const std::string& tmdb_id,
+                          std::string& imdb_id,
+                          std::string& error) const;
+    bool tv_season_count(const std::string& tmdb_id,
+                         int& season_count,
+                         std::string& error) const;
     bool load_poster_bmp(const std::string& poster_path,
                          int width,
                          int height,

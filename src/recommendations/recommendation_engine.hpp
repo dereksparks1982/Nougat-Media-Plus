@@ -53,6 +53,13 @@ public:
     bool load_movie_poster_path(const std::string& tmdb_id,
                                 std::string& poster_path,
                                 std::string& error) const;
+    bool resolve_metadata_identity(RecommendationMediaType type,
+                                   const std::string& title,
+                                   int year,
+                                   int observed_seasons,
+                                   MediaDescriptor& resolved,
+                                   std::string& imdb_id,
+                                   std::string& error) const;
 
     bool recommend(const RecommendationRequest& request,
                    const std::vector<MediaDescriptor>& local_items,
