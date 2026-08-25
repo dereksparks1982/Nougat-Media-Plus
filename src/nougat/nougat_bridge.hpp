@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 #include <sys/types.h>
 
@@ -24,6 +25,9 @@ struct NougatSearchResponse {
     std::vector<NougatSearchResult> results;
     std::vector<std::pair<std::string, std::string>> peer_status;
     std::string error;
+    std::string privacy_stage;
+    std::string privacy_receipt;
+    bool secure_remote_unavailable = false;
 };
 
 class NougatBridge {
@@ -31,6 +35,9 @@ public:
     explicit NougatBridge(std::string engine_path);
     ~NougatBridge();
 
+    // v0.0.45 searches the local index only. The plaintext query is delivered
+    // over an anonymous pipe to the local search worker and is never placed in
+    // argv, an environment variable, a URL, or a remote peer request.
     NougatSearchResponse search(const std::string& query, bool raw, bool include_peers,
                                 int limit = 100, int offset = 0) const;
     bool crawl(const std::string& seed, int max_pages, bool same_domain,
@@ -58,6 +65,10 @@ private:
     };
 
     ProcessResult run_capture(const std::vector<std::string>& arguments) const;
+    ProcessResult run_capture_program(const std::string& program_path,
+                                      const std::vector<std::string>& arguments,
+                                      const std::string& stdin_payload) const;
+    std::string sibling_worker(const std::string& filename) const;
     static std::string hex_decode(const std::string& value);
     static std::vector<std::string> split_tabs(const std::string& line);
     static std::string trim(const std::string& value);

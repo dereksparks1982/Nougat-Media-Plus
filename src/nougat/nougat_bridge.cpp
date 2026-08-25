@@ -7,6 +7,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fcntl.h>
 #include <sstream>
 #include <sys/stat.h>
@@ -28,17 +29,29 @@ void set_nougat_home() {
     setenv("NOUGAT_HOME", path.c_str(), 1);
 }
 
-std::vector<char*> argv_for(const std::string& engine_path, const std::vector<std::string>& arguments,
+std::vector<char*> argv_for(const std::string& program_path,
+                            const std::vector<std::string>& arguments,
                             std::vector<std::string>& storage) {
     storage.clear();
     storage.push_back("python3");
-    storage.push_back(engine_path);
+    storage.push_back(program_path);
     storage.insert(storage.end(), arguments.begin(), arguments.end());
     std::vector<char*> argv;
-    argv.reserve(storage.size() + 1);
+    argv.reserve(storage.size() + 1U);
     for (std::string& item : storage) argv.push_back(item.data());
     argv.push_back(nullptr);
     return argv;
+}
+
+bool write_all(int fd, const std::string& value) {
+    std::size_t offset = 0;
+    while (offset < value.size()) {
+        const ssize_t n = write(fd, value.data() + offset, value.size() - offset);
+        if (n > 0) offset += static_cast<std::size_t>(n);
+        else if (n < 0 && errno == EINTR) continue;
+        else return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -53,7 +66,7 @@ std::string NougatBridge::trim(const std::string& value) {
     std::size_t first = 0;
     while (first < value.size() && std::isspace(static_cast<unsigned char>(value[first]))) ++first;
     std::size_t last = value.size();
-    while (last > first && std::isspace(static_cast<unsigned char>(value[last - 1]))) --last;
+    while (last > first && std::isspace(static_cast<unsigned char>(value[last - 1U]))) --last;
     return value.substr(first, last - first);
 }
 
@@ -67,7 +80,7 @@ std::vector<std::string> NougatBridge::split_tabs(const std::string& line) {
             break;
         }
         parts.push_back(line.substr(start, found - start));
-        start = found + 1;
+        start = found + 1U;
     }
     return parts;
 }
@@ -91,39 +104,64 @@ std::string NougatBridge::hex_decode(const std::string& value) {
     return out;
 }
 
-NougatBridge::ProcessResult NougatBridge::run_capture(const std::vector<std::string>& arguments) const {
+std::string NougatBridge::sibling_worker(const std::string& filename) const {
+    const std::filesystem::path engine(engine_path_);
+    return (engine.parent_path() / filename).string();
+}
+
+NougatBridge::ProcessResult NougatBridge::run_capture_program(
+    const std::string& program_path,
+    const std::vector<std::string>& arguments,
+    const std::string& stdin_payload) const {
     ProcessResult result;
-    int pipefd[2] = {-1, -1};
-    if (pipe(pipefd) != 0) {
+    int stdout_pipe[2] = {-1, -1};
+    int stdin_pipe[2] = {-1, -1};
+    if (pipe(stdout_pipe) != 0 || pipe(stdin_pipe) != 0) {
         result.error = std::string("pipe failed: ") + std::strerror(errno);
+        if (stdout_pipe[0] >= 0) { close(stdout_pipe[0]); close(stdout_pipe[1]); }
+        if (stdin_pipe[0] >= 0) { close(stdin_pipe[0]); close(stdin_pipe[1]); }
         return result;
     }
+
     const pid_t pid = fork();
     if (pid < 0) {
         result.error = std::string("fork failed: ") + std::strerror(errno);
-        close(pipefd[0]); close(pipefd[1]);
+        close(stdout_pipe[0]); close(stdout_pipe[1]);
+        close(stdin_pipe[0]); close(stdin_pipe[1]);
         return result;
     }
+
     if (pid == 0) {
-        close(pipefd[0]);
-        dup2(pipefd[1], STDOUT_FILENO);
-        dup2(pipefd[1], STDERR_FILENO);
-        close(pipefd[1]);
+        close(stdout_pipe[0]);
+        close(stdin_pipe[1]);
+        dup2(stdout_pipe[1], STDOUT_FILENO);
+        dup2(stdout_pipe[1], STDERR_FILENO);
+        dup2(stdin_pipe[0], STDIN_FILENO);
+        close(stdout_pipe[1]);
+        close(stdin_pipe[0]);
         set_nougat_home();
         std::vector<std::string> storage;
-        std::vector<char*> argv = argv_for(engine_path_, arguments, storage);
+        std::vector<char*> argv = argv_for(program_path, arguments, storage);
         execvp("python3", argv.data());
         _exit(127);
     }
-    close(pipefd[1]);
+
+    close(stdout_pipe[1]);
+    close(stdin_pipe[0]);
+    if (!stdin_payload.empty() && !write_all(stdin_pipe[1], stdin_payload)) {
+        result.error = "Could not send private local worker input.";
+    }
+    close(stdin_pipe[1]);
+
     char buffer[4096];
     for (;;) {
-        const ssize_t n = read(pipefd[0], buffer, sizeof(buffer));
+        const ssize_t n = read(stdout_pipe[0], buffer, sizeof(buffer));
         if (n > 0) result.output.append(buffer, static_cast<std::size_t>(n));
         else if (n == 0) break;
         else if (errno != EINTR) break;
     }
-    close(pipefd[0]);
+    close(stdout_pipe[0]);
+
     int status = 0;
     while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
     if (WIFEXITED(status)) result.exit_code = WEXITSTATUS(status);
@@ -132,18 +170,27 @@ NougatBridge::ProcessResult NougatBridge::run_capture(const std::vector<std::str
     return result;
 }
 
+NougatBridge::ProcessResult NougatBridge::run_capture(const std::vector<std::string>& arguments) const {
+    return run_capture_program(engine_path_, arguments, {});
+}
+
 NougatSearchResponse NougatBridge::search(const std::string& query, bool raw, bool include_peers,
                                           int limit, int offset) const {
     NougatSearchResponse response;
-    std::vector<std::string> args = {"search", query, "--limit", std::to_string(limit),
+    std::vector<std::string> args = {"search", "--limit", std::to_string(limit),
                                      "--offset", std::to_string(offset)};
     if (raw) args.push_back("--raw");
-    if (include_peers) args.push_back("--peers");
-    const ProcessResult process = run_capture(args);
+    // include_peers is intentionally not sent to the worker. Remote search is
+    // owned by SecureSearchController and stays fail-closed until a private
+    // transport is actually available.
+    (void)include_peers;
+    const ProcessResult process = run_capture_program(
+        sibling_worker("nougat_search_worker.py"), args, query + "\n");
     if (process.exit_code != 0) {
-        response.error = process.error.empty() ? "Nougat search engine failed." : process.error;
+        response.error = process.error.empty() ? "Nougat local search worker failed." : process.error;
         return response;
     }
+
     std::istringstream lines(process.output);
     std::string line;
     while (std::getline(lines, line)) {
@@ -173,45 +220,25 @@ NougatSearchResponse NougatBridge::search(const std::string& query, bool raw, bo
 bool NougatBridge::crawl(const std::string& seed, int max_pages, bool same_domain,
                          const std::function<void(const std::string&)>& on_log,
                          std::string& summary, std::string& error) const {
-    int pipefd[2] = {-1, -1};
-    if (pipe(pipefd) != 0) { error = "Could not start crawler pipe."; return false; }
-    const pid_t pid = fork();
-    if (pid < 0) {
-        close(pipefd[0]); close(pipefd[1]);
-        error = "Could not start crawler process.";
+    std::vector<std::string> args = {"crawl", "--max-pages", std::to_string(max_pages)};
+    if (!same_domain) args.push_back("--follow-external");
+    const ProcessResult process = run_capture_program(
+        sibling_worker("nougat_crawler_worker.py"), args, seed + "\n");
+    if (process.exit_code != 0 && process.output.empty()) {
+        error = process.error.empty() ? "Nougat crawler worker failed." : process.error;
         return false;
     }
-    if (pid == 0) {
-        close(pipefd[0]);
-        dup2(pipefd[1], STDOUT_FILENO);
-        dup2(pipefd[1], STDERR_FILENO);
-        close(pipefd[1]);
-        set_nougat_home();
-        std::vector<std::string> args = {"crawl", seed, "--max-pages", std::to_string(max_pages)};
-        if (!same_domain) args.push_back("--follow-external");
-        std::vector<std::string> storage;
-        std::vector<char*> argv = argv_for(engine_path_, args, storage);
-        execvp("python3", argv.data());
-        _exit(127);
-    }
-    close(pipefd[1]);
-    FILE* stream = fdopen(pipefd[0], "r");
-    if (!stream) {
-        close(pipefd[0]);
-        kill(pid, SIGTERM);
-        waitpid(pid, nullptr, 0);
-        error = "Could not read crawler output.";
-        return false;
-    }
-    char* line_ptr = nullptr;
-    std::size_t capacity = 0;
+
     bool saw_done = false;
     bool saw_fail = false;
-    while (getline(&line_ptr, &capacity, stream) >= 0) {
-        std::string line = trim(line_ptr ? line_ptr : "");
-        const std::vector<std::string> parts = split_tabs(line);
+    std::istringstream lines(process.output);
+    std::string line;
+    while (std::getline(lines, line)) {
+        const std::vector<std::string> parts = split_tabs(trim(line));
         if (parts.size() >= 2U && parts[0] == "LOG") {
             on_log(hex_decode(parts[1]));
+        } else if (parts.size() >= 3U && parts[0] == "ACCESS") {
+            on_log("Access: " + hex_decode(parts[1]) + " | " + hex_decode(parts[2]));
         } else if (parts.size() >= 4U && parts[0] == "DONE") {
             summary = "DONE: indexed=" + parts[1] + " seen=" + parts[2] + " failures=" + parts[3];
             on_log(summary);
@@ -224,13 +251,10 @@ bool NougatBridge::crawl(const std::string& seed, int max_pages, bool same_domai
             on_log(line);
         }
     }
-    if (line_ptr) free(line_ptr);
-    fclose(stream);
-    int status = 0;
-    while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
-    const bool process_ok = WIFEXITED(status) && WEXITSTATUS(status) == 0;
-    if (!process_ok && error.empty()) error = "Nougat crawler process failed.";
-    return process_ok && saw_done && !saw_fail;
+    if (process.exit_code != 0 && error.empty()) {
+        error = process.error.empty() ? "Nougat crawler process failed." : process.error;
+    }
+    return process.exit_code == 0 && saw_done && !saw_fail;
 }
 
 std::string NougatBridge::node_id(std::string& error) const {

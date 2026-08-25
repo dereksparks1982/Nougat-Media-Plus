@@ -50,6 +50,7 @@
 #include "recommendations/recommendation_engine.hpp"
 #include "recommendations/watch_provider_preferences.hpp"
 #include "nougat/nougat_bridge.hpp"
+#include "search/secure_search.hpp"
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -1419,7 +1420,7 @@ public:
     std::string nougatCrawlSeed = "https://example.com/";
     std::string nougatPeerEntry;
     bool nougatRaw = false;
-    bool nougatSearchPeers = true;
+    bool nougatSearchPeers = false;
     bool nougatSameDomain = true;
     int nougatMaxPages = 25;
     int nougatSearchOffset = 0;
@@ -3857,7 +3858,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.44";
+        const std::string versionLabel = "v0.0.45";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -8201,7 +8202,7 @@ public:
     }
 
         static const std::vector<WorldTvStation>& world_tv_catalog() {
-        // v0.0.44: direct linear international television only. No YouTube
+        // v0.0.45: direct linear international television only. No YouTube
         // URLs are accepted here. Each source is a broadcaster/CDN HLS feed
         // whose advertised maximum is 1080p or lower; libVLC is also given an
         // adaptive-maxheight/preferred-resolution 1080 ceiling at playback.
@@ -9033,7 +9034,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.44";
+        input.app_version = "Nougat Media Suite v0.0.45";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -9496,7 +9497,7 @@ public:
         {
             std::lock_guard<std::mutex> lock(nougatState->mutex);
             nougatState->search_busy = true;
-            nougatState->status = "Searching Nougat...";
+            nougatState->status = "Searching Local Index...";
             nougatState->updated = true;
         }
         const std::string query = nougatSearchQuery;
@@ -9505,15 +9506,16 @@ public:
         const int offset = nougatSearchOffset;
         const auto state = nougatState;
         nougatSearchWorker = std::thread([this, state, query, raw, include_peers, offset]() {
-            reddmedia::NougatSearchResponse response = nougat.search(query, raw, include_peers, 100, offset);
+            reddmedia::NougatSearchResponse response = reddmedia::SecureSearchController::search(nougat, query, raw, include_peers, 100, offset);
             std::lock_guard<std::mutex> lock(state->mutex);
             state->search = response;
             state->search_busy = false;
             if (!response.error.empty()) state->status = "Search error: " + response.error;
             else {
                 std::ostringstream status;
-                status << (raw ? "RAW" : "RANKED") << ": " << response.total << " matching record(s) reported";
+                status << "Secure Search Complete | " << (raw ? "RAW" : "RANKED") << ": " << response.total << " matching record(s) reported";
                 if (!response.results.empty()) status << " | showing " << (offset + 1) << "-" << (offset + (int)response.results.size());
+                if (response.secure_remote_unavailable) status << " | secure remote unavailable; query not sent";
                 state->status = status.str();
             }
             state->updated = true;
@@ -13298,7 +13300,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.44\n");
+        printf("Nougat Media Suite v0.0.45\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v44-release-self-test") {
@@ -13327,10 +13329,10 @@ int main(int argc, char** argv) {
             !safe_zip_game_entry("/probe.nes") &&
             !safe_zip_game_entry("folder/readme.txt");
         if (grid_ok && games_layout_ok && world_tv_ok && formats_ok && zip_ok) {
-            printf("Nougat Media Suite v0.0.44 release self-test PASS\n");
+            printf("Nougat Media Suite v0.0.45 release self-test PASS\n");
             return 0;
         }
-        fprintf(stderr, "Nougat Media Suite v0.0.44 release self-test FAIL: grid=%d formats=%d zip=%d\n",
+        fprintf(stderr, "Nougat Media Suite v0.0.45 release self-test FAIL: grid=%d formats=%d zip=%d\n",
                 grid_ok ? 1 : 0, formats_ok ? 1 : 0, zip_ok ? 1 : 0);
         return 1;
     }

@@ -1,3 +1,43 @@
+## v0.0.46 planned — World TV Repair, Scanner Control, Kaaba Live, and LAN Media Foundation
+
+- Repair World TV's X11/libVLC window ownership so the black video surface can never cover the station list.
+- Repair World TV station activation and native playback. Double-click and Watch Live must either begin verified playback or report a truthful source/playback failure.
+- Re-verify World TV broadcaster feeds, startup, reconnect, source switching, artwork, and status reporting rather than retaining dead or mislabeled feeds.
+- Add the approved Nougat N shortcut: double-click the small N beside the application name to open the verified official live Kaaba / Masjid al-Haram broadcast in Nougat's native player, preferring official Saudi broadcast infrastructure and a verified fallback.
+- Add a real Stop Scan control to Virus Scan.
+- Scanner cancellation must terminate the complete Nougat-owned scan process group, including capa, ClamAV, and other scanner children. Closing Nougat must not leave orphan scanner processes.
+- Preserve useful partial scan results when the owner stops a scan and clearly report that the scan was cancelled.
+- Replace the ambiguous live `flagged` count with separate Threats and Suspicious counts.
+- Redesign Full System Scan as a tiered bulk scan. Fast checks run broadly; expensive deep analysis such as capa runs only when justified instead of blindly analyzing every ELF/shared library.
+- Improve ClamAV bulk scanning efficiency rather than launching heavyweight per-file work across hundreds of thousands of files.
+- Repair the top-navigation right-edge scroll extent at narrow window sizes so every tab, including System, can be brought fully into the visible navigation lane.
+- Start the LAN Media Service architecture for phones, tablets, laptops, and TV browsers on the same local network.
+- LAN local-media access must continue working when WAN/Internet access is unavailable. No cloud login or Internet round trip may be required to play locally owned media across the LAN.
+- Establish versioned LAN interfaces for catalog/history, direct media delivery, future HLS/transcoding, authentication/pairing, and the local web UI without moving those implementations into main.cpp.
+- Default LAN service exposure to the local network only. Do not automatically expose Nougat through router port forwarding, UPnP, or a cloud relay.
+- Plan friendly local discovery such as `nougat.local` while retaining direct local-IP access as a fallback.
+- Preserve v0.0.45 Secure Search privacy invariants and all accepted player, Library, Live TV, Stream, Games, and diagnostics behavior.
+
+## v0.0.45 candidate - Secure Search Foundation, Privacy Broker & Crawler Access Architecture
+
+- Split user Search from crawler networking: local Search uses a no-network worker and receives plaintext queries only over private local stdin IPC, never argv, URL query strings, environment variables, ordinary logs, diagnostics, or privacy receipts.
+- Remove automatic DuckDuckGo/live-discovery fallback and disable plaintext remote peer Search. Secure remote Search fails closed until the Privacy Broker can provide the required private transport; there is no direct fallback.
+- Add versioned `SecureSearchController`, Privacy Policy, Privacy Receipt, Privacy Broker client/protocol, and Crawler Access Manager interfaces so future OHTTP, ODoH/ECH, PIR/HE, mix-network, post-quantum, renderer-containment, and relay-directory providers can be replaced without rewriting Search.
+- Split `nougat_search_worker.py` and `nougat_crawler_worker.py`. The administrative node service becomes loopback-only and no longer accepts plaintext Search queries over `/nougat/v1/search`.
+- Identify crawling truthfully as `NougatSearchCrawler/0.0.45`, respect robots restrictions, and expose access states for bot-policy block, rate limit, authentication, feeds, payment-required, and temporary unavailability. Nougat never spends automatically on HTTP 402.
+- Add the Rust Privacy Broker v1 scaffold as an optional, isolated security component without making Rust a hard dependency of the v0.0.45 C++ application build.
+- Keep Secure Search implementation outside `src/main.cpp`; main receives only controller wiring and truthful Secure Search loading/status text.
+- Candidate remains uncommitted/untagged/unpushed until owner acceptance.
+
+## v0.0.46 planned - World TV Repair, Verified Broadcasts & Kaaba Live
+
+- Make World TV the primary v0.0.46 repair/polish focus. Fix the X11/libVLC black video-child overlay that can cover the station list when the World TV surface is active, and validate clean player/list window mapping during every view transition.
+- Harden native broadcaster playback, reconnect/failover behavior, stream-health reporting, source verification, station selection, scrolling, status text, and correct station/network artwork so World TV behaves like a finished Nougat surface rather than an experimental catalog.
+- Double-clicking the small approved Nougat `N` icon beside the application name opens Kaaba Live immediately in Nougat's native player.
+- Prefer the official Saudi Quran TV / Saudi Broadcasting Authority / ALOULA Masjid al-Haram live broadcast path for Kaaba Live. Verify the actual native stream endpoint, quality, redirects, uptime, and libVLC behavior before shipping; use only verified official distribution/fallback paths rather than mystery IPTV mirrors.
+- Keep a future Madinah / Saudi Sunnah TV companion path available for later owner approval without complicating the default N double-click action.
+- Candidate work begins only after v0.0.45 is owner-accepted.
+
 ## v0.0.44 candidate - Direct World TV, Playable Games, Artwork, and Card Context Menus
 
 - World TV is a top-level tab immediately after Live TV and uses direct non-YouTube international linear television feeds only.

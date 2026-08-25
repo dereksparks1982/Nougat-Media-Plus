@@ -1,5 +1,11 @@
 # Nougat Media Suite
 
+## v0.0.45 - Secure Search Foundation
+
+Nougat Search now has a fail-closed privacy foundation. User queries are sent to a local no-network search worker through private stdin IPC instead of process arguments, automatic live-discovery fallback is removed, crawler networking is separated from user Search, and plaintext remote peer Search is disabled until a versioned Privacy Broker transport can satisfy Nougat's privacy policy. The crawler now uses a truthful Nougat Search identity and reports access restrictions such as robots policy, bot-policy blocks, rate limits, authentication, payment-required responses, feeds, and temporary unavailability.
+
+The v0.0.45 architecture deliberately leaves production OHTTP/multi-relay transport, PIR/homomorphic private retrieval, mix/batching defenses, post-quantum transport, browser containment, and signed relay-directory work behind replaceable interfaces rather than hard-wiring today's mechanism into the application.
+
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application. It also includes native Live TV, World TV, Studio, and an integrated Games library with persistent ROM folders, ZIP ROM discovery, automatic game-system and emulator selection, controller support, game artwork support, and expanded Nintendo and Atari system support. Nougat also includes responsive multi-row media-library browsing, security analysis, diagnostics, and integrated media-server controls. World TV is now a dedicated top-level international television area using direct non-YouTube broadcast feeds with a 1080p ceiling, and Games includes pinned MesenCE, RMG, and Atari800 emulator runtimes, Library-identical multi-row cards, automatic artwork retrieval, and right-click card actions shared across Nougat card surfaces.
 
 ## v0.0.44 - World TV, Playable Games, Artwork, and Global Card Actions

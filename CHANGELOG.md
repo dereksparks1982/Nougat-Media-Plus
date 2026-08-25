@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.0.45 - Secure Search Foundation, Privacy Broker & Crawler Access Architecture
+
+- Moved plaintext Search query delivery from child-process argv to private local stdin IPC.
+- Removed automatic DuckDuckGo/live-discovery Search fallback and disabled plaintext remote peer Search.
+- Split local Search and crawler networking into separate workers.
+- Added fail-closed Secure Search controller, Privacy Policy, Privacy Receipt, Privacy Broker client/protocol scaffold, and Crawler Access Manager.
+- Made the legacy administrative node loopback-only and refused plaintext `/nougat/v1/search` requests.
+- Added truthful `NougatSearchCrawler/0.0.45` identity, robots handling, crawler access classification, and no-auto-payment handling for HTTP 402.
+- Added privacy-canary validation proving a unique query does not appear in worker argv, environment, output, or persistent Nougat Search files.
+
 ## v0.0.44 - World TV, Playable Games, Artwork, and Global Card Actions
 
 - Promote World TV to its own top-level tab after Live TV and remove all YouTube catalog entries.
