@@ -9,3 +9,4 @@
 /components/jellyfin/runtime/
 **/__pycache__/
 *.pyc
+components/games/runtime/

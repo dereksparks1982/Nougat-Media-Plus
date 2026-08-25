@@ -1,0 +1,12 @@
+Rosalie's Mupen GUI (RMG) 0.9.0 third-party runtime
+==================================================
+Upstream: https://github.com/Rosalie241/RMG
+Release: v0.9.0
+Linux x64 asset: RMG-Portable-Linux64-v0.9.0.AppImage
+SHA-256: 43ce15e11404aaff313ec44ca03601e5e753bba3b355c38a7c67a4344d517aca
+License: GNU GPL v3
+Corresponding source: https://github.com/Rosalie241/RMG/tree/v0.9.0
+
+The installer downloads the unmodified upstream AppImage, verifies the pinned
+SHA-256, and extracts it into Nougat's private runtime tree so FUSE is not
+required at launch. RMG remains a separate third-party work.

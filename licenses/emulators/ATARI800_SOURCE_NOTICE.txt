@@ -1,0 +1,13 @@
+Atari800 7.1.2 third-party runtime
+=================================
+Upstream: https://github.com/atari800/atari800
+Release: ATARI800_7_1_2
+Linux x86_64 asset: Atari800-7.1.2-x86_64.AppImage
+SHA-256: f4e11dcc6706591b630ba1647dcced52986507b55021a9ee24cad3f1e81c65f7
+License: GNU GPL v2
+Corresponding source: https://github.com/atari800/atari800/tree/ATARI800_7_1_2
+Upstream source archive SHA-256: 9602badfd7c45551cb5c4cc77f862af377c43a07caaa0bfc77ac87f9179673e3
+
+The installer downloads the unmodified upstream AppImage, verifies the pinned
+SHA-256, and extracts it into Nougat's private runtime tree so FUSE is not
+required at launch. Atari800 remains a separate third-party work.

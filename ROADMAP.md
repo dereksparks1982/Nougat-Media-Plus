@@ -1,3 +1,12 @@
+## v0.0.44 candidate - Direct World TV, Playable Games, Artwork, and Card Context Menus
+
+- World TV is a top-level tab immediately after Live TV and uses direct non-YouTube international linear television feeds only.
+- Direct World TV playback is capped at 1080p and gains faster startup/reconnect handling.
+- Games installs pinned MesenCE 2.2.1, RMG 0.9.0, and Atari800 7.1.2 runtimes so bundled legal NES ROMs, compatible Nintendo ROMs including Nintendo 64, and Atari 5200/8-bit ROMs can launch without separate emulator installation.
+- Games reuses the Media Library multi-row grid and scrollbar layout exactly, with visible-card artwork retrieval/caching and verified bundled-test artwork.
+- Every Nougat card surface gains a relevant right-click context menu; local media/game cards include Open Source without deleting user files.
+- Candidate remains uncommitted/untagged/unpushed until owner acceptance.
+
 ## v0.0.43 candidate — Games, World TV, and Responsive Grid Repair
 
 - Build directly on accepted v0.0.42 commit `819ee82098f6c4c72269c4f07b3f899f9b0184cf`.
@@ -575,3 +584,11 @@ This same-version repair is limited to the owner-rejected Nougat N identity. The
 ## v0.0.24 literal concept-sheet N identity repair
 
 This same-version repair remains icon-only. The literal N cropped from the owner-supplied full-resolution concept sheet is the single active icon source. The in-app left header, embedded X11 window icon, GNOME dock/app-switcher identity, all Nougat desktop launcher aliases, Files/Nautilus executable metadata, and installed icon-theme aliases must all resolve to that same artwork. The rejected prior icon-family hashes are forbidden. Background/quilt tinting and every non-icon subsystem remain unchanged.
+
+## Complete Media Suite / Nero Capability Program
+
+The long-term classic/current/future Nero capability-parity program and Nougat expansion roadmap is maintained in:
+
+`docs/COMPLETE_MEDIA_SUITE_ROADMAP.md`
+
+This is roadmap documentation only. Individual implementation still requires explicit owner build approval.

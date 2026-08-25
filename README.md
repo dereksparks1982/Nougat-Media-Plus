@@ -1,6 +1,20 @@
 # Nougat Media Suite
 
-Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application. It also includes native Live TV, World TV, Studio, and an integrated Games library with persistent ROM folders, ZIP ROM discovery, automatic game-system and emulator selection, controller support, game artwork support, and expanded Nintendo and Atari system support. Nougat also includes responsive multi-row media-library browsing, security analysis, diagnostics, and integrated media-server controls.
+Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application. It also includes native Live TV, World TV, Studio, and an integrated Games library with persistent ROM folders, ZIP ROM discovery, automatic game-system and emulator selection, controller support, game artwork support, and expanded Nintendo and Atari system support. Nougat also includes responsive multi-row media-library browsing, security analysis, diagnostics, and integrated media-server controls. World TV is now a dedicated top-level international television area using direct non-YouTube broadcast feeds with a 1080p ceiling, and Games includes pinned MesenCE, RMG, and Atari800 emulator runtimes, Library-identical multi-row cards, automatic artwork retrieval, and right-click card actions shared across Nougat card surfaces.
+
+## v0.0.44 - World TV, Playable Games, Artwork, and Global Card Actions
+
+v0.0.44 turns the v0.0.43 foundations into directly testable television and game-library paths.
+
+- Moves World TV into its own top-level tab immediately after Live TV; Live TV remains the local OTA/tuner area.
+- Removes the YouTube World TV catalog and replaces it with direct international linear HLS broadcaster/CDN feeds.
+- Caps adaptive World TV playback at 1080p and uses direct libVLC playback with lower startup caching, HTTP reconnect, and bounded automatic reconnect after an unexpected live-stream end.
+- Adds pinned MesenCE 2.2.1 Linux x64 for NES, SNES, Game Boy, Game Boy Color, and Game Boy Advance; RMG 0.9.0 for Nintendo 64; and Atari800 7.1.2 x86_64 for Atari 5200 and Atari 8-bit, while retaining compatible installed backends for Atari 2600/7800/Lynx.
+- Makes Games use the same multi-row card geometry and vertical scrollbar behavior as the Media Library.
+- Adds automatic visible-card artwork lookup through the Libretro Named_Boxarts catalog while preserving local sidecar artwork as the first choice.
+- Packages verified artwork for both legally redistributable bundled NES test titles during installation; Waveforms artwork is generated from the actual MIT-licensed ROM with MesenCE.
+- Adds right-click context menus to Home, Library, Discover, Live TV, World TV, and Games cards with actions appropriate to each card type, including Open Source where a local source exists.
+- Preserves the exact approved Nougat N icon gate and existing behavior outside this approved scope.
 
 ## v0.0.43 - Games, World TV, and Responsive Grid Repair
 

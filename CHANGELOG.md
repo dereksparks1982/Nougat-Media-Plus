@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.0.44 - World TV, Playable Games, Artwork, and Global Card Actions
+
+- Promote World TV to its own top-level tab after Live TV and remove all YouTube catalog entries.
+- Use direct foreign linear HLS broadcaster/CDN sources, libVLC adaptive 1080p ceiling, faster live caching, HTTP reconnect, and bounded unexpected-end recovery.
+- Add pinned MesenCE 2.2.1 for immediately playable bundled NES tests plus SNES/GB/GBC/GBA, RMG 0.9.0 for Nintendo 64, and Atari800 7.1.2 for Atari 5200/8-bit.
+- Reuse the exact Library multi-row grid/scroll geometry for Games, with automatic cached box-art lookup and verified bundled art for the legal test ROMs.
+- Add right-click context menus to all card-based Nougat surfaces with relevant Play/Open, source, information, refresh, broadcaster, and artwork actions.
+- Preserve v0.0.43 Library/My Services repairs, the native player, licensing boundaries, and the permanent approved Nougat N icon gate.
+
 ## v0.0.43 - Games, World TV, and Responsive Grid Repair
 
 - Repair the shared Movies/TV Library grid so a height-safe two-row layout cannot collapse to one row after card-width redistribution.

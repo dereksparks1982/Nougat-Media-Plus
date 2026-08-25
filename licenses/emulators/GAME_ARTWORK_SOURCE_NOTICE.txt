@@ -1,0 +1,27 @@
+Game artwork sources for Nougat Media Suite v0.0.44
+===================================================
+
+User-linked ROMs:
+- Same-name local sidecar artwork remains first priority.
+- When no sidecar exists, Nougat may request an exact-name box-art image from
+  the appropriate Libretro Named_Boxarts thumbnail collection and cache it in
+  the user's private Nougat cache. Nougat does not bulk-redistribute those
+  thumbnail collections in this changed-files package.
+
+Bundled legal 2048-nes card:
+- Upstream project: https://github.com/mmuszkow/2048-nes
+- Pinned source commit: d0b2841384b7881619e53863d5bb7a27263ccccd
+- Artwork: screen0.png from the same upstream project
+- Expected Git blob SHA-1: 84585a93ccb221b4a31f65eec6a047f13935f4a3
+- Project dedication/license: Unlicense/public-domain dedication, preserved by
+  Nougat's existing bundled-game source/license records.
+
+Bundled legal NES Waveforms card:
+- Upstream project: https://github.com/NickCulbertson/NES-Waveforms
+- Project license: MIT, preserved by Nougat's existing bundled-game records.
+- Nougat does NOT redistribute the README-linked NES_Thumbnail.png from the
+  separate VidTest repository because that image does not carry a clear
+  redistributable license.
+- Instead, the v0.0.44 installer launches the actual bundled MIT-licensed
+  Waveforms ROM in the pinned MesenCE runtime and captures a real PNG frame for
+  the card. The screenshot is generated locally during candidate construction.

@@ -1,0 +1,12 @@
+MesenCE 2.2.1 third-party runtime
+================================
+Upstream: https://github.com/nesdev-org/MesenCE
+Release: 2.2.1
+Linux x64 asset: Mesen_2.2.1_Linux_x64.zip
+SHA-256: c88ff4d251b407515c43d3332d641927655cd69fb538996b6a21da4509dbb58f
+License: GNU GPL v3
+Corresponding source: https://github.com/nesdev-org/MesenCE/tree/2.2.1
+
+The installer downloads the unmodified upstream runtime after verifying this
+pinned SHA-256. MesenCE is a separate third-party work and is not relicensed
+under the Nougat Media Suite project license.
