@@ -1,4 +1,15 @@
 # Changelog
+## v0.0.41 - Housekeeping, Archives, IMDb, Live TV and Player Activity Repair
+
+- Adds the Search `Archive` directory with Archive.org, Minerva Archive, and the curated archive/library links.
+- Restores the shared Movies/TV Library card geometry and prevents height-driven card shrinking.
+- Adds exact IMDb links to Movies, TV series/episodes, and Home cards when a verified IMDb ProviderId is present.
+- Repairs the scrollable Search-card bottom-gap geometry.
+- Adds `Stop Live`, immediate tuner release, and queued-guide continuation.
+- Repairs idle manual Live TV guide refresh state.
+- Makes the on-video media identity share the pointer's three-second activity timer in fullscreen and windowed/maximized playback.
+- Moves the Home LAN web viewer/streaming project to v0.0.42 in the roadmap.
+
 ## v0.0.40 - System Loading, Live TV Tuner Navigation, Search Repair, and Crawler UI
 
 - Replaces the oversized percentage loading surface with the 3 px caramel loading sliver.

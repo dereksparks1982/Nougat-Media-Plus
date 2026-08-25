@@ -1,6 +1,19 @@
-# Nougat Media Suite v0.0.40
+# Nougat Media Suite v0.0.41
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+
+## v0.0.41 - Housekeeping, Archives, IMDb, Live TV and Player Activity Repair
+
+v0.0.41 builds on accepted v0.0.40 without changing Nougat's native-player rule or accepted page identities.
+
+- Search gains one `Archive` tab rather than one top-level button per archive site.
+- Archive.org, Minerva Archive, and the curated archive/library directory open in the system browser.
+- Library Movies and TV use the repaired shared poster-card geometry without height-driven shrinking.
+- Movies, TV series/episodes, and Home cards show `IMDb` only when Nougat has an exact IMDb ProviderId for that title.
+- Scrollable Search result cards fill their available result viewport cleanly.
+- Live TV gains `Stop Live`; stopping live playback releases the tuner and lets a queued full guide sweep continue.
+- The video identity overlay and mouse pointer now share the same three-second activity window in fullscreen, maximized, and normal window sizes.
+- v0.0.42 is reserved for the opt-in Home LAN phone-browser media viewer/streaming foundation.
 
 
 ## v0.0.40 - System Loading, Live TV Tuner Navigation, Search Repair, and Crawler UI

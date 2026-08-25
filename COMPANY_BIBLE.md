@@ -154,6 +154,11 @@ The package must not include generated runtime directories, caches, temporary bu
 
 When the owner must run a command:
 
+- every Nougat Media Suite **install, repair, build, validation, package-apply, or acceptance-preflight** terminal block must begin with a safe runtime-shutdown stage before build or filesystem work begins;
+- that shutdown stage must stop any running Nougat Media Suite application process and the **verified Nougat-owned integrated Jellyfin** process, then verify both are down before continuing;
+- never kill Jellyfin blindly by process name. Use Nougat ownership/runtime evidence (including the recorded ownership file/runtime path where available). If Jellyfin ownership is ambiguous, print a clear STOP/FAIL message with the relevant PID/process information and leave the unknown process running for owner review;
+- if the owner explicitly instructs that an independently started Jellyfin instance should also be stopped, that broader shutdown is allowed for that operation;
+- terminal command blocks must contain commands only: never include the shell prompt (for example `user@host:~$`) or copied/expected terminal output as executable lines;
 - first state exactly what the command does and whether it is snapshot, Git, GitHub, install, validation, or another operation;
 - provide one complete copy-and-paste command block for that operation;
 - ensure all quoting and multiline messages terminate correctly;

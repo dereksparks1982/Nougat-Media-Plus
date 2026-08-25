@@ -223,6 +223,7 @@ bool LibraryMetadataCache::load(const std::string& key,
             error = "Cached library metadata contains invalid reserved metadata.";
             return false;
         }
+        node.imdb_id = reserved;
         loaded.push_back(std::move(node));
     }
     nodes = std::move(loaded);
@@ -257,7 +258,7 @@ bool LibraryMetadataCache::store(const std::string& key,
         output << static_cast<int>(node.kind) << '\t'
                << node.production_year << '\t' << node.child_count << '\t'
                << node.season_number << '\t' << node.episode_number << '\t'
-               << hex_encode("") << '\n';
+               << hex_encode(node.imdb_id) << '\n';
     }
     output.flush();
     if (!output.good()) {

@@ -448,6 +448,7 @@ LibraryNode parse_library_node(const std::string& object) {
     const std::size_t provider_ids = object.find("\"ProviderIds\"");
     if (provider_ids != std::string::npos) {
         node.tmdb_id = json_string_value(object.substr(provider_ids), "Tmdb");
+        node.imdb_id = json_string_value(object.substr(provider_ids), "Imdb");
     }
     return node;
 }

@@ -9,6 +9,23 @@
 
 # Nougat Media Suite Roadmap
 
+## v0.0.41 candidate — Housekeeping, Archives, IMDb, Live TV and Player Activity Repair
+- Add Search's `Archive` tab beside Network with direct browser links to the curated preservation/library directory, including Archive.org and Minerva Archive.
+- Restore the shared Movies/TV Library card geometry so height changes cannot shrink cards out of alignment.
+- Add exact IMDb links to Movies, TV series/episodes, and Home cards when Jellyfin exposes a verified IMDb ProviderId; hide the link when no exact IMDb title ID is known.
+- Distribute Search-result card height across the available scroll viewport so a scrollable result page does not leave the cream bottom strip.
+- Add `Stop Live` beside `Watch Live`; stopping releases the tuner and immediately permits a queued full guide sweep.
+- Repair manual Live TV guide refresh state so an idle refresh starts as a fresh full sweep.
+- Make the on-video media/episode description use the same three-second activity timer as the mouse pointer in fullscreen, maximized, and normal window sizes.
+- Add release-integrity checks that keep version, executable, README, CHANGELOG, ROADMAP, launcher, and validation records aligned.
+
+## v0.0.42 planned — Home LAN Web Viewer / Streaming
+- Add an opt-in LAN-only Nougat web service for phones and other browsers connected to the same home network.
+- Provide mobile-friendly Home, Movies, TV, Continue Watching, artwork, and exact resume state from Nougat's existing catalog/history rather than a second media database.
+- Start with direct browser-compatible streaming and establish an HLS/transcoding path for formats a phone browser cannot play directly.
+- Add local pairing/PIN protection, clear server status/address controls, and no cloud-account requirement.
+- Keep the first milestone focused on reliable phone-browser playback over the home LAN; Internet-facing remote access is not part of the first build.
+
 ## v0.0.39 candidate — Deep Diagnostics + Live TV Guide Reliability
 - Rebuild Diagnostic Center around subsystem truth: Passed, Needs Attention, Problems, Not Tested, and Information.
 - Add deep runtime, Library, server, player, Live TV/tuner, Search, P2P, Stream, AI/TMDb, storage/system evidence with observed/expected/action detail and retained exports/history.
@@ -65,7 +82,7 @@
 - Support clean Stop, retune, and channel changes without destabilizing the accepted v0.0.35 channel scan/persistence path.
 - Validate first on the owner's already working tuner/channel database before expanding into guide, recording, timeshift, favorites, or channel-surfing features.
 
-## v0.0.40 planned — Games / Unified Emulation
+## v0.0.43 planned — Games / Unified Emulation
 - Add a top-level `Games` tab immediately after `Studio`. Games is a Nougat media category, not a separate application.
 - Present one unified Nougat game-library/emulator experience while allowing different mature emulator cores/backends underneath per system.
 - Target the broad practical emulation range available on Linux at implementation time: Nintendo, Sega, PlayStation, Xbox where mature emulation exists, Atari, arcade/MAME, classic computers/handhelds, and other supported systems.

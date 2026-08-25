@@ -32,6 +32,7 @@ struct LibraryNode {
     std::string poster_image_tag;
     std::string tmdb_poster_path;
     std::string tmdb_id;
+    std::string imdb_id;
     std::string series_tmdb_id;
     LibraryNodeKind kind = LibraryNodeKind::Movie;
     int production_year = 0;

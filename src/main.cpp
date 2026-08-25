@@ -241,6 +241,21 @@ static bool is_playable_video_path(const std::string& path) {
     return false;
 }
 
+static constexpr long long kPlayerActivityVisibleMs = 3000;
+static bool player_activity_is_active(long long now, long long last_motion) {
+    return last_motion > 0 && now - last_motion < kPlayerActivityVisibleMs;
+}
+
+static bool is_exact_imdb_title_id(const std::string& id) {
+    if (id.size() < 3 || id[0] != 't' || id[1] != 't') return false;
+    return std::all_of(id.begin() + 2, id.end(), [](unsigned char c){ return std::isdigit(c) != 0; });
+}
+static bool library_node_has_imdb_link(const reddmedia::LibraryNode& node) {
+    if (!is_exact_imdb_title_id(node.imdb_id)) return false;
+    return node.kind != reddmedia::LibraryNodeKind::Season &&
+           node.kind != reddmedia::LibraryNodeKind::MovieCollection;
+}
+
 static bool parse_episode_code(const std::string& path, int& season, int& episode) {
     const std::string text = lower_copy(stem_only(path));
     season = 0;
@@ -553,7 +568,7 @@ enum class MenuAction {
     NougatCopySelection, NougatSelectAll
 };
 enum class ViewMode { Home, VideoPlayer, Library, Discover, LiveTV, Nougat, Stream, Studio, P2P, Debug };
-enum class NougatPanel { Search, Crawler, P2P, VirusScan };
+enum class NougatPanel { Search, Crawler, P2P, VirusScan, Archive };
 enum class StreamPlatform { YouTube, Vimeo, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
 enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
@@ -888,7 +903,7 @@ struct FramePreviewState {
 };
 class App {
 public:
-    Display* d=nullptr; int screen=0; Window win=0, video=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr; XFontStruct* sectionFontInfo=nullptr; XFontStruct* metadataFontInfo=nullptr;
+    Display* d=nullptr; int screen=0; Window win=0, video=0, videoActivityOverlayWindow=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr; XFontStruct* sectionFontInfo=nullptr; XFontStruct* metadataFontInfo=nullptr;
     Pixmap quiltTiles[10] = {};
     Pixmap streamQuiltTiles[6] = {};
     int W=1000,H=650;
@@ -912,12 +927,13 @@ public:
     Rect ytdlpUrlRect, ytdlpOutputRect, ytdlpDownloadBtn, ytdlpDirectWatchBtn, ytdlpWebpageBtn, ytdlpClearBtn, ytdlpFolderBtn;
     Rect p2pMagnetRect, p2pOutputRect, p2pLoadMagnetBtn, p2pOpenTorrentBtn, p2pPlayBtn, p2pStopResumeBtn, p2pRemoveBtn;
     Rect p2pSpeedBtn, p2pSeedRulesBtn, p2pQueueUpBtn, p2pQueueDownBtn, p2pReannounceBtn, p2pRecheckBtn, p2pPriorityBtn;
-    Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatP2PPanelTab, nougatVirusScanPanelTab, nougatNetworkAdvancedBtn;
+    Rect nougatSearchPanelTab, nougatCrawlerPanelTab, nougatP2PPanelTab, nougatVirusScanPanelTab, nougatNetworkAdvancedBtn, nougatArchivePanelTab;
     Rect securityScanFileBtn, securityScanFolderBtn, securityScanAgainBtn, securityCommunityKeyBtn, securityHistoryBtn, securityResultsBox;
     Rect nougatSearchRect, nougatSearchBtn, nougatRawBtn, nougatPeersToggleBtn, nougatResultsBox;
     Rect nougatCrawlSeedRect, nougatCrawlMinusBtn, nougatCrawlPlusBtn, nougatSameDomainBtn, nougatStartCrawlBtn, nougatCrawlLogBox;
     Rect nougatPeerEntryRect, nougatAddPeerBtn, nougatRemovePeerBtn, nougatNodeBtn, nougatPeerListBox;
-    Rect liveTvDetectBtn, liveTvRefreshBtn, liveTvScanBtn, liveTvWatchBtn, liveTvGuideBtn, liveTvGuideRefreshBtn, liveTvRecordBtn, liveTvListBox;
+    Rect nougatNetworkActionsViewport;
+    Rect liveTvDetectBtn, liveTvRefreshBtn, liveTvScanBtn, liveTvWatchBtn, liveTvStopBtn, liveTvGuideBtn, liveTvGuideRefreshBtn, liveTvRecordBtn, liveTvListBox;
     VlcApi api; std::string vlcErr;
     libvlc_instance_t* inst=nullptr; libvlc_media_player_t* mp=nullptr;
     bool running=true, paused=false, fullscreen=false, hasMedia=false, needResumePrompt=false;
@@ -990,6 +1006,7 @@ public:
     int ytdlpButtonsScrollX = 0;
     int streamSourceScrollX = 0;
     int nougatPanelButtonsScrollX = 0;
+    int nougatNetworkButtonsScrollX = 0;
     int liveTvButtonsScrollX = 0;
     int p2pButtonsScrollX = 0;
     int debugButtonsScrollX = 0;
@@ -1070,6 +1087,7 @@ public:
     int homeContinueScrollDragOffset = 0;
     int libraryVerticalScrollDragOffset = 0;
     std::vector<HomeCardHitbox> homeCardHitboxes;
+    std::vector<std::pair<Rect,std::string>> homeImdbHitboxes;
     std::string homeHoveredPath;
     long long homeHoverStartedMs = 0;
     long long homePreviewCursorMs = 0;
@@ -1123,6 +1141,7 @@ public:
     std::thread libraryWorker;
     std::vector<Rect> libraryRows;
     std::vector<int> libraryRowNodeIndices;
+    std::vector<std::pair<Rect,int>> libraryImdbHitboxes;
     int librarySelected = -1;
     int libraryScroll = 0;
     bool libraryTypeChosen = false;
@@ -1182,6 +1201,9 @@ public:
     int nougatMaxPages = 25;
     int nougatSearchOffset = 0;
     int nougatResultScroll = 0;
+    int nougatArchiveScroll = 0;
+    std::vector<std::pair<Rect,std::string>> nougatArchiveLinkRows;
+    std::vector<std::pair<Rect,std::string>> nougatArchiveTorRows;
     int nougatPeerSelected = -1;
     int nougatPeerScroll = 0;
     int nougatCrawlScroll = 0;
@@ -2133,6 +2155,12 @@ public:
         layout();
         video = XCreateSimpleWindow(d, win, 10, 42, W-20, H-120, 0, BlackPixel(d,screen), BlackPixel(d,screen));
         XSelectInput(d, video, ExposureMask|ButtonPressMask|PointerMotionMask|EnterWindowMask|LeaveWindowMask|KeyPressMask);
+        // v0.0.41 repair-v10: the three-second media identity is a real child
+        // overlay above libVLC, not paint repeatedly fought against live video
+        // frames. Parent video rendering cannot erase this window between frames.
+        videoActivityOverlayWindow = XCreateSimpleWindow(d, video, 18, 18, 220, 34, 0,
+                                                         rgb8(184,111,43), rgb8(32,25,21));
+        XSelectInput(d, videoActivityOverlayWindow, ExposureMask);
         seekPreviewWindow = XCreateSimpleWindow(d, win, 0, 0, 260, 176, 0, rgb8(90,55,35), rgb8(35,25,22));
         XSelectInput(d, seekPreviewWindow, ExposureMask);
         xextHandle = dlopen("libXext.so.6", RTLD_NOW | RTLD_LOCAL);
@@ -2205,7 +2233,7 @@ public:
     }
 
     Rect page_content_frame(ViewMode view) const {
-        if (view == ViewMode::VideoPlayer) return {0,kTopBarH,W,std::max(1,H-kTopBarH)};
+        (void)view;
         return {10,kTopBarH,std::max(1,W-20),std::max(1,H-kTopBarH-10)};
     }
 
@@ -2218,14 +2246,14 @@ public:
     }
 
     bool page_uses_connected_square_frame(ViewMode view) const {
-        return view == ViewMode::Home || view == ViewMode::Library ||
-               view == ViewMode::Discover || view == ViewMode::LiveTV ||
-               view == ViewMode::Nougat || view == ViewMode::Stream ||
-               view == ViewMode::Studio || view == ViewMode::Debug;
+        return view == ViewMode::Home || view == ViewMode::VideoPlayer ||
+               view == ViewMode::Library || view == ViewMode::Discover ||
+               view == ViewMode::LiveTV || view == ViewMode::Nougat ||
+               view == ViewMode::Stream || view == ViewMode::Studio ||
+               view == ViewMode::Debug;
     }
 
     void draw_page_frame(Drawable target, ViewMode view) {
-        if (view == ViewMode::VideoPlayer) return;
         const Rect frame=page_content_frame(view);
         const ViewPalette palette=palette_for(view);
         const int outerRadius = page_uses_connected_square_frame(view) ? 0 : 10;
@@ -2331,7 +2359,7 @@ public:
         p2pPriorityBtn={28+kCompactButtonW*6,264,kCompactButtonW,kCompactButtonH};
 
         layout_button_row({&nougatSearchPanelTab,&nougatCrawlerPanelTab,&nougatP2PPanelTab,
-                           &nougatVirusScanPanelTab,&nougatNetworkAdvancedBtn},
+                           &nougatVirusScanPanelTab,&nougatNetworkAdvancedBtn,&nougatArchivePanelTab},
                           kPageControlY, nougatPanelButtonsScrollX);
         const int nougatSearchGap = 8;
         const int nougatSearchButtonsWidth = 2 * kCompactButtonW + 2 * nougatSearchGap;
@@ -2349,11 +2377,20 @@ public:
         nougatCrawlPlusBtn = {std::max(28, W-64),136,36,26};
         nougatCrawlMinusBtn = {std::max(28, W-152),136,36,26};
         nougatCrawlLogBox = {28, 176, std::max(240, W-56), std::max(120, H-204)};
-        nougatPeerEntryRect = {28, 104, std::max(220, W-520), 30};
-        nougatAddPeerBtn = {std::max(300, W-480),104,kCompactButtonW,kCompactButtonH};
-        nougatRemovePeerBtn = {std::max(420, W-360),104,kCompactButtonW,kCompactButtonH};
-        nougatNodeBtn = {std::max(540, W-240),104,kCompactButtonW,kCompactButtonH};
-        nougatPeersToggleBtn = {std::max(660, W-120),104,kCompactButtonW,kCompactButtonH};
+        // v0.0.41 repair-v10: Network/Advanced keeps the peer field compact enough
+        // to reserve a real action viewport. Wide windows show all four actions;
+        // narrow windows left-anchor Add Peer and mouse-wheel-scroll the action row.
+        const int networkInputWidth = std::max(200, W - 552);
+        nougatPeerEntryRect = {28, 104, networkInputWidth, 30};
+        const int networkActionsX = nougatPeerEntryRect.x + nougatPeerEntryRect.w + 12;
+        const int networkActionsW = std::max(kCompactButtonW, W - 28 - networkActionsX);
+        nougatNetworkActionsViewport = {networkActionsX, 104, networkActionsW, kCompactButtonH};
+        nougatNetworkButtonsScrollX = clamp_button_scroll(nougatNetworkButtonsScrollX, 4, networkActionsW);
+        int networkActionX = networkActionsX - nougatNetworkButtonsScrollX;
+        nougatAddPeerBtn = {networkActionX,104,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
+        nougatRemovePeerBtn = {networkActionX,104,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
+        nougatNodeBtn = {networkActionX,104,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
+        nougatPeersToggleBtn = {networkActionX,104,kCompactButtonW,kCompactButtonH};
         nougatPeerListBox = {28, 154, std::max(240, W-56), std::max(120, H-182)};
         securityScanFileBtn = {28, 106, kCompactButtonW, kCompactButtonH};
         securityScanFolderBtn = {28+kCompactButtonW, 106, kCompactButtonW, kCompactButtonH};
@@ -2394,7 +2431,7 @@ public:
         // v0.0.38 owner-approved Live TV toolbar: tuner administration moved
         // to System; redundant Channels button removed. Guide stays in place
         // as the single guide-view control.
-        layout_button_row({&liveTvGuideBtn,&liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn},
+        layout_button_row({&liveTvGuideBtn,&liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvStopBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn},
                           kPageControlY, liveTvButtonsScrollX);
         liveTvListBox={liveFrame.x+16,96,std::max(180,liveFrame.w-32),std::max(100,liveFrame.y+liveFrame.h-108)};
 
@@ -2438,6 +2475,7 @@ public:
         if (currentView == ViewMode::Home || currentView == ViewMode::Library || currentView == ViewMode::Discover ||
             currentView == ViewMode::Nougat || currentView == ViewMode::Stream || currentView == ViewMode::Studio || currentView == ViewMode::P2P ||
             currentView == ViewMode::Debug || currentView == ViewMode::LiveTV) {
+            if (videoActivityOverlayWindow) XUnmapWindow(d, videoActivityOverlayWindow);
             XUnmapWindow(d, video);
             return;
         }
@@ -2447,11 +2485,13 @@ public:
             videoH = std::max(100, H);
             XMoveResizeWindow(d, video, 0, 0, videoW, videoH);
         } else {
-            videoW = std::max(100, W-20);
-            const int videoTop = kTopBarH + 6;
+            const Rect playerFrame = page_content_frame(ViewMode::VideoPlayer);
+            const int videoInset = 6;
+            videoW = std::max(100, playerFrame.w - videoInset * 2);
+            const int videoTop = playerFrame.y + 6;
             const int videoBottom = std::max(videoTop + 100, seekRect.y - 10);
             videoH = std::max(100, videoBottom - videoTop);
-            XMoveResizeWindow(d, video, 10, videoTop, videoW, videoH);
+            XMoveResizeWindow(d, video, playerFrame.x + videoInset, videoTop, videoW, videoH);
         }
         update_video_prompt_layout();
         apply_video_corner_shape();
@@ -3323,8 +3363,37 @@ public:
         apply_video_layout();
         redraw();
     }
+    void hide_player_activity_overlay_window() {
+        if (videoActivityOverlayWindow) XUnmapWindow(d, videoActivityOverlayWindow);
+    }
+
+    void draw_player_activity_overlay_window() {
+        if (!videoActivityOverlayWindow || !hasMedia || !vlcErr.empty() || !playerActivityOverlayVisible ||
+            resumePromptVisible || stoppedPlaybackVisible || upNextVisible || needResumePrompt) {
+            hide_player_activity_overlay_window();
+            return;
+        }
+        const std::string identity = current_media_identity();
+        if (identity.empty()) {
+            hide_player_activity_overlay_window();
+            return;
+        }
+        const int overlayW = std::max(1, std::min(std::max(220, text_width(identity) + 28), std::max(1, videoW - 36)));
+        const int overlayH = 34;
+        XMoveResizeWindow(d, videoActivityOverlayWindow, 18, 18,
+                          static_cast<unsigned>(overlayW), static_cast<unsigned>(overlayH));
+        XMapRaised(d, videoActivityOverlayWindow);
+        fill(videoActivityOverlayWindow, {0,0,overlayW,overlayH}, rgb8(32,25,21));
+        fill_round(videoActivityOverlayWindow, {0,0,overlayW,overlayH}, 8, rgb8(32,25,21));
+        outline_round(videoActivityOverlayWindow, {0,0,overlayW,overlayH}, 8, rgb8(184,111,43));
+        text(videoActivityOverlayWindow, 12, 22,
+             head_to_width(identity, overlayW - 24), rgb8(248,235,214));
+        XFlush(d);
+    }
+
     void draw_video_message() {
         if (upNextVisible) {
+            hide_player_activity_overlay_window();
             // Countdown updates used to XClearWindow(video) once per second, exposing
             // a blank frame before the overlay was redrawn. Compose the complete Up Next
             // frame offscreen and copy it to the video child in one operation instead.
@@ -3363,38 +3432,48 @@ public:
             return;
         }
 
-        if (resumePromptVisible) {
-            XClearWindow(d, video);
-            const std::string identity = media_identity_for_node(pendingResumeNode);
-            text(video, 28, 44, "CONTINUE WATCHING?", rgb8(248,235,214));
-            text(video, 28, 70, head_to_width(identity, videoW - 56), rgb8(238,218,190));
-            text(video, 28, 94, "Last watched at " + format_time(pendingResumeRecord.position_ms), rgb8(206,176,142));
-            button_on(video, videoResumeBtn, "Continue");
-            button_on(video, videoRestartBtn, "Start Over");
-            button_on(video, videoCancelBtn, "Cancel");
-            return;
-        }
-        if (stoppedPlaybackVisible) {
-            XClearWindow(d, video);
-            text(video, 28, 44, "PLAYBACK STOPPED", rgb8(248,235,214));
-            text(video, 28, 70, head_to_width(current_media_identity(), videoW - 56), rgb8(238,218,190));
-            text(video, 28, 94, "Stopped at " + format_time(stoppedPlaybackPositionMs), rgb8(206,176,142));
-            button_on(video, videoResumeBtn, "Resume");
-            button_on(video, videoRestartBtn, "Restart");
-            button_on(video, videoLoadBtn, "Load Different");
-            button_on(video, videoBackLibraryBtn, "Back to Library");
-            return;
-        }
-        if (fullscreen && hasMedia && vlcErr.empty() && playerActivityOverlayVisible) {
-            const std::string identity = current_media_identity();
-            if (!identity.empty()) {
-                const Rect label{18, 18, std::min(videoW - 36, std::max(220, text_width(identity) + 28)), 34};
-                fill_round(video, label, 8, rgb8(32,25,21));
-                outline_round(video, label, 8, rgb8(184,111,43));
-                text(video, label.x + 12, label.y + 22, head_to_width(identity, label.w - 24), rgb8(248,235,214));
+        if (resumePromptVisible || stoppedPlaybackVisible || needResumePrompt) {
+            hide_player_activity_overlay_window();
+            // Compose prompt states offscreen and publish one complete frame.
+            // XClearWindow + piecemeal button drawing could visibly flash and
+            // briefly erase labels while the pointer generated MotionNotify.
+            Pixmap promptBuffer = XCreatePixmap(d, video, std::max(1, videoW), std::max(1, videoH), DefaultDepth(d, screen));
+            if (!promptBuffer) return;
+            fill(promptBuffer, {0, 0, std::max(1, videoW), std::max(1, videoH)}, rgb8(0,0,0));
+            if (resumePromptVisible) {
+                const std::string identity = media_identity_for_node(pendingResumeNode);
+                text(promptBuffer, 28, 44, "CONTINUE WATCHING?", rgb8(248,235,214));
+                text(promptBuffer, 28, 70, head_to_width(identity, videoW - 56), rgb8(238,218,190));
+                text(promptBuffer, 28, 94, "Last watched at " + format_time(pendingResumeRecord.position_ms), rgb8(206,176,142));
+                button_on(promptBuffer, videoResumeBtn, "Continue");
+                button_on(promptBuffer, videoRestartBtn, "Start Over");
+                button_on(promptBuffer, videoCancelBtn, "Cancel");
+            } else if (stoppedPlaybackVisible) {
+                text(promptBuffer, 28, 44, "PLAYBACK STOPPED", rgb8(248,235,214));
+                text(promptBuffer, 28, 70, head_to_width(current_media_identity(), videoW - 56), rgb8(238,218,190));
+                text(promptBuffer, 28, 94, "Stopped at " + format_time(stoppedPlaybackPositionMs), rgb8(206,176,142));
+                button_on(promptBuffer, videoResumeBtn, "Resume");
+                button_on(promptBuffer, videoRestartBtn, "Restart");
+                button_on(promptBuffer, videoLoadBtn, "Load Different");
+                button_on(promptBuffer, videoBackLibraryBtn, "Back to Library");
+            } else {
+                text(promptBuffer, 28, 44, "CONTINUE WATCHING?", col(0xeeee,0xeeee,0xeeee));
+                text(promptBuffer, 28, 68, head_to_width(stem_only(sessionPath), videoW - 56), col(0xdddd,0xdddd,0xdddd));
+                text(promptBuffer, 28, 90, "Last watched at " + format_time(sessionTime), col(0xcccc,0xcccc,0xcccc));
+                button_on(promptBuffer, videoResumeBtn, "Continue");
+                button_on(promptBuffer, videoRestartBtn, "Start Over");
+                button_on(promptBuffer, videoCancelBtn, "Cancel");
             }
+            XCopyArea(d, promptBuffer, video, gc, 0, 0, std::max(1, videoW), std::max(1, videoH), 0, 0);
+            XFreePixmap(d, promptBuffer);
+            XFlush(d);
             return;
         }
+        if (hasMedia && vlcErr.empty() && playerActivityOverlayVisible) {
+            draw_player_activity_overlay_window();
+            return;
+        }
+        hide_player_activity_overlay_window();
         if (hasMedia && !needResumePrompt && vlcErr.empty()) return;
         XClearWindow(d, video);
         if (!vlcErr.empty()) {
@@ -3402,15 +3481,7 @@ public:
             text(video, 22, 64, "On Ubuntu: install VLC, then reopen this executable.", col(0xdddd,0xdddd,0xdddd));
             return;
         }
-        if (needResumePrompt) {
-            text(video, 28, 44, "CONTINUE WATCHING?", col(0xeeee,0xeeee,0xeeee));
-            text(video, 28, 68, head_to_width(stem_only(sessionPath), videoW - 56), col(0xdddd,0xdddd,0xdddd));
-            text(video, 28, 90, "Last watched at " + format_time(sessionTime), col(0xcccc,0xcccc,0xcccc));
-            button_on(video, videoResumeBtn, "Continue");
-            button_on(video, videoRestartBtn, "Start Over");
-            button_on(video, videoCancelBtn, "Cancel");
-            return;
-        }
+        // needResumePrompt is handled by the same atomic prompt compositor above.
         if (!hasMedia) {
             text(video, 28, 44, "Open a media file to start.", col(0xeeee,0xeeee,0xeeee));
             text(video, 28, 68, "File menu or Open button.", col(0xcccc,0xcccc,0xcccc));
@@ -3443,7 +3514,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.40";
+        const std::string versionLabel = "v0.0.41";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -4378,6 +4449,7 @@ public:
         button_on(buffer, forwardBtn, "Fast Forward 10s");
         button_on(buffer, stopBtn, "Stop");
         button_on(buffer, fsBtn, "Fullscreen");
+        draw_page_frame(buffer, ViewMode::VideoPlayer);
         XSetClipMask(d, gc, None);
         XCopyArea(d, buffer, win, gc, 0, y0, W, h, 0, y0);
         XFreePixmap(d, buffer);
@@ -6247,9 +6319,14 @@ public:
         }
         metadata_text(target, card.x + 5, image.y + image.h + 18,
                       head_to_width(node.name, card.w - 10), cardText);
+        const bool imdbLink=library_node_has_imdb_link(node);
+        const int subtitleWidth=imdbLink ? std::max(1,card.w-58) : card.w-10;
         if (!subtitle.empty()) {
             metadata_text(target, card.x + 5, image.y + image.h + 38,
-                          head_to_width(subtitle, card.w - 10), cardMuted);
+                          head_to_width(subtitle, subtitleWidth), cardMuted);
+        }
+        if (imdbLink) {
+            metadata_text(target,card.x+card.w-42,image.y+image.h+38,"IMDb",rgb8(184,111,43));
         }
         outline_round(target, card, 10, palette.buttonDark);
     }
@@ -6352,6 +6429,7 @@ public:
 
     void draw_home_screen(Drawable target) {
         homeCardHitboxes.clear();
+        homeImdbHitboxes.clear();
         const ViewPalette palette = palette_for(ViewMode::Home);
         const Rect frame = page_content_frame(ViewMode::Home);
         draw_quilted_background(target, frame, ViewMode::Home);
@@ -6429,7 +6507,12 @@ public:
                     Rect visibleCard{std::max(card.x,homeContinueArea.x),std::max(card.y,viewport_top),
                                      std::max(0,std::min(card.x+card.w,homeContinueArea.x+homeContinueArea.w)-std::max(card.x,homeContinueArea.x)),
                                      std::max(0,std::min(card.y+card.h,viewport_bottom)-std::max(card.y,viewport_top))};
-                    if (visibleCard.w>0 && visibleCard.h>0) homeCardHitboxes.push_back({visibleCard, node, true, record.position_ms});
+                    if (visibleCard.w>0 && visibleCard.h>0) {
+                        homeCardHitboxes.push_back({visibleCard, node, true, record.position_ms});
+                        if (visibleCard.w==card.w && visibleCard.h==card.h && library_node_has_imdb_link(node)) {
+                            homeImdbHitboxes.push_back({{card.x+card.w-46,card.y+card.h-22,42,18},node.imdb_id});
+                        }
+                    }
                 }
                 x += card_w + gap;
             }
@@ -6474,6 +6557,9 @@ public:
                 if (card.y + card.h > viewport_top && card.y < viewport_bottom) {
                     draw_home_card(target, card, node, home_card_subtitle(node), false);
                     homeCardHitboxes.push_back({card, node, false, 0});
+                    if (card.y>=viewport_top && card.y+card.h<=viewport_bottom && library_node_has_imdb_link(node)) {
+                        homeImdbHitboxes.push_back({{card.x+card.w-46,card.y+card.h-22,42,18},node.imdb_id});
+                    }
                 }
                 ++column;
                 if (column >= columns) { column = 0; y += local_card_h + gap; }
@@ -6606,6 +6692,12 @@ public:
     }
 
     void handle_home_click(int x, int y) {
+        for (const auto& hit:homeImdbHitboxes) {
+            if (hit.first.contains(x,y) && is_exact_imdb_title_id(hit.second)) {
+                open_external_url("https://www.imdb.com/title/"+hit.second+"/");
+                return;
+            }
+        }
         for (const auto& hitbox : homeCardHitboxes) {
             if (hitbox.card.contains(x, y)) { open_home_card(hitbox); return; }
         }
@@ -6858,16 +6950,17 @@ public:
             return metrics;
         }
 
-        // Keep DVD/poster geometry at 2:3, but size cards from both width and
-        // available height.  v0.0.29 could stretch each card wide enough that
-        // only one row fit even in a tall/fullscreen Library viewport.
+        // Library-only adaptive portrait geometry. Keep the established 2:3
+        // poster family, but cap card width from available height when two rows
+        // can fit. This prevents the v7 row-fill stretch from turning Movies/TV
+        // back into a one-row shelf. Home card geometry is deliberately separate.
         int target_width = 150;
         if (inner_height >= 430) {
             const int two_row_tile_height = std::max(218, (inner_height - metrics.gap) / 2);
             const int two_row_poster_height = std::max(168, two_row_tile_height - 50);
             target_width = std::max(112, std::min(150, two_row_poster_height * 2 / 3));
         }
-        metrics.tileWidth = target_width;
+        metrics.tileWidth = std::max(1, std::min(target_width, inner_width));
         metrics.columns = std::max(1, (inner_width + metrics.gap) /
                                       (metrics.tileWidth + metrics.gap));
         metrics.posterHeight = std::max(168, metrics.tileWidth * 3 / 2);
@@ -7108,6 +7201,7 @@ public:
         draw_primary_panel(target, libraryListBox, palette);
         libraryRows.clear();
         libraryRowNodeIndices.clear();
+        libraryImdbHitboxes.clear();
         const LibraryGridMetrics grid=library_grid_metrics();
         const int max_scroll=std::max(0,static_cast<int>(visibleIndices.size())-grid.visibleItems);
         libraryScroll=std::max(0,std::min(libraryScroll,max_scroll));
@@ -7136,10 +7230,18 @@ public:
                 text(target,row.x+8,row.y+20,head_to_width(library_display_title(item),row.w-detailsW-actionW-30),palette.text);
                 text(target,row.x+row.w-detailsW-actionW-12,row.y+20,head_to_width(details,detailsW),palette.muted);
                 text(target,row.x+row.w-actionW,row.y+20,action,col(0x9f9f,0xd0d0,0xa7a7));
+                if (library_node_has_imdb_link(item)) {
+                    const Rect imdb={row.x+row.w-110,row.y+4,44,row.h-8};
+                    text(target,imdb.x,imdb.y+16,"IMDb",rgb8(184,111,43));
+                    libraryImdbHitboxes.push_back({imdb,nodeIndex});
+                }
                 libraryRows.push_back(row);
                 libraryRowNodeIndices.push_back(nodeIndex);
             }
         } else {
+            const int gridUsedWidth = grid.columns * grid.tileWidth + (grid.columns - 1) * grid.gap;
+            const int gridStartX = libraryListBox.x + 6 +
+                std::max(0, (std::max(1, libraryListBox.w - 12) - gridUsedWidth) / 2);
             for(int visible_index=0;visible_index<grid.visibleItems;++visible_index) {
                 const int filtered_index=libraryScroll+visible_index;
                 if(filtered_index>=static_cast<int>(visibleIndices.size())) break;
@@ -7147,7 +7249,7 @@ public:
                 const auto& item=nodes[static_cast<std::size_t>(node_index)];
                 const int column=visible_index%grid.columns;
                 const int row_number=visible_index/grid.columns;
-                Rect row={libraryListBox.x+6+column*(grid.tileWidth+grid.gap),
+                Rect row={gridStartX+column*(grid.tileWidth+grid.gap),
                           libraryListBox.y+6+row_number*(grid.tileHeight+grid.gap),grid.tileWidth,grid.tileHeight};
                 if(node_index==librarySelected) fill(target,row,palette.selection);
                 outline(target,row,palette.border);
@@ -7158,6 +7260,11 @@ public:
                 if(!titleLines.second.empty()) text(target,row.x+6,title_y+14,titleLines.second,palette.text);
                 const bool container=item.kind==reddmedia::LibraryNodeKind::MovieCollection || item.kind==reddmedia::LibraryNodeKind::Series || item.kind==reddmedia::LibraryNodeKind::Season;
                 text(target,row.x+6,row.y+row.h-5,container?"Open":"Play",col(0x9f9f,0xd0d0,0xa7a7));
+                if (library_node_has_imdb_link(item)) {
+                    const Rect imdb={row.x+row.w-46,row.y+row.h-22,40,18};
+                    text(target,imdb.x,imdb.y+14,"IMDb",rgb8(184,111,43));
+                    libraryImdbHitboxes.push_back({imdb,node_index});
+                }
                 libraryRows.push_back(row);
                 libraryRowNodeIndices.push_back(node_index);
             }
@@ -7254,7 +7361,7 @@ public:
         if (channel.id == "36.1") return "roar";
         if (channel.id == "36.2") return "the_nest";
         if (channel.id == "36.3") return "charge";
-        if (channel.id == "36.4") return "true_crime";
+        if (channel.id == "36.4") return "tcn";
         if (channel.id == "46.1") return "univision";
         if (channel.id == "46.2") return "grit";
         // NOUGAT_V39_EXACT_CHANNEL_ART_END
@@ -7286,6 +7393,9 @@ public:
         if (has("jtv") || has("jewelry")) return "jtv";
         if (has("cbn")) return "cbn";
         if (has("trucrmz") || has("true crime")) return "truecrime";
+        if (has("charge")) return "charge";
+        if (has("tcn")) return "tcn";
+        if (has("grit")) return "grit";
         if (has("buzzr")) return "buzzr";
         if (has("biz tv") || has("biztv")) return "biztv";
         if (has("newsmax")) return "newsmax";
@@ -7505,6 +7615,7 @@ public:
         });
     }
     void start_live_tv_guide_refresh() {
+        if (liveTvTunerUse != LiveTvTunerUse::Watching) liveTvGuideRefreshQueued=false;
         if (liveTvTunerUse == LiveTvTunerUse::Watching) {
             liveTvGuideRefreshQueued = true;
             if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size()) ||
@@ -7694,6 +7805,7 @@ public:
         button_on(target,liveTvRefreshBtn,"Refresh Tuner");
         button_on(target,liveTvScanBtn,scanBusy ? "Scanning..." : "Scan Channels");
         button_on(target,liveTvWatchBtn,"Watch Live");
+        button_on(target,liveTvStopBtn,"Stop Live");
         button_on(target,liveTvGuideRefreshBtn,guideBusy ? "Guide..." : "Refresh Guide");
         button_on(target,liveTvRecordBtn,"Record");
 
@@ -7892,6 +8004,19 @@ public:
             return;
         }
         if (liveTvWatchBtn.contains(x,y)) { watch_live_tv_channel(liveTvSelectedChannel); return; }
+        if (liveTvStopBtn.contains(x,y)) {
+            const bool hadLive=currentMediaIsLiveTv;
+            const bool queued=liveTvGuideRefreshQueued;
+            if (hadLive) stop_media();
+            liveTvTunerUse=LiveTvTunerUse::Idle;
+            liveTvStatus=hadLive ? "Live TV stopped. Tuner released." : "Live TV is not currently playing.";
+            if (queued) {
+                liveTvGuideRefreshQueued=false;
+                start_live_tv_guide_refresh();
+            }
+            redraw();
+            return;
+        }
         if (liveTvRecordBtn.contains(x,y)) { liveTvStatus="Recording is reserved for the next DVR stage; Watch Live and Guide are active first."; redraw(); return; }
 
         if (liveTvTunersMode) {
@@ -8239,7 +8364,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.40";
+        input.app_version = "Nougat Media Suite v0.0.41";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -9164,7 +9289,42 @@ public:
         if (!targetPath.empty()) text(target,securityResultsBox.x+12,securityResultsBox.y+securityResultsBox.h-8,tail_to_width("Last target: "+targetPath,securityResultsBox.w-24),palette.muted);
     }
 
+
+    void open_external_url(const std::string& target) {
+        if (target.rfind("https://",0U)!=0U && target.rfind("http://",0U)!=0U) return;
+        const pid_t child=fork();
+        if (child==0) {
+            const int null_descriptor=open("/dev/null",O_RDWR);
+            if (null_descriptor>=0) {
+                dup2(null_descriptor,STDIN_FILENO);
+                dup2(null_descriptor,STDOUT_FILENO);
+                dup2(null_descriptor,STDERR_FILENO);
+                if (null_descriptor>STDERR_FILENO) close(null_descriptor);
+            }
+            execlp("xdg-open","xdg-open",target.c_str(),static_cast<char*>(nullptr));
+            _exit(127);
+        }
+    }
+
     void handle_nougat_click(int x, int y) {
+        if (nougatArchivePanelTab.contains(x,y)) {
+            if (nougatPanel!=NougatPanel::Archive || nougatNetworkAdvanced) push_navigation_history();
+            nougatPanel=NougatPanel::Archive; nougatNetworkAdvanced=false;
+            nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; p2pMagnetFocused=false;
+            redraw(); return;
+        }
+        if (nougatPanel==NougatPanel::Archive) {
+            for (const auto& link:nougatArchiveTorRows) {
+                if (link.first.contains(x,y)) {
+                    std::string error;
+                    nougat.open_url(link.second,true,error);
+                    return;
+                }
+            }
+            for (const auto& link:nougatArchiveLinkRows) {
+                if (link.first.contains(x,y)) { open_external_url(link.second); return; }
+            }
+        }
         if (nougatSearchPanelTab.contains(x,y)) {
             if (nougatPanel != NougatPanel::Search || nougatNetworkAdvanced) push_navigation_history();
             nougatPanel=NougatPanel::Search; nougatNetworkAdvanced=false;
@@ -9186,9 +9346,10 @@ public:
             nougatPanel=NougatPanel::VirusScan; nougatNetworkAdvanced=false;
             nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; p2pMagnetFocused=false; redraw(); return;
         }
-        if (nougatPanel == NougatPanel::Search && nougatNetworkAdvancedBtn.contains(x,y)) {
+        if (nougatNetworkAdvancedBtn.contains(x,y)) {
             push_navigation_history();
-            nougatNetworkAdvanced=!nougatNetworkAdvanced;
+            nougatPanel=NougatPanel::Search;
+            nougatNetworkAdvanced=true;
             nougatInputFocus=NougatInputFocus::NoFocus;
             if (nougatNetworkAdvanced) refresh_nougat_peers();
             redraw(); return;
@@ -9204,10 +9365,12 @@ public:
         }
         if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced) {
             if (nougatPeerEntryRect.contains(x,y)) { focus_nougat_input(NougatInputFocus::Peer); return; }
-            if (nougatAddPeerBtn.contains(x,y)) { add_nougat_peer(); return; }
-            if (nougatRemovePeerBtn.contains(x,y)) { remove_selected_nougat_peer(); return; }
-            if (nougatNodeBtn.contains(x,y)) { toggle_nougat_node(); redraw(); return; }
-            if (nougatPeersToggleBtn.contains(x,y)) { nougatSearchPeers=!nougatSearchPeers; nougatSearchOffset=0; redraw(); return; }
+            if (nougatNetworkActionsViewport.contains(x,y)) {
+                if (nougatAddPeerBtn.contains(x,y)) { add_nougat_peer(); return; }
+                if (nougatRemovePeerBtn.contains(x,y)) { remove_selected_nougat_peer(); return; }
+                if (nougatNodeBtn.contains(x,y)) { toggle_nougat_node(); redraw(); return; }
+                if (nougatPeersToggleBtn.contains(x,y)) { nougatSearchPeers=!nougatSearchPeers; nougatSearchOffset=0; redraw(); return; }
+            }
             if (nougatPeerListBox.contains(x,y)) {
                 const int local=(y-nougatPeerListBox.y-8)/22;
                 const int index=nougatPeerScroll+local;
@@ -9269,8 +9432,81 @@ public:
         nougat_tab_button(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler);
         nougat_tab_button(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P);
         nougat_tab_button(target,nougatVirusScanPanelTab,"Virus Scan",nougatPanel==NougatPanel::VirusScan);
-        if (nougatPanel == NougatPanel::Search) {
-            nougat_button(target,nougatNetworkAdvancedBtn,nougatNetworkAdvanced?"Back":"Network...",nougatNetworkAdvanced);
+        nougat_tab_button(target,nougatNetworkAdvancedBtn,"Network",nougatPanel==NougatPanel::Search && nougatNetworkAdvanced);
+        nougat_tab_button(target,nougatArchivePanelTab,"Archive",nougatPanel==NougatPanel::Archive);
+
+        if (nougatPanel == NougatPanel::Archive) {
+            struct ArchiveSite { const char* name; const char* url; const char* onion; };
+            static const ArchiveSite sites[] = {
+                {"Internet Archive / Archive.org","https://archive.org/","https://archivep75mbjunhxc6x4j5mwjmomyxb573v42baldlqu56ruil2oiad.onion/"},
+                {"Minerva Archive","https://minerva-archive.org/",nullptr},
+                {"The-Eye","https://the-eye.eu/",nullptr},
+                {"Open Library","https://openlibrary.org/",nullptr},
+                {"Project Gutenberg","https://www.gutenberg.org/",nullptr},
+                {"HathiTrust Digital Library","https://www.hathitrust.org/",nullptr},
+                {"Google Books","https://books.google.com/",nullptr},
+                {"Wikimedia Commons","https://commons.wikimedia.org/",nullptr},
+                {"Wikisource","https://wikisource.org/",nullptr},
+                {"Europeana","https://www.europeana.eu/",nullptr},
+                {"Digital Public Library of America","https://dp.la/",nullptr},
+                {"Library of Congress Digital Collections","https://www.loc.gov/collections/",nullptr},
+                {"Chronicling America","https://www.loc.gov/chronicling-america/",nullptr},
+                {"Smithsonian Open Access","https://www.si.edu/openaccess",nullptr},
+                {"Gallica","https://gallica.bnf.fr/",nullptr},
+                {"Trove","https://trove.nla.gov.au/",nullptr},
+                {"British Library Digital Collections","https://www.bl.uk/catalogues-and-collections/digital-collections",nullptr},
+                {"Wellcome Collection","https://wellcomecollection.org/works",nullptr},
+                {"Biodiversity Heritage Library","https://www.biodiversitylibrary.org/",nullptr},
+                {"Media History Digital Library","https://mediahistoryproject.org/",nullptr},
+                {"Public Domain Review","https://publicdomainreview.org/",nullptr},
+                {"LibriVox","https://librivox.org/",nullptr},
+                {"Open Culture","https://www.openculture.com/",nullptr},
+                {"Standard Ebooks","https://standardebooks.org/",nullptr},
+                {"Internet Sacred Text Archive","https://sacred-texts.com/",nullptr},
+                {"National Archives Catalog","https://catalog.archives.gov/",nullptr},
+                {"NASA Image and Video Library","https://images.nasa.gov/",nullptr},
+                {"NYPL Digital Collections","https://digitalcollections.nypl.org/",nullptr},
+                {"Digital Bodleian","https://digital.bodleian.ox.ac.uk/",nullptr},
+                {"David Rumsey Map Collection","https://www.davidrumsey.com/",nullptr},
+                {"OldMapsOnline","https://www.oldmapsonline.org/",nullptr},
+                {"Academic Torrents","https://academictorrents.com/",nullptr},
+                {"Software Heritage","https://www.softwareheritage.org/",nullptr},
+                {"WinWorld","https://winworldpc.com/home",nullptr},
+                {"VETUSWARE","https://vetusware.com/",nullptr},
+                {"My Abandonware","https://www.myabandonware.com/",nullptr},
+                {"Vimm's Lair","https://vimm.net/",nullptr},
+                {"Anna's Archive","https://annas-archive.org/",nullptr}
+            };
+            const Rect archiveBox={28,90,std::max(240,W-56),std::max(120,H-114)};
+            draw_nougat_panel(target,archiveBox);
+            text(target,archiveBox.x+12,archiveBox.y+22,"ARCHIVE DIRECTORY",searchPalette.text);
+            text(target,archiveBox.x+170,archiveBox.y+22,
+                 "Opens the selected archive in your normal web browser.",searchPalette.muted);
+            const int rowH=34;
+            const int visible=std::max(1,(archiveBox.h-38)/rowH);
+            const int total=static_cast<int>(sizeof(sites)/sizeof(sites[0]));
+            nougatArchiveScroll=std::max(0,std::min(nougatArchiveScroll,std::max(0,total-visible)));
+            nougatArchiveLinkRows.clear();
+            nougatArchiveTorRows.clear();
+            int y=archiveBox.y+32;
+            for (int i=nougatArchiveScroll;i<total && i<nougatArchiveScroll+visible;++i) {
+                const Rect row={archiveBox.x+8,y,archiveBox.w-16,rowH-3};
+                fill_round(target,row,6,rgb8(250,240,222));
+                outline_round(target,row,6,searchPalette.border);
+                const bool hasTor = sites[i].onion != nullptr && sites[i].onion[0] != '\0';
+                text(target,row.x+10,row.y+20,head_to_width(sites[i].name,row.w-(hasTor?220:120)),searchPalette.text);
+                const Rect openSite={row.x+row.w-100,row.y+4,90,23};
+                if (hasTor) {
+                    const Rect torSite={openSite.x-96,row.y+4,90,23};
+                    nougat_button(target,torSite,"Tor");
+                    nougatArchiveTorRows.push_back({torSite,sites[i].onion});
+                }
+                nougat_button(target,openSite,"Open Site");
+                nougatArchiveLinkRows.push_back({openSite,sites[i].url});
+                y+=rowH;
+            }
+            draw_visible_vertical_scrollbar(target,archiveBox,nougatArchiveScroll,total,visible,searchPalette);
+            return;
         }
 
         if (nougatPanel == NougatPanel::P2P) {
@@ -9282,17 +9518,24 @@ public:
             return;
         }
         if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced) {
-            text(target,28,84,"NETWORK / ADVANCED",nougat_cream());
             if (!node.empty()) text(target,28,101,"Node ID: "+node,searchPalette.muted);
             draw_nougat_input(target,nougatPeerEntryRect,nougatPeerEntry,NougatInputFocus::Peer);
+            // Clip only the overflowable Network action strip. This prevents a
+            // scrolled button from drawing back across the peer-entry field.
+            XRectangle actionClip{static_cast<short>(nougatNetworkActionsViewport.x),
+                                  static_cast<short>(nougatNetworkActionsViewport.y),
+                                  static_cast<unsigned short>(std::max(1,nougatNetworkActionsViewport.w)),
+                                  static_cast<unsigned short>(std::max(1,nougatNetworkActionsViewport.h+4))};
+            XSetClipRectangles(d,gc,0,0,&actionClip,1,Unsorted);
             nougat_button(target,nougatAddPeerBtn,"Add Peer");
             nougat_button(target,nougatRemovePeerBtn,"Remove");
             nougat_button(target,nougatNodeBtn,nougat.node_running()?"STOP NODE":"START NODE",nougat.node_running());
             nougat_button(target,nougatPeersToggleBtn,"Search peers",nougatSearchPeers);
+            apply_page_clip(ViewMode::Nougat);
             draw_nougat_panel(target,nougatPeerListBox);
             std::vector<std::string> peers;
             { std::lock_guard<std::mutex> lock(nougatState->mutex); peers=nougatState->peers; }
-            const int visible=std::max(1,((int)nougatPeerListBox.h-16)/22);
+            const int visible=std::max(1,((int)nougatPeerListBox.h-38)/22);
             nougatPeerScroll=std::max(0,std::min(nougatPeerScroll,std::max(0,(int)peers.size()-visible)));
             int y=nougatPeerListBox.y+22;
             for (int i=nougatPeerScroll; i<(int)peers.size() && i<nougatPeerScroll+visible; ++i) {
@@ -9300,7 +9543,8 @@ public:
                 text(target,nougatPeerListBox.x+9,y,peers[(size_t)i],searchPalette.text); y+=22;
             }
             draw_visible_vertical_scrollbar(target,nougatPeerListBox,nougatPeerScroll,static_cast<int>(peers.size()),visible,searchPalette);
-            text(target,28,H-20,status,searchPalette.text);
+            text(target,nougatPeerListBox.x+10,nougatPeerListBox.y+nougatPeerListBox.h-10,
+                 head_to_width(status,nougatPeerListBox.w-24),searchPalette.text);
             return;
         }
         if (nougatPanel == NougatPanel::Search) {
@@ -9312,8 +9556,11 @@ public:
             nougatResultHitboxes.clear();
             std::vector<reddmedia::NougatSearchResult> results;
             { std::lock_guard<std::mutex> lock(nougatState->mutex); results=nougatState->search.results; }
-            const int card_h=98;
-            const int visible=std::max(1,((int)nougatResultsBox.h-12)/card_h);
+            const int base_card_h=98;
+            const int visible=std::max(1,((int)nougatResultsBox.h-12)/base_card_h);
+            const int card_h=((int)results.size()>visible)
+                ? std::max(base_card_h,((int)nougatResultsBox.h-12)/visible)
+                : base_card_h;
             nougatResultScroll=std::max(0,std::min(nougatResultScroll,std::max(0,(int)results.size()-visible)));
             int y=nougatResultsBox.y+8;
             for (int i=nougatResultScroll; i<(int)results.size() && i<nougatResultScroll+visible; ++i) {
@@ -9754,7 +10001,8 @@ public:
         }
         text(target, 28, 218, std::string("Status: ") + (busy ? "Working - " : "") + status, dark);
         draw_primary_panel(target, discoverResultBox, palette);
-        text(target, 28, H - 12,
+        const Rect discoverFrame = page_content_frame(ViewMode::Discover);
+        text(target, discoverFrame.x + 18, discoverFrame.y + discoverFrame.h - 16,
              "Watch availability by JustWatch via TMDb. This product uses the TMDB API but is not endorsed or certified by TMDB.",
              palette.muted);
         if (!has_result) {
@@ -9919,7 +10167,7 @@ public:
         if (currentView == ViewMode::Stream) draw_stream_screen(buffer);
         if (currentView == ViewMode::Studio) draw_studio_screen(buffer);
         XSetClipMask(d,gc,None);
-        if (currentView != ViewMode::VideoPlayer) draw_page_frame(buffer,currentView);
+        draw_page_frame(buffer,currentView);
         draw_loading_bar(buffer);
         // Final chrome overlay: page backgrounds and loading strips must never
         // erase the larger selected-tab pointer.
@@ -10493,10 +10741,19 @@ public:
             &ytdlpDownloadBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn,
             &p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn,&p2pRemoveBtn,
             &p2pSpeedBtn,&p2pSeedRulesBtn,&p2pQueueUpBtn,&p2pQueueDownBtn,&p2pReannounceBtn,&p2pRecheckBtn,&p2pPriorityBtn,
-            &liveTvGuideBtn,&liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn
+            &liveTvGuideBtn,&liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvStopBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn
         };
         for (const Rect* target : targets) {
             if (target->contains(old_x, old_y) != target->contains(new_x, new_y)) return true;
+        }
+        if (currentView == ViewMode::Library) {
+            int oldRow = -1;
+            int newRow = -1;
+            for (std::size_t i = 0; i < libraryRows.size(); ++i) {
+                if (oldRow < 0 && libraryRows[i].contains(old_x, old_y)) oldRow = static_cast<int>(i);
+                if (newRow < 0 && libraryRows[i].contains(new_x, new_y)) newRow = static_cast<int>(i);
+            }
+            if (oldRow != newRow) return true;
         }
         return false;
     }
@@ -10519,8 +10776,8 @@ public:
         }
         if (target == win && y >= kPageControlY && y < kPageControlBottom + 4) {
             if (currentView == ViewMode::Stream) { scroll_button_row(streamSourceScrollX,6,delta); return true; }
-            if (currentView == ViewMode::Nougat) { scroll_button_row(nougatPanelButtonsScrollX,5,delta); return true; }
-            if (currentView == ViewMode::LiveTV) { scroll_button_row(liveTvButtonsScrollX,7,delta); return true; }
+            if (currentView == ViewMode::Nougat) { scroll_button_row(nougatPanelButtonsScrollX,6,delta); return true; }
+            if (currentView == ViewMode::LiveTV) { scroll_button_row(liveTvButtonsScrollX,8,delta); return true; }
             if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,14,delta); return true; }
             if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,11,delta); return true; }
             if (currentView == ViewMode::Library) {
@@ -10532,6 +10789,11 @@ public:
         }
         if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,4,delta); return true; }
         if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && y >= 224 && y < 266) { scroll_button_row(p2pButtonsScrollX,5,delta); return true; }
+        if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::Search && nougatNetworkAdvanced &&
+            nougatNetworkActionsViewport.contains(x,y)) {
+            scroll_button_row(nougatNetworkButtonsScrollX,4,delta,nougatNetworkActionsViewport.w);
+            return true;
+        }
         if (currentView == ViewMode::LiveTV && target == win && liveTvListBox.contains(x,y)) {
             const int visible = std::max(1,(liveTvListBox.h-108)/46);
             const int maxScroll=std::max(0,static_cast<int>(liveTvChannels.size())-visible);
@@ -10578,6 +10840,11 @@ public:
         if (currentView == ViewMode::Nougat && target == win) {
             if (nougatPanel == NougatPanel::Search && nougatResultsBox.contains(x,y)) {
                 nougatResultScroll = std::max(0, nougatResultScroll + (button == Button4 ? -1 : 1));
+                redraw();
+                return true;
+            }
+            if (nougatPanel == NougatPanel::Archive && y >= 90) {
+                nougatArchiveScroll = std::max(0, nougatArchiveScroll + (button == Button4 ? -1 : 1));
                 redraw();
                 return true;
             }
@@ -10792,6 +11059,16 @@ public:
                 return;
             }
             if (inLibraryToolViewport && libraryBackBtn.contains(x,y)) { library_back(); return; }
+            for (const auto& hit:libraryImdbHitboxes) {
+                if (!hit.first.contains(x,y)) continue;
+                std::vector<reddmedia::LibraryNode> nodes;
+                { std::lock_guard<std::mutex> lock(libraryState->mutex); nodes=libraryState->nodes; }
+                if (hit.second>=0 && hit.second<(int)nodes.size()) {
+                    const std::string& imdb=nodes[(std::size_t)hit.second].imdb_id;
+                    if (is_exact_imdb_title_id(imdb)) open_external_url("https://www.imdb.com/title/"+imdb+"/");
+                }
+                return;
+            }
             for (std::size_t row = 0; row < libraryRows.size(); ++row) {
                 if (libraryRows[row].contains(x,y)) {
                     if (row < libraryRowNodeIndices.size()) librarySelected = libraryRowNodeIndices[row];
@@ -11031,6 +11308,8 @@ public:
                     } else if (e.xexpose.window == video) {
                         draw_video_message();
                         XFlush(d);
+                    } else if (videoActivityOverlayWindow && e.xexpose.window == videoActivityOverlayWindow) {
+                        draw_player_activity_overlay_window();
                     } else if (seekPreviewWindow && e.xexpose.window == seekPreviewWindow) {
                         draw_seek_preview_window();
                     } else if (contextMenuOpen && e.xexpose.window == contextMenu) {
@@ -11091,11 +11370,17 @@ public:
                             if (hover_changed) redraw();
                         }
                     } else if (e.xmotion.window == video) {
-                        const bool wasHidden = !playerActivityOverlayVisible;
-                        lastPlayerActivityMotionMs = now_ms();
-                        playerActivityOverlayVisible = true;
-                        if (fullscreen) draw_video_message();
-                        else if (wasHidden && currentView == ViewMode::VideoPlayer) draw_player_controls_only();
+                        if (hasMedia && vlcErr.empty() && !resumePromptVisible && !stoppedPlaybackVisible &&
+                            !upNextVisible && !needResumePrompt) {
+                            const bool wasHidden = !playerActivityOverlayVisible;
+                            const long long activityNow = now_ms();
+                            lastPlayerActivityMotionMs = activityNow;
+                            playerActivityOverlayVisible = true;
+                            if (wasHidden) {
+                                draw_video_message();
+                                if (!fullscreen && currentView == ViewMode::VideoPlayer) draw_player_controls_only();
+                            }
+                        }
                     }
                     handle_nougat_motion(e.xmotion);
                     if (volumeDragging && currentView==ViewMode::VideoPlayer && mp) {
@@ -11103,8 +11388,21 @@ public:
                         volumePercent=v; api.set_volume(mp,v); draw_volume_only();
                     }
                 }
-                else if (e.type == EnterNotify && e.xcrossing.window == video) { pointerInVideo=true; lastMouse=time(nullptr); lastPlayerActivityMotionMs=now_ms(); playerActivityOverlayVisible=true; show_pointer(); if (fullscreen) draw_video_message(); else if (currentView==ViewMode::VideoPlayer) draw_player_controls_only(); }
-                else if (e.type == LeaveNotify && e.xcrossing.window == video) { pointerInVideo=false; show_pointer(); }
+                else if (e.type == EnterNotify && e.xcrossing.window == video) {
+                    pointerInVideo=true; lastMouse=time(nullptr); show_pointer();
+                    if (hasMedia && vlcErr.empty() && !resumePromptVisible && !stoppedPlaybackVisible &&
+                        !upNextVisible && !needResumePrompt) {
+                        const long long activityNow=now_ms();
+                        lastPlayerActivityMotionMs=activityNow;
+                        const bool wasHidden=!playerActivityOverlayVisible;
+                        playerActivityOverlayVisible=true;
+                        if (wasHidden) {
+                            draw_video_message();
+                            if (!fullscreen && currentView==ViewMode::VideoPlayer) draw_player_controls_only();
+                        }
+                    }
+                }
+                else if (e.type == LeaveNotify && e.xcrossing.window == video && e.xcrossing.detail != NotifyInferior) { pointerInVideo=false; show_pointer(); }
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
                     if (currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && p2pMagnetFocused) {
@@ -11311,11 +11609,14 @@ public:
             }
             // NOUGAT_V39_DIAGNOSTIC_REPAIR: queued full sweep after playback
             if (!fullscreen && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && now_ms()-lastP2PRedrawMs >= 500) { lastP2PRedrawMs=now_ms(); maybe_auto_scan_completed_p2p(); redraw(); }
-            if (playerActivityOverlayVisible && now_ms() - lastPlayerActivityMotionMs >= 3000) {
-                playerActivityOverlayVisible = false;
-                if (pointerInVideo) hide_pointer();
-                if (fullscreen) draw_video_message();
-                else if (currentView == ViewMode::VideoPlayer) draw_player_controls_only();
+            if (playerActivityOverlayVisible) {
+                const long long activityNow = now_ms();
+                if (!player_activity_is_active(activityNow, lastPlayerActivityMotionMs)) {
+                    playerActivityOverlayVisible = false;
+                    hide_player_activity_overlay_window();
+                    if (pointerInVideo) hide_pointer();
+                    if (!fullscreen && currentView == ViewMode::VideoPlayer) draw_player_controls_only();
+                }
             }
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
@@ -11400,6 +11701,7 @@ public:
         }
         if (inst) api.release(inst);
         inst=nullptr;
+        if (videoActivityOverlayWindow && d) { XDestroyWindow(d, videoActivityOverlayWindow); videoActivityOverlayWindow = 0; }
         if (seekPreviewWindow && d) { XDestroyWindow(d, seekPreviewWindow); seekPreviewWindow = 0; }
         if (xextHandle) { dlclose(xextHandle); xextHandle = nullptr; xShapeCombineMask = nullptr; }
         free_quilt_tiles();
@@ -11413,7 +11715,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.40\n");
+        printf("Nougat Media Suite v0.0.41\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
@@ -11835,7 +12137,7 @@ int main(int argc, char** argv) {
             app.liveTvTab.x < app.nougatTab.x && app.nougatTab.x < app.ytdlpTab.x && app.ytdlpTab.x < app.debugTab.x;
         const bool navClip = app.topNavClipX > 0 && app.topNavClipRight < app.W && app.topNavClipRight > app.topNavClipX;
         const bool frames = homeFrame.x > 0 && homeFrame.y == App::kTopBarH && homeFrame.w < app.W &&
-            playerFrame.x == 0 && playerFrame.y == App::kTopBarH && playerFrame.w == app.W;
+            playerFrame.x > 0 && playerFrame.y == App::kTopBarH && playerFrame.w < app.W;
         const bool libraryContainment = app.libraryListViewBtn.x > homeFrame.x &&
             app.libraryVerticalScrollTrack.x + app.libraryVerticalScrollTrack.w < app.W &&
             app.libraryListBox.x + app.libraryListBox.w < app.libraryVerticalScrollTrack.x;
@@ -12122,7 +12424,7 @@ int main(int argc, char** argv) {
 
     if (argc > 1 && std::string(argv[1]) == "--v39-diagnostics-live-tv-self-test") {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.40";
+        input.app_version = "Nougat Media Suite v0.0.41";
         input.executable_path = argv[0];
         input.project_root = "/tmp";
         input.current_view = "Debug";
@@ -12197,13 +12499,57 @@ int main(int argc, char** argv) {
                 metadataInfo?1:0, searchIdle?1:0, liveMux?1:0, queuedInfo?1:0, structured?1:0, saneOverall?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.40 PASS: subsystem diagnostics, sane severity, Search idle state, Live TV awareness, guide coverage, and current-multiplex harvesting active.\n");
+        std::printf("Nougat Media Suite v0.0.41 PASS: subsystem diagnostics, sane severity, Search idle state, Live TV awareness, guide coverage, and current-multiplex harvesting active.\n");
+        return 0;
+    }
+
+    if (argc > 1 && std::string(argv[1]) == "--v41-library-imdb-repair-self-test") {
+        App app;
+        app.libraryListBox={20,170,920,470};
+        app.libraryMovieView=LibraryDisplayMode::Grid;
+        app.libraryTvView=LibraryDisplayMode::Grid;
+        app.libraryMediaType=reddmedia::LibraryMediaType::Movies;
+        const LibraryGridMetrics movieGrid=app.library_grid_metrics();
+        app.libraryMediaType=reddmedia::LibraryMediaType::Television;
+        const LibraryGridMetrics tvGrid=app.library_grid_metrics();
+        const int innerWidth=app.libraryListBox.w-12;
+        const int innerHeight=app.libraryListBox.h-12;
+        const int movieUsedWidth=movieGrid.columns*movieGrid.tileWidth+(movieGrid.columns-1)*movieGrid.gap;
+        const int movieUsedHeight=movieGrid.rows*movieGrid.tileHeight+(movieGrid.rows-1)*movieGrid.gap;
+        reddmedia::LibraryNode movie; movie.kind=reddmedia::LibraryNodeKind::Movie; movie.imdb_id="tt0133093";
+        reddmedia::LibraryNode series; series.kind=reddmedia::LibraryNodeKind::Series; series.imdb_id="tt0108778";
+        reddmedia::LibraryNode episode; episode.kind=reddmedia::LibraryNodeKind::Episode; episode.imdb_id="tt0583459";
+        reddmedia::LibraryNode bad; bad.kind=reddmedia::LibraryNodeKind::Movie; bad.imdb_id="ttBAD";
+        const bool geometry=movieGrid.rows>=2 && tvGrid.rows>=2 &&
+            movieGrid.columns==tvGrid.columns && movieGrid.tileWidth==tvGrid.tileWidth &&
+            movieGrid.posterHeight==movieGrid.tileWidth*3/2 && tvGrid.posterHeight==tvGrid.tileWidth*3/2 &&
+            movieUsedWidth<=innerWidth && movieUsedHeight<=innerHeight && movieGrid.visibleItems>=movieGrid.columns*2;
+        app.currentView=ViewMode::Library;
+        app.libraryRows={{40,200,120,220},{168,200,120,220}};
+        const bool hoverTransitions=app.pointer_crossed_hover_target(20,180,60,240) &&
+            app.pointer_crossed_hover_target(60,240,190,240) &&
+            app.pointer_crossed_hover_target(190,240,20,180);
+        const bool activityTimer=player_activity_is_active(3999,1000) &&
+            !player_activity_is_active(4000,1000);
+        const bool imdb=library_node_has_imdb_link(movie) && library_node_has_imdb_link(series) &&
+            library_node_has_imdb_link(episode) && !library_node_has_imdb_link(bad);
+        app.W=650; app.H=650; app.nougatPanelButtonsScrollX=100000; app.nougatNetworkButtonsScrollX=100000; app.layout();
+        const int networkViewportRight=app.nougatNetworkActionsViewport.x+app.nougatNetworkActionsViewport.w;
+        const bool networkNarrow=app.nougatPeerEntryRect.x==28 && app.nougatPeerEntryRect.w==200 &&
+            app.nougatAddPeerBtn.x < 236 && app.nougatPeersToggleBtn.x+app.nougatPeersToggleBtn.w<=networkViewportRight &&
+            app.nougatArchivePanelTab.x+app.nougatArchivePanelTab.w<=app.W-28 &&
+            app.nougatNetworkButtonsScrollX>0 && app.nougatPanelButtonsScrollX>0;
+        if (!geometry || !hoverTransitions || !activityTimer || !imdb || !networkNarrow) {
+            std::printf("Nougat Media Suite v0.0.41 Library/IMDb repair FAIL\n");
+            return 1;
+        }
+        std::printf("Nougat Media Suite v0.0.41 Library/IMDb repair PASS: Movies+TV multi-row adaptive grid, card-hover clearing, three-second player activity, exact IMDb links, and narrow Network scrolling active\n");
         return 0;
     }
 
     if (argc > 1 && std::string(argv[1]) == "--v39-diagnostic-self-test") {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.40";
+        input.app_version = "Nougat Media Suite v0.0.41";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = "System";
@@ -12224,7 +12570,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "Nougat v0.0.40 diagnostic self-test FAIL. search-idle=%d metadata-info=%d\n", search_idle?1:0, metadata_info?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.40 diagnostic self-test PASS: Search idle is Not Tested and optional metadata is Information.\n");
+        std::printf("Nougat Media Suite v0.0.41 diagnostic self-test PASS: Search idle is Not Tested and optional metadata is Information.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v39-channel-logo-audit") {
@@ -12246,7 +12592,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "Nougat v0.0.40 channel-logo audit FAIL: %d/%zu channel(s) do not resolve to real artwork.\n", unresolved, channels.size());
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.40 channel-logo audit PASS: %zu/%zu persisted channels resolve to real artwork.\n", channels.size(), channels.size());
+        std::printf("Nougat Media Suite v0.0.41 channel-logo audit PASS: %zu/%zu persisted channels resolve to real artwork.\n", channels.size(), channels.size());
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
