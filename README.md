@@ -1,6 +1,25 @@
 # Nougat Media Suite
 
-Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
+Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application. It also includes native Live TV, World TV, Studio, and an integrated Games library with persistent ROM folders, ZIP ROM discovery, automatic game-system and emulator selection, controller support, game artwork support, and expanded Nintendo and Atari system support. Nougat also includes responsive multi-row media-library browsing, security analysis, diagnostics, and integrated media-server controls.
+
+## v0.0.43 - Games, World TV, and Responsive Grid Repair
+
+v0.0.43 builds on v0.0.42 and expands the current Nougat Media Suite feature set.
+
+- Expands Games with Grid and List views.
+- Adds system and source badges to game entries.
+- Adds double-click game launching.
+- Keeps linked ROM folders persistent between Nougat sessions.
+- Adds ZIP-contained ROM discovery and safe private-cache extraction.
+- Adds automatic recognition for NES, SNES, Game Boy, Game Boy Color, Game Boy Advance, Nintendo 64, Atari 2600, Atari 5200, Atari 7800, Atari 8-bit, and Atari Lynx formats.
+- Adds automatic selection among supported emulator backends.
+- Adds local game box-art and sidecar artwork support.
+- Preserves the legally redistributable bundled NES starter games and their upstream license records.
+- Adds recognition of the tested Manta USB gamepad.
+- Expands World TV with additional legitimate international broadcaster sources, including Al Jazeera Arabic and DW News.
+- Keeps World TV language-agnostic without Nougat filtering countries or languages according to device location.
+- Repairs the Movies and TV Library responsive grid so poster browsing can use multiple rows instead of collapsing into one long row.
+- Repairs Discover My Services with a wider draggable scrollbar, dedicated scrollbar gutter, and improved provider-row spacing.
 
 ## v0.0.42 - Persistent Libraries, Live TV Maintenance, Security, Intelligence, and Games
 
@@ -766,29 +785,3 @@ This replacement v0.0.19 candidate includes the recommendation/viewing-history s
 
 This candidate adds internal mouse Back/Forward navigation, cleans the Library header and Nougat icon perimeter, upgrades Debug into an evidence-based Diagnostic Center with TXT/JSON/redacted support-bundle exports, cleans and centers the intentional 0-200% volume control, fixes top-header layering during horizontal tab scrolling, and adds a 10-second TV Up Next overlay with Play Next / Back to Series / Replay. P2P feature expansion was later moved to v0.0.32 after the owner split v0.0.28/v0.0.29 into UI/artwork and TV-reliability releases.
 - v0.0.33 server-stop repair: persistent Nougat-owned Jellyfin sessions carry a per-session ownership token; Stop Server terminates the complete owned process tree and verifies port 8096 is released without killing Jellyfin by name.
-
-
-## v0.0.43 — Games, World TV, and Responsive Grid Repair
-
-What this build added:
-
-- Added the top-level Games area after Studio.
-- Added persistent linked ROM folders.
-- Preserved the legally redistributable bundled NES starter games and their upstream license and attribution records.
-- Added Games Grid and List views.
-- Added game-system and source badges.
-- Added double-click game launching.
-- Added automatic recognition of supported ROM systems.
-- Added Nintendo Entertainment System, Super Nintendo, Game Boy, Game Boy Color, Game Boy Advance, Nintendo 64, Atari 2600, Atari 5200, Atari 7800, Atari 8-bit, and Atari Lynx ROM recognition.
-- Added ZIP-contained ROM discovery.
-- Added safe extraction of selected ZIP-contained ROMs into Nougat's private game cache.
-- Added automatic selection among compatible emulator backends already installed on the system.
-- Added local sidecar game artwork support.
-- Added recognition of the tested Manta USB gamepad while leaving controller mapping to the emulator backend.
-- Added World TV internet-broadcast source support.
-- Expanded the World TV source catalog with additional international sources, including Al Jazeera Arabic and DW News.
-- Kept the World TV catalog language-agnostic without Nougat filtering countries or languages according to device location.
-- Repaired the shared Movies and TV Library responsive-grid calculations to prevent the poster library from collapsing into one long row.
-- Repaired Discover My Services with a wider draggable scrollbar.
-- Added a reserved My Services scrollbar gutter so provider text does not collide with the scrollbar.
-- Improved My Services provider-row spacing.
