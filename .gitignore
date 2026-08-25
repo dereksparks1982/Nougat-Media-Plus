@@ -10,3 +10,6 @@
 **/__pycache__/
 *.pyc
 components/games/runtime/
+
+# Generated CMake build tree. Never commit release build output.
+/build/

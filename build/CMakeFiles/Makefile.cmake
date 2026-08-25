@@ -55,5 +55,5 @@ set(CMAKE_MAKEFILE_PRODUCTS
 
 # Dependency information for all targets:
 set(CMAKE_DEPEND_INFO_FILES
-  "CMakeFiles/Nougat_Media_Suite_v45.dir/DependInfo.cmake"
+  "CMakeFiles/Nougat_Media_Suite_v46.dir/DependInfo.cmake"
   )

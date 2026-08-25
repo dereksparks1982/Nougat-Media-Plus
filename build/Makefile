@@ -117,24 +117,24 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named Nougat_Media_Suite_v45
+# Target rules for targets named Nougat_Media_Suite_v46
 
 # Build rule for target.
-Nougat_Media_Suite_v45: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Nougat_Media_Suite_v45
-.PHONY : Nougat_Media_Suite_v45
+Nougat_Media_Suite_v46: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Nougat_Media_Suite_v46
+.PHONY : Nougat_Media_Suite_v46
 
 # fast build rule for target.
-Nougat_Media_Suite_v45/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/build
-.PHONY : Nougat_Media_Suite_v45/fast
+Nougat_Media_Suite_v46/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/build
+.PHONY : Nougat_Media_Suite_v46/fast
 
 src/crawler/crawler_access_manager.o: src/crawler/crawler_access_manager.cpp.o
 .PHONY : src/crawler/crawler_access_manager.o
 
 # target to build an object file
 src/crawler/crawler_access_manager.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/crawler/crawler_access_manager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/crawler/crawler_access_manager.cpp.o
 .PHONY : src/crawler/crawler_access_manager.cpp.o
 
 src/crawler/crawler_access_manager.i: src/crawler/crawler_access_manager.cpp.i
@@ -142,7 +142,7 @@ src/crawler/crawler_access_manager.i: src/crawler/crawler_access_manager.cpp.i
 
 # target to preprocess a source file
 src/crawler/crawler_access_manager.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/crawler/crawler_access_manager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/crawler/crawler_access_manager.cpp.i
 .PHONY : src/crawler/crawler_access_manager.cpp.i
 
 src/crawler/crawler_access_manager.s: src/crawler/crawler_access_manager.cpp.s
@@ -150,7 +150,7 @@ src/crawler/crawler_access_manager.s: src/crawler/crawler_access_manager.cpp.s
 
 # target to generate assembly for a file
 src/crawler/crawler_access_manager.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/crawler/crawler_access_manager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/crawler/crawler_access_manager.cpp.s
 .PHONY : src/crawler/crawler_access_manager.cpp.s
 
 src/diagnostics/diagnostic_engine.o: src/diagnostics/diagnostic_engine.cpp.o
@@ -158,7 +158,7 @@ src/diagnostics/diagnostic_engine.o: src/diagnostics/diagnostic_engine.cpp.o
 
 # target to build an object file
 src/diagnostics/diagnostic_engine.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/diagnostics/diagnostic_engine.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/diagnostics/diagnostic_engine.cpp.o
 .PHONY : src/diagnostics/diagnostic_engine.cpp.o
 
 src/diagnostics/diagnostic_engine.i: src/diagnostics/diagnostic_engine.cpp.i
@@ -166,7 +166,7 @@ src/diagnostics/diagnostic_engine.i: src/diagnostics/diagnostic_engine.cpp.i
 
 # target to preprocess a source file
 src/diagnostics/diagnostic_engine.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/diagnostics/diagnostic_engine.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/diagnostics/diagnostic_engine.cpp.i
 .PHONY : src/diagnostics/diagnostic_engine.cpp.i
 
 src/diagnostics/diagnostic_engine.s: src/diagnostics/diagnostic_engine.cpp.s
@@ -174,15 +174,39 @@ src/diagnostics/diagnostic_engine.s: src/diagnostics/diagnostic_engine.cpp.s
 
 # target to generate assembly for a file
 src/diagnostics/diagnostic_engine.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/diagnostics/diagnostic_engine.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/diagnostics/diagnostic_engine.cpp.s
 .PHONY : src/diagnostics/diagnostic_engine.cpp.s
+
+src/lan/lan_media_service.o: src/lan/lan_media_service.cpp.o
+.PHONY : src/lan/lan_media_service.o
+
+# target to build an object file
+src/lan/lan_media_service.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/lan/lan_media_service.cpp.o
+.PHONY : src/lan/lan_media_service.cpp.o
+
+src/lan/lan_media_service.i: src/lan/lan_media_service.cpp.i
+.PHONY : src/lan/lan_media_service.i
+
+# target to preprocess a source file
+src/lan/lan_media_service.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/lan/lan_media_service.cpp.i
+.PHONY : src/lan/lan_media_service.cpp.i
+
+src/lan/lan_media_service.s: src/lan/lan_media_service.cpp.s
+.PHONY : src/lan/lan_media_service.s
+
+# target to generate assembly for a file
+src/lan/lan_media_service.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/lan/lan_media_service.cpp.s
+.PHONY : src/lan/lan_media_service.cpp.s
 
 src/live_tv/tuner_backend.o: src/live_tv/tuner_backend.cpp.o
 .PHONY : src/live_tv/tuner_backend.o
 
 # target to build an object file
 src/live_tv/tuner_backend.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/live_tv/tuner_backend.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/live_tv/tuner_backend.cpp.o
 .PHONY : src/live_tv/tuner_backend.cpp.o
 
 src/live_tv/tuner_backend.i: src/live_tv/tuner_backend.cpp.i
@@ -190,7 +214,7 @@ src/live_tv/tuner_backend.i: src/live_tv/tuner_backend.cpp.i
 
 # target to preprocess a source file
 src/live_tv/tuner_backend.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/live_tv/tuner_backend.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/live_tv/tuner_backend.cpp.i
 .PHONY : src/live_tv/tuner_backend.cpp.i
 
 src/live_tv/tuner_backend.s: src/live_tv/tuner_backend.cpp.s
@@ -198,7 +222,7 @@ src/live_tv/tuner_backend.s: src/live_tv/tuner_backend.cpp.s
 
 # target to generate assembly for a file
 src/live_tv/tuner_backend.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/live_tv/tuner_backend.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/live_tv/tuner_backend.cpp.s
 .PHONY : src/live_tv/tuner_backend.cpp.s
 
 src/main.o: src/main.cpp.o
@@ -206,7 +230,7 @@ src/main.o: src/main.cpp.o
 
 # target to build an object file
 src/main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/main.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/main.cpp.o
 .PHONY : src/main.cpp.o
 
 src/main.i: src/main.cpp.i
@@ -214,7 +238,7 @@ src/main.i: src/main.cpp.i
 
 # target to preprocess a source file
 src/main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/main.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/main.cpp.i
 .PHONY : src/main.cpp.i
 
 src/main.s: src/main.cpp.s
@@ -222,7 +246,7 @@ src/main.s: src/main.cpp.s
 
 # target to generate assembly for a file
 src/main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/main.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
 src/media_server/jellyfin_api_client.o: src/media_server/jellyfin_api_client.cpp.o
@@ -230,7 +254,7 @@ src/media_server/jellyfin_api_client.o: src/media_server/jellyfin_api_client.cpp
 
 # target to build an object file
 src/media_server/jellyfin_api_client.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/jellyfin_api_client.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/jellyfin_api_client.cpp.o
 .PHONY : src/media_server/jellyfin_api_client.cpp.o
 
 src/media_server/jellyfin_api_client.i: src/media_server/jellyfin_api_client.cpp.i
@@ -238,7 +262,7 @@ src/media_server/jellyfin_api_client.i: src/media_server/jellyfin_api_client.cpp
 
 # target to preprocess a source file
 src/media_server/jellyfin_api_client.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/jellyfin_api_client.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/jellyfin_api_client.cpp.i
 .PHONY : src/media_server/jellyfin_api_client.cpp.i
 
 src/media_server/jellyfin_api_client.s: src/media_server/jellyfin_api_client.cpp.s
@@ -246,7 +270,7 @@ src/media_server/jellyfin_api_client.s: src/media_server/jellyfin_api_client.cpp
 
 # target to generate assembly for a file
 src/media_server/jellyfin_api_client.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/jellyfin_api_client.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/jellyfin_api_client.cpp.s
 .PHONY : src/media_server/jellyfin_api_client.cpp.s
 
 src/media_server/library_metadata_cache.o: src/media_server/library_metadata_cache.cpp.o
@@ -254,7 +278,7 @@ src/media_server/library_metadata_cache.o: src/media_server/library_metadata_cac
 
 # target to build an object file
 src/media_server/library_metadata_cache.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/library_metadata_cache.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/library_metadata_cache.cpp.o
 .PHONY : src/media_server/library_metadata_cache.cpp.o
 
 src/media_server/library_metadata_cache.i: src/media_server/library_metadata_cache.cpp.i
@@ -262,7 +286,7 @@ src/media_server/library_metadata_cache.i: src/media_server/library_metadata_cac
 
 # target to preprocess a source file
 src/media_server/library_metadata_cache.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/library_metadata_cache.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/library_metadata_cache.cpp.i
 .PHONY : src/media_server/library_metadata_cache.cpp.i
 
 src/media_server/library_metadata_cache.s: src/media_server/library_metadata_cache.cpp.s
@@ -270,7 +294,7 @@ src/media_server/library_metadata_cache.s: src/media_server/library_metadata_cac
 
 # target to generate assembly for a file
 src/media_server/library_metadata_cache.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/library_metadata_cache.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/library_metadata_cache.cpp.s
 .PHONY : src/media_server/library_metadata_cache.cpp.s
 
 src/media_server/library_poster.o: src/media_server/library_poster.cpp.o
@@ -278,7 +302,7 @@ src/media_server/library_poster.o: src/media_server/library_poster.cpp.o
 
 # target to build an object file
 src/media_server/library_poster.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/library_poster.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/library_poster.cpp.o
 .PHONY : src/media_server/library_poster.cpp.o
 
 src/media_server/library_poster.i: src/media_server/library_poster.cpp.i
@@ -286,7 +310,7 @@ src/media_server/library_poster.i: src/media_server/library_poster.cpp.i
 
 # target to preprocess a source file
 src/media_server/library_poster.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/library_poster.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/library_poster.cpp.i
 .PHONY : src/media_server/library_poster.cpp.i
 
 src/media_server/library_poster.s: src/media_server/library_poster.cpp.s
@@ -294,7 +318,7 @@ src/media_server/library_poster.s: src/media_server/library_poster.cpp.s
 
 # target to generate assembly for a file
 src/media_server/library_poster.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/library_poster.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/library_poster.cpp.s
 .PHONY : src/media_server/library_poster.cpp.s
 
 src/media_server/media_server_manager.o: src/media_server/media_server_manager.cpp.o
@@ -302,7 +326,7 @@ src/media_server/media_server_manager.o: src/media_server/media_server_manager.c
 
 # target to build an object file
 src/media_server/media_server_manager.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/media_server_manager.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/media_server_manager.cpp.o
 .PHONY : src/media_server/media_server_manager.cpp.o
 
 src/media_server/media_server_manager.i: src/media_server/media_server_manager.cpp.i
@@ -310,7 +334,7 @@ src/media_server/media_server_manager.i: src/media_server/media_server_manager.c
 
 # target to preprocess a source file
 src/media_server/media_server_manager.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/media_server_manager.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/media_server_manager.cpp.i
 .PHONY : src/media_server/media_server_manager.cpp.i
 
 src/media_server/media_server_manager.s: src/media_server/media_server_manager.cpp.s
@@ -318,7 +342,7 @@ src/media_server/media_server_manager.s: src/media_server/media_server_manager.c
 
 # target to generate assembly for a file
 src/media_server/media_server_manager.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/media_server/media_server_manager.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/media_server/media_server_manager.cpp.s
 .PHONY : src/media_server/media_server_manager.cpp.s
 
 src/nougat/nougat_bridge.o: src/nougat/nougat_bridge.cpp.o
@@ -326,7 +350,7 @@ src/nougat/nougat_bridge.o: src/nougat/nougat_bridge.cpp.o
 
 # target to build an object file
 src/nougat/nougat_bridge.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/nougat/nougat_bridge.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/nougat/nougat_bridge.cpp.o
 .PHONY : src/nougat/nougat_bridge.cpp.o
 
 src/nougat/nougat_bridge.i: src/nougat/nougat_bridge.cpp.i
@@ -334,7 +358,7 @@ src/nougat/nougat_bridge.i: src/nougat/nougat_bridge.cpp.i
 
 # target to preprocess a source file
 src/nougat/nougat_bridge.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/nougat/nougat_bridge.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/nougat/nougat_bridge.cpp.i
 .PHONY : src/nougat/nougat_bridge.cpp.i
 
 src/nougat/nougat_bridge.s: src/nougat/nougat_bridge.cpp.s
@@ -342,7 +366,7 @@ src/nougat/nougat_bridge.s: src/nougat/nougat_bridge.cpp.s
 
 # target to generate assembly for a file
 src/nougat/nougat_bridge.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/nougat/nougat_bridge.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/nougat/nougat_bridge.cpp.s
 .PHONY : src/nougat/nougat_bridge.cpp.s
 
 src/p2p_engine.o: src/p2p_engine.cpp.o
@@ -350,7 +374,7 @@ src/p2p_engine.o: src/p2p_engine.cpp.o
 
 # target to build an object file
 src/p2p_engine.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/p2p_engine.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/p2p_engine.cpp.o
 .PHONY : src/p2p_engine.cpp.o
 
 src/p2p_engine.i: src/p2p_engine.cpp.i
@@ -358,7 +382,7 @@ src/p2p_engine.i: src/p2p_engine.cpp.i
 
 # target to preprocess a source file
 src/p2p_engine.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/p2p_engine.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/p2p_engine.cpp.i
 .PHONY : src/p2p_engine.cpp.i
 
 src/p2p_engine.s: src/p2p_engine.cpp.s
@@ -366,7 +390,7 @@ src/p2p_engine.s: src/p2p_engine.cpp.s
 
 # target to generate assembly for a file
 src/p2p_engine.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/p2p_engine.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/p2p_engine.cpp.s
 .PHONY : src/p2p_engine.cpp.s
 
 src/p2p_stream_server.o: src/p2p_stream_server.cpp.o
@@ -374,7 +398,7 @@ src/p2p_stream_server.o: src/p2p_stream_server.cpp.o
 
 # target to build an object file
 src/p2p_stream_server.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/p2p_stream_server.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/p2p_stream_server.cpp.o
 .PHONY : src/p2p_stream_server.cpp.o
 
 src/p2p_stream_server.i: src/p2p_stream_server.cpp.i
@@ -382,7 +406,7 @@ src/p2p_stream_server.i: src/p2p_stream_server.cpp.i
 
 # target to preprocess a source file
 src/p2p_stream_server.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/p2p_stream_server.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/p2p_stream_server.cpp.i
 .PHONY : src/p2p_stream_server.cpp.i
 
 src/p2p_stream_server.s: src/p2p_stream_server.cpp.s
@@ -390,7 +414,7 @@ src/p2p_stream_server.s: src/p2p_stream_server.cpp.s
 
 # target to generate assembly for a file
 src/p2p_stream_server.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/p2p_stream_server.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/p2p_stream_server.cpp.s
 .PHONY : src/p2p_stream_server.cpp.s
 
 src/privacy/privacy_broker_client.o: src/privacy/privacy_broker_client.cpp.o
@@ -398,7 +422,7 @@ src/privacy/privacy_broker_client.o: src/privacy/privacy_broker_client.cpp.o
 
 # target to build an object file
 src/privacy/privacy_broker_client.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/privacy/privacy_broker_client.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/privacy/privacy_broker_client.cpp.o
 .PHONY : src/privacy/privacy_broker_client.cpp.o
 
 src/privacy/privacy_broker_client.i: src/privacy/privacy_broker_client.cpp.i
@@ -406,7 +430,7 @@ src/privacy/privacy_broker_client.i: src/privacy/privacy_broker_client.cpp.i
 
 # target to preprocess a source file
 src/privacy/privacy_broker_client.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/privacy/privacy_broker_client.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/privacy/privacy_broker_client.cpp.i
 .PHONY : src/privacy/privacy_broker_client.cpp.i
 
 src/privacy/privacy_broker_client.s: src/privacy/privacy_broker_client.cpp.s
@@ -414,7 +438,7 @@ src/privacy/privacy_broker_client.s: src/privacy/privacy_broker_client.cpp.s
 
 # target to generate assembly for a file
 src/privacy/privacy_broker_client.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/privacy/privacy_broker_client.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/privacy/privacy_broker_client.cpp.s
 .PHONY : src/privacy/privacy_broker_client.cpp.s
 
 src/privacy/privacy_policy.o: src/privacy/privacy_policy.cpp.o
@@ -422,7 +446,7 @@ src/privacy/privacy_policy.o: src/privacy/privacy_policy.cpp.o
 
 # target to build an object file
 src/privacy/privacy_policy.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/privacy/privacy_policy.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/privacy/privacy_policy.cpp.o
 .PHONY : src/privacy/privacy_policy.cpp.o
 
 src/privacy/privacy_policy.i: src/privacy/privacy_policy.cpp.i
@@ -430,7 +454,7 @@ src/privacy/privacy_policy.i: src/privacy/privacy_policy.cpp.i
 
 # target to preprocess a source file
 src/privacy/privacy_policy.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/privacy/privacy_policy.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/privacy/privacy_policy.cpp.i
 .PHONY : src/privacy/privacy_policy.cpp.i
 
 src/privacy/privacy_policy.s: src/privacy/privacy_policy.cpp.s
@@ -438,7 +462,7 @@ src/privacy/privacy_policy.s: src/privacy/privacy_policy.cpp.s
 
 # target to generate assembly for a file
 src/privacy/privacy_policy.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/privacy/privacy_policy.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/privacy/privacy_policy.cpp.s
 .PHONY : src/privacy/privacy_policy.cpp.s
 
 src/privacy/privacy_receipt.o: src/privacy/privacy_receipt.cpp.o
@@ -446,7 +470,7 @@ src/privacy/privacy_receipt.o: src/privacy/privacy_receipt.cpp.o
 
 # target to build an object file
 src/privacy/privacy_receipt.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/privacy/privacy_receipt.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/privacy/privacy_receipt.cpp.o
 .PHONY : src/privacy/privacy_receipt.cpp.o
 
 src/privacy/privacy_receipt.i: src/privacy/privacy_receipt.cpp.i
@@ -454,7 +478,7 @@ src/privacy/privacy_receipt.i: src/privacy/privacy_receipt.cpp.i
 
 # target to preprocess a source file
 src/privacy/privacy_receipt.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/privacy/privacy_receipt.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/privacy/privacy_receipt.cpp.i
 .PHONY : src/privacy/privacy_receipt.cpp.i
 
 src/privacy/privacy_receipt.s: src/privacy/privacy_receipt.cpp.s
@@ -462,7 +486,7 @@ src/privacy/privacy_receipt.s: src/privacy/privacy_receipt.cpp.s
 
 # target to generate assembly for a file
 src/privacy/privacy_receipt.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/privacy/privacy_receipt.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/privacy/privacy_receipt.cpp.s
 .PHONY : src/privacy/privacy_receipt.cpp.s
 
 src/recommendations/embedding_engine.o: src/recommendations/embedding_engine.cpp.o
@@ -470,7 +494,7 @@ src/recommendations/embedding_engine.o: src/recommendations/embedding_engine.cpp
 
 # target to build an object file
 src/recommendations/embedding_engine.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/embedding_engine.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/embedding_engine.cpp.o
 .PHONY : src/recommendations/embedding_engine.cpp.o
 
 src/recommendations/embedding_engine.i: src/recommendations/embedding_engine.cpp.i
@@ -478,7 +502,7 @@ src/recommendations/embedding_engine.i: src/recommendations/embedding_engine.cpp
 
 # target to preprocess a source file
 src/recommendations/embedding_engine.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/embedding_engine.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/embedding_engine.cpp.i
 .PHONY : src/recommendations/embedding_engine.cpp.i
 
 src/recommendations/embedding_engine.s: src/recommendations/embedding_engine.cpp.s
@@ -486,7 +510,7 @@ src/recommendations/embedding_engine.s: src/recommendations/embedding_engine.cpp
 
 # target to generate assembly for a file
 src/recommendations/embedding_engine.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/embedding_engine.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/embedding_engine.cpp.s
 .PHONY : src/recommendations/embedding_engine.cpp.s
 
 src/recommendations/recommendation_engine.o: src/recommendations/recommendation_engine.cpp.o
@@ -494,7 +518,7 @@ src/recommendations/recommendation_engine.o: src/recommendations/recommendation_
 
 # target to build an object file
 src/recommendations/recommendation_engine.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/recommendation_engine.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/recommendation_engine.cpp.o
 .PHONY : src/recommendations/recommendation_engine.cpp.o
 
 src/recommendations/recommendation_engine.i: src/recommendations/recommendation_engine.cpp.i
@@ -502,7 +526,7 @@ src/recommendations/recommendation_engine.i: src/recommendations/recommendation_
 
 # target to preprocess a source file
 src/recommendations/recommendation_engine.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/recommendation_engine.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/recommendation_engine.cpp.i
 .PHONY : src/recommendations/recommendation_engine.cpp.i
 
 src/recommendations/recommendation_engine.s: src/recommendations/recommendation_engine.cpp.s
@@ -510,7 +534,7 @@ src/recommendations/recommendation_engine.s: src/recommendations/recommendation_
 
 # target to generate assembly for a file
 src/recommendations/recommendation_engine.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/recommendation_engine.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/recommendation_engine.cpp.s
 .PHONY : src/recommendations/recommendation_engine.cpp.s
 
 src/recommendations/tmdb_client.o: src/recommendations/tmdb_client.cpp.o
@@ -518,7 +542,7 @@ src/recommendations/tmdb_client.o: src/recommendations/tmdb_client.cpp.o
 
 # target to build an object file
 src/recommendations/tmdb_client.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/tmdb_client.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/tmdb_client.cpp.o
 .PHONY : src/recommendations/tmdb_client.cpp.o
 
 src/recommendations/tmdb_client.i: src/recommendations/tmdb_client.cpp.i
@@ -526,7 +550,7 @@ src/recommendations/tmdb_client.i: src/recommendations/tmdb_client.cpp.i
 
 # target to preprocess a source file
 src/recommendations/tmdb_client.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/tmdb_client.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/tmdb_client.cpp.i
 .PHONY : src/recommendations/tmdb_client.cpp.i
 
 src/recommendations/tmdb_client.s: src/recommendations/tmdb_client.cpp.s
@@ -534,7 +558,7 @@ src/recommendations/tmdb_client.s: src/recommendations/tmdb_client.cpp.s
 
 # target to generate assembly for a file
 src/recommendations/tmdb_client.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/tmdb_client.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/tmdb_client.cpp.s
 .PHONY : src/recommendations/tmdb_client.cpp.s
 
 src/recommendations/viewing_history.o: src/recommendations/viewing_history.cpp.o
@@ -542,7 +566,7 @@ src/recommendations/viewing_history.o: src/recommendations/viewing_history.cpp.o
 
 # target to build an object file
 src/recommendations/viewing_history.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/viewing_history.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/viewing_history.cpp.o
 .PHONY : src/recommendations/viewing_history.cpp.o
 
 src/recommendations/viewing_history.i: src/recommendations/viewing_history.cpp.i
@@ -550,7 +574,7 @@ src/recommendations/viewing_history.i: src/recommendations/viewing_history.cpp.i
 
 # target to preprocess a source file
 src/recommendations/viewing_history.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/viewing_history.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/viewing_history.cpp.i
 .PHONY : src/recommendations/viewing_history.cpp.i
 
 src/recommendations/viewing_history.s: src/recommendations/viewing_history.cpp.s
@@ -558,7 +582,7 @@ src/recommendations/viewing_history.s: src/recommendations/viewing_history.cpp.s
 
 # target to generate assembly for a file
 src/recommendations/viewing_history.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/viewing_history.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/viewing_history.cpp.s
 .PHONY : src/recommendations/viewing_history.cpp.s
 
 src/recommendations/watch_provider_preferences.o: src/recommendations/watch_provider_preferences.cpp.o
@@ -566,7 +590,7 @@ src/recommendations/watch_provider_preferences.o: src/recommendations/watch_prov
 
 # target to build an object file
 src/recommendations/watch_provider_preferences.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/watch_provider_preferences.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/watch_provider_preferences.cpp.o
 .PHONY : src/recommendations/watch_provider_preferences.cpp.o
 
 src/recommendations/watch_provider_preferences.i: src/recommendations/watch_provider_preferences.cpp.i
@@ -574,7 +598,7 @@ src/recommendations/watch_provider_preferences.i: src/recommendations/watch_prov
 
 # target to preprocess a source file
 src/recommendations/watch_provider_preferences.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/watch_provider_preferences.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/watch_provider_preferences.cpp.i
 .PHONY : src/recommendations/watch_provider_preferences.cpp.i
 
 src/recommendations/watch_provider_preferences.s: src/recommendations/watch_provider_preferences.cpp.s
@@ -582,7 +606,7 @@ src/recommendations/watch_provider_preferences.s: src/recommendations/watch_prov
 
 # target to generate assembly for a file
 src/recommendations/watch_provider_preferences.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/recommendations/watch_provider_preferences.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/recommendations/watch_provider_preferences.cpp.s
 .PHONY : src/recommendations/watch_provider_preferences.cpp.s
 
 src/search/secure_search.o: src/search/secure_search.cpp.o
@@ -590,7 +614,7 @@ src/search/secure_search.o: src/search/secure_search.cpp.o
 
 # target to build an object file
 src/search/secure_search.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/search/secure_search.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/search/secure_search.cpp.o
 .PHONY : src/search/secure_search.cpp.o
 
 src/search/secure_search.i: src/search/secure_search.cpp.i
@@ -598,7 +622,7 @@ src/search/secure_search.i: src/search/secure_search.cpp.i
 
 # target to preprocess a source file
 src/search/secure_search.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/search/secure_search.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/search/secure_search.cpp.i
 .PHONY : src/search/secure_search.cpp.i
 
 src/search/secure_search.s: src/search/secure_search.cpp.s
@@ -606,15 +630,39 @@ src/search/secure_search.s: src/search/secure_search.cpp.s
 
 # target to generate assembly for a file
 src/search/secure_search.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/search/secure_search.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/search/secure_search.cpp.s
 .PHONY : src/search/secure_search.cpp.s
+
+src/security/scanner_process.o: src/security/scanner_process.cpp.o
+.PHONY : src/security/scanner_process.o
+
+# target to build an object file
+src/security/scanner_process.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/security/scanner_process.cpp.o
+.PHONY : src/security/scanner_process.cpp.o
+
+src/security/scanner_process.i: src/security/scanner_process.cpp.i
+.PHONY : src/security/scanner_process.i
+
+# target to preprocess a source file
+src/security/scanner_process.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/security/scanner_process.cpp.i
+.PHONY : src/security/scanner_process.cpp.i
+
+src/security/scanner_process.s: src/security/scanner_process.cpp.s
+.PHONY : src/security/scanner_process.s
+
+# target to generate assembly for a file
+src/security/scanner_process.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/security/scanner_process.cpp.s
+.PHONY : src/security/scanner_process.cpp.s
 
 src/ytdlp_stream_server.o: src/ytdlp_stream_server.cpp.o
 .PHONY : src/ytdlp_stream_server.o
 
 # target to build an object file
 src/ytdlp_stream_server.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/ytdlp_stream_server.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/ytdlp_stream_server.cpp.o
 .PHONY : src/ytdlp_stream_server.cpp.o
 
 src/ytdlp_stream_server.i: src/ytdlp_stream_server.cpp.i
@@ -622,7 +670,7 @@ src/ytdlp_stream_server.i: src/ytdlp_stream_server.cpp.i
 
 # target to preprocess a source file
 src/ytdlp_stream_server.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/ytdlp_stream_server.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/ytdlp_stream_server.cpp.i
 .PHONY : src/ytdlp_stream_server.cpp.i
 
 src/ytdlp_stream_server.s: src/ytdlp_stream_server.cpp.s
@@ -630,7 +678,7 @@ src/ytdlp_stream_server.s: src/ytdlp_stream_server.cpp.s
 
 # target to generate assembly for a file
 src/ytdlp_stream_server.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v45.dir/build.make CMakeFiles/Nougat_Media_Suite_v45.dir/src/ytdlp_stream_server.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Nougat_Media_Suite_v46.dir/build.make CMakeFiles/Nougat_Media_Suite_v46.dir/src/ytdlp_stream_server.cpp.s
 .PHONY : src/ytdlp_stream_server.cpp.s
 
 # Help Target
@@ -641,13 +689,16 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... Nougat_Media_Suite_v45"
+	@echo "... Nougat_Media_Suite_v46"
 	@echo "... src/crawler/crawler_access_manager.o"
 	@echo "... src/crawler/crawler_access_manager.i"
 	@echo "... src/crawler/crawler_access_manager.s"
 	@echo "... src/diagnostics/diagnostic_engine.o"
 	@echo "... src/diagnostics/diagnostic_engine.i"
 	@echo "... src/diagnostics/diagnostic_engine.s"
+	@echo "... src/lan/lan_media_service.o"
+	@echo "... src/lan/lan_media_service.i"
+	@echo "... src/lan/lan_media_service.s"
 	@echo "... src/live_tv/tuner_backend.o"
 	@echo "... src/live_tv/tuner_backend.i"
 	@echo "... src/live_tv/tuner_backend.s"
@@ -702,6 +753,9 @@ help:
 	@echo "... src/search/secure_search.o"
 	@echo "... src/search/secure_search.i"
 	@echo "... src/search/secure_search.s"
+	@echo "... src/security/scanner_process.o"
+	@echo "... src/security/scanner_process.i"
+	@echo "... src/security/scanner_process.s"
 	@echo "... src/ytdlp_stream_server.o"
 	@echo "... src/ytdlp_stream_server.i"
 	@echo "... src/ytdlp_stream_server.s"

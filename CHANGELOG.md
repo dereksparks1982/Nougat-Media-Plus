@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.0.46 - World TV Repair, Scanner Control, Kaaba Live, and LAN Media Foundation
+
+- Repairs World TV video-window ownership and verifies actual libVLC startup before reporting playback.
+- Adds the official KSA Qur'an TV Kaaba Live shortcut on double-click of the top-left Nougat N.
+- Adds real scanner cancellation with process-group cleanup, partial-result preservation, separate Threat/Suspicious counters, and a tiered bulk scanning path.
+- Establishes WAN-independent versioned LAN media interfaces without cloud login, cloud relay, or automatic router exposure.
+- Makes root-executable cleanup and final Nougat N custom-icon verification permanent release gates.
+- Enforces README ordering: suite identity/introduction, current version, then older history.
+
 ## v0.0.45 - Secure Search Foundation, Privacy Broker & Crawler Access Architecture
 
 - Moved plaintext Search query delivery from child-process argv to private local stdin IPC.

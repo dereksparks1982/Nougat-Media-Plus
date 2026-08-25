@@ -1,5 +1,33 @@
 # Nougat Media Suite
 
+**Nougat Media Suite** is a native Linux media center and entertainment suite developed by Elderred Softworks LLC. It brings local movies and television, live broadcast TV, international World TV, streaming video, decentralized Search, media discovery, games and emulation, P2P media, security analysis, diagnostics, and media-server features together in one desktop application built around Nougat's own interface and native player.
+
+Nougat's **Library** organizes local Movies and TV into collections, series, seasons, and episodes with artwork, metadata, resume history, Continue Watching, recommendations, and direct native playback. **Discover** combines local recommendation intelligence with optional TMDb discovery. **Live TV** supports local tuner-based broadcast television and guide data, while **World TV** provides a dedicated area for direct international broadcaster streams. **Stream** handles supported online video services through Nougat's native playback workflow rather than handing normal playback off to a separate media player.
+
+**Games** provides a unified game library and emulator front end with persistent ROM folders, ZIP-contained game discovery, system recognition, artwork, controller support, automatic emulator selection, and bundled emulator runtimes for supported systems. Legally redistributable test and homebrew content may be included, while users provide their own commercial game dumps and any required firmware or BIOS.
+
+**Nougat Search** is being developed as a decentralized, privacy-first search system. Its Secure Search architecture separates user queries from crawler networking, keeps plaintext queries out of ordinary process arguments and logs, removes silent less-private fallback paths, and is designed around replaceable privacy components so stronger transports and private-retrieval technologies can be added without rebuilding the entire Search system.
+
+Nougat also includes built-in **P2P downloading and stream-while-downloading playback**, on-demand **security analysis**, evidence-based **system diagnostics**, local recommendation AI, persistent viewing history, and an integrated Jellyfin-backed catalog/server foundation. v0.0.46 adds cancellable process-group security scanning with a faster tiered bulk-scan path, verified-start World TV handling, a double-click Nougat N shortcut to the official KSA Qur'an TV live view of Masjid al-Haram, and the versioned local-only foundation for future phone, tablet, laptop, and TV-browser access to locally owned media. The LAN design explicitly requires local media access to remain independent of WAN Internet connectivity and does not require a cloud login, automatic router port forwarding, or a cloud relay.
+
+## v0.0.46 - World TV Repair, Scanner Control, Kaaba Live, and LAN Media Foundation
+
+v0.0.46 repairs owner-reported release and runtime failures while preserving the v0.0.45 Secure Search privacy contract.
+
+- Repairs X11/libVLC window ownership so the World TV video drawable is unmapped outside the native player and cannot cover the World TV station list.
+- Adds a verified World TV startup window: a successful libVLC `play()` request is no longer treated as proof of playback; Playing/Paused verifies startup, while timeout/error states enter bounded reconnect and then report a truthful failure.
+- Adds the approved Kaaba Live shortcut: double-click the small Nougat N beside the application name to open the verified official KSA Qur'an TV live broadcast of Masjid al-Haram through Nougat's native Stream/player path.
+- Turns the Virus Scan `Scan Again` control into a real `Stop Scan` control while a scan is running.
+- Runs the security worker in its own process group and terminates that complete Nougat-owned group on Stop Scan or app shutdown, preventing orphaned capa/ClamAV children.
+- Preserves partial scan output on cancellation and reports `SCAN CANCELLED` instead of pretending the scan completed.
+- Separates live **Threats** and **Suspicious** counts instead of combining both into one ambiguous `flagged` number.
+- Reworks collection/system scanning around one bulk ClamAV collection pass, broad fast checks, and deep capa/reputation analysis only when an indicator justifies it.
+- Adds the versioned LAN media-service foundation for catalog/history, direct media delivery, future HLS/transcoding, pairing, and a local web UI, with `nougat.local` reserved for friendly discovery and direct local-IP access retained as the fallback.
+- LAN architecture is WAN-independent by rule: no cloud account, cloud relay, automatic UPnP/port-forwarding, or Internet round trip is required for locally owned media.
+- Adds permanent release gates requiring exactly one root Nougat executable, the current `Nougat_Media_Suite_v46`, and the approved Nougat N custom icon on that final binary after the last copy/write.
+- Adds a README order gate: product heading and full suite introduction first, current version notes second, older version history afterward.
+- Preserves v0.0.45 Secure Search fail-closed behavior and accepted player, Library, Discover, Live TV, Stream, Studio, Games, P2P, diagnostics, and media-server behavior outside this repair scope.
+
 ## v0.0.45 - Secure Search Foundation
 
 Nougat Search now has a fail-closed privacy foundation. User queries are sent to a local no-network search worker through private stdin IPC instead of process arguments, automatic live-discovery fallback is removed, crawler networking is separated from user Search, and plaintext remote peer Search is disabled until a versioned Privacy Broker transport can satisfy Nougat's privacy policy. The crawler now uses a truthful Nougat Search identity and reports access restrictions such as robots policy, bot-policy blocks, rate limits, authentication, payment-required responses, feeds, and temporary unavailability.

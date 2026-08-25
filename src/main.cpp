@@ -51,6 +51,8 @@
 #include "recommendations/watch_provider_preferences.hpp"
 #include "nougat/nougat_bridge.hpp"
 #include "search/secure_search.hpp"
+#include "security/scanner_process.hpp"
+#include "lan/lan_media_service.hpp"
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -726,6 +728,7 @@ struct SecurityUiState {
     int files_scanned = 0;
     int total_files = 0;
     int detections = 0;
+    int suspicious = 0;
     long long elapsed_ms = 0;
     std::string current_path;
     std::vector<std::string> repeat_arguments;
@@ -1144,6 +1147,9 @@ public:
     bool worldTvReconnectEnabled=false;
     int worldTvReconnectAttempts=0;
     long long worldTvNextReconnectMs=0;
+    long long worldTvStartupDeadlineMs=0;
+    bool worldTvPlaybackVerified=false;
+    long long kaabaBadgeLastClickMs=0;
     std::string liveTvPlayingLabel;
     long long sessionTime=0;
     Cursor blankCursor=0, normalCursor=0;
@@ -1308,6 +1314,7 @@ public:
     int p2pPriorityPreset = 4;
     P2PStreamServer p2pStream{p2p};
     reddmedia::MediaServerManager mediaServer;
+    reddmedia::lan::LanMediaService lanMedia;
     reddmedia::NougatTunerBackend tunerBackend;
     std::shared_ptr<LiveTvScanUiState> liveTvScanState = std::make_shared<LiveTvScanUiState>();
     std::thread liveTvScanWorker;
@@ -1394,6 +1401,7 @@ public:
     std::thread nougatCrawlWorker;
     std::shared_ptr<SecurityUiState> securityState = std::make_shared<SecurityUiState>();
     std::thread securityWorker;
+    std::shared_ptr<reddmedia::security::ScannerProcess> securityProcess = std::make_shared<reddmedia::security::ScannerProcess>();
     int securityScroll = 0;
     std::shared_ptr<GameUiState> gameState = std::make_shared<GameUiState>();
     std::thread gameScanWorker;
@@ -2434,6 +2442,7 @@ public:
         }
         if (mediaServer.persistent_enabled()) mediaServer.start();
         else mediaServer.refresh();
+        lanMedia.prepare();
         liveTvChannels = tunerBackend.load_channels();
         liveTvPrograms = tunerBackend.load_guide();
         restore_live_tv_last_channel();
@@ -2752,7 +2761,7 @@ public:
         if (!video) return;
         if (currentView == ViewMode::Home || currentView == ViewMode::Library || currentView == ViewMode::Discover ||
             currentView == ViewMode::Nougat || currentView == ViewMode::Stream || currentView == ViewMode::Studio || currentView == ViewMode::Games || currentView == ViewMode::P2P ||
-            currentView == ViewMode::Debug || currentView == ViewMode::LiveTV) {
+            currentView == ViewMode::Debug || currentView == ViewMode::LiveTV || currentView == ViewMode::WorldTV) {
             if (videoActivityOverlayWindow) XUnmapWindow(d, videoActivityOverlayWindow);
             XUnmapWindow(d, video);
             return;
@@ -3858,7 +3867,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.45";
+        const std::string versionLabel = "v0.0.46";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -4891,7 +4900,14 @@ public:
         redraw();
     }
 
-    void direct_watch_stream() {
+    void open_kaaba_live() {
+        ytdlpUrl="https://www.youtube.com/live/Cm1v4bteXbI";
+        streamPlatform=StreamPlatform::YouTube;
+        ytdlpStatus="Kaaba Live: opening verified official KSA Qur'an TV in Nougat's native player...";
+        direct_watch_stream();
+    }
+
+        void direct_watch_stream() {
         if (ytdlpUrl.empty()) {
             ytdlpStatus = "Paste a video URL first.";
             redraw();
@@ -8263,28 +8279,53 @@ public:
         worldTvReconnectEnabled=true;
         if (!reconnect) worldTvReconnectAttempts=0;
         worldTvNextReconnectMs=0;
+        worldTvPlaybackVerified=false;
+        worldTvStartupDeadlineMs=now_ms()+12000;
     }
 
     void poll_world_tv_reconnect() {
         if (!currentMediaIsWorldTv || !worldTvReconnectEnabled || !mp || !api.get_state) return;
-        const int state = api.get_state(mp);
-        // libVLC 3.x: Ended=6, Error=7. A transient live endpoint ending is
-        // treated as recoverable; explicit Stop disarms reconnect above.
-        if (state != 6 && state != 7) return;
-        const long long now = now_ms();
-        if (now < worldTvNextReconnectMs) return;
-        if (worldTvReconnectAttempts >= 3) {
-            worldTvReconnectEnabled=false;
-            worldTvStatus="World TV stream ended after three automatic reconnect attempts.";
+        const int state=api.get_state(mp);
+        const long long now=now_ms();
+
+        if (state==3 || state==4) {
+            if (!worldTvPlaybackVerified) {
+                worldTvPlaybackVerified=true;
+                worldTvStartupDeadlineMs=0;
+                worldTvReconnectAttempts=0;
+                const auto& stations=world_tv_catalog();
+                if (worldTvPlayingIndex>=0 && worldTvPlayingIndex<static_cast<int>(stations.size()))
+                    worldTvStatus="Playing "+stations[static_cast<std::size_t>(worldTvPlayingIndex)].name+".";
+                redraw();
+            }
             return;
         }
+
+        const bool startupTimedOut=!worldTvPlaybackVerified && worldTvStartupDeadlineMs>0 &&
+                                   now>=worldTvStartupDeadlineMs;
+        const bool hardFailure=(state==5 || state==6 || state==7);
+        if (!startupTimedOut && !hardFailure) return;
+        if (now<worldTvNextReconnectMs) return;
+
+        if (worldTvReconnectAttempts>=3) {
+            worldTvReconnectEnabled=false;
+            worldTvStartupDeadlineMs=0;
+            worldTvStatus=startupTimedOut
+                ? "World TV source did not begin verified playback after three attempts."
+                : "World TV source failed after three automatic reconnect attempts.";
+            redraw();
+            return;
+        }
+
         const int index=worldTvPlayingIndex;
         ++worldTvReconnectAttempts;
         worldTvNextReconnectMs=now+2500;
-        if (index >= 0) watch_world_tv_station(index, true);
+        worldTvStatus="World TV playback not yet verified. Retrying source...";
+        redraw();
+        if (index>=0) watch_world_tv_station(index,true);
     }
 
-    void draw_world_tv_screen(Drawable target) {
+            void draw_world_tv_screen(Drawable target) {
         const ViewPalette palette=palette_for(ViewMode::WorldTV);
         const Rect frame=page_content_frame(ViewMode::WorldTV);
         draw_quilted_background(target,frame,ViewMode::WorldTV);
@@ -9034,7 +9075,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.45";
+        input.app_version = "Nougat Media Suite v0.0.46";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -9817,104 +9858,129 @@ public:
         return exists_file(runtime) ? runtime : std::string("python3");
     }
     static bool parse_security_progress(const std::string& line, int& scanned, int& total,
-                                        int& detections, long long& elapsed_ms, std::string& path) {
+                                        int& threats, int& suspicious, long long& elapsed_ms,
+                                        std::string& path) {
         const std::string prefix = "PROGRESS=";
         if (line.rfind(prefix, 0U) != 0U) return false;
         const std::string body = line.substr(prefix.size());
         const std::size_t p1 = body.find('|');
-        if (p1 == std::string::npos) return false;
-        const std::size_t p2 = body.find('|', p1 + 1U);
-        if (p2 == std::string::npos) return false;
-        const std::size_t p3 = body.find('|', p2 + 1U);
-        if (p3 == std::string::npos) return false;
-        const std::size_t p4 = body.find('|', p3 + 1U);
-        if (p4 == std::string::npos) return false;
-        scanned = std::max(0, std::atoi(body.substr(0, p1).c_str()));
+        const std::size_t p2 = p1 == std::string::npos ? p1 : body.find('|', p1 + 1U);
+        const std::size_t p3 = p2 == std::string::npos ? p2 : body.find('|', p2 + 1U);
+        const std::size_t p4 = p3 == std::string::npos ? p3 : body.find('|', p3 + 1U);
+        const std::size_t p5 = p4 == std::string::npos ? p4 : body.find('|', p4 + 1U);
+        if (p1 == std::string::npos || p2 == std::string::npos || p3 == std::string::npos ||
+            p4 == std::string::npos || p5 == std::string::npos) return false;
+        scanned = std::max(0, std::atoi(body.substr(0U, p1).c_str()));
         total = std::max(0, std::atoi(body.substr(p1 + 1U, p2 - p1 - 1U).c_str()));
-        detections = std::max(0, std::atoi(body.substr(p2 + 1U, p3 - p2 - 1U).c_str()));
-        elapsed_ms = std::max(0LL, std::atoll(body.substr(p3 + 1U, p4 - p3 - 1U).c_str()));
-        path = body.substr(p4 + 1U);
+        threats = std::max(0, std::atoi(body.substr(p2 + 1U, p3 - p2 - 1U).c_str()));
+        suspicious = std::max(0, std::atoi(body.substr(p3 + 1U, p4 - p3 - 1U).c_str()));
+        elapsed_ms = std::max(0LL, std::atoll(body.substr(p4 + 1U, p5 - p4 - 1U).c_str()));
+        path = body.substr(p5 + 1U);
         return true;
     }
-    void start_security_command(const std::vector<std::string>& arguments, const std::string& target,
+
+            void start_security_command(const std::vector<std::string>& arguments, const std::string& target,
                                 bool folder, const std::string& origin="Manual", bool remember=true) {
         if (arguments.empty() || target.empty()) return;
+        (void)origin;
         {
             std::lock_guard<std::mutex> lock(securityState->mutex);
             if (securityState->busy) return;
         }
         if (securityWorker.joinable()) securityWorker.join();
+
+        const std::shared_ptr<SecurityUiState> state = securityState;
+        const std::shared_ptr<reddmedia::security::ScannerProcess> process = securityProcess;
         {
-            std::lock_guard<std::mutex> lock(securityState->mutex);
-            securityState->busy = true;
-            securityState->updated = false;
-            securityState->folder = folder;
-            securityState->target = target;
-            securityState->verdict = "SCANNING";
-            securityState->status = origin + " scan running.";
-            securityState->report = "Scanning...";
-            securityState->files_scanned = 0;
-            securityState->total_files = 0;
-            securityState->detections = 0;
-            securityState->elapsed_ms = 0;
-            securityState->current_path.clear();
-            if (remember) securityState->repeat_arguments = arguments;
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->busy = true;
+            state->updated = false;
+            state->folder = folder;
+            state->files_scanned = 0;
+            state->total_files = 0;
+            state->detections = 0;
+            state->suspicious = 0;
+            state->elapsed_ms = 0;
+            state->current_path.clear();
+            if (remember) state->repeat_arguments = arguments;
+            state->target = target;
+            state->status = "Starting security analysis...";
+            state->verdict = "WORKING";
+            state->report.clear();
         }
         securityScroll = 0;
         redraw();
-        const std::shared_ptr<SecurityUiState> state = securityState;
+
         const std::string python = security_python();
         const std::string worker = exe_dir()+"/components/security/nougat_security_worker.py";
-        securityWorker = std::thread([state,python,worker,arguments]() {
-            std::string command = shell_quote(python) + " " + shell_quote(worker);
-            for (const std::string& argument : arguments) command += " " + shell_quote(argument);
-            command += " 2>&1";
-            FILE* pipe = popen(command.c_str(), "r");
+        securityWorker = std::thread([state,process,python,worker,arguments]() {
+            std::vector<std::string> childArguments;
+            childArguments.reserve(arguments.size() + 1U);
+            childArguments.push_back(worker);
+            childArguments.insert(childArguments.end(), arguments.begin(), arguments.end());
+
             std::string report;
-            if (pipe) {
-                char buffer[4096];
-                while (fgets(buffer, sizeof(buffer), pipe)) {
-                    std::string line(buffer);
-                    while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
-                    int scanned = 0;
-                    int total = 0;
-                    int detections = 0;
-                    long long elapsed_ms = 0;
-                    std::string current_path;
-                    if (parse_security_progress(line, scanned, total, detections, elapsed_ms, current_path)) {
-                        std::lock_guard<std::mutex> lock(state->mutex);
-                        state->files_scanned = scanned;
-                        state->total_files = total;
-                        state->detections = detections;
-                        state->elapsed_ms = elapsed_ms;
-                        state->current_path = current_path;
-                        continue;
-                    }
-                    report += line;
-                    report.push_back('\n');
+            std::string topVerdict;
+            const auto run = process->run(python, childArguments, [&](const std::string& line) {
+                int scanned=0,total=0,threats=0,suspicious=0;
+                long long elapsed=0;
+                std::string current;
+                if (parse_security_progress(line,scanned,total,threats,suspicious,elapsed,current)) {
+                    std::lock_guard<std::mutex> lock(state->mutex);
+                    state->files_scanned=scanned;
+                    state->total_files=total;
+                    state->detections=threats;
+                    state->suspicious=suspicious;
+                    state->elapsed_ms=elapsed;
+                    state->current_path=current;
+                    state->status="Scanning...";
+                    return;
                 }
-                pclose(pipe);
+                if (topVerdict.empty() && line.rfind("VERDICT=",0U)==0U)
+                    topVerdict=line.substr(8U);
+                report += line;
+                report += '\n';
+            });
+
+            std::string verdict = topVerdict.empty() ? "SCAN ERROR" : topVerdict;
+            if (run.cancelled || run.exit_code == 130) {
+                verdict = "SCAN CANCELLED";
+                if (!report.empty() && report.back() != '\n') report += '\n';
+                report += "\nRESULT: SCAN CANCELLED\n";
+                report += "Partial results above were preserved. Nougat stopped the complete scanner process group.\n";
+            } else if (!run.started) {
+                verdict = "SCAN ERROR";
+                report = "VERDICT=SCAN ERROR\nNougat could not start the security worker.\n";
             }
-            while (!report.empty() && (report.back() == '\n' || report.back() == '\r')) report.pop_back();
-            std::string verdict = "SCAN ERROR";
-            const std::string prefix="VERDICT=";
-            const std::size_t lineEnd=report.find('\n');
-            const std::string first=report.substr(0,lineEnd==std::string::npos?report.size():lineEnd);
-            if (first.rfind(prefix,0U)==0U) verdict=first.substr(prefix.size());
+
             std::lock_guard<std::mutex> lock(state->mutex);
             state->busy=false;
             state->updated=true;
             state->verdict=verdict;
-            state->report=report.empty()?"Scanner produced no report.":report;
-            if (verdict=="THREAT DETECTED") state->status="WARNING: threat detected. Nougat changed nothing. Review the report and decide what to do.";
-            else if (verdict=="SUSPICIOUS") state->status="WARNING: suspicious file characteristics detected. Nougat changed nothing.";
-            else if (verdict=="NO THREATS DETECTED") state->status="Scan complete. No threats detected by every required/relevant check.";
-            else if (verdict=="ANALYSIS INCOMPLETE") state->status="Analysis incomplete. Basic checks ran, but one or more required/relevant engines did not complete.";
-            else if (verdict=="ALREADY SCANNED") state->status="Automatic scan skipped because this unchanged file was already scanned.";
-            else state->status="Scan finished with an incomplete/error result.";
+            state->report=report.empty() ? "No report was produced." : report;
+            if (verdict=="THREAT DETECTED") state->status="Threat detected. Review the report before taking action.";
+            else if (verdict=="SUSPICIOUS") state->status="Suspicious file indicators found. Review the report.";
+            else if (verdict=="NO THREATS DETECTED") state->status="Scan completed. No threats detected by the checks that ran.";
+            else if (verdict=="ANALYSIS INCOMPLETE") state->status="Analysis incomplete. Review the report for unavailable engines.";
+            else if (verdict=="SCAN CANCELLED") state->status="Scan cancelled. Partial results were preserved.";
+            else if (verdict=="ALREADY SCANNED") state->status="Automatic scan skipped because the unchanged file was already scanned.";
+            else state->status="Scan finished with an error or incomplete result.";
         });
     }
-    void start_security_scan(const std::string& target, bool folder, const std::string& origin="Manual") {
+
+    void cancel_security_scan() {
+        bool busy=false;
+        {
+            std::lock_guard<std::mutex> lock(securityState->mutex);
+            busy=securityState->busy;
+            if (busy) securityState->status="Stopping scan and scanner children...";
+        }
+        if (!busy) return;
+        redraw();
+        if (securityProcess) securityProcess->cancel();
+    }
+
+            void start_security_scan(const std::string& target, bool folder, const std::string& origin="Manual") {
         const bool automatic = (origin == "Completed P2P download");
         std::vector<std::string> arguments;
         arguments.push_back(folder ? "--folder" : (automatic ? "--auto-file" : "--file"));
@@ -10019,17 +10085,19 @@ public:
         button_on(target,securityScanTvBtn,"Scan TV");
         button_on(target,securityQuickScanBtn,"Quick Scan");
         button_on(target,securitySystemScanBtn,"System Scan");
-        button_on(target,securityScanAgainBtn,"Scan Again");
+        bool securityBusyForButton=false;
+        { std::lock_guard<std::mutex> lock(securityState->mutex); securityBusyForButton=securityState->busy; }
+        button_on(target,securityScanAgainBtn,securityBusyForButton?"Stop Scan":"Scan Again");
         button_on(target,securityCommunityKeyBtn,security_auth_key_configured()?"Threat Intel ✓":"Threat Intel Key");
         button_on(target,securityHistoryBtn,"History");
         std::string status,verdict,report,targetPath,currentPath;
         bool busy=false;
-        int filesScanned=0,totalFiles=0,detections=0;
+        int filesScanned=0,totalFiles=0,detections=0,suspicious=0;
         long long elapsedMs=0;
         {
             std::lock_guard<std::mutex> lock(securityState->mutex);
             status=securityState->status; verdict=securityState->verdict; report=securityState->report; targetPath=securityState->target; busy=securityState->busy;
-            filesScanned=securityState->files_scanned; totalFiles=securityState->total_files; detections=securityState->detections;
+            filesScanned=securityState->files_scanned; totalFiles=securityState->total_files; detections=securityState->detections; suspicious=securityState->suspicious;
             elapsedMs=securityState->elapsed_ms; currentPath=securityState->current_path;
         }
         const unsigned long warningInk=(verdict=="THREAT DETECTED")?rgb8(155,25,25):
@@ -10039,7 +10107,7 @@ public:
             std::ostringstream progress;
             progress << "Scanning " << filesScanned;
             if (totalFiles > 0) progress << "/" << totalFiles;
-            progress << " files | flagged " << detections << " | " << format_time(elapsedMs);
+            progress << " files | Threats " << detections << " | Suspicious " << suspicious << " | " << format_time(elapsedMs);
             if (!currentPath.empty()) progress << " | " << currentPath;
             text(target,28,208,head_to_width(progress.str(),W-56),palette.muted);
         }
@@ -10141,7 +10209,12 @@ public:
                 show_menu(win, securitySystemScanBtn.x, securitySystemScanBtn.y + securitySystemScanBtn.h, items);
                 return;
             }
-            if (securityScanAgainBtn.contains(x,y)) { repeat_security_scan(); return; }
+            if (securityScanAgainBtn.contains(x,y)) {
+                bool busyNow=false;
+                { std::lock_guard<std::mutex> lock(securityState->mutex); busyNow=securityState->busy; }
+                if (busyNow) cancel_security_scan(); else repeat_security_scan();
+                return;
+            }
             if (securityCommunityKeyBtn.contains(x,y)) { save_security_auth_key(choose_security_auth_key_dialog()); redraw(); return; }
             if (securityHistoryBtn.contains(x,y)) { show_security_history(); redraw(); return; }
             return;
@@ -12472,6 +12545,22 @@ public:
         }
         if (button == Button3 && target == win && show_card_context_menu(x,y)) return;
         if (button != Button1) return;
+        const Rect nougatBrandBadge{
+            8,
+            (kTopBarH-nougat_media_suite_icon::kTopBar14Size)/2,
+            nougat_media_suite_icon::kTopBar14Size,
+            nougat_media_suite_icon::kTopBar14Size
+        };
+        if (target==win && y<kTopBarH && nougatBrandBadge.contains(x,y)) {
+            const long long clickNow=now_ms();
+            if (kaabaBadgeLastClickMs>0 && clickNow-kaabaBadgeLastClickMs<=500) {
+                kaabaBadgeLastClickMs=0;
+                open_kaaba_live();
+            } else {
+                kaabaBadgeLastClickMs=clickNow;
+            }
+            return;
+        }
         const bool topNavHit = y < kTopBarH && x >= topNavClipX && x < topNavClipRight;
         if (topNavHit && homeTab.contains(x,y)) {
             if (currentView != ViewMode::Home) switch_view(ViewMode::Home);
@@ -13265,11 +13354,8 @@ public:
             { std::lock_guard<std::mutex> lock(gameState->mutex); busy=gameState->busy; }
             if (busy) gameScanWorker.detach(); else gameScanWorker.join();
         }
-        if (securityWorker.joinable()) {
-            bool busy=false;
-            { std::lock_guard<std::mutex> lock(securityState->mutex); busy=securityState->busy; }
-            if (busy) securityWorker.detach(); else securityWorker.join();
-        }
+        if (securityProcess) securityProcess->cancel();
+        if (securityWorker.joinable()) securityWorker.join();
         nougat.stop_node();
         // v0.0.33: closing the desktop UI must not stop the explicitly started
         // Nougat-owned media server. Stop Server is the only normal shutdown path.
@@ -13300,7 +13386,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.45\n");
+        printf("Nougat Media Suite v0.0.46\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v44-release-self-test") {
@@ -13329,10 +13415,10 @@ int main(int argc, char** argv) {
             !safe_zip_game_entry("/probe.nes") &&
             !safe_zip_game_entry("folder/readme.txt");
         if (grid_ok && games_layout_ok && world_tv_ok && formats_ok && zip_ok) {
-            printf("Nougat Media Suite v0.0.45 release self-test PASS\n");
+            printf("Nougat Media Suite v0.0.46 release self-test PASS\n");
             return 0;
         }
-        fprintf(stderr, "Nougat Media Suite v0.0.45 release self-test FAIL: grid=%d formats=%d zip=%d\n",
+        fprintf(stderr, "Nougat Media Suite v0.0.46 release self-test FAIL: grid=%d formats=%d zip=%d\n",
                 grid_ok ? 1 : 0, formats_ok ? 1 : 0, zip_ok ? 1 : 0);
         return 1;
     }

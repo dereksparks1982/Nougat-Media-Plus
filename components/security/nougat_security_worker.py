@@ -17,6 +17,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -583,10 +584,112 @@ def load_mapped_library_roots(kind: str) -> list[Path]:
     return roots
 
 
-def emit_progress(path: Path, scanned: int, total: int, detections: int, started: float) -> None:
+def emit_progress(path: Path, scanned: int, total: int, threats: int, suspicious: int, started: float) -> None:
     elapsed_ms = int((time.monotonic() - started) * 1000.0)
     clean_path = str(path).replace("\n", " ").replace("\r", " ")
-    print(f"PROGRESS={scanned}|{total}|{detections}|{elapsed_ms}|{clean_path}", flush=True)
+    print(f"PROGRESS={scanned}|{total}|{threats}|{suspicious}|{elapsed_ms}|{clean_path}", flush=True)
+
+
+def bulk_clamav_scan(files: list[Path]) -> dict[str, dict[str, Any]]:
+    # One ClamAV process handles the collection instead of one process per file.
+    results: dict[str, dict[str, Any]] = {}
+    clamscan = shutil.which("clamscan")
+    if not clamscan or not files:
+        return results
+    list_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", prefix="nougat-clam-", suffix=".txt", delete=False) as handle:
+            list_path = Path(handle.name)
+            for path in files:
+                handle.write(str(path) + "\n")
+        proc = subprocess.run(
+            [clamscan, "--no-summary", "--stdout", f"--file-list={list_path}"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        for line in proc.stdout.splitlines():
+            path_text, sep, status = line.rpartition(": ")
+            if not sep:
+                continue
+            results[path_text] = {
+                "engine": "ClamAV", "available": True,
+                "detected": status.endswith("FOUND"), "message": status,
+            }
+    except Exception as exc:
+        results["__error__"] = {
+            "engine": "ClamAV", "available": False, "detected": False,
+            "message": f"Bulk ClamAV pass unavailable: {exc}",
+        }
+    finally:
+        if list_path is not None:
+            try:
+                list_path.unlink()
+            except OSError:
+                pass
+    return results
+
+
+def scan_one_bulk(path: Path, online: bool, clam_result: dict[str, Any]) -> dict[str, Any]:
+    stat = path.stat()
+    ftype = magika_type(path)
+    ext_findings = extension_findings(path, ftype)
+    yara = yara_scan(path)
+    clam = clam_result or {
+        "engine": "ClamAV", "available": False, "detected": False,
+        "message": "Bulk engine unavailable",
+    }
+
+    local_threat = bool(yara.get("matches")) or bool(clam.get("detected"))
+    suspicious = bool(ext_findings)
+    deep = local_threat or suspicious
+
+    digest = ""
+    capa: dict[str, Any] = {
+        "engine": "capa", "applicable": looks_capa_compatible(ftype, path),
+        "available": False, "summary": [], "error": "Skipped by bulk fast-pass policy",
+    }
+    telemetry: dict[str, Any] = {
+        "configured": False,
+        "malwarebazaar": "Skipped by bulk fast-pass policy",
+        "threatfox": "Skipped by bulk fast-pass policy",
+        "urlhaus": "Skipped by bulk fast-pass policy",
+        "known_malicious": False,
+    }
+    if deep:
+        digest = sha256_file(path)
+        capa = capa_scan(path, ftype)
+        if online:
+            telemetry = community_telemetry(digest)
+
+    threat = local_threat or bool(telemetry.get("known_malicious"))
+    incomplete_reasons: list[str] = []
+    if ftype.get("engine") != "Magika":
+        incomplete_reasons.append("Magika file-type runtime unavailable")
+    if not yara.get("available"):
+        incomplete_reasons.append("YARA-X runtime unavailable")
+    elif yara.get("errors"):
+        incomplete_reasons.append("YARA-X did not complete cleanly")
+    if deep and capa.get("applicable") and (not capa.get("available") or capa.get("error")):
+        incomplete_reasons.append("capa deep analysis unavailable or incomplete")
+
+    if threat:
+        verdict = "THREAT DETECTED"
+    elif suspicious:
+        verdict = "SUSPICIOUS"
+    elif incomplete_reasons:
+        verdict = "ANALYSIS INCOMPLETE"
+    else:
+        verdict = "NO THREATS DETECTED"
+
+    result = {
+        "path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns,
+        "sha256": digest or "(not computed in ordinary bulk fast pass)",
+        "type": ftype, "extension_findings": ext_findings, "yara": yara,
+        "capa": capa, "clamav": clam, "telemetry": telemetry,
+        "verdict": verdict, "incomplete_reasons": incomplete_reasons,
+    }
+    if deep:
+        record_history(result)
+    return result
+
 
 
 def scan_collection(roots: list[Path], label: str, online: bool, *,
@@ -599,19 +702,22 @@ def scan_collection(roots: list[Path], label: str, online: bool, *,
         "",
         "Roots: " + (", ".join(str(p) for p in roots) if roots else "(none)"),
         f"Files discovered: {len(files)}",
-        "Community threat-intelligence lookups: " + ("enabled" if online else "skipped for this bulk scan"),
+        "Bulk policy: one ClamAV collection pass; broad fast checks; capa/reputation only after an indicator justifies deep analysis.",
         "",
     ]
-    worst = 0
-    detections = 0
-    incomplete = 0
-    suspicious = 0
-    errors = 0
+
+    clam_results = bulk_clamav_scan(files)
+    worst = detections = suspicious = incomplete = errors = 0
     details: list[str] = []
     sample_lines: list[str] = []
+
     for i, path in enumerate(files, 1):
         try:
-            result = scan_one(path, online=online)
+            clam = clam_results.get(str(path), clam_results.get("__error__", {
+                "engine": "ClamAV", "available": False, "detected": False,
+                "message": "No bulk result",
+            }))
+            result = scan_one_bulk(path, online=online, clam_result=clam)
             severity = {"NO THREATS DETECTED": 0, "ANALYSIS INCOMPLETE": 1,
                         "SUSPICIOUS": 2, "THREAT DETECTED": 3}.get(result["verdict"], 1)
             worst = max(worst, severity)
@@ -635,7 +741,7 @@ def scan_collection(roots: list[Path], label: str, online: bool, *,
             errors += 1
             if len(sample_lines) < 180:
                 sample_lines.append(f"[{i}/{len(files)}] ERROR: {path}: {exc}")
-        emit_progress(path, i, len(files), detections + suspicious, started)
+        emit_progress(path, i, len(files), detections, suspicious, started)
 
     verdict = ["NO THREATS DETECTED", "ANALYSIS INCOMPLETE", "SUSPICIOUS", "THREAT DETECTED"][worst]
     lines[0] = "VERDICT=" + verdict
