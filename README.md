@@ -2,20 +2,6 @@
 
 Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application.
 
-## v0.0.43 - Games, World TV, and Responsive Grid Repair
-
-- Repairs the shared Movies/TV Library grid so the responsive card layout can use multiple rows instead of collapsing into one long row.
-- Expands Games with Grid and List views, system and source badges, double-click launch, persistent linked ROM folders, and automatic selection among supported installed emulator backends.
-- Adds ZIP-contained ROM discovery and safe extraction into Nougat's private game cache.
-- Adds Atari 2600, Atari 5200, Atari 7800, Atari 8-bit, and Atari Lynx ROM recognition alongside the existing Nintendo systems.
-- Adds local sidecar game artwork support while preserving the legally redistributable bundled NES starter games and their upstream license records.
-- Adds tested Manta USB gamepad recognition while leaving actual button mapping to the selected emulator backend.
-- Expands the World TV source catalog with additional legitimate broadcaster-owned international live sources without using device location to filter the catalog.
-- Adds Al Jazeera Arabic to the World TV source catalog.
-- Repairs Discover > My Services with a wider draggable scrollbar, reserved scrollbar gutter, and improved service-row spacing.
-- Preserves the approved Nougat N application identity and existing working behavior outside the v0.0.43 scope.
-
-
 ## v0.0.42 - Persistent Libraries, Live TV Maintenance, Security, Intelligence, and Games
 
 v0.0.42 builds from the sealed v0.0.41 baseline and preserves the accepted native-player and page behavior outside the owner-approved scope.
@@ -780,3 +766,27 @@ This replacement v0.0.19 candidate includes the recommendation/viewing-history s
 
 This candidate adds internal mouse Back/Forward navigation, cleans the Library header and Nougat icon perimeter, upgrades Debug into an evidence-based Diagnostic Center with TXT/JSON/redacted support-bundle exports, cleans and centers the intentional 0-200% volume control, fixes top-header layering during horizontal tab scrolling, and adds a 10-second TV Up Next overlay with Play Next / Back to Series / Replay. P2P feature expansion was later moved to v0.0.32 after the owner split v0.0.28/v0.0.29 into UI/artwork and TV-reliability releases.
 - v0.0.33 server-stop repair: persistent Nougat-owned Jellyfin sessions carry a per-session ownership token; Stop Server terminates the complete owned process tree and verifies port 8096 is released without killing Jellyfin by name.
+
+## v0.0.43 — Games, World TV, and Responsive Grid Repair
+
+What this build added:
+
+- Repairs the Movies and TV Library responsive grid so poster browsing can use multiple rows instead of collapsing into one long row.
+- Expands the Games library with Grid and List views.
+- Adds system and source badges to Games entries.
+- Adds double-click game launching.
+- Keeps linked ROM folders persistent between Nougat sessions.
+- Adds ZIP-contained ROM discovery.
+- Safely extracts selected ZIP-contained ROMs into Nougat's private cache for playback.
+- Adds automatic game-system recognition for supported ROM formats.
+- Supports Nintendo Entertainment System, Super Nintendo, Game Boy, Game Boy Color, Game Boy Advance, Nintendo 64, Atari 2600, Atari 5200, Atari 7800, Atari 8-bit, and Atari Lynx ROM formats.
+- Automatically selects among compatible emulator backends already installed on the system.
+- Adds local sidecar box-art support for Games library entries.
+- Preserves the legally redistributable bundled NES starter games and their upstream license and attribution records.
+- Adds recognition of the tested Manta USB gamepad while leaving button mapping to the selected emulator backend.
+- Expands World TV with additional legitimate broadcaster-owned international live sources.
+- Adds Al Jazeera Arabic and DW News to the World TV catalog.
+- Keeps World TV language-agnostic and does not filter its catalog according to the user's location.
+- Repairs Discover My Services with a wider draggable scrollbar.
+- Adds a reserved scrollbar gutter so provider text does not collide with the scrollbar.
+- Improves My Services provider-row spacing.
