@@ -630,6 +630,7 @@ enum class ViewMode { Home, VideoPlayer, Library, Discover, LiveTV, Nougat, Stre
 enum class NougatPanel { Search, Crawler, P2P, VirusScan, Archive };
 enum class StreamPlatform { YouTube, Vimeo, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
+enum class GamesDisplayMode { Grid, List };
 enum class GamesPanel { Library, Systems, Controllers, Settings };
 enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
 enum class YtDlpJob { Idle, Download };
@@ -780,6 +781,9 @@ struct GameEntry {
     std::string path;
     std::string system;
     bool bundled = false;
+    bool archived = false;
+    std::string archive_entry;
+    std::string artwork_path;
 };
 
 struct GameUiState {
@@ -798,6 +802,11 @@ static std::string game_system_for_path(const std::string& path) {
     if (ends_with_lower(lower, ".gb") || ends_with_lower(lower, ".gbc")) return "Game Boy";
     if (ends_with_lower(lower, ".gba")) return "Game Boy Advance";
     if (ends_with_lower(lower, ".n64") || ends_with_lower(lower, ".z64") || ends_with_lower(lower, ".v64")) return "Nintendo 64";
+    if (ends_with_lower(lower, ".a26")) return "Atari 2600";
+    if (ends_with_lower(lower, ".a52")) return "Atari 5200";
+    if (ends_with_lower(lower, ".a78")) return "Atari 7800";
+    if (ends_with_lower(lower, ".atr") || ends_with_lower(lower, ".xfd")) return "Atari 8-bit";
+    if (ends_with_lower(lower, ".lnx")) return "Atari Lynx";
     return {};
 }
 
@@ -806,6 +815,37 @@ static std::string game_title_from_path(const std::string& path) {
     for (char& c : title) if (c == '_' || c == '-') c = ' ';
     while (title.find("  ") != std::string::npos) title.replace(title.find("  "), 2, " ");
     return title.empty() ? basename_only(path) : title;
+}
+
+static unsigned long long stable_game_cache_hash(const std::string& value) {
+    unsigned long long hash = 1469598103934665603ULL;
+    for (unsigned char byte : value) {
+        hash ^= static_cast<unsigned long long>(byte);
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
+static bool safe_zip_game_entry(const std::string& entry) {
+    if (entry.empty() || entry.front() == '/' || entry.front() == '\\') return false;
+    if (entry.find("../") != std::string::npos || entry.find("..\\") != std::string::npos) return false;
+    return !game_system_for_path(entry).empty();
+}
+
+static std::string game_sidecar_artwork(const std::string& path) {
+    const std::filesystem::path source(path);
+    const std::filesystem::path folder = source.parent_path();
+    const std::string stem = source.stem().string();
+    const std::filesystem::path candidates[] = {
+        folder / (stem + ".png"), folder / (stem + ".jpg"), folder / (stem + ".jpeg"),
+        folder / (stem + ".bmp"), folder / "cover.png", folder / "cover.jpg", folder / "cover.jpeg", folder / "cover.bmp"
+    };
+    std::error_code ec;
+    for (const auto& candidate : candidates) {
+        if (std::filesystem::is_regular_file(candidate, ec)) return candidate.string();
+        ec.clear();
+    }
+    return {};
 }
 
 static void scan_game_directory(const std::string& root, bool bundled,
@@ -822,8 +862,24 @@ static void scan_game_directory(const std::string& root, bool bundled,
         if (entry.is_symlink(ec) || !entry.is_regular_file(ec)) continue;
         const std::string path = entry.path().string();
         const std::string system = game_system_for_path(path);
-        if (system.empty() || !seen.insert(path).second) continue;
-        games.push_back({game_title_from_path(path), path, system, bundled});
+        if (!system.empty()) {
+            if (!seen.insert(path).second) continue;
+            games.push_back({game_title_from_path(path), path, system, bundled, false, {}, game_sidecar_artwork(path)});
+            continue;
+        }
+        if (!ends_with_lower(path, ".zip")) continue;
+        const std::string listing = run_command_capture("unzip -Z1 " + shell_quote(path) + " 2>/dev/null");
+        if (listing.empty()) continue;
+        std::istringstream lines(listing);
+        std::string archivedName;
+        while (std::getline(lines, archivedName)) {
+            while (!archivedName.empty() && archivedName.back() == '\r') archivedName.pop_back();
+            if (!safe_zip_game_entry(archivedName)) continue;
+            const std::string key = path + "::" + archivedName;
+            if (!seen.insert(key).second) continue;
+            games.push_back({game_title_from_path(archivedName), path, game_system_for_path(archivedName), bundled,
+                             true, archivedName, game_sidecar_artwork(path)});
+        }
     }
 }
 
@@ -1049,7 +1105,7 @@ public:
     Rect discoverServicesBackBtn;
     Rect discoverServicesScrollTrack, discoverServicesScrollThumb;
     Rect gamesLibraryBtn, gamesSystemsBtn, gamesAddBtn, gamesControllersBtn, gamesSettingsBtn;
-    Rect gamesPlayBtn, gamesRefreshBtn, gamesListBox;
+    Rect gamesPlayBtn, gamesRefreshBtn, gamesGridBtn, gamesListViewBtn, gamesListBox;
     Rect debugRunBtn, debugRetryBtn, debugMetadataBtn, debugTmdbBtn;
     Rect debugServerBtn, debugLogsBtn, debugCopyBtn, debugExportTextBtn, debugExportJsonBtn, debugBundleBtn, debugListBox;
     Rect streamYoutubeTab, streamVimeoTab, streamRumbleTab, streamRutubeTab, streamVkTab, streamOkTab;
@@ -1324,9 +1380,14 @@ public:
     std::shared_ptr<GameUiState> gameState = std::make_shared<GameUiState>();
     std::thread gameScanWorker;
     GamesPanel gamesPanel = GamesPanel::Library;
+    GamesDisplayMode gamesDisplayMode = GamesDisplayMode::Grid;
     int gamesSelected = -1;
     int gamesScroll = 0;
+    Time gamesLastClickTime = 0;
+    int gamesLastClickIndex = -1;
     std::vector<std::pair<Rect,int>> gameRows;
+    std::map<std::string, reddmedia::LibraryPoster> gameArtworkCache;
+    std::set<std::string> gameArtworkFailed;
     std::string lastP2PAutoScanTransfer;
     std::vector<std::string> pendingP2PAutoScanPaths;
     NougatPanel nougatPanel = NougatPanel::Search;
@@ -2516,6 +2577,8 @@ public:
         gamesSettingsBtn = {gamesX,kPageControlY,kCompactButtonW,kCompactButtonH};
         gamesPlayBtn = {28, 92, kCompactButtonW, kCompactButtonH};
         gamesRefreshBtn = {28 + kCompactButtonW, 92, kCompactButtonW, kCompactButtonH};
+        gamesGridBtn = {W - 28 - 2 * kCompactButtonW, 92, kCompactButtonW, kCompactButtonH};
+        gamesListViewBtn = {W - 28 - kCompactButtonW, 92, kCompactButtonW, kCompactButtonH};
         gamesListBox = {28, 130, std::max(240, W - 56), std::max(120, H - 158)};
 
         layout_button_row({&streamYoutubeTab,&streamVimeoTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab},
@@ -3704,7 +3767,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.42";
+        const std::string versionLabel = "v0.0.43";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -7176,21 +7239,25 @@ public:
             return metrics;
         }
 
-        // v0.0.42 owner geometry repair: choose the column count first and
-        // distribute the usable row width into those cards. v0.0.41 fixed the
-        // card width first, leaving a conspicuous unused strip beside the grid.
-        // Poster artwork remains exact 2:3.
+        // v0.0.43: solve height and width together. v0.0.42 used floor division
+        // for columns and then stretched the cards wider; the wider 2:3 posters
+        // could grow just enough to evict the second row. When two rows fit the
+        // panel, use ceiling division so redistributed card width stays at or
+        // below the height-safe target. Poster artwork remains exact 2:3.
         int target_width = 150;
-        if (inner_height >= 430) {
-            const int two_row_tile_height = std::max(218, (inner_height - metrics.gap) / 2);
-            const int two_row_poster_height = std::max(168, two_row_tile_height - 50);
-            target_width = std::max(112, std::min(150, two_row_poster_height * 2 / 3));
+        const bool prefer_two_rows = inner_height >= 430;
+        if (prefer_two_rows) {
+            const int two_row_tile_height = std::max(1, (inner_height - metrics.gap) / 2);
+            const int two_row_poster_height = std::max(1, two_row_tile_height - 50);
+            target_width = std::max(96, std::min(150, two_row_poster_height * 2 / 3));
         }
-        metrics.columns = std::max(1, (inner_width + metrics.gap) /
-                                      (target_width + metrics.gap));
+        const int pitch = target_width + metrics.gap;
+        metrics.columns = prefer_two_rows
+            ? std::max(1, (inner_width + metrics.gap + pitch - 1) / pitch)
+            : std::max(1, (inner_width + metrics.gap) / pitch);
         metrics.tileWidth = std::max(1,
             (inner_width - (metrics.columns - 1) * metrics.gap) / metrics.columns);
-        metrics.posterHeight = std::max(168, metrics.tileWidth * 3 / 2);
+        metrics.posterHeight = std::max(1, metrics.tileWidth * 3 / 2);
         metrics.tileHeight = metrics.posterHeight + 50;
         metrics.rows = std::max(1, (inner_height + metrics.gap) /
                                    (metrics.tileHeight + metrics.gap));
@@ -8042,14 +8109,15 @@ public:
     }
 
     static const std::vector<WorldTvStation>& world_tv_catalog() {
-        // v0.0.42 starter catalog uses broadcaster-owned live channels. These
-        // stable YouTube /live endpoints are resolved by Nougat's existing
-        // yt-dlp cache bridge at play time, so the actual media URL is never
-        // frozen into the build and can rotate upstream without an app update.
+        // v0.0.43 catalog: broadcaster-owned live channels only. Nougat does not
+        // geolocate the user to construct or filter this list. Upstream services
+        // may still enforce their own availability rules.
         static const std::vector<WorldTvStation> stations = {
             {"TRT World", "Türkiye", "English", "https://www.youtube.com/watch?v=ABfFhWzWs0s", "https://www.trtworld.com/"},
             {"France 24 English", "France", "English", "https://www.youtube.com/watch?v=Ap-UM1O9RBU", "https://www.france24.com/en/live"},
-            {"Al Jazeera English", "Qatar", "English", "https://www.youtube.com/watch?v=gCNeDWCI0vo", "https://www.aljazeera.com/live/"}
+            {"Al Jazeera English", "Qatar", "English", "https://www.youtube.com/watch?v=gCNeDWCI0vo", "https://www.aljazeera.com/live/"},
+            {"Al Jazeera Arabic", "Qatar", "Arabic", "https://www.youtube.com/watch?v=bNyUyrR0PHo", "https://www.aljazeera.net/live/"},
+            {"DW News", "Germany", "English", "https://www.youtube.com/watch?v=LuKwFajn37U", "https://www.dw.com/en/live-tv/channel-english"}
         };
         return stations;
     }
@@ -8772,7 +8840,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.42";
+        input.app_version = "Nougat Media Suite v0.0.43";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -10267,11 +10335,69 @@ public:
         else if (system == "Game Boy") candidates = {"sameboy", "mgba", "mesen2", "mesen"};
         else if (system == "Game Boy Advance") candidates = {"mgba"};
         else if (system == "Nintendo 64") candidates = {"mupen64plus"};
+        else if (system == "Atari 2600") candidates = {"stella"};
+        else if (system == "Atari 5200" || system == "Atari 8-bit") candidates = {"atari800"};
+        else if (system == "Atari 7800") candidates = {"a7800"};
+        else if (system == "Atari Lynx") candidates = {"mednafen"};
         for (const std::string& candidate : candidates) {
             const std::string found = run_command_capture("command -v " + candidate + " 2>/dev/null");
             if (!found.empty()) return candidate;
         }
         return {};
+    }
+
+    std::string extracted_game_path(const GameEntry& selected) const {
+        if (!selected.archived) return selected.path;
+        if (!exists_file(selected.path) || !safe_zip_game_entry(selected.archive_entry)) return {};
+        const std::filesystem::path entryPath(selected.archive_entry);
+        const std::string extension = entryPath.extension().string();
+        const std::string key = selected.path + "::" + selected.archive_entry;
+        const unsigned long long hash = stable_game_cache_hash(key);
+        const std::filesystem::path cacheDir = std::filesystem::path(home_dir()) / ".cache" / "reddmedia" / "games" / "extracted";
+        std::error_code ec;
+        std::filesystem::create_directories(cacheDir, ec);
+        if (ec) return {};
+        chmod(cacheDir.string().c_str(), 0700);
+        const std::filesystem::path finalPath = cacheDir / (std::to_string(hash) + extension);
+        if (std::filesystem::is_regular_file(finalPath, ec)) return finalPath.string();
+        ec.clear();
+        const std::filesystem::path temporary = finalPath.string() + ".tmp";
+        const std::string command = "unzip -p " + shell_quote(selected.path) + " " +
+                                    shell_quote(selected.archive_entry) + " > " + shell_quote(temporary.string());
+        if (std::system(command.c_str()) != 0 || !exists_file(temporary.string())) {
+            unlink(temporary.string().c_str());
+            return {};
+        }
+        chmod(temporary.string().c_str(), 0600);
+        if (rename(temporary.string().c_str(), finalPath.string().c_str()) != 0) {
+            unlink(temporary.string().c_str());
+            return {};
+        }
+        return finalPath.string();
+    }
+
+    bool cached_game_artwork(const GameEntry& game, reddmedia::LibraryPoster& poster) {
+        if (game.artwork_path.empty() || !exists_file(game.artwork_path)) return false;
+        auto cached = gameArtworkCache.find(game.artwork_path);
+        if (cached != gameArtworkCache.end()) { poster = cached->second; return true; }
+        if (gameArtworkFailed.count(game.artwork_path) != 0U) return false;
+        std::string bytes;
+        std::string error;
+        bool ok = false;
+        if (ends_with_lower(game.artwork_path, ".bmp")) {
+            std::ifstream in(game.artwork_path, std::ios::binary);
+            if (in) { std::ostringstream buffer; buffer << in.rdbuf(); bytes = buffer.str(); }
+        } else {
+            std::ostringstream command;
+            command << "timeout 5 ffmpeg -nostdin -v error -i " << shell_quote(game.artwork_path)
+                    << " -frames:v 1 -vf " << shell_quote("scale=360:540:force_original_aspect_ratio=decrease")
+                    << " -f image2pipe -vcodec bmp pipe:1 2>/dev/null";
+            run_binary_command(command.str(), bytes);
+        }
+        if (!bytes.empty()) ok = reddmedia::decode_library_poster_bmp(bytes, poster, error);
+        if (ok) gameArtworkCache[game.artwork_path] = poster;
+        else gameArtworkFailed.insert(game.artwork_path);
+        return ok;
     }
 
     void launch_selected_game() {
@@ -10285,9 +10411,12 @@ public:
             }
             selected = gameState->games[static_cast<std::size_t>(gamesSelected)];
         }
-        if (!exists_file(selected.path)) {
+        const std::string launchPath = extracted_game_path(selected);
+        if (launchPath.empty() || !exists_file(launchPath)) {
             std::lock_guard<std::mutex> lock(gameState->mutex);
-            gameState->status = "That game file is unavailable. Nougat kept the library entry source folder; press Refresh after reconnecting it.";
+            gameState->status = selected.archived
+                ? "Nougat could not safely extract that ROM from its ZIP archive."
+                : "That game file is unavailable. Press Refresh after reconnecting its ROM folder.";
             gameState->updated = true;
             return;
         }
@@ -10300,7 +10429,7 @@ public:
         }
         const pid_t child = fork();
         if (child == 0) {
-            execlp(emulator.c_str(), emulator.c_str(), selected.path.c_str(), static_cast<char*>(nullptr));
+            execlp(emulator.c_str(), emulator.c_str(), launchPath.c_str(), static_cast<char*>(nullptr));
             _exit(127);
         }
         std::lock_guard<std::mutex> lock(gameState->mutex);
@@ -10322,6 +10451,10 @@ public:
         tab(gamesSettingsBtn, "Settings", GamesPanel::Settings);
         button_on(target, gamesPlayBtn, "Play");
         button_on(target, gamesRefreshBtn, "Refresh");
+        if (gamesPanel == GamesPanel::Library) {
+            button_on_state(target, gamesGridBtn, "Grid", gamesDisplayMode == GamesDisplayMode::Grid ? SheetControlState::Pressed : SheetControlState::Normal);
+            button_on_state(target, gamesListViewBtn, "List", gamesDisplayMode == GamesDisplayMode::List ? SheetControlState::Pressed : SheetControlState::Normal);
+        }
 
         std::string status;
         bool busy = false;
@@ -10334,28 +10467,71 @@ public:
         }
         text(target, 28 + kCompactButtonW * 2 + 14, 112,
              head_to_width(std::string("Status: ") + (busy ? "Scanning - " : "") + status,
-                           std::max(80, W - (28 + kCompactButtonW * 2 + 42))), palette.text);
+                           std::max(80, W - (28 + kCompactButtonW * 4 + 60))), palette.text);
         draw_primary_panel(target, gamesListBox, palette);
         gameRows.clear();
 
         if (gamesPanel == GamesPanel::Library) {
-            const int rowH = 30;
-            const int visible = std::max(1, (gamesListBox.h - 18) / rowH);
-            const int maxScroll = std::max(0, static_cast<int>(games.size()) - visible);
-            gamesScroll = std::max(0, std::min(gamesScroll, maxScroll));
-            int y = gamesListBox.y + 9;
-            for (int i = 0; i < visible; ++i) {
-                const int index = gamesScroll + i;
-                if (index >= static_cast<int>(games.size())) break;
-                const GameEntry& game = games[static_cast<std::size_t>(index)];
-                Rect row{gamesListBox.x + 8, y, gamesListBox.w - 24, rowH - 2};
-                if (index == gamesSelected) fill_round(target, row, 6, palette.selection);
-                outline_round(target, row, 6, palette.border);
-                const std::string source = game.bundled ? "Bundled" : "Linked folder";
-                text(target, row.x + 8, row.y + 18,
-                     head_to_width(game.title + "   |   " + game.system + "   |   " + source, row.w - 16), palette.text);
-                gameRows.push_back({row,index});
-                y += rowH;
+            if (gamesDisplayMode == GamesDisplayMode::List) {
+                const int rowH = 36;
+                const int visible = std::max(1, (gamesListBox.h - 18) / rowH);
+                const int maxScroll = std::max(0, static_cast<int>(games.size()) - visible);
+                gamesScroll = std::max(0, std::min(gamesScroll, maxScroll));
+                int y = gamesListBox.y + 9;
+                for (int i = 0; i < visible; ++i) {
+                    const int index = gamesScroll + i;
+                    if (index >= static_cast<int>(games.size())) break;
+                    const GameEntry& game = games[static_cast<std::size_t>(index)];
+                    Rect row{gamesListBox.x + 8, y, gamesListBox.w - 24, rowH - 2};
+                    if (index == gamesSelected) fill_round(target, row, 6, palette.selection);
+                    outline_round(target, row, 6, palette.border);
+                    const std::string source = game.bundled ? "BUNDLED" : "LINKED";
+                    const std::string archive = game.archived ? "  |  ZIP" : "";
+                    text(target, row.x + 8, row.y + 22,
+                         head_to_width(game.title + "   |   " + game.system + "   |   " + source + archive, row.w - 16), palette.text);
+                    gameRows.push_back({row,index});
+                    y += rowH;
+                }
+            } else {
+                const int gap = 10;
+                const int desiredCardW = 176;
+                const int columns = std::max(1, (gamesListBox.w - 16 + gap) / (desiredCardW + gap));
+                const int cardW = std::max(120, (gamesListBox.w - 16 - (columns - 1) * gap) / columns);
+                const int posterH = std::max(120, cardW * 3 / 2);
+                const int cardH = posterH + 62;
+                const int rows = std::max(1, (gamesListBox.h - 16 + gap) / (cardH + gap));
+                const int visible = std::max(1, columns * rows);
+                const int maxScroll = std::max(0, static_cast<int>(games.size()) - visible);
+                gamesScroll = std::max(0, std::min(gamesScroll, maxScroll));
+                for (int slot = 0; slot < visible; ++slot) {
+                    const int index = gamesScroll + slot;
+                    if (index >= static_cast<int>(games.size())) break;
+                    const int rowIndex = slot / columns;
+                    const int columnIndex = slot % columns;
+                    const int x = gamesListBox.x + 8 + columnIndex * (cardW + gap);
+                    const int y = gamesListBox.y + 8 + rowIndex * (cardH + gap);
+                    Rect card{x,y,cardW,cardH};
+                    const GameEntry& game = games[static_cast<std::size_t>(index)];
+                    fill_round(target, card, 8, index == gamesSelected ? palette.selection : palette.panel);
+                    outline_round(target, card, 8, palette.border);
+                    const Rect art{card.x + 6, card.y + 6, card.w - 12, posterH - 8};
+                    fill_round(target, art, 6, rgb8(42,34,29));
+                    reddmedia::LibraryPoster poster;
+                    if (cached_game_artwork(game, poster)) draw_poster_pixels(target, art, poster);
+                    else {
+                        const std::string initials = game.system == "NES" ? "NES" :
+                            (game.system.rfind("Atari",0U) == 0U ? "ATARI" : game.system);
+                        text(target, art.x + std::max(6,(art.w-text_width(initials))/2), art.y + art.h/2,
+                             head_to_width(initials,art.w-12), palette.muted);
+                    }
+                    const Rect badge{card.x + 8, card.y + posterH - 2, std::max(50, std::min(92, card.w - 16)), 20};
+                    fill_round(target,badge,7,rgb8(50,43,38));
+                    text(target,badge.x+6,badge.y+15,head_to_width(game.system,badge.w-12),rgb8(246,232,205));
+                    text(target,card.x+8,card.y+posterH+39,head_to_width(game.title,card.w-16),palette.text);
+                    const std::string source = std::string(game.bundled ? "Bundled" : "Linked") + (game.archived ? " • ZIP" : "");
+                    text(target,card.x+8,card.y+posterH+57,head_to_width(source,card.w-16),palette.muted);
+                    gameRows.push_back({card,index});
+                }
             }
             if (games.empty() && !busy) text(target, gamesListBox.x + 14, gamesListBox.y + 32,
                 "No games indexed. Add a ROM folder; bundled legal starter ROMs appear here automatically.", palette.muted);
@@ -10365,31 +10541,37 @@ public:
         int y = gamesListBox.y + 32;
         if (gamesPanel == GamesPanel::Systems) {
             section_text(target, gamesListBox.x + 14, y, "EMULATION BACKENDS", palette.text); y += 30;
-            const std::vector<std::string> systems = {"NES","SNES","Game Boy","Game Boy Advance","Nintendo 64"};
+            const std::vector<std::string> systems = {"NES","SNES","Game Boy","Game Boy Advance","Nintendo 64",
+                                                      "Atari 2600","Atari 5200","Atari 7800","Atari 8-bit","Atari Lynx"};
             for (const std::string& system : systems) {
                 const std::string emulator = installed_game_emulator(system);
                 text(target, gamesListBox.x + 14, y,
-                     system + ": " + (emulator.empty() ? "No supported backend installed" : emulator),
+                     system + ": " + (emulator.empty() ? "No supported backend installed" : emulator + " (automatic)"),
                      emulator.empty() ? palette.muted : palette.text);
-                y += 24;
+                y += 22;
             }
-            text(target, gamesListBox.x + 14, y + 12,
-                 "Nougat hosts proven standalone emulators; it does not implement console emulation from scratch.", palette.muted);
+            text(target, gamesListBox.x + 14, y + 8,
+                 "Nougat automatically chooses a supported installed backend for the selected system.", palette.muted);
         } else if (gamesPanel == GamesPanel::Controllers) {
             section_text(target, gamesListBox.x + 14, y, "CONTROLLERS", palette.text); y += 30;
+            const std::filesystem::path byId("/dev/input/by-id/usb-081f_USB_gamepad-joystick");
             std::error_code ec;
+            const bool manta = std::filesystem::exists(byId, ec);
+            text(target, gamesListBox.x + 14, y,
+                 manta ? "Manta USB gamepad 081f:e401: detected and ready." : "Manta USB gamepad 081f:e401: not currently connected.",
+                 manta ? palette.text : palette.muted); y += 24;
             int detected = 0;
             const std::filesystem::path inputDir("/dev/input");
             if (std::filesystem::is_directory(inputDir, ec)) {
                 for (const auto& entry : std::filesystem::directory_iterator(inputDir, ec)) {
                     const std::string name = entry.path().filename().string();
-                    if (name.rfind("js",0) == 0 || name.rfind("event",0) == 0) ++detected;
+                    if (name.rfind("js",0) == 0) ++detected;
                 }
             }
             text(target, gamesListBox.x + 14, y,
-                 "Linux input devices detected: " + std::to_string(detected) + ". Emulator backends receive normal system controller input.", palette.text);
+                 "Linux joystick devices detected: " + std::to_string(detected) + ". D-pad, A/B, Start and Select use normal Linux input.", palette.text);
             text(target, gamesListBox.x + 14, y + 26,
-                 "Per-system button mapping stays with the selected emulator backend so Nougat does not invent incompatible mappings.", palette.muted);
+                 "Per-system button mapping remains owned by the chosen emulator backend.", palette.muted);
         } else {
             section_text(target, gamesListBox.x + 14, y, "GAME LIBRARY SETTINGS", palette.text); y += 30;
             text(target, gamesListBox.x + 14, y,
@@ -10400,12 +10582,14 @@ public:
                 text(target, gamesListBox.x + 14, y, head_to_width(folder, gamesListBox.w - 28), palette.text);
                 y += 22;
             }
+            text(target, gamesListBox.x + 14, gamesListBox.y + gamesListBox.h - 38,
+                 "ZIP archives are indexed in place. ROMs are extracted only to Nougat's private cache when launched.", palette.muted);
             text(target, gamesListBox.x + 14, gamesListBox.y + gamesListBox.h - 18,
-                 "User ROMs are indexed in place and are not copied into Nougat.", palette.muted);
+                 "Sidecar box art: same-name PNG/JPG/JPEG/BMP or cover.* beside the ROM/archive.", palette.muted);
         }
     }
 
-    void handle_games_click(int x, int y) {
+    void handle_games_click(int x, int y, Time eventTime) {
         if (gamesLibraryBtn.contains(x,y)) { gamesPanel = GamesPanel::Library; redraw(); return; }
         if (gamesSystemsBtn.contains(x,y)) { gamesPanel = GamesPanel::Systems; redraw(); return; }
         if (gamesControllersBtn.contains(x,y)) { gamesPanel = GamesPanel::Controllers; redraw(); return; }
@@ -10413,9 +10597,23 @@ public:
         if (gamesAddBtn.contains(x,y)) { add_game_rom_folder(); redraw(); return; }
         if (gamesRefreshBtn.contains(x,y)) { start_game_scan(); redraw(); return; }
         if (gamesPlayBtn.contains(x,y)) { launch_selected_game(); redraw(); return; }
+        if (gamesPanel == GamesPanel::Library && gamesGridBtn.contains(x,y)) {
+            gamesDisplayMode = GamesDisplayMode::Grid; gamesScroll = 0; redraw(); return;
+        }
+        if (gamesPanel == GamesPanel::Library && gamesListViewBtn.contains(x,y)) {
+            gamesDisplayMode = GamesDisplayMode::List; gamesScroll = 0; redraw(); return;
+        }
         if (gamesPanel == GamesPanel::Library) {
             for (const auto& row : gameRows) {
-                if (row.first.contains(x,y)) { gamesSelected = row.second; redraw(); return; }
+                if (!row.first.contains(x,y)) continue;
+                const bool doubleClick = row.second == gamesLastClickIndex && gamesLastClickTime != 0 &&
+                    eventTime >= gamesLastClickTime && eventTime - gamesLastClickTime <= 450;
+                gamesSelected = row.second;
+                gamesLastClickIndex = row.second;
+                gamesLastClickTime = eventTime;
+                redraw();
+                if (doubleClick) { gamesLastClickTime = 0; launch_selected_game(); redraw(); }
+                return;
             }
         }
     }
@@ -10691,7 +10889,7 @@ public:
         std::lock_guard<std::mutex> lock(discoverState->mutex);
         const int servicesBoxY = kPageControlBottom + 22 + 20 + 14;
         const int boxH = std::max(120, H - servicesBoxY - 28);
-        const int visible = std::max(1, (boxH - 12) / 28);
+        const int visible = std::max(1, (boxH - 12) / 34);
         return std::max(0, static_cast<int>(discoverState->providerCatalog.size()) - visible);
     }
 
@@ -10710,16 +10908,16 @@ public:
     bool handle_discover_services_scrollbar_press(int x, int y) {
         if (!discoverServiceSettings || discoverServicesScrollTrack.h <= 0) return false;
         // Thin visual, generous mouse target.
-        const Rect hitTrack{discoverServicesScrollTrack.x - 6, discoverServicesScrollTrack.y,
-                            discoverServicesScrollTrack.w + 12, discoverServicesScrollTrack.h};
-        const Rect hitThumb{discoverServicesScrollThumb.x - 6, discoverServicesScrollThumb.y,
-                            discoverServicesScrollThumb.w + 12, discoverServicesScrollThumb.h};
+        const Rect hitTrack{discoverServicesScrollTrack.x - 8, discoverServicesScrollTrack.y,
+                            discoverServicesScrollTrack.w + 16, discoverServicesScrollTrack.h};
+        const Rect hitThumb{discoverServicesScrollThumb.x - 8, discoverServicesScrollThumb.y,
+                            discoverServicesScrollThumb.w + 16, discoverServicesScrollThumb.h};
         if (!hitTrack.contains(x, y)) return false;
         if (hitThumb.contains(x, y)) {
             discoverServicesScrollDragging = true;
             discoverServicesScrollDragOffset = y - discoverServicesScrollThumb.y;
         } else {
-            const int page = std::max(1, discoverServicesScrollThumb.h / 28);
+            const int page = std::max(1, discoverServicesScrollThumb.h / 34);
             const int maxScroll = discover_services_max_scroll();
             discoverServicesScroll = std::max(0, std::min(maxScroll,
                 discoverServicesScroll + (y < discoverServicesScrollThumb.y ? -page : page)));
@@ -10770,7 +10968,7 @@ public:
                      palette.muted);
                 return;
             }
-            const int row_height = 28;
+            const int row_height = 34;
             const int visible = std::max(1, (services_box.h - 12) / row_height);
             const int max_scroll = std::max(0, static_cast<int>(providers.size()) - visible);
             discoverServicesScroll = std::max(0, std::min(discoverServicesScroll, max_scroll));
@@ -10780,22 +10978,23 @@ public:
                 if (provider_index >= static_cast<int>(providers.size())) break;
                 const reddmedia::WatchProvider& provider =
                     providers[static_cast<std::size_t>(provider_index)];
-                const Rect row = {services_box.x + 6, row_y, services_box.w - 12, row_height - 2};
+                const int scrollbar_gutter = 30;
+                const Rect row = {services_box.x + 6, row_y, std::max(80, services_box.w - 12 - scrollbar_gutter), row_height - 2};
                 if (watchPreferences.is_selected(provider.id)) {
                     fill_round(target, row, 6, palette.selection);
                 }
                 outline_round(target, row, 6, palette.border);
                 const bool selected = watchPreferences.is_selected(provider.id);
-                const Rect check{row.x + 5, row.y + 3, 22, 22};
+                const Rect check{row.x + 5, row.y + 5, 22, 22};
                 draw_sheet_checkbox(target, check, selected, palette);
-                text(target, row.x + 34, row.y + 18,
+                text(target, row.x + 34, row.y + 22,
                      head_to_width(provider.name, row.w - 42), dark);
                 discoverProviderRows.push_back({row, provider.id});
                 row_y += row_height;
             }
             const int maxScrollForBar = std::max(0, static_cast<int>(providers.size()) - visible);
-            discoverServicesScrollTrack = {services_box.x + services_box.w - 13, services_box.y + 5,
-                                           10, std::max(18, services_box.h - 10)};
+            discoverServicesScrollTrack = {services_box.x + services_box.w - 23, services_box.y + 5,
+                                           16, std::max(18, services_box.h - 10)};
             const int thumbH = maxScrollForBar > 0
                 ? std::max(30, std::min(discoverServicesScrollTrack.h,
                     discoverServicesScrollTrack.h * visible / std::max(visible, static_cast<int>(providers.size()))))
@@ -11695,9 +11894,20 @@ public:
         if (currentView == ViewMode::Games && target == win && gamesListBox.contains(x,y) && gamesPanel == GamesPanel::Library) {
             std::size_t count = 0;
             { std::lock_guard<std::mutex> lock(gameState->mutex); count = gameState->games.size(); }
-            const int visible = std::max(1, (gamesListBox.h - 18) / 30);
+            int visible = std::max(1, (gamesListBox.h - 18) / 36);
+            int amount = 1;
+            if (gamesDisplayMode == GamesDisplayMode::Grid) {
+                const int gap = 10;
+                const int desiredCardW = 176;
+                const int columns = std::max(1, (gamesListBox.w - 16 + gap) / (desiredCardW + gap));
+                const int cardW = std::max(120, (gamesListBox.w - 16 - (columns - 1) * gap) / columns);
+                const int cardH = std::max(120, cardW * 3 / 2) + 62;
+                const int rows = std::max(1, (gamesListBox.h - 16 + gap) / (cardH + gap));
+                visible = std::max(1, columns * rows);
+                amount = columns;
+            }
             const int maxScroll = std::max(0, static_cast<int>(count) - visible);
-            gamesScroll = std::max(0, std::min(maxScroll, gamesScroll + (button == Button4 ? -1 : 1)));
+            gamesScroll = std::max(0, std::min(maxScroll, gamesScroll + (button == Button4 ? -amount : amount)));
             redraw();
             return true;
         }
@@ -11923,7 +12133,7 @@ public:
             return;
         }
         if (currentView == ViewMode::Games) {
-            handle_games_click(x,y);
+            handle_games_click(x,y,eventTime);
             return;
         }
         if (currentView == ViewMode::Library) {
@@ -12664,8 +12874,39 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.42\n");
+        printf("Nougat Media Suite v0.0.43\n");
         return 0;
+    }
+    if (argc > 1 && std::string(argv[1]) == "--v43-release-self-test") {
+        App app;
+        app.libraryMovieView = LibraryDisplayMode::Grid;
+        app.libraryMediaType = reddmedia::LibraryMediaType::Movies;
+        app.libraryListBox = {20, 170, 920, 470};
+        const LibraryGridMetrics compact = app.library_grid_metrics();
+        app.libraryListBox = {20, 170, 1260, 540};
+        const LibraryGridMetrics wide = app.library_grid_metrics();
+        const bool grid_ok = compact.rows >= 2 && compact.columns >= 6 &&
+            compact.posterHeight == compact.tileWidth * 3 / 2 &&
+            wide.rows >= 2 && wide.columns >= 7 &&
+            wide.posterHeight == wide.tileWidth * 3 / 2;
+        const bool formats_ok =
+            game_system_for_path("probe.nes") == "NES" &&
+            game_system_for_path("probe.a26") == "Atari 2600" &&
+            game_system_for_path("probe.a52") == "Atari 5200" &&
+            game_system_for_path("probe.a78") == "Atari 7800" &&
+            game_system_for_path("probe.atr") == "Atari 8-bit" &&
+            game_system_for_path("probe.lnx") == "Atari Lynx";
+        const bool zip_ok = safe_zip_game_entry("folder/probe.nes") &&
+            !safe_zip_game_entry("../probe.nes") &&
+            !safe_zip_game_entry("/probe.nes") &&
+            !safe_zip_game_entry("folder/readme.txt");
+        if (grid_ok && formats_ok && zip_ok) {
+            printf("Nougat Media Suite v0.0.43 release self-test PASS\n");
+            return 0;
+        }
+        fprintf(stderr, "Nougat Media Suite v0.0.43 release self-test FAIL: grid=%d formats=%d zip=%d\n",
+                grid_ok ? 1 : 0, formats_ok ? 1 : 0, zip_ok ? 1 : 0);
+        return 1;
     }
     if (argc > 1 && std::string(argv[1]) == "--v25-ui-state-self-test") {
         App app;

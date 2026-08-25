@@ -1,3 +1,15 @@
+## v0.0.43 candidate — Games, World TV, and Responsive Grid Repair
+
+- Build directly on accepted v0.0.42 commit `819ee82098f6c4c72269c4f07b3f899f9b0184cf`.
+- Fix the carried Movies/TV responsive-grid one-row collapse at its geometry source.
+- Finish the Games library lane with persistent linked folders, ZIP-contained ROM discovery, Grid/List views, system/source badges, sidecar artwork, double-click launch, and automatic selection among supported installed emulator backends.
+- Add Atari 2600/5200/7800/8-bit/Lynx file recognition and backend discovery alongside the existing Nintendo systems.
+- Keep legally redistributable bundled NES starter content/license records intact. Do not add copyrighted commercial ROMs.
+- Expand World TV through broadcaster-owned internet feeds without using device location to construct or filter the catalog. Include Al Jazeera Arabic.
+- Repair the Discover > My Services scrollbar hit geometry and reserve its own visual gutter so provider names do not collide with it.
+- Keep the exact approved Nougat N icon everywhere with no exceptions.
+- Candidate remains uncommitted/untagged/unpushed until owner acceptance.
+
 ## v0.0.34 accepted — Exact Sheet Tabs/Player Controls + Home/Discover UI Repair
 - Exact concept-sheet top tabs, seek bar, and volume component.
 - Left-shifted scrollable nav lane with right Server/version side frozen.

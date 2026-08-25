@@ -1,4 +1,15 @@
 # Changelog
+
+## v0.0.43 - Games, World TV, and Responsive Grid Repair
+
+- Repair the shared Movies/TV Library grid so a height-safe two-row layout cannot collapse to one row after card-width redistribution.
+- Expand Games with Grid/List views, system/source badges, double-click launch, automatic emulator selection, Atari formats/backends, ZIP-aware ROM indexing/extraction, persistent ROM folders, and local sidecar box artwork.
+- Preserve bundled legal NES starter assets and their source/license records unchanged.
+- Show the tested Manta USB controller identity when connected while preserving backend-owned button mapping.
+- Expand World TV with language-agnostic broadcaster-owned live sources including Al Jazeera Arabic and DW News, without location-based catalog filtering.
+- Repair Discover > My Services with a reserved scrollbar gutter, wider draggable scrollbar, and uncluttered service-row spacing.
+- Preserve the permanent approved Nougat N icon release gate and accepted v0.0.42 behavior outside this scope.
+
 ## v0.0.42 - Persistent Libraries, Live TV Maintenance, Security, Intelligence, and Games
 
 - Adds persistent Movies/TV mapping recovery and startup-resilient private Jellyfin session behavior.
