@@ -8,15 +8,14 @@ Nougat's **Library** organizes local Movies and TV into collections, series, sea
 
 **Nougat Search** is being developed as a decentralized, privacy-first search system. Its Secure Search architecture separates user queries from crawler networking, keeps plaintext queries out of ordinary process arguments and logs, removes silent less-private fallback paths, and is designed around replaceable privacy components so stronger transports and private-retrieval technologies can be added without rebuilding the entire Search system.
 
-Nougat also includes built-in **P2P downloading and stream-while-downloading playback**, on-demand **security analysis**, evidence-based **system diagnostics**, local recommendation AI, persistent viewing history, and an integrated Jellyfin-backed catalog/server foundation. v0.0.46 adds cancellable process-group security scanning with a faster tiered bulk-scan path, verified-start World TV handling, a double-click Nougat N shortcut to the official KSA Qur'an TV live view of Masjid al-Haram, and the versioned local-only foundation for future phone, tablet, laptop, and TV-browser access to locally owned media. The LAN design explicitly requires local media access to remain independent of WAN Internet connectivity and does not require a cloud login, automatic router port forwarding, or a cloud relay.
+Nougat also includes built-in **P2P downloading and stream-while-downloading playback**, on-demand **security analysis**, evidence-based **system diagnostics**, local recommendation AI, persistent viewing history, and an integrated Jellyfin-backed catalog/server foundation. v0.0.46 adds cancellable process-group security scanning with a faster tiered bulk-scan path, verified-start World TV handling, and the versioned local-only foundation for future phone, tablet, laptop, and TV-browser access to locally owned media. The LAN design explicitly requires local media access to remain independent of WAN Internet connectivity and does not require a cloud login, automatic router port forwarding, or a cloud relay.
 
-## v0.0.46 - World TV Repair, Scanner Control, Kaaba Live, and LAN Media Foundation
+## v0.0.46 - World TV Repair, Scanner Control, and LAN Media Foundation
 
 v0.0.46 repairs owner-reported release and runtime failures while preserving the v0.0.45 Secure Search privacy contract.
 
 - Repairs X11/libVLC window ownership so the World TV video drawable is unmapped outside the native player and cannot cover the World TV station list.
 - Adds a verified World TV startup window: a successful libVLC `play()` request is no longer treated as proof of playback; Playing/Paused verifies startup, while timeout/error states enter bounded reconnect and then report a truthful failure.
-- Adds the approved Kaaba Live shortcut: double-click the small Nougat N beside the application name to open the verified official KSA Qur'an TV live broadcast of Masjid al-Haram through Nougat's native Stream/player path.
 - Turns the Virus Scan `Scan Again` control into a real `Stop Scan` control while a scan is running.
 - Runs the security worker in its own process group and terminates that complete Nougat-owned group on Stop Scan or app shutdown, preventing orphaned capa/ClamAV children.
 - Preserves partial scan output on cancellation and reports `SCAN CANCELLED` instead of pretending the scan completed.
