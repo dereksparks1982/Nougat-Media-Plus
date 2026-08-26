@@ -14,6 +14,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 CORE_BINARY = ROOT / "Nougat_Media_Suite_v50"
 GUI_BINARY = ROOT / "Nougat_Installer_v50"
+WORKSHOP_BINARY = ROOT / "plugins" / "workshop" / "bin" / "nougat-workshop-plugin"
 DEFAULT_OUTPUT = Path.home() / "Downloads" / "Nougat_Media_Suite_v0.0.50_GRAPHICAL_INSTALLER.zip"
 TOP = "Nougat_Media_Suite_v0.0.50"
 
@@ -31,6 +32,7 @@ PAYLOAD_FILES = [
     ("installer/nougat_v50_installer.py", 0o755),
     ("installer/nougat_v50_installer_backend.py", 0o755),
     ("plugins/workshop/plugin.json", 0o644),
+    ("plugins/workshop/bin/nougat-workshop-plugin", 0o755),
     ("components/workshop/nougat_split_archive.py", 0o755),
 ]
 
@@ -88,6 +90,9 @@ def main() -> int:
         gui_version = run([str(GUI_BINARY), "--version"])
         if gui_version.returncode != 0 or gui_version.stdout.strip() != "Nougat Media Suite Installer v0.0.50":
             raise RuntimeError("graphical installer identity mismatch: " + repr(gui_version.stdout.strip()))
+        workshop_version = run([str(WORKSHOP_BINARY), "--version"])
+        if workshop_version.returncode != 0 or workshop_version.stdout.strip() != "Nougat Workshop Plugin v0.0.50":
+            raise RuntimeError("Workshop native plugin identity mismatch: " + repr(workshop_version.stdout.strip()))
 
         output = args.output.expanduser().resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -109,6 +114,7 @@ def main() -> int:
                     "A graphical installer window will open. Video Player + Plugin Core is required.\n"
                     "Choose Default, Custom, or Advanced Custom, select any available optional plugins,\n"
                     "click Install, then choose Launch Nougat Media Suite or Close Installer.\n\n"
+                    "Workshop is a real optional process plugin. Player-only installation remains valid.\n"
                     "The player executable is deliberately stored under payload/ so it is not confused\n"
                     "with the installer.\n"
                 ).encode("utf-8")
@@ -145,6 +151,7 @@ def main() -> int:
                     f"{TOP}/payload/installer/nougat_v50_installer_backend.py",
                     f"{TOP}/payload/assets/icons/nougat-media-suite-concept-sheet-v24.png",
                     f"{TOP}/payload/plugins/workshop/plugin.json",
+                    f"{TOP}/payload/plugins/workshop/bin/nougat-workshop-plugin",
                     f"{TOP}/payload/components/workshop/nougat_split_archive.py",
                 }
                 missing = sorted(required_names - names)
@@ -157,6 +164,7 @@ def main() -> int:
                     f"{TOP}/payload/Nougat_Media_Suite_v50",
                     f"{TOP}/payload/installer/nougat_v50_installer.py",
                     f"{TOP}/payload/installer/nougat_v50_installer_backend.py",
+                    f"{TOP}/payload/plugins/workshop/bin/nougat-workshop-plugin",
                     f"{TOP}/payload/components/workshop/nougat_split_archive.py",
                 ]:
                     info = zf.getinfo(name)
@@ -184,6 +192,7 @@ def main() -> int:
 
         print("PASS: Nougat Media Suite v0.0.50 graphical installer ZIP verified")
         print("PASS: top-level double-click installer is Nougat_Installer_v50")
+        print("PASS: Workshop native plugin runtime is packaged as an optional component")
         print("PASS: player core is hidden under payload/ and cannot be mistaken for the installer")
         print("ZIP:", output)
         print(f"Size: {output.stat().st_size / (1024 * 1024):.1f} MiB")
