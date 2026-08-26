@@ -1,0 +1,39 @@
+name: v50 Candidate Validation
+
+on:
+  push:
+    branches:
+      - candidate/v0.0.50
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+
+      - name: Install native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++ libx11-dev python3
+
+      - name: Validate Workshop split archive
+        run: python3 tests/v50/test_workshop_split_archive.py
+
+      - name: Configure lean v50 native build
+        run: >-
+          cmake -S . -B /tmp/nougat-v50-build
+          -DREDDMEDIA_P2P_STUB=ON
+          -DNOUGAT_AI_MODE=STUB
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compile v50 with warnings as errors
+        run: cmake --build /tmp/nougat-v50-build --target Nougat_Media_Suite_v50 -j2
+
+      - name: Confirm v50 executable exists
+        run: test -x /tmp/nougat-v50-build/Nougat_Media_Suite_v50
