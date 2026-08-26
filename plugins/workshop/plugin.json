@@ -4,22 +4,29 @@
   "id": "workshop",
   "display_name": "Workshop",
   "version": "0.0.50",
-  "description": "Nougat's optional file-engineering and production workspace.",
+  "nougat_plugin_api": 1,
+  "description": "Nougat's optional file-engineering and production workspace. v0.0.50 includes split/reassemble.",
+  "top_level_tab": "Workshop",
   "required_for_application_start": false,
   "recommended_by_default": true,
-  "top_level_tab": "Workshop",
+  "runtime": {
+    "kind": "x11-process",
+    "entrypoint": "bin/nougat-workshop-plugin"
+  },
+  "dependencies": [],
   "resources": [
     {
       "source": "components/workshop/nougat_split_archive.py",
       "install_as": "nougat_split_archive.py",
       "kind": "python-worker"
+    },
+    {
+      "source": "plugins/workshop/bin/nougat-workshop-plugin",
+      "install_as": "bin/nougat-workshop-plugin",
+      "kind": "native-executable"
     }
   ],
   "features": [
     "split-reassemble"
-  ],
-  "health": {
-    "kind": "plugin-resource",
-    "path": "nougat_split_archive.py"
-  }
+  ]
 }
