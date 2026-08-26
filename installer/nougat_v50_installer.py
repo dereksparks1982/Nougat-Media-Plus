@@ -231,6 +231,17 @@ def plugin_install_root(*, staging_root: Path | None) -> Path:
     return user_plugin_root()
 
 
+def installed_plugin_ids(*, staging_root: Path | None) -> list[str]:
+    root = plugin_install_root(staging_root=staging_root)
+    if not root.is_dir():
+        return []
+    installed: list[str] = []
+    for child in sorted(root.iterdir()):
+        if child.is_dir() and (child / "plugin.json").is_file():
+            installed.append(child.name)
+    return installed
+
+
 def install_plugin(source_root: Path, plugin_id: str, data: dict, *, staging_root: Path | None) -> Path:
     plugin_root = plugin_install_root(staging_root=staging_root)
     destination = plugin_root / plugin_id
@@ -345,6 +356,13 @@ def main() -> int:
     try:
         source_root = args.source_root.expanduser().resolve()
         catalog = load_plugin_catalog(source_root)
+        staging_root = args.staging_root.expanduser().resolve() if args.staging_root else None
+
+        if staging_root is None and os.geteuid() == 0:
+            raise InstallError(
+                "Run INSTALL.sh as your normal desktop user, not with sudo. "
+                "The installer requests sudo only when it writes the player core to /opt."
+            )
 
         if args.list_plugins:
             print("Available optional plugins:")
@@ -353,11 +371,14 @@ def main() -> int:
                 print(f"  {plugin_id}: {data.get('display_name', plugin_id)} ({marker})")
             return 0
 
-        staging_root = args.staging_root.expanduser().resolve() if args.staging_root else None
         if args.remove_plugin:
             if staging_root is None:
                 stop_running_nougat()
             remove_plugin(args.remove_plugin, staging_root=staging_root)
+            state_path = write_install_state(
+                "custom", installed_plugin_ids(staging_root=staging_root), staging_root=staging_root
+            )
+            print("State:", state_path)
             return 0
 
         mode = args.mode or interactive_mode()
