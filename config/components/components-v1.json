@@ -5,6 +5,8 @@
   "managed_runtime_root": "${XDG_DATA_HOME:-$HOME/.local/share}/nougat/runtime",
   "policy": {
     "default_profile": "recommended",
+    "minimum_profile": "minimal",
+    "minimum_install_law": "The minimal Nougat installation is the video player and only dependencies required for the player itself to launch and play supported media.",
     "optional_failure_is_fatal": false,
     "verify_sha256_before_install": true,
     "runtime_payloads_belong_in_source_tree": false,
@@ -12,7 +14,7 @@
   },
   "profiles": {
     "recommended": [
-      "core-media",
+      "core-player",
       "live-tv",
       "games-mesen2",
       "games-stella",
@@ -24,7 +26,7 @@
       "media-server-jellyfin",
       "security-analysis"
     ],
-    "minimal": ["core-media"],
+    "minimal": ["core-player"],
     "media-server": ["media-server-jellyfin"],
     "games": [
       "games-mesen2",
@@ -39,13 +41,32 @@
   },
   "components": [
     {
-      "id": "core-media",
-      "display_name": "Core Media Features",
-      "group": "Core Media Features",
+      "id": "core-player",
+      "display_name": "Nougat Video Player",
+      "group": "Core Player",
       "required_for_application_start": true,
       "recommended_by_default": true,
-      "install_strategy": "system-dependencies",
-      "health": {"kind": "application-self-test"}
+      "install_strategy": "core-player",
+      "scope": "video-player-only",
+      "may_require": [
+        "windowing/audio/video output libraries",
+        "media demux/decode runtime while libVLC remains the accepted playback backend"
+      ],
+      "must_not_imply": [
+        "Library",
+        "Discover",
+        "Live TV",
+        "World TV",
+        "Games",
+        "P2P",
+        "Workshop",
+        "Media Server",
+        "Security Analysis",
+        "Local AI",
+        "production tools",
+        "office/productivity tools"
+      ],
+      "health": {"kind": "application-player-self-test"}
     },
     {
       "id": "live-tv",
