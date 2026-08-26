@@ -51,6 +51,8 @@ public:
     HostEvent poll();
     void resize(int width, int height);
     void focus();
+    bool pointer_position(int& x, int& y) const;
+    bool send_key(KeySym keysym);
     void stop();
 
     bool active() const;

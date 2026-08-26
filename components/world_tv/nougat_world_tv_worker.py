@@ -171,7 +171,9 @@ def aloula_resolve_quran() -> tuple[str, str, str]:
     raise RuntimeError("official Aloula live HLS was unavailable")
 
 
-def ffprobe_candidate(url: str, referrer: str, user_agent: str) -> bool:
+# NOUGAT_V49_RUSSIA24_AUDIO_REPAIR: require a real audio stream for Russia-24.
+def ffprobe_candidate(url: str, referrer: str, user_agent: str,
+                      require_audio: bool = False) -> bool:
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
         return False
@@ -214,13 +216,17 @@ def ffprobe_candidate(url: str, referrer: str, user_agent: str) -> bool:
         return False
 
     has_video = False
+    has_audio = False
     for stream in payload.get("streams", []):
         if not isinstance(stream, dict):
             continue
-        if stream.get("codec_type") == "video" and clean(stream.get("codec_name")):
+        codec_type = stream.get("codec_type")
+        codec_name = clean(stream.get("codec_name"))
+        if codec_type == "video" and codec_name:
             has_video = True
-            break
-    if not has_video:
+        elif codec_type == "audio" and codec_name:
+            has_audio = True
+    if not has_video or (require_audio and not has_audio):
         return False
 
     # A stream that technically opens but supplies only black video is not a
@@ -345,15 +351,21 @@ def resolve_mode(channel_id: str, feed_id: str, preferred_url: str,
         0 if item["url"].startswith("https://") else 1,
     ))
 
-    deadline = time.monotonic() + 24.0
+    # Russia-24 was owner-tested with picture but no sound. Do not accept a
+    # video-only candidate for that station; walk farther through its current
+    # direct-source alternates until both video and a decodable audio stream exist.
+    require_audio = channel_id == "Russia24.ru"
+    max_checks = 6 if require_audio else 3
+    deadline = time.monotonic() + (36.0 if require_audio else 24.0)
     checked = 0
     for item in candidates:
         if blocked_label(item["label"]):
             continue
-        if time.monotonic() >= deadline or checked >= 3:
+        if time.monotonic() >= deadline or checked >= max_checks:
             break
         checked += 1
-        if ffprobe_candidate(item["url"], item["referrer"], item["user_agent"]):
+        if ffprobe_candidate(item["url"], item["referrer"], item["user_agent"],
+                             require_audio=require_audio):
             emit(
                 OK=1,
                 URL=item["url"],

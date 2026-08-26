@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
+#include <cctype>
 #include <csignal>
 #include <cstdlib>
 #include <fcntl.h>
@@ -67,6 +68,70 @@ bool safe_window_attributes(Display* display, Window window, XWindowAttributes& 
     return status != 0 && trap.sync_ok();
 }
 
+bool safe_window_children(Display* display, Window window, std::vector<Window>& children_out) {
+    children_out.clear();
+    if (!display || !window) return false;
+    Window root_return = 0;
+    Window parent_return = 0;
+    Window* children = nullptr;
+    unsigned int child_count = 0;
+    Status ok = 0;
+    {
+        XErrorTrap trap(display);
+        ok = XQueryTree(display, window, &root_return, &parent_return,
+                        &children, &child_count);
+        if (!trap.sync_ok()) ok = 0;
+    }
+    if (ok && children) {
+        children_out.assign(children, children + child_count);
+    }
+    if (children) XFree(children);
+    return ok != 0;
+}
+
+std::string lower_ascii(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+std::string safe_window_identity(Display* display, Window window) {
+    if (!display || !window) return {};
+    std::string identity;
+    {
+        XErrorTrap trap(display);
+        char* name = nullptr;
+        if (XFetchName(display, window, &name) != 0 && name) {
+            identity.append(name);
+            identity.push_back(' ');
+        }
+        if (name) XFree(name);
+        XClassHint hint{};
+        if (XGetClassHint(display, window, &hint) != 0) {
+            if (hint.res_name) { identity.append(hint.res_name); identity.push_back(' '); }
+            if (hint.res_class) identity.append(hint.res_class);
+            if (hint.res_name) XFree(hint.res_name);
+            if (hint.res_class) XFree(hint.res_class);
+        }
+        if (!trap.sync_ok()) return {};
+    }
+    return lower_ascii(identity);
+}
+
+bool mark_private_emulator_window(Display* display, Window window, Window shell) {
+    if (!display || !window) return false;
+    const Atom wm_state = XInternAtom(display, "_NET_WM_STATE", False);
+    const Atom skip_taskbar = XInternAtom(display, "_NET_WM_STATE_SKIP_TASKBAR", False);
+    const Atom skip_pager = XInternAtom(display, "_NET_WM_STATE_SKIP_PAGER", False);
+    const Atom states[] = {skip_taskbar, skip_pager};
+    XErrorTrap trap(display);
+    XChangeProperty(display, window, wm_state, XA_ATOM, 32, PropModeReplace,
+                    reinterpret_cast<const unsigned char*>(states), 2);
+    if (shell) XSetTransientForHint(display, window, shell);
+    return trap.sync_ok();
+}
+
 std::vector<Window> root_candidates(Display* display, Window root) {
     std::vector<Window> out;
     if (!display || !root) return out;
@@ -111,6 +176,30 @@ std::vector<Window> root_candidates(Display* display, Window root) {
 
     std::sort(out.begin(), out.end());
     out.erase(std::unique(out.begin(), out.end()), out.end());
+    return out;
+}
+
+std::vector<Window> window_tree_candidates(Display* display, Window root) {
+    std::vector<Window> out = root_candidates(display, root);
+    std::vector<std::pair<Window, int>> queue;
+    queue.reserve(out.size() * 2U + 16U);
+    std::set<Window> seen;
+    for (Window window : out) {
+        if (window && seen.insert(window).second) queue.push_back({window, 0});
+    }
+    constexpr std::size_t kMaxCandidates = 4096U;
+    for (std::size_t index = 0; index < queue.size() && queue.size() < kMaxCandidates; ++index) {
+        const Window current = queue[index].first;
+        const int depth = queue[index].second;
+        if (depth >= 8) continue;
+        std::vector<Window> children;
+        if (!safe_window_children(display, current, children)) continue;
+        for (Window child : children) {
+            if (!child || !seen.insert(child).second) continue;
+            out.push_back(child);
+            if (queue.size() < kMaxCandidates) queue.push_back({child, depth + 1});
+        }
+    }
     return out;
 }
 
@@ -282,6 +371,11 @@ bool force_geometry() {
         XWindowAttributes attrs{};
         if (!safe_window_attributes(display, window, attrs)) return false;
 
+        // Remove the emulator from the desktop/window-manager surface before it
+        // becomes a Nougat child. The EWMH state prevents a separate GNOME
+        // dock/task-switcher entry while the client is being captured.
+        if (!mark_private_emulator_window(display, window, shell)) return false;
+
         {
             XErrorTrap trap(display);
             XUnmapWindow(display, window);
@@ -304,13 +398,14 @@ bool force_geometry() {
 
     Window choose_candidate() {
         if (!display || !root) return 0;
-        const std::vector<Window> candidates = root_candidates(display, root);
+        const std::vector<Window> candidates = window_tree_candidates(display, root);
 
         struct Scored {
             Window window = 0;
             long long score = -1;
         } best;
 
+        const std::string backend_hint = lower_ascii(backend);
         const long long age = monotonic_ms() - started_ms;
         for (Window window : candidates) {
             if (!window || window == shell || window == parent) continue;
@@ -322,15 +417,28 @@ bool force_geometry() {
             if (attrs.map_state != IsViewable) continue;
             if (attrs.width < 160 || attrs.height < 100) continue;
 
-            long long score = static_cast<long long>(attrs.width) * attrs.height;
             const pid_t owner_pid = x_window_pid(display, window);
-            if (owner_pid > 1 && process_descends_from(owner_pid, child)) {
-                score += 1200000000LL;
-            } else if (age < 700) {
+            const bool process_owned = owner_pid > 1 && process_descends_from(owner_pid, child);
+            const std::string identity = safe_window_identity(display, window);
+            const bool backend_owned = !backend_hint.empty() && identity.find(backend_hint) != std::string::npos;
+
+            // Do not ever grab an arbitrary unrelated desktop window. The real
+            // emulator client must either belong to the launched process tree or
+            // identify itself as the requested backend. The short age allowance
+            // lets wrappers publish their PID/class shortly after mapping.
+            if (!process_owned && !backend_owned) {
+                if (age < 1500) continue;
                 continue;
             }
 
+            long long score = static_cast<long long>(attrs.width) * attrs.height;
+            if (process_owned) score += 2200000000LL;
+            if (backend_owned) score += 900000000LL;
             if (attrs.override_redirect) score -= 10000000LL;
+
+            // A WM decoration frame may contain the real SDL/X11 client. The
+            // process-owned descendant wins over that frame even when the frame
+            // has a larger rectangle or Stella text in its title.
             if (score > best.score) best = {window, score};
         }
         return best.window;
@@ -369,7 +477,7 @@ bool EmulatorHost::start(Display* display,
     impl_->title = request.title;
     impl_->timeout_ms = std::max(5000, request.window_timeout_ms);
     impl_->preexisting.clear();
-    for (Window window : root_candidates(display, impl_->root)) impl_->preexisting.insert(window);
+    for (Window window : window_tree_candidates(display, impl_->root)) impl_->preexisting.insert(window);
 
     const pid_t child = fork();
     if (child < 0) {
@@ -465,7 +573,7 @@ HostEvent EmulatorHost::poll() {
         }
 
         const long long now = monotonic_ms();
-        if (impl_->state == HostState::WaitingForWindow && now - impl_->last_scan_ms >= 80) {
+        if (impl_->state == HostState::WaitingForWindow && now - impl_->last_scan_ms >= 20) {
             impl_->last_scan_ms = now;
             const Window candidate = impl_->choose_candidate();
             if (candidate && impl_->embed(candidate)) {
@@ -511,6 +619,55 @@ void EmulatorHost::focus() {
     XSetInputFocus(impl_->display, impl_->embedded_window,
                    RevertToParent, CurrentTime);
     (void)trap.sync_ok();
+}
+
+bool EmulatorHost::pointer_position(int& x, int& y) const {
+    x = 0;
+    y = 0;
+    if (!impl_->display || !impl_->embedded_window) return false;
+    Window root_return = 0;
+    Window child_return = 0;
+    int root_x = 0;
+    int root_y = 0;
+    unsigned int mask = 0;
+    XErrorTrap trap(impl_->display);
+    const Bool ok = XQueryPointer(impl_->display, impl_->embedded_window,
+                                  &root_return, &child_return,
+                                  &root_x, &root_y, &x, &y, &mask);
+    return ok != False && trap.sync_ok();
+}
+
+bool EmulatorHost::send_key(KeySym keysym) {
+    if (!impl_->display || !impl_->embedded_window || keysym == NoSymbol) return false;
+    const KeyCode code = XKeysymToKeycode(impl_->display, keysym);
+    if (code == 0) return false;
+
+    XWindowAttributes attrs{};
+    if (!safe_window_attributes(impl_->display, impl_->embedded_window, attrs)) return false;
+
+    XKeyEvent key{};
+    key.display = impl_->display;
+    key.window = impl_->embedded_window;
+    key.root = impl_->root;
+    key.subwindow = None;
+    key.time = CurrentTime;
+    key.x = 1;
+    key.y = 1;
+    key.x_root = attrs.x + 1;
+    key.y_root = attrs.y + 1;
+    key.same_screen = True;
+    key.keycode = code;
+
+    XErrorTrap trap(impl_->display);
+    XEvent event{};
+    key.type = KeyPress;
+    event.xkey = key;
+    if (XSendEvent(impl_->display, impl_->embedded_window, True, KeyPressMask, &event) == 0) return false;
+    key.type = KeyRelease;
+    event.xkey = key;
+    if (XSendEvent(impl_->display, impl_->embedded_window, True, KeyReleaseMask, &event) == 0) return false;
+    XFlush(impl_->display);
+    return trap.sync_ok();
 }
 
 void EmulatorHost::stop() {
