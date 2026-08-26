@@ -26,13 +26,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake g++ libx11-dev python3 xvfb xauth
 
-      - name: Apply guarded v50 source migration
-        run: |
-          python3 tools/apply_v50_core.py
-          python3 tools/apply_v50_dialog_labels.py
-          python3 tools/apply_v50_plugin_foundation.py
+      - name: Apply complete guarded v50 migration
+        run: python3 tools/apply_v50_candidate.py
 
-      - name: Validate v50 source and plugin contract
+      - name: Validate v50 source and physical plugin contract
         run: python3 tools/test_nougat_media_suite_v50.py .
 
       - name: Validate Workshop split archive
@@ -54,13 +51,41 @@ jobs:
       - name: Prove physical plugin folder discovery
         run: /tmp/nougat-v50-build/nougat_plugin_registry_self_test
 
-      - name: Compile v50 with warnings as errors
+      - name: Compile player core with warnings as errors
         run: cmake --build /tmp/nougat-v50-build --target Nougat_Media_Suite_v50 -j2
 
-      - name: Verify v50 executable identity
+      - name: Verify v50 player-core identity
         run: |
           test -x /tmp/nougat-v50-build/Nougat_Media_Suite_v50
           test "$(/tmp/nougat-v50-build/Nougat_Media_Suite_v50 --version)" = "Nougat Media Suite v0.0.50"
+
+      - name: Compile Workshop Plugin 1 outside the player core
+        run: cmake --build /tmp/nougat-v50-build --target nougat_workshop_plugin -j2
+
+      - name: Verify Workshop native plugin identity
+        run: |
+          test -x /tmp/nougat-v50-build/nougat-workshop-plugin
+          test "$(/tmp/nougat-v50-build/nougat-workshop-plugin --version)" = "Nougat Workshop Plugin v0.0.50"
+
+      - name: Compile real Workshop plugin process-host self-test
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -Isrc \
+            tests/v50/workshop_plugin_process_self_test.cpp \
+            src/plugins/plugin_registry.cpp \
+            src/plugins/plugin_process_host.cpp \
+            src/platform/nougat_paths.cpp \
+            -lX11 -pthread -o /tmp/workshop_plugin_process_self_test
+
+      - name: Prove Workshop launches out of process and folder removal removes feature
+        run: |
+          rm -rf /tmp/nougat-workshop-plugin-root
+          mkdir -p /tmp/nougat-workshop-plugin-root/workshop/bin
+          cp plugins/workshop/plugin.json /tmp/nougat-workshop-plugin-root/workshop/plugin.json
+          cp components/workshop/nougat_split_archive.py /tmp/nougat-workshop-plugin-root/workshop/nougat_split_archive.py
+          cp /tmp/nougat-v50-build/nougat-workshop-plugin /tmp/nougat-workshop-plugin-root/workshop/bin/nougat-workshop-plugin
+          chmod +x /tmp/nougat-workshop-plugin-root/workshop/bin/nougat-workshop-plugin
+          xvfb-run -a -s "-screen 0 1280x800x24" \
+            /tmp/workshop_plugin_process_self_test /tmp/nougat-workshop-plugin-root
 
       - name: Compile native graphical installer with warnings as errors
         run: |
@@ -86,6 +111,12 @@ jobs:
       - name: Build and verify canonical lean source ZIP
         run: python3 tools/package_v50_source.py /tmp/Nougat_Media_Suite_v0.0.50_SOURCE_CANDIDATE.zip
 
+      - name: Stage built Workshop runtime for installer packaging
+        run: |
+          mkdir -p plugins/workshop/bin
+          cp /tmp/nougat-v50-build/nougat-workshop-plugin plugins/workshop/bin/nougat-workshop-plugin
+          chmod +x plugins/workshop/bin/nougat-workshop-plugin
+
       - name: Build and verify graphical v50 installer package
         run: |
           cp /tmp/nougat-v50-build/Nougat_Media_Suite_v50 ./Nougat_Media_Suite_v50
@@ -99,11 +130,19 @@ jobs:
       - name: Exercise exact graphical installer ZIP, rollback, player-only, and Workshop
         run: python3 tests/v50/test_installer_bundle.py /tmp/Nougat_Media_Suite_v0.0.50_GRAPHICAL_INSTALLER.zip
 
-      - name: Build standalone Workshop plugin package
-        run: python3 tools/package_v50_workshop_plugin.py --output /tmp/Nougat_Plugin_Workshop_v0.0.50.zip
+      - name: Build standalone native Workshop plugin package
+        run: >-
+          python3 tools/package_v50_workshop_plugin.py
+          --plugin-binary /tmp/nougat-v50-build/nougat-workshop-plugin
+          --output /tmp/Nougat_Plugin_Workshop_v0.0.50.zip
 
-      - name: Exercise standalone Workshop plugin package
+      - name: Exercise standalone native Workshop plugin package
         run: python3 tests/v50/test_workshop_plugin_package.py /tmp/Nougat_Plugin_Workshop_v0.0.50.zip
+
+      - name: Remove staged generated Workshop runtime from source tree
+        run: |
+          rm -f plugins/workshop/bin/nougat-workshop-plugin
+          rmdir plugins/workshop/bin 2>/dev/null || true
 
       - name: Upload v50 graphical installer
         uses: actions/upload-artifact@v4
