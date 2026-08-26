@@ -6,8 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(REDDMEDIA_P2P_STUB "Build P2P engine without libtorrent for isolated source/UI validation" OFF)
-set(NOUgat_AI_MODE "AUTO" CACHE STRING "Local AI build mode: AUTO, ENABLED, or STUB")
-set_property(CACHE NOUgat_AI_MODE PROPERTY STRINGS AUTO ENABLED STUB)
+set(NOUGAT_AI_MODE "AUTO" CACHE STRING "Local AI build mode: AUTO, ENABLED, or STUB")
+set_property(CACHE NOUGAT_AI_MODE PROPERTY STRINGS AUTO ENABLED STUB)
 
 find_package(Threads REQUIRED)
 
@@ -49,52 +49,52 @@ target_link_libraries(Nougat_Media_Suite_v50 PRIVATE X11 dl Threads::Threads)
 # present and otherwise compiles the deterministic stub so the core app still
 # builds and runs without Local AI installed.
 if(DEFINED ENV{XDG_DATA_HOME} AND NOT "$ENV{XDG_DATA_HOME}" STREQUAL "")
-    set(_NOUgat_DATA_HOME "$ENV{XDG_DATA_HOME}")
+    set(_NOUGAT_DATA_HOME "$ENV{XDG_DATA_HOME}")
 elseif(DEFINED ENV{HOME} AND NOT "$ENV{HOME}" STREQUAL "")
-    set(_NOUgat_DATA_HOME "$ENV{HOME}/.local/share")
+    set(_NOUGAT_DATA_HOME "$ENV{HOME}/.local/share")
 else()
-    set(_NOUgat_DATA_HOME "${CMAKE_BINARY_DIR}/nougat-data")
+    set(_NOUGAT_DATA_HOME "${CMAKE_BINARY_DIR}/nougat-data")
 endif()
-set(NOUgat_AI_RUNTIME "${_NOUgat_DATA_HOME}/nougat/runtime/llama.cpp" CACHE PATH
+set(NOUGAT_AI_RUNTIME "${_NOUGAT_DATA_HOME}/nougat/runtime/llama.cpp" CACHE PATH
     "Managed llama.cpp runtime used by Nougat Media Suite")
 
-string(TOUPPER "${NOUgat_AI_MODE}" _NOUgat_AI_MODE)
-if(NOT _NOUgat_AI_MODE MATCHES "^(AUTO|ENABLED|STUB)$")
-    message(FATAL_ERROR "NOUgat_AI_MODE must be AUTO, ENABLED, or STUB")
+string(TOUPPER "${NOUGAT_AI_MODE}" _NOUGAT_AI_MODE)
+if(NOT _NOUGAT_AI_MODE MATCHES "^(AUTO|ENABLED|STUB)$")
+    message(FATAL_ERROR "NOUGAT_AI_MODE must be AUTO, ENABLED, or STUB")
 endif()
 
-set(_NOUgat_USE_AI_STUB FALSE)
-if(_NOUgat_AI_MODE STREQUAL "STUB")
-    set(_NOUgat_USE_AI_STUB TRUE)
+set(_NOUGAT_USE_AI_STUB FALSE)
+if(_NOUGAT_AI_MODE STREQUAL "STUB")
+    set(_NOUGAT_USE_AI_STUB TRUE)
 else()
     find_path(LLAMA_INCLUDE_DIR llama.h
-        PATHS "${NOUgat_AI_RUNTIME}/include"
+        PATHS "${NOUGAT_AI_RUNTIME}/include"
         NO_DEFAULT_PATH)
     find_library(LLAMA_LIBRARY llama
-        PATHS "${NOUgat_AI_RUNTIME}/lib" "${NOUgat_AI_RUNTIME}/lib64"
+        PATHS "${NOUGAT_AI_RUNTIME}/lib" "${NOUGAT_AI_RUNTIME}/lib64"
         NO_DEFAULT_PATH)
     if(NOT LLAMA_INCLUDE_DIR OR NOT LLAMA_LIBRARY)
-        if(_NOUgat_AI_MODE STREQUAL "ENABLED")
+        if(_NOUGAT_AI_MODE STREQUAL "ENABLED")
             message(FATAL_ERROR
-                "Local AI was required but the managed llama.cpp runtime is incomplete at ${NOUgat_AI_RUNTIME}")
+                "Local AI was required but the managed llama.cpp runtime is incomplete at ${NOUGAT_AI_RUNTIME}")
         endif()
-        set(_NOUgat_USE_AI_STUB TRUE)
+        set(_NOUGAT_USE_AI_STUB TRUE)
         message(STATUS "Managed Local AI runtime not installed; building Local AI stub")
     endif()
 endif()
 
-if(_NOUgat_USE_AI_STUB)
+if(_NOUGAT_USE_AI_STUB)
     target_compile_definitions(Nougat_Media_Suite_v50 PRIVATE REDDMEDIA_AI_STUB=1)
 else()
     target_include_directories(Nougat_Media_Suite_v50 PRIVATE "${LLAMA_INCLUDE_DIR}")
     target_link_libraries(Nougat_Media_Suite_v50 PRIVATE "${LLAMA_LIBRARY}")
     target_link_options(Nougat_Media_Suite_v50 PRIVATE
         "-Wl,--disable-new-dtags"
-        "-Wl,-rpath-link,${NOUgat_AI_RUNTIME}/lib"
-        "-Wl,-rpath-link,${NOUgat_AI_RUNTIME}/lib64")
+        "-Wl,-rpath-link,${NOUGAT_AI_RUNTIME}/lib"
+        "-Wl,-rpath-link,${NOUGAT_AI_RUNTIME}/lib64")
     set_target_properties(Nougat_Media_Suite_v50 PROPERTIES
         BUILD_WITH_INSTALL_RPATH TRUE
-        INSTALL_RPATH "${NOUgat_AI_RUNTIME}/lib;${NOUgat_AI_RUNTIME}/lib64"
+        INSTALL_RPATH "${NOUGAT_AI_RUNTIME}/lib;${NOUGAT_AI_RUNTIME}/lib64"
         INSTALL_RPATH_USE_LINK_PATH FALSE)
 endif()
 
