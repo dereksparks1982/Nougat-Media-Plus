@@ -14,6 +14,7 @@ struct Layout {
     std::filesystem::path state;
     std::filesystem::path logs;
     std::filesystem::path runtime;
+    std::filesystem::path plugins;
     std::filesystem::path server_data;
     std::filesystem::path server_config;
     std::filesystem::path server_cache;
@@ -23,7 +24,8 @@ struct Layout {
 
 // Resolve Nougat's v0.0.50 XDG layout. Environment overrides follow the
 // freedesktop XDG base-directory conventions. No directory is created merely
-// by calling layout().
+// by calling layout(). NOUGAT_PLUGIN_ROOT may override the managed plugin root
+// for installer validation and isolated tests.
 const Layout& layout();
 
 // Create the Nougat-owned directories required for normal runtime operation.
@@ -32,6 +34,13 @@ bool ensure_runtime_layout(std::string* error = nullptr);
 
 // Preferred managed component root, e.g. ~/.local/share/nougat/runtime/mesen2.
 std::filesystem::path component_runtime(const std::string& component_id);
+
+// Managed optional-plugin root, e.g. ~/.local/share/nougat/plugins/workshop.
+// The presence of plugin.json is the v0.0.50 installed/enabled contract.
+std::filesystem::path plugin_root(const std::string& plugin_id);
+std::filesystem::path plugin_manifest(const std::string& plugin_id);
+std::filesystem::path plugin_resource(const std::string& plugin_id, const std::filesystem::path& relative_path);
+bool plugin_installed(const std::string& plugin_id);
 
 // Legacy ReddMedia locations are returned only for migration/compatibility.
 // Callers must verify a successful migration before removing anything.
