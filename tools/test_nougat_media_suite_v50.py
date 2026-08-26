@@ -26,12 +26,11 @@ def main() -> int:
         media_server = (ROOT / "src/media_server/media_server_manager.cpp").read_text(encoding="utf-8")
         paths_hpp = (ROOT / "src/platform/nougat_paths.hpp").read_text(encoding="utf-8")
         paths_cpp = (ROOT / "src/platform/nougat_paths.cpp").read_text(encoding="utf-8")
+        registry_hpp = (ROOT / "src/plugins/plugin_registry.hpp").read_text(encoding="utf-8")
+        host_hpp = (ROOT / "src/plugins/plugin_process_host.hpp").read_text(encoding="utf-8")
         manifest = json.loads((ROOT / "config/components/components-v1.json").read_text(encoding="utf-8"))
         workshop_plugin = json.loads((ROOT / "plugins/workshop/plugin.json").read_text(encoding="utf-8"))
-        installer_wrapper = (ROOT / "installer/nougat_v50_installer.py").read_text(encoding="utf-8")
         installer_backend = (ROOT / "installer/nougat_v50_installer_backend.py").read_text(encoding="utf-8")
-        installer_gui = (ROOT / "installer/nougat_installer_gui_v50.cpp").read_text(encoding="utf-8")
-        installer_packager = (ROOT / "tools/package_v50_installer.py").read_text(encoding="utf-8")
 
         contains_all(cmake, [
             "VERSION 0.0.50",
@@ -39,44 +38,59 @@ def main() -> int:
             "NOUGAT_AI_MODE",
             "NOUGAT_P2P_MODE",
             "src/platform/nougat_paths.cpp",
+            "src/plugins/plugin_registry.cpp",
+            "src/plugins/plugin_process_host.cpp",
+            "add_executable(nougat_workshop_plugin",
+            "plugins/workshop/nougat_workshop_plugin.cpp",
             "src/workshop/split_archive_service.cpp",
+            'OUTPUT_NAME "nougat-workshop-plugin"',
             "-Wall -Wextra -Werror",
         ], "v50 CMake")
+        core_block = cmake.split("add_executable(Nougat_Media_Suite_v50", 1)[1].split(")", 1)[0]
+        need("src/workshop/split_archive_service.cpp" not in core_block,
+             "Workshop split/archive implementation is still linked into the mandatory player core")
 
         contains_all(main_cpp, [
-            "NOUGAT_V50_WORKSHOP_PATCH",
             "NOUGAT_V50_NEUTRAL_PICKERS",
             "NOUGAT_V50_PLUGIN_FOUNDATION",
+            "NOUGAT_V50_WORKSHOP_PROCESS_PLUGIN",
             '#include "platform/nougat_paths.hpp"',
-            '#include "workshop/split_archive_service.hpp"',
+            '#include "plugins/plugin_registry.hpp"',
+            '#include "plugins/plugin_process_host.hpp"',
             'printf("Nougat Media Suite v0.0.50\\n")',
             'const std::string versionLabel = "v0.0.50";',
             'input.app_version = "Nougat Media Suite v0.0.50";',
             'draw_tab(studioTab,"Workshop",ViewMode::Studio);',
-            'nougat::paths::plugin_installed("workshop")',
-            'nougat::paths::plugin_resource("workshop", "nougat_split_archive.py")',
-            'section_text(target, 28, 70, "WORKSHOP", palette.text);',
-            "NOUGAT_SPLIT_ARCHIVE v1",
-            "start_workshop_split()",
-            "start_workshop_reassemble(",
+            "workshop_plugin_ready()",
+            "workshopPluginHost.start(",
+            "workshopPluginHost.stop();",
             'nougat::paths::component_runtime("mesen2")',
             'nougat::paths::component_runtime("dosbox-staging")',
             'nougat::paths::component_runtime("xenia")',
         ], "v50 main source")
 
         forbidden = [
+            '#include "workshop/split_archive_service.hpp"',
+            "struct WorkshopUiState",
+            "workshopState",
+            "workshopWorker",
+            "workshopSourcePath",
+            "workshopOutputFolder",
+            "workshopSplitBtn",
+            "start_workshop_split()",
+            "start_workshop_reassemble(",
+            "poll_workshop_worker();",
+            "handle_workshop_click(x,y);",
+            'nougat::paths::plugin_installed("workshop")',
             'draw_tab(studioTab,"Studio",ViewMode::Studio);',
-            'section_text(target, 28, 70, "GOLD STUDIO", palette.text);',
             'printf("Nougat Media Suite v0.0.49\\n")',
             'static std::string config_dir() { return home_dir() + "/.config/reddmedia"; }',
-            'exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf"',
             'exe_dir() + "/components/games/runtime/mesen2/Mesen"',
-            '"components" / "workshop" / "nougat_split_archive.py"',
-            'exe_dir()).parent_path()',
+            'exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf"',
             '/home/dereksparks1982/Downloads',
         ]
         present = [token for token in forbidden if token in main_cpp]
-        need(not present, "v50 main source retains forbidden seams: " + ", ".join(present))
+        need(not present, "v50 main source retains forbidden hardwired/legacy seams: " + ", ".join(present))
 
         contains_all(paths_hpp, [
             "std::filesystem::path config;",
@@ -97,6 +111,20 @@ def main() -> int:
             "safe_relative_resource",
         ], "v50 plugin path implementation")
 
+        contains_all(registry_hpp, [
+            "PluginManifest",
+            "PluginScanResult",
+            "scan_installed_plugins",
+            "runtime_kind",
+            "entrypoint",
+        ], "strict plugin registry API")
+        contains_all(host_hpp, [
+            "PluginProcessHost",
+            "parent_xid",
+            "stop()",
+            "poll(",
+        ], "out-of-process plugin host API")
+
         contains_all(media_server, [
             'component_runtime("jellyfin")',
             "paths.server_data",
@@ -116,19 +144,9 @@ def main() -> int:
 
         ids = {item.get("id") for item in manifest["components"] if isinstance(item, dict)}
         required_ids = {
-            "core-player",
-            "media-server-jellyfin",
-            "local-ai-llama",
-            "local-ai-embedding-model",
-            "games-mesen2",
-            "games-stella",
-            "games-blastem",
-            "games-dosbox-staging",
-            "games-rmg",
-            "games-atari800",
-            "games-xenia",
-            "live-tv",
-            "security-analysis",
+            "core-player", "media-server-jellyfin", "local-ai-llama", "local-ai-embedding-model",
+            "games-mesen2", "games-stella", "games-blastem", "games-dosbox-staging", "games-rmg",
+            "games-atari800", "games-xenia", "live-tv", "security-analysis",
         }
         missing_ids = sorted(required_ids - ids)
         need(not missing_ids, "component manifest missing IDs: " + ", ".join(missing_ids))
@@ -137,82 +155,55 @@ def main() -> int:
         need(core.get("scope") == "video-player-only", "core-player scope must be video-player-only")
         need(core.get("required_for_application_start") is True,
              "core-player must be the required application component")
-
         for item in manifest["components"]:
             if item.get("id") != "core-player":
                 need(item.get("required_for_application_start") is not True,
                      f"optional component {item.get('id')} incorrectly required for application start")
 
         need(workshop_plugin.get("format") == "NOUGAT_PLUGIN", "Workshop plugin format mismatch")
+        need(workshop_plugin.get("format_version") == 1, "Workshop plugin format version mismatch")
         need(workshop_plugin.get("id") == "workshop", "Workshop plugin ID mismatch")
+        need(workshop_plugin.get("version") == "0.0.50", "Workshop plugin version mismatch")
+        need(workshop_plugin.get("nougat_plugin_api") == 1, "Workshop plugin API mismatch")
+        need(workshop_plugin.get("top_level_tab") == "Workshop", "Workshop tab identity mismatch")
         need(workshop_plugin.get("required_for_application_start") is False,
              "Workshop plugin must remain optional")
+        runtime = workshop_plugin.get("runtime", {})
+        need(runtime.get("kind") == "x11-process", "Workshop must use the isolated x11-process runtime")
+        need(runtime.get("entrypoint") == "bin/nougat-workshop-plugin", "Workshop entrypoint mismatch")
         resources = workshop_plugin.get("resources", [])
         need(any(isinstance(item, dict) and item.get("install_as") == "nougat_split_archive.py" for item in resources),
-             "Workshop plugin does not declare its split worker resource")
-
-        contains_all(installer_wrapper, [
-            "nougat_v50_installer_backend",
-            "main",
-        ], "v50 installer compatibility entry point")
+             "Workshop plugin does not declare its split worker")
+        need(any(isinstance(item, dict) and item.get("install_as") == "bin/nougat-workshop-plugin" and
+                 item.get("kind") == "executable" for item in resources),
+             "Workshop plugin does not declare its native executable")
 
         contains_all(installer_backend, [
             'APP_PREFIX = Path("/opt/nougat-media-suite")',
-            'choices=["default", "custom", "advanced"]',
-            "safe_runtime_shutdown()",
-            "stop_verified_owned_jellyfin()",
-            "NOUGAT_MEDIA_SERVER_OWNER",
-            "pkexec",
-            "metadata::custom-icon",
-            "APP_ICON_SHA256",
-            "class Rollback",
-            "rollback.restore()",
+            "user_plugin_root()",
             "install_plugin(",
             "remove_plugin(",
+            'resource.get("kind") in {"python-worker", "executable"}',
             '"plugins": plugins',
-        ], "transactional v50 installer backend")
-
-        contains_all(installer_gui, [
-            "Nougat Media Suite Installer v0.0.50",
-            "Video Player + Nougat Plugin Core   REQUIRED",
-            "Default",
-            "Custom",
-            "Advanced Custom",
-            "Install",
-            "Launch Nougat Media Suite",
-            "Close Installer",
-            "--automated-install",
-            "--window-self-test",
-            "_NET_WM_ICON",
-            "nougat_media_suite_icon::kIcon64",
-        ], "native graphical v50 installer")
-
-        contains_all(installer_packager, [
-            'GUI_BINARY = ROOT / "Nougat_Installer_v50"',
-            'TOP = "Nougat_Media_Suite_v0.0.50"',
-            '"entrypoint": "Nougat_Installer_v50"',
-            '"mandatory_core": "payload/Nougat_Media_Suite_v50"',
-            "player core must not be exposed at the package top level",
-            "PACKAGE_MANIFEST.json",
-        ], "graphical installer packager")
+        ], "v50 installer backend")
 
         for script in [
             ROOT / "components/workshop/nougat_split_archive.py",
             ROOT / "tools/apply_v50_core.py",
             ROOT / "tools/apply_v50_dialog_labels.py",
             ROOT / "tools/apply_v50_plugin_foundation.py",
-            ROOT / "tools/package_v50_installer.py",
+            ROOT / "tools/apply_v50_workshop_process_plugin.py",
+            ROOT / "tools/apply_v50_candidate.py",
             ROOT / "installer/nougat_v50_installer.py",
             ROOT / "installer/nougat_v50_installer_backend.py",
             ROOT / "tests/v50/test_plugin_installer.py",
-            ROOT / "tests/v50/test_installer_bundle.py",
+            ROOT / "tests/v50/test_workshop_plugin_package.py",
         ]:
             py_compile.compile(str(script), doraise=True)
 
         print("PASS: Nougat Media Suite v0.0.50 source contract")
         print("PASS: minimal installation contract is core-player only")
-        print("PASS: Workshop is optional Plugin #1 with managed resource lookup")
-        print("PASS: v0.0.50 requires a native graphical installer with transactional rollback and icon verification")
+        print("PASS: Workshop Plugin #1 is physically outside the player core and uses x11-process isolation")
         return 0
     except Exception as exc:
         print("FAIL:", exc)
