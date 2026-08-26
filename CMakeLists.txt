@@ -18,7 +18,7 @@ add_executable(Nougat_Media_Suite_v50
     src/main.cpp
     src/platform/nougat_paths.cpp
     src/plugins/plugin_registry.cpp
-    src/workshop/split_archive_service.cpp
+    src/plugins/plugin_process_host.cpp
     src/games/emulator_host.cpp
     src/nougat/nougat_bridge.cpp
     src/search/secure_search.cpp
@@ -48,6 +48,17 @@ add_executable(Nougat_Media_Suite_v50
 target_include_directories(Nougat_Media_Suite_v50 PRIVATE src)
 target_compile_options(Nougat_Media_Suite_v50 PRIVATE -Wall -Wextra -Werror)
 target_link_libraries(Nougat_Media_Suite_v50 PRIVATE X11 dl Threads::Threads)
+
+# Workshop Plugin #1 is a real separately built X11 process. Its split/archive
+# implementation is deliberately not linked into the mandatory player core.
+add_executable(nougat_workshop_plugin
+    plugins/workshop/nougat_workshop_plugin.cpp
+    src/workshop/split_archive_service.cpp
+)
+target_include_directories(nougat_workshop_plugin PRIVATE src)
+target_compile_options(nougat_workshop_plugin PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(nougat_workshop_plugin PRIVATE X11 Threads::Threads)
+set_target_properties(nougat_workshop_plugin PROPERTIES OUTPUT_NAME "nougat-workshop-plugin")
 
 # The plugin registry is part of the mandatory player/plugin core. This native
 # self-test proves the physical plugin directory is the source of truth without
