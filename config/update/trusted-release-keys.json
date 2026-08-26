@@ -1,0 +1,7 @@
+{
+  "format": "NOUGAT_TRUSTED_RELEASE_KEYS",
+  "format_version": 1,
+  "production_signing_enabled": false,
+  "keys": [],
+  "note": "v0.0.50 establishes the trust-store format only. Do not enable automatic application replacement until an Elderred Ed25519 public release key has been generated out-of-repository, reviewed, and intentionally embedded here. The matching private signing key must never be committed to this repository or shipped with Nougat."
+}
