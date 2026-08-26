@@ -56,30 +56,45 @@ def main() -> int:
                      "standalone Workshop plugin ZIP incorrectly contains the player core")
                 need(not any("Nougat_Installer_v50" in name for name in names),
                      "standalone Workshop plugin ZIP incorrectly contains the suite installer")
-                worker_name = f"{top_name}/workshop/nougat_split_archive.py"
-                worker_info = zf.getinfo(worker_name)
-                worker_mode = (worker_info.external_attr >> 16) & 0o777
-                need(worker_info.create_system == 3 and worker_mode & 0o111 != 0,
-                     "Workshop plugin worker is not executable in the ZIP")
+
+                executable_members = [
+                    f"{top_name}/workshop/nougat_split_archive.py",
+                    f"{top_name}/workshop/bin/nougat-workshop-plugin",
+                ]
+                for name in executable_members:
+                    info = zf.getinfo(name)
+                    mode = (info.external_attr >> 16) & 0o777
+                    need(info.create_system == 3 and mode & 0o111 != 0,
+                         "Workshop package member is not executable in the ZIP: " + name)
                 zf.extractall(extracted)
 
             package = extracted / top_name
             package_manifest_path = package / "PACKAGE_MANIFEST.json"
             manifest_path = package / "workshop" / "plugin.json"
             worker_path = package / "workshop" / "nougat_split_archive.py"
+            native_path = package / "workshop" / "bin" / "nougat-workshop-plugin"
             need(package_manifest_path.is_file(), "Workshop package manifest is missing")
             need(manifest_path.is_file(), "Workshop runtime plugin manifest is missing")
             need(worker_path.is_file(), "Workshop split/reassemble worker is missing")
+            need(native_path.is_file(), "Workshop native x11-process entrypoint is missing")
 
             package_manifest = json.loads(package_manifest_path.read_text(encoding="utf-8"))
             need(package_manifest.get("format") == "NOUGAT_PLUGIN_PACKAGE", "Workshop package format mismatch")
             need(package_manifest.get("format_version") == 1, "Workshop package format version mismatch")
             need(package_manifest.get("plugin_id") == "workshop", "Workshop package plugin ID mismatch")
             need(package_manifest.get("plugin_version") == "0.0.50", "Workshop package version mismatch")
+            need(package_manifest.get("runtime_kind") == "x11-process", "Workshop package runtime kind mismatch")
+            need(package_manifest.get("entrypoint") == "workshop/bin/nougat-workshop-plugin",
+                 "Workshop package entrypoint mismatch")
             need(package_manifest.get("install_folder") == "workshop", "Workshop package install folder mismatch")
 
-            expected = {item["path"]: item for item in package_manifest.get("files", []) if isinstance(item, dict) and "path" in item}
-            for relative in ("workshop/plugin.json", "workshop/nougat_split_archive.py"):
+            expected = {item["path"]: item for item in package_manifest.get("files", [])
+                        if isinstance(item, dict) and "path" in item}
+            for relative in (
+                "workshop/plugin.json",
+                "workshop/nougat_split_archive.py",
+                "workshop/bin/nougat-workshop-plugin",
+            ):
                 need(relative in expected, "Workshop package manifest omits " + relative)
                 path = package / relative
                 need(path.stat().st_size == int(expected[relative]["bytes"]), relative + " byte count mismatch")
@@ -87,27 +102,41 @@ def main() -> int:
 
             plugin_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             need(plugin_manifest.get("format") == "NOUGAT_PLUGIN", "Workshop runtime manifest format mismatch")
+            need(plugin_manifest.get("format_version") == 1, "Workshop runtime manifest format version mismatch")
             need(plugin_manifest.get("id") == "workshop", "Workshop runtime manifest ID mismatch")
             need(plugin_manifest.get("version") == "0.0.50", "Workshop runtime manifest version mismatch")
+            need(plugin_manifest.get("nougat_plugin_api") == 1, "Workshop runtime plugin API mismatch")
+            need(plugin_manifest.get("top_level_tab") == "Workshop", "Workshop runtime tab mismatch")
             need(plugin_manifest.get("required_for_application_start") is False,
                  "Workshop runtime manifest incorrectly requires the application core")
             need(plugin_manifest.get("package_kind") == "drop-in-folder",
                  "Workshop runtime manifest does not declare drop-in package semantics")
+            runtime = plugin_manifest.get("runtime", {})
+            need(runtime.get("kind") == "x11-process", "Workshop runtime is not isolated x11-process")
+            need(runtime.get("entrypoint") == "bin/nougat-workshop-plugin", "Workshop runtime entrypoint mismatch")
             resources = plugin_manifest.get("resources", [])
             need(any(isinstance(item, dict) and item.get("source") == "nougat_split_archive.py" and
                      item.get("install_as") == "nougat_split_archive.py" for item in resources),
-                 "Workshop package resource path is not self-contained")
+                 "Workshop package worker path is not self-contained")
+            need(any(isinstance(item, dict) and item.get("source") == "bin/nougat-workshop-plugin" and
+                     item.get("install_as") == "bin/nougat-workshop-plugin" for item in resources),
+                 "Workshop package native entrypoint path is not self-contained")
 
-            # Simulate the power-user install model: physically place the
-            # plugin folder in the plugin root, relaunch/scan, then remove it.
+            native_path.chmod(native_path.stat().st_mode | 0o111)
+            identity = run([str(native_path), "--version"])
+            need(identity.returncode == 0 and identity.stdout.strip() == "Nougat Workshop Plugin v0.0.50",
+                 "packaged Workshop native plugin identity failed: " + identity.stdout)
+
             installed = plugin_root / "workshop"
             shutil.copytree(package / "workshop", installed)
             need((installed / "plugin.json").is_file(), "drop-in Workshop folder did not install")
             installed_worker = installed / "nougat_split_archive.py"
+            installed_native = installed / "bin" / "nougat-workshop-plugin"
             installed_worker.chmod(installed_worker.stat().st_mode | 0o111)
+            installed_native.chmod(installed_native.stat().st_mode | 0o111)
 
             sample = tmp / "sample.bin"
-            sample.write_bytes(b"Nougat standalone Workshop plugin package test\n" * 64)
+            sample.write_bytes(b"Nougat standalone native Workshop plugin package test\n" * 64)
             result = run([sys.executable, str(installed_worker), "inspect", str(sample), "--json"])
             need(result.returncode == 0, "standalone Workshop worker could not inspect a file:\n" + result.stdout)
             payload = json.loads(result.stdout)
@@ -118,9 +147,9 @@ def main() -> int:
             shutil.rmtree(installed)
             need(not installed.exists(), "Workshop drop-in folder could not be removed cleanly")
 
-        print("PASS: standalone Workshop plugin package structure and hashes")
+        print("PASS: standalone Workshop plugin package structure, native entrypoint, and hashes")
         print("PASS: Workshop plugin drop-in folder installs and removes independently of player core")
-        print("PASS: packaged Workshop worker executes successfully")
+        print("PASS: packaged Workshop worker and native process identity execute successfully")
         return 0
     except Exception as exc:
         print("FAIL:", exc)
