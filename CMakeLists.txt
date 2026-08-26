@@ -5,9 +5,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Backward-compatible switch retained for isolated validation jobs.
 option(REDDMEDIA_P2P_STUB "Build P2P engine without libtorrent for isolated source/UI validation" OFF)
 set(NOUGAT_AI_MODE "AUTO" CACHE STRING "Local AI build mode: AUTO, ENABLED, or STUB")
 set_property(CACHE NOUGAT_AI_MODE PROPERTY STRINGS AUTO ENABLED STUB)
+set(NOUGAT_P2P_MODE "AUTO" CACHE STRING "P2P build mode: AUTO, ENABLED, or STUB")
+set_property(CACHE NOUGAT_P2P_MODE PROPERTY STRINGS AUTO ENABLED STUB)
 
 find_package(Threads REQUIRED)
 
@@ -98,10 +101,36 @@ else()
         INSTALL_RPATH_USE_LINK_PATH FALSE)
 endif()
 
+# P2P is also optional to the core application. AUTO enables libtorrent when
+# the development package is available and otherwise compiles the explicit
+# stub. ENABLED is for release builders who want absence to be a hard failure.
 if(REDDMEDIA_P2P_STUB)
+    set(NOUGAT_P2P_MODE "STUB")
+endif()
+string(TOUPPER "${NOUGAT_P2P_MODE}" _NOUGAT_P2P_MODE)
+if(NOT _NOUGAT_P2P_MODE MATCHES "^(AUTO|ENABLED|STUB)$")
+    message(FATAL_ERROR "NOUGAT_P2P_MODE must be AUTO, ENABLED, or STUB")
+endif()
+
+set(_NOUGAT_USE_P2P_STUB FALSE)
+if(_NOUGAT_P2P_MODE STREQUAL "STUB")
+    set(_NOUGAT_USE_P2P_STUB TRUE)
+else()
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(LIBTORRENT QUIET IMPORTED_TARGET libtorrent-rasterbar)
+    endif()
+    if(NOT LIBTORRENT_FOUND)
+        if(_NOUGAT_P2P_MODE STREQUAL "ENABLED")
+            message(FATAL_ERROR "P2P was required but libtorrent-rasterbar development files were not found")
+        endif()
+        set(_NOUGAT_USE_P2P_STUB TRUE)
+        message(STATUS "libtorrent-rasterbar not installed; building P2P stub")
+    endif()
+endif()
+
+if(_NOUGAT_USE_P2P_STUB)
     target_compile_definitions(Nougat_Media_Suite_v50 PRIVATE REDDMEDIA_P2P_STUB=1)
 else()
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(LIBTORRENT REQUIRED IMPORTED_TARGET libtorrent-rasterbar)
     target_link_libraries(Nougat_Media_Suite_v50 PRIVATE PkgConfig::LIBTORRENT)
 endif()
