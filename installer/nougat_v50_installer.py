@@ -15,9 +15,11 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 APP_VERSION = "0.0.50"
 APP_BINARY = "Nougat_Media_Suite_v50"
@@ -51,6 +53,49 @@ def user_plugin_root() -> Path:
     return xdg_data_home() / "nougat" / "plugins"
 
 
+def running_nougat_processes() -> list[tuple[int, Path]]:
+    found: list[tuple[int, Path]] = []
+    proc = Path("/proc")
+    if not proc.is_dir():
+        return found
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            executable = (entry / "exe").resolve(strict=True)
+        except (OSError, RuntimeError):
+            continue
+        if executable.name.startswith("Nougat_Media_Suite_v"):
+            found.append((int(entry.name), executable))
+    return found
+
+
+def stop_running_nougat() -> None:
+    processes = running_nougat_processes()
+    if not processes:
+        return
+    print("Stopping running Nougat Media Suite before changing installed application files...")
+    for pid, executable in processes:
+        print(f"  PID {pid}: {executable}")
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except PermissionError as exc:
+            raise InstallError(f"Unable to stop Nougat PID {pid}: {exc}") from exc
+
+    deadline = time.monotonic() + 8.0
+    while time.monotonic() < deadline:
+        remaining = running_nougat_processes()
+        if not remaining:
+            return
+        time.sleep(0.2)
+
+    remaining = running_nougat_processes()
+    detail = ", ".join(f"PID {pid} ({path})" for pid, path in remaining)
+    raise InstallError("Nougat is still running after the shutdown request: " + detail)
+
+
 def load_plugin_catalog(source_root: Path) -> dict[str, dict]:
     catalog: dict[str, dict] = {}
     plugin_dir = source_root / "plugins"
@@ -79,8 +124,8 @@ def parse_plugins(value: str | None) -> list[str]:
 def interactive_mode() -> str:
     print("Nougat Media Suite v0.0.50 Installer")
     print("The video player is always installed. Optional plugins are your choice.\n")
-    print("1) Default        Player + recommended plugins")
-    print("2) Custom         Player + selected feature plugins")
+    print("1) Default         Player + recommended plugins")
+    print("2) Custom          Player + selected feature plugins")
     print("3) Advanced Custom Player + individually selected plugins/components")
     while True:
         choice = input("Choose installation mode [1/2/3]: ").strip()
@@ -180,11 +225,14 @@ def install_desktop_identity(source_root: Path, *, staging_root: Path | None) ->
     copy_file_atomic(icon_source, icon_destination, 0o644)
 
 
-def install_plugin(source_root: Path, plugin_id: str, data: dict, *, staging_root: Path | None) -> Path:
+def plugin_install_root(*, staging_root: Path | None) -> Path:
     if staging_root is not None:
-        plugin_root = staging_root / "user-data" / "nougat" / "plugins"
-    else:
-        plugin_root = user_plugin_root()
+        return staging_root / "user-data" / "nougat" / "plugins"
+    return user_plugin_root()
+
+
+def install_plugin(source_root: Path, plugin_id: str, data: dict, *, staging_root: Path | None) -> Path:
+    plugin_root = plugin_install_root(staging_root=staging_root)
     destination = plugin_root / plugin_id
     temporary = plugin_root / ("." + plugin_id + ".installing")
 
@@ -226,17 +274,35 @@ def install_plugin(source_root: Path, plugin_id: str, data: dict, *, staging_roo
     return destination
 
 
-def remove_plugin(plugin_id: str, *, staging_root: Path | None) -> None:
+def remove_plugin(plugin_id: str, *, staging_root: Path | None, announce: bool = True) -> None:
     if "/" in plugin_id or "\\" in plugin_id or plugin_id in {"", ".", ".."}:
         raise InstallError("Unsafe plugin id")
-    if staging_root is not None:
-        root = staging_root / "user-data" / "nougat" / "plugins"
-    else:
-        root = user_plugin_root()
-    destination = root / plugin_id
+    destination = plugin_install_root(staging_root=staging_root) / plugin_id
     if destination.exists():
         shutil.rmtree(destination)
-    print(f"Removed plugin: {plugin_id}")
+        if announce:
+            print(f"Removed plugin: {plugin_id}")
+
+
+def reconcile_plugins(source_root: Path, catalog: dict[str, dict], selected: list[str], *, staging_root: Path | None) -> list[str]:
+    selected_set = set(selected)
+
+    # The selected set is authoritative. Known plugins that are not selected
+    # are removed from the application plugin tree. User media/data elsewhere
+    # in Nougat's data hierarchy is intentionally untouched.
+    for plugin_id in sorted(catalog):
+        if plugin_id not in selected_set:
+            remove_plugin(plugin_id, staging_root=staging_root)
+
+    installed_plugins: list[str] = []
+    for plugin_id in selected:
+        destination = install_plugin(source_root, plugin_id, catalog[plugin_id], staging_root=staging_root)
+        manifest = destination / "plugin.json"
+        if not manifest.is_file():
+            raise InstallError(f"Plugin install verification failed: {plugin_id}")
+        installed_plugins.append(plugin_id)
+        print(f"Installed plugin: {plugin_id}")
+    return installed_plugins
 
 
 def verify_core(binary: Path) -> None:
@@ -289,6 +355,8 @@ def main() -> int:
 
         staging_root = args.staging_root.expanduser().resolve() if args.staging_root else None
         if args.remove_plugin:
+            if staging_root is None:
+                stop_running_nougat()
             remove_plugin(args.remove_plugin, staging_root=staging_root)
             return 0
 
@@ -301,22 +369,17 @@ def main() -> int:
             raise InstallError(f"Built Nougat player core is missing: {binary}")
         verify_core(binary)
 
-        if staging_root is not None:
-            installed_core = install_core_staged(binary, staging_root)
-        else:
+        if staging_root is None:
+            stop_running_nougat()
             installed_core = install_core_system(binary)
+        else:
+            installed_core = install_core_staged(binary, staging_root)
         verify_core(installed_core)
         install_desktop_identity(source_root, staging_root=staging_root)
 
-        installed_plugins: list[str] = []
-        for plugin_id in selected:
-            destination = install_plugin(source_root, plugin_id, catalog[plugin_id], staging_root=staging_root)
-            manifest = destination / "plugin.json"
-            if not manifest.is_file():
-                raise InstallError(f"Plugin install verification failed: {plugin_id}")
-            installed_plugins.append(plugin_id)
-            print(f"Installed plugin: {plugin_id}")
-
+        installed_plugins = reconcile_plugins(
+            source_root, catalog, selected, staging_root=staging_root
+        )
         state_path = write_install_state(mode, installed_plugins, staging_root=staging_root)
 
         print("=== NOUGAT MEDIA SUITE v0.0.50 INSTALL PASS ===")
