@@ -22,18 +22,43 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake g++ libx11-dev python3
 
+      - name: Apply guarded v50 source migration
+        run: |
+          python3 tools/apply_v50_core.py
+          python3 tools/apply_v50_dialog_labels.py
+
+      - name: Validate v50 source contract
+        run: python3 tools/test_nougat_media_suite_v50.py .
+
       - name: Validate Workshop split archive
         run: python3 tests/v50/test_workshop_split_archive.py
 
       - name: Configure lean v50 native build
         run: >-
           cmake -S . -B /tmp/nougat-v50-build
-          -DREDDMEDIA_P2P_STUB=ON
+          -DNOUGAT_P2P_MODE=STUB
           -DNOUGAT_AI_MODE=STUB
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Compile v50 with warnings as errors
         run: cmake --build /tmp/nougat-v50-build --target Nougat_Media_Suite_v50 -j2
 
-      - name: Confirm v50 executable exists
-        run: test -x /tmp/nougat-v50-build/Nougat_Media_Suite_v50
+      - name: Verify v50 executable identity
+        run: |
+          test -x /tmp/nougat-v50-build/Nougat_Media_Suite_v50
+          test "$(/tmp/nougat-v50-build/Nougat_Media_Suite_v50 --version)" = "Nougat Media Suite v0.0.50"
+
+      - name: Run retained native self-tests
+        run: |
+          /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v49-games-self-test
+          /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-nav-self-test
+          /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-fullscreen-controls-self-test
+          /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-window-identity-self-test
+
+      - name: Upload v50 candidate executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nougat_Media_Suite_v50-candidate
+          path: /tmp/nougat-v50-build/Nougat_Media_Suite_v50
+          if-no-files-found: error
+          retention-days: 14
