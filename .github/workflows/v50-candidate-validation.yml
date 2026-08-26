@@ -30,12 +30,16 @@ jobs:
         run: |
           python3 tools/apply_v50_core.py
           python3 tools/apply_v50_dialog_labels.py
+          python3 tools/apply_v50_plugin_foundation.py
 
-      - name: Validate v50 source contract
+      - name: Validate v50 source and plugin contract
         run: python3 tools/test_nougat_media_suite_v50.py .
 
       - name: Validate Workshop split archive
         run: python3 tests/v50/test_workshop_split_archive.py
+
+      - name: Validate player-only and Workshop installer lifecycle
+        run: python3 tests/v50/test_plugin_installer.py
 
       - name: Configure lean v50 native build
         run: >-
@@ -65,11 +69,18 @@ jobs:
       - name: Build and verify canonical lean source ZIP
         run: python3 tools/package_v50_source.py /tmp/Nougat_Media_Suite_v0.0.50_SOURCE_CANDIDATE.zip
 
-      - name: Upload v50 candidate executable
+      - name: Build and verify installable v50 bundle
+        run: |
+          cp /tmp/nougat-v50-build/Nougat_Media_Suite_v50 ./Nougat_Media_Suite_v50
+          chmod +x ./Nougat_Media_Suite_v50
+          python3 tools/package_v50_installer.py --output /tmp/Nougat_Media_Suite_v0.0.50_INSTALLER.zip
+          rm -f ./Nougat_Media_Suite_v50
+
+      - name: Upload v50 installer
         uses: actions/upload-artifact@v4
         with:
-          name: Nougat_Media_Suite_v50-candidate
-          path: /tmp/nougat-v50-build/Nougat_Media_Suite_v50
+          name: Nougat_Media_Suite_v0.0.50_INSTALLER
+          path: /tmp/Nougat_Media_Suite_v0.0.50_INSTALLER.zip
           if-no-files-found: error
           retention-days: 14
 
