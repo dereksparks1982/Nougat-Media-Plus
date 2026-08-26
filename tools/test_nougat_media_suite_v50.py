@@ -86,9 +86,40 @@ def main() -> int:
 
         need(isinstance(manifest.get("components"), list) and manifest["components"],
              "component manifest does not contain components")
+        profiles = manifest.get("profiles", {})
+        need(profiles.get("minimal") == ["core-player"],
+             "minimal install must contain only core-player")
+        need(manifest.get("policy", {}).get("minimum_profile") == "minimal",
+             "component policy does not declare minimal as the minimum profile")
+
         ids = {item.get("id") for item in manifest["components"] if isinstance(item, dict)}
-        for required in {"jellyfin", "llama.cpp", "mesen2", "stella", "blastem", "dosbox-staging", "xenia"}:
-            need(required in ids, f"component manifest missing {required}")
+        required_ids = {
+            "core-player",
+            "media-server-jellyfin",
+            "local-ai-llama",
+            "local-ai-embedding-model",
+            "games-mesen2",
+            "games-stella",
+            "games-blastem",
+            "games-dosbox-staging",
+            "games-rmg",
+            "games-atari800",
+            "games-xenia",
+            "live-tv",
+            "security-analysis",
+        }
+        missing_ids = sorted(required_ids - ids)
+        need(not missing_ids, "component manifest missing IDs: " + ", ".join(missing_ids))
+
+        core = next(item for item in manifest["components"] if item.get("id") == "core-player")
+        need(core.get("scope") == "video-player-only", "core-player scope must be video-player-only")
+        need(core.get("required_for_application_start") is True,
+             "core-player must be the required application component")
+
+        for item in manifest["components"]:
+            if item.get("id") != "core-player":
+                need(item.get("required_for_application_start") is not True,
+                     f"optional component {item.get('id')} incorrectly required for application start")
 
         for script in [
             ROOT / "components/workshop/nougat_split_archive.py",
@@ -98,6 +129,7 @@ def main() -> int:
             py_compile.compile(str(script), doraise=True)
 
         print("PASS: Nougat Media Suite v0.0.50 source contract")
+        print("PASS: minimal installation contract is core-player only")
         return 0
     except Exception as exc:
         print("FAIL:", exc)
