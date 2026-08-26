@@ -1,0 +1,214 @@
+{
+  "format": "NOUGAT_COMPONENT_MANIFEST",
+  "format_version": 1,
+  "application_version": "0.0.50",
+  "managed_runtime_root": "${XDG_DATA_HOME:-$HOME/.local/share}/nougat/runtime",
+  "policy": {
+    "default_profile": "recommended",
+    "optional_failure_is_fatal": false,
+    "verify_sha256_before_install": true,
+    "runtime_payloads_belong_in_source_tree": false,
+    "silent_large_downloads": false
+  },
+  "profiles": {
+    "recommended": [
+      "core-media",
+      "live-tv",
+      "games-mesen2",
+      "games-stella",
+      "games-blastem",
+      "games-dosbox-staging",
+      "games-rmg",
+      "games-atari800",
+      "games-xenia",
+      "media-server-jellyfin",
+      "security-analysis"
+    ],
+    "minimal": ["core-media"],
+    "media-server": ["media-server-jellyfin"],
+    "games": [
+      "games-mesen2",
+      "games-stella",
+      "games-blastem",
+      "games-dosbox-staging",
+      "games-rmg",
+      "games-atari800",
+      "games-xenia"
+    ],
+    "local-ai": ["local-ai-llama", "local-ai-embedding-model"]
+  },
+  "components": [
+    {
+      "id": "core-media",
+      "display_name": "Core Media Features",
+      "group": "Core Media Features",
+      "required_for_application_start": true,
+      "recommended_by_default": true,
+      "install_strategy": "system-dependencies",
+      "health": {"kind": "application-self-test"}
+    },
+    {
+      "id": "live-tv",
+      "display_name": "Live TV",
+      "group": "Live TV",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "system-dependencies",
+      "health": {"kind": "feature-self-test"}
+    },
+    {
+      "id": "media-server-jellyfin",
+      "display_name": "Jellyfin Media Server",
+      "group": "Media Server",
+      "version": "10.11.11",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "managed-optional",
+      "runtime_relative": "jellyfin",
+      "executable_relative": "jellyfin/jellyfin",
+      "upstream": "https://github.com/jellyfin/jellyfin",
+      "license": "GPL-2.0-only",
+      "automatic_download_ready": false,
+      "automatic_download_blocker": "v0.0.49 bundled Debian payloads did not preserve a trusted upstream SHA-256 record. v0.0.50 must not auto-download/install until an official or locally verified SHA-256 is pinned.",
+      "legacy_seed_artifacts": [
+        {
+          "path": "components/jellyfin/packages/jellyfin-server_10.11.11+ubu2604_amd64.deb",
+          "size": 57355714,
+          "git_blob_sha1": "76291d6084aa1ac6f541973545327e802ee948fc"
+        },
+        {
+          "path": "components/jellyfin/packages/jellyfin-web_10.11.11+ubu2604_all.deb",
+          "size": 31953930,
+          "git_blob_sha1": "266644c617b9c15ff8b80be763bbc3d5df8ae519"
+        }
+      ],
+      "health": {"kind": "http", "url": "http://127.0.0.1:8096/health"}
+    },
+    {
+      "id": "games-mesen2",
+      "display_name": "Mesen 2",
+      "group": "Games",
+      "version": "2.2.1",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "managed-download",
+      "runtime_relative": "mesen2",
+      "executable_relative": "Mesen",
+      "license": "GPL-3.0-only",
+      "sha256": "c88ff4d251b407515c43d3332d641927655cd69fb538996b6a21da4509dbb58f"
+    },
+    {
+      "id": "games-rmg",
+      "display_name": "Rosalie's Mupen GUI",
+      "group": "Games",
+      "version": "0.9.0",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "managed-download",
+      "runtime_relative": "rmg",
+      "executable_relative": "AppRun",
+      "license": "GPL-3.0-only",
+      "sha256": "43ce15e11404aaff313ec44ca03601e5e753bba3b355c38a7c67a4344d517aca"
+    },
+    {
+      "id": "games-atari800",
+      "display_name": "Atari800",
+      "group": "Games",
+      "version": "7.1.2",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "managed-download",
+      "runtime_relative": "atari800",
+      "executable_relative": "AppRun",
+      "license": "GPL-2.0-only",
+      "sha256": "f4e11dcc6706591b630ba1647dcced52986507b55021a9ee24cad3f1e81c65f7"
+    },
+    {
+      "id": "games-stella",
+      "display_name": "Stella",
+      "group": "Games",
+      "version": "7.0",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "managed-download-verify-after-pin",
+      "runtime_relative": "stella",
+      "executable_relative": "stella",
+      "license": "GPL-2.0-only",
+      "automatic_download_ready": false,
+      "automatic_download_blocker": "Upstream release asset checksum must be pinned before unattended installation."
+    },
+    {
+      "id": "games-blastem",
+      "display_name": "BlastEm",
+      "group": "Games",
+      "version": "0.6.3-pre-8013468ed981",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "managed-download-identity-verify",
+      "runtime_relative": "blastem",
+      "executable_relative": "blastem",
+      "license": "GPL-3.0-or-later",
+      "expected_download_size": 6053889,
+      "revision": "8013468ed981"
+    },
+    {
+      "id": "games-dosbox-staging",
+      "display_name": "DOSBox Staging",
+      "group": "Games",
+      "version": "0.82.2",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "managed-download",
+      "runtime_relative": "dosbox-staging",
+      "executable_relative": "dosbox",
+      "license": "GPL-2.0-or-later",
+      "source_url": "https://github.com/dosbox-staging/dosbox-staging/releases/download/v0.82.2/dosbox-staging-linux-x86_64-v0.82.2.tar.xz",
+      "sha256": "bc229df72ea103b7865cdca67324772dbffa8e58866477e69a79638b723a0442"
+    },
+    {
+      "id": "games-xenia",
+      "display_name": "Xenia Canary",
+      "group": "Games",
+      "version": "1e834f8",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "managed-download",
+      "runtime_relative": "xenia",
+      "executable_relative": "xenia_canary",
+      "source_url": "https://github.com/xenia-canary/xenia-canary/releases/download/1e834f8/xenia_canary_linux.AppImage",
+      "sha256": "91df919a912bd305a214c535e0ab8abee43c18eb1bab1ef5e35991d16738b05e"
+    },
+    {
+      "id": "security-analysis",
+      "display_name": "Security Analysis",
+      "group": "Security Analysis",
+      "required_for_application_start": false,
+      "recommended_by_default": true,
+      "install_strategy": "managed-runtime",
+      "runtime_relative": "security",
+      "health": {"kind": "feature-self-test"}
+    },
+    {
+      "id": "local-ai-llama",
+      "display_name": "Local AI Runtime",
+      "group": "Local AI",
+      "required_for_application_start": false,
+      "recommended_by_default": false,
+      "install_strategy": "managed-optional",
+      "runtime_relative": "llama.cpp",
+      "automatic_download_ready": false,
+      "health": {"kind": "feature-self-test"}
+    },
+    {
+      "id": "local-ai-embedding-model",
+      "display_name": "Local Recommendation Embedding Model",
+      "group": "Local AI",
+      "required_for_application_start": false,
+      "recommended_by_default": false,
+      "install_strategy": "managed-model",
+      "runtime_relative": "models/nomic-embed-text-v1.5-Q4_K_M.gguf",
+      "automatic_download_ready": false,
+      "automatic_download_blocker": "Pin upstream model URL, license record, and SHA-256 before automatic download."
+    }
+  ]
+}
