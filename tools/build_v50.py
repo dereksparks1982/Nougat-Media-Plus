@@ -59,6 +59,10 @@ def validate_source() -> None:
     print(result.stdout, end="")
     need(result.returncode == 0, "Workshop split/reassemble regression failed")
 
+    result = run([sys.executable, ROOT / "tests/v50/test_plugin_installer.py"], capture=True)
+    print(result.stdout, end="")
+    need(result.returncode == 0, "v0.0.50 player/plugin installer regression failed")
+
 
 def configure_and_build(build_dir: Path, p2p_mode: str, ai_mode: str) -> Path:
     build_dir = build_dir.resolve()
@@ -155,6 +159,7 @@ def main() -> int:
 
         apply_patch("apply_v50_core.py")
         apply_patch("apply_v50_dialog_labels.py")
+        apply_patch("apply_v50_plugin_foundation.py")
         validate_source()
         built = configure_and_build(args.build_dir, args.p2p, args.ai)
         native_validation(built)
@@ -169,6 +174,8 @@ def main() -> int:
         print("Root executable:", promoted)
         print("Build directory:", args.build_dir)
         print("P2P mode:", args.p2p, "| Local AI mode:", args.ai)
+        print("Installer: installer/nougat_v50_installer.py")
+        print("Core law: player always installed; optional plugins selected by installer mode")
         print("This is a candidate only. No acceptance tag or main-branch merge was performed.")
         return 0
     except Exception as exc:
