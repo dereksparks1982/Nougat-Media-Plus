@@ -144,12 +144,22 @@ def promote(built: Path) -> Path:
     return promoted
 
 
+def package_candidate() -> None:
+    result = run([sys.executable, ROOT / "tools/package_v50_source.py"], capture=True)
+    print(result.stdout, end="")
+    need(result.returncode == 0, "v50 source packaging failed")
+
+    result = run([sys.executable, ROOT / "tools/package_v50_installer.py"], capture=True)
+    print(result.stdout, end="")
+    need(result.returncode == 0, "v50 installer packaging failed")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build the Nougat Media Suite v0.0.50 candidate")
     parser.add_argument("--build-dir", type=Path, default=DEFAULT_BUILD)
     parser.add_argument("--p2p", choices=["AUTO", "ENABLED", "STUB"], default="AUTO")
     parser.add_argument("--ai", choices=["AUTO", "ENABLED", "STUB"], default="AUTO")
-    parser.add_argument("--package", action="store_true", help="also create the canonical lean source ZIP")
+    parser.add_argument("--package", action="store_true", help="create both the canonical lean source ZIP and installer ZIP")
     args = parser.parse_args()
 
     try:
@@ -166,15 +176,13 @@ def main() -> int:
         promoted = promote(built)
 
         if args.package:
-            result = run([sys.executable, ROOT / "tools/package_v50_source.py"], capture=True)
-            print(result.stdout, end="")
-            need(result.returncode == 0, "v50 source packaging failed")
+            package_candidate()
 
         print("=== NOUGAT MEDIA SUITE v0.0.50 CANDIDATE BUILD PASS ===")
         print("Root executable:", promoted)
         print("Build directory:", args.build_dir)
         print("P2P mode:", args.p2p, "| Local AI mode:", args.ai)
-        print("Installer: installer/nougat_v50_installer.py")
+        print("Installer: ~/Downloads/Nougat_Media_Suite_v0.0.50_INSTALLER.zip when --package is used")
         print("Core law: player always installed; optional plugins selected by installer mode")
         print("This is a candidate only. No acceptance tag or main-branch merge was performed.")
         return 0
