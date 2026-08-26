@@ -44,8 +44,6 @@ def main() -> int:
             tmp = Path(tmp_value)
             binary = fake_player(tmp)
 
-            # Custom with an explicitly empty plugin selection is the minimum
-            # install contract: player only, no optional plugin directory.
             player_only = tmp / "player-only"
             result = run([
                 sys.executable, str(INSTALLER),
@@ -63,8 +61,6 @@ def main() -> int:
             state = json.loads((player_only / "user-data" / "nougat" / "install-state.json").read_text(encoding="utf-8"))
             need(state.get("plugins") == [], "player-only install state contains optional plugins")
 
-            # Default selects the recommended plugin catalog. At this migration
-            # stage Workshop is the first and only real optional plugin.
             default_root = tmp / "default"
             result = run([
                 sys.executable, str(INSTALLER),
@@ -77,15 +73,15 @@ def main() -> int:
             default_core = default_root / "opt" / "nougat-media-suite" / "Nougat_Media_Suite_v50"
             default_workshop = default_root / "user-data" / "nougat" / "plugins" / "workshop"
             worker = default_workshop / "nougat_split_archive.py"
+            state_path = default_root / "user-data" / "nougat" / "install-state.json"
             need(default_core.is_file(), "Default install lost the player core")
             need((default_workshop / "plugin.json").is_file(), "Default install did not install Workshop manifest")
             need(worker.is_file(), "Default install did not install Workshop split worker")
             worker_source = (ROOT / "components" / "workshop" / "nougat_split_archive.py").read_bytes()
             need(worker.read_bytes() == worker_source, "installed Workshop worker differs from source resource")
+            default_state = json.loads(state_path.read_text(encoding="utf-8"))
+            need(default_state.get("plugins") == ["workshop"], "Default state does not record Workshop")
 
-            # Re-running the installer with Custom + nothing selected must
-            # reconcile the machine back to player-only. Selection is exact,
-            # not additive.
             result = run([
                 sys.executable, str(INSTALLER),
                 "--source-root", str(ROOT),
@@ -98,14 +94,10 @@ def main() -> int:
             need(not default_workshop.exists(), "Custom player-only reinstall left Workshop installed")
             need(default_core.is_file() and os.access(default_core, os.X_OK),
                  "player-only reconciliation damaged the player core")
-            reconciled_state = json.loads(
-                (default_root / "user-data" / "nougat" / "install-state.json").read_text(encoding="utf-8")
-            )
+            reconciled_state = json.loads(state_path.read_text(encoding="utf-8"))
             need(reconciled_state.get("plugins") == [],
                  "player-only reconciliation state still lists optional plugins")
 
-            # Reinstall Workshop once more, then prove explicit removal also
-            # removes only the plugin and leaves the player executable.
             result = run([
                 sys.executable, str(INSTALLER),
                 "--source-root", str(ROOT),
@@ -127,11 +119,14 @@ def main() -> int:
             need(not default_workshop.exists(), "Workshop resources remain after removal")
             need(default_core.is_file() and os.access(default_core, os.X_OK),
                  "removing Workshop damaged the player core")
+            removed_state = json.loads(state_path.read_text(encoding="utf-8"))
+            need(removed_state.get("plugins") == [],
+                 "explicit Workshop removal left stale plugin state")
 
         print("PASS: v0.0.50 player-only installer installs no optional plugins")
         print("PASS: Default installer installs Workshop Plugin #1")
         print("PASS: Custom empty selection reconciles an existing install to player-only")
-        print("PASS: Workshop removal leaves the player core intact")
+        print("PASS: Workshop removal leaves the player core intact and updates install state")
         return 0
     except Exception as exc:
         print("FAIL:", exc)
