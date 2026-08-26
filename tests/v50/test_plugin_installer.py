@@ -83,7 +83,40 @@ def main() -> int:
             worker_source = (ROOT / "components" / "workshop" / "nougat_split_archive.py").read_bytes()
             need(worker.read_bytes() == worker_source, "installed Workshop worker differs from source resource")
 
-            # Plugin removal removes only that plugin. Core remains executable.
+            # Re-running the installer with Custom + nothing selected must
+            # reconcile the machine back to player-only. Selection is exact,
+            # not additive.
+            result = run([
+                sys.executable, str(INSTALLER),
+                "--source-root", str(ROOT),
+                "--binary", str(binary),
+                "--mode", "custom",
+                "--plugins", "",
+                "--staging-root", str(default_root),
+            ])
+            need(result.returncode == 0, "Default-to-player-only reconciliation failed:\n" + result.stdout)
+            need(not default_workshop.exists(), "Custom player-only reinstall left Workshop installed")
+            need(default_core.is_file() and os.access(default_core, os.X_OK),
+                 "player-only reconciliation damaged the player core")
+            reconciled_state = json.loads(
+                (default_root / "user-data" / "nougat" / "install-state.json").read_text(encoding="utf-8")
+            )
+            need(reconciled_state.get("plugins") == [],
+                 "player-only reconciliation state still lists optional plugins")
+
+            # Reinstall Workshop once more, then prove explicit removal also
+            # removes only the plugin and leaves the player executable.
+            result = run([
+                sys.executable, str(INSTALLER),
+                "--source-root", str(ROOT),
+                "--binary", str(binary),
+                "--mode", "custom",
+                "--plugins", "workshop",
+                "--staging-root", str(default_root),
+            ])
+            need(result.returncode == 0, "Workshop reinstall failed:\n" + result.stdout)
+            need(default_workshop.is_dir(), "Workshop reinstall did not restore plugin resources")
+
             result = run([
                 sys.executable, str(INSTALLER),
                 "--source-root", str(ROOT),
@@ -97,6 +130,7 @@ def main() -> int:
 
         print("PASS: v0.0.50 player-only installer installs no optional plugins")
         print("PASS: Default installer installs Workshop Plugin #1")
+        print("PASS: Custom empty selection reconciles an existing install to player-only")
         print("PASS: Workshop removal leaves the player core intact")
         return 0
     except Exception as exc:
