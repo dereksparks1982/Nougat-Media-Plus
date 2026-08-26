@@ -62,10 +62,21 @@ jobs:
           xvfb-run -a -s "-screen 0 1920x1080x24" /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-fullscreen-controls-self-test
           xvfb-run -a -s "-screen 0 1920x1080x24" /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-window-identity-self-test
 
+      - name: Build and verify canonical lean source ZIP
+        run: python3 tools/package_v50_source.py /tmp/Nougat_Media_Suite_v0.0.50_SOURCE_CANDIDATE.zip
+
       - name: Upload v50 candidate executable
         uses: actions/upload-artifact@v4
         with:
           name: Nougat_Media_Suite_v50-candidate
           path: /tmp/nougat-v50-build/Nougat_Media_Suite_v50
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload v50 candidate source ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nougat_Media_Suite_v0.0.50_SOURCE_CANDIDATE
+          path: /tmp/Nougat_Media_Suite_v0.0.50_SOURCE_CANDIDATE.zip
           if-no-files-found: error
           retention-days: 14
