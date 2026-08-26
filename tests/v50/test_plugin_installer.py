@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+import json
+import os
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[2]
+INSTALLER = ROOT / "installer" / "nougat_v50_installer.py"
+
+
+def need(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def run(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+
+def fake_player(directory: Path) -> Path:
+    binary = directory / "Nougat_Media_Suite_v50"
+    binary.write_text("#!/bin/sh\necho 'Nougat Media Suite v0.0.50'\n", encoding="utf-8")
+    binary.chmod(0o755)
+    return binary
+
+
+def main() -> int:
+    try:
+        need(INSTALLER.is_file(), "v50 installer is missing")
+        plugin_manifest = ROOT / "plugins" / "workshop" / "plugin.json"
+        need(plugin_manifest.is_file(), "Workshop plugin manifest is missing")
+        plugin = json.loads(plugin_manifest.read_text(encoding="utf-8"))
+        need(plugin.get("id") == "workshop", "Workshop plugin ID mismatch")
+        need(plugin.get("required_for_application_start") is False,
+             "Workshop must not be required for application start")
+        need(plugin.get("recommended_by_default") is True,
+             "Workshop should be part of the Default plugin set")
+
+        with tempfile.TemporaryDirectory(prefix="nougat-v50-plugin-test-") as tmp_value:
+            tmp = Path(tmp_value)
+            binary = fake_player(tmp)
+
+            # Custom with an explicitly empty plugin selection is the minimum
+            # install contract: player only, no optional plugin directory.
+            player_only = tmp / "player-only"
+            result = run([
+                sys.executable, str(INSTALLER),
+                "--source-root", str(ROOT),
+                "--binary", str(binary),
+                "--mode", "custom",
+                "--plugins", "",
+                "--staging-root", str(player_only),
+            ])
+            need(result.returncode == 0, "player-only staged install failed:\n" + result.stdout)
+            core = player_only / "opt" / "nougat-media-suite" / "Nougat_Media_Suite_v50"
+            workshop = player_only / "user-data" / "nougat" / "plugins" / "workshop"
+            need(core.is_file(), "player-only install did not install the core player")
+            need(not workshop.exists(), "player-only install incorrectly installed Workshop")
+            state = json.loads((player_only / "user-data" / "nougat" / "install-state.json").read_text(encoding="utf-8"))
+            need(state.get("plugins") == [], "player-only install state contains optional plugins")
+
+            # Default selects the recommended plugin catalog. At this migration
+            # stage Workshop is the first and only real optional plugin.
+            default_root = tmp / "default"
+            result = run([
+                sys.executable, str(INSTALLER),
+                "--source-root", str(ROOT),
+                "--binary", str(binary),
+                "--mode", "default",
+                "--staging-root", str(default_root),
+            ])
+            need(result.returncode == 0, "default staged install failed:\n" + result.stdout)
+            default_core = default_root / "opt" / "nougat-media-suite" / "Nougat_Media_Suite_v50"
+            default_workshop = default_root / "user-data" / "nougat" / "plugins" / "workshop"
+            worker = default_workshop / "nougat_split_archive.py"
+            need(default_core.is_file(), "Default install lost the player core")
+            need((default_workshop / "plugin.json").is_file(), "Default install did not install Workshop manifest")
+            need(worker.is_file(), "Default install did not install Workshop split worker")
+            worker_source = (ROOT / "components" / "workshop" / "nougat_split_archive.py").read_bytes()
+            need(worker.read_bytes() == worker_source, "installed Workshop worker differs from source resource")
+
+            # Plugin removal removes only that plugin. Core remains executable.
+            result = run([
+                sys.executable, str(INSTALLER),
+                "--source-root", str(ROOT),
+                "--remove-plugin", "workshop",
+                "--staging-root", str(default_root),
+            ])
+            need(result.returncode == 0, "Workshop removal failed:\n" + result.stdout)
+            need(not default_workshop.exists(), "Workshop resources remain after removal")
+            need(default_core.is_file() and os.access(default_core, os.X_OK),
+                 "removing Workshop damaged the player core")
+
+        print("PASS: v0.0.50 player-only installer installs no optional plugins")
+        print("PASS: Default installer installs Workshop Plugin #1")
+        print("PASS: Workshop removal leaves the player core intact")
+        return 0
+    except Exception as exc:
+        print("FAIL:", exc)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
