@@ -48,6 +48,12 @@ jobs:
           -DNOUGAT_AI_MODE=STUB
           -DCMAKE_BUILD_TYPE=Release
 
+      - name: Compile built-in plugin registry self-test
+        run: cmake --build /tmp/nougat-v50-build --target nougat_plugin_registry_self_test -j2
+
+      - name: Prove physical plugin folder discovery
+        run: /tmp/nougat-v50-build/nougat_plugin_registry_self_test
+
       - name: Compile v50 with warnings as errors
         run: cmake --build /tmp/nougat-v50-build --target Nougat_Media_Suite_v50 -j2
 
