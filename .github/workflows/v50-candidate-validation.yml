@@ -99,11 +99,25 @@ jobs:
       - name: Exercise exact graphical installer ZIP, rollback, player-only, and Workshop
         run: python3 tests/v50/test_installer_bundle.py /tmp/Nougat_Media_Suite_v0.0.50_GRAPHICAL_INSTALLER.zip
 
+      - name: Build standalone Workshop plugin package
+        run: python3 tools/package_v50_workshop_plugin.py --output /tmp/Nougat_Plugin_Workshop_v0.0.50.zip
+
+      - name: Exercise standalone Workshop plugin package
+        run: python3 tests/v50/test_workshop_plugin_package.py /tmp/Nougat_Plugin_Workshop_v0.0.50.zip
+
       - name: Upload v50 graphical installer
         uses: actions/upload-artifact@v4
         with:
           name: Nougat_Media_Suite_v0.0.50_GRAPHICAL_INSTALLER
           path: /tmp/Nougat_Media_Suite_v0.0.50_GRAPHICAL_INSTALLER.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload standalone Workshop plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nougat_Plugin_Workshop_v0.0.50
+          path: /tmp/Nougat_Plugin_Workshop_v0.0.50.zip
           if-no-files-found: error
           retention-days: 14
 
