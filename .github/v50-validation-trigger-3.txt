@@ -1,2 +1,3 @@
 Temporary no-op trigger for full v0.0.50 candidate validation.
 Do not merge this file.
+Validation synchronization: current candidate after player-only workspace law.
