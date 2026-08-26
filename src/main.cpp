@@ -36,6 +36,7 @@
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
 #include "p2p_engine.hpp"
+#include "games/emulator_host.hpp"
 #include "p2p_stream_server.hpp"
 #include "ytdlp_stream_server.hpp"
 #include "nougat_media_suite_icon_data.hpp"
@@ -812,6 +813,8 @@ struct GameEntry {
     bool archived = false;
     std::string archive_entry;
     std::string artwork_path;
+    std::string entry_point;
+    bool directory_game = false;
 };
 
 struct GameUiState {
@@ -823,19 +826,92 @@ struct GameUiState {
     bool loaded = false;
 };
 
+static bool game_path_has_atari_hint(const std::string& path) {
+    const std::string lower = lower_copy(path);
+    return lower.find("atari") != std::string::npos ||
+           lower.find("/2600") != std::string::npos ||
+           lower.find("\\2600") != std::string::npos ||
+           lower.find("/5200") != std::string::npos ||
+           lower.find("\\5200") != std::string::npos ||
+           lower.find("/7800") != std::string::npos ||
+           lower.find("\\7800") != std::string::npos ||
+           lower.find("/vcs") != std::string::npos ||
+           lower.find("\\vcs") != std::string::npos ||
+           lower.find("stella") != std::string::npos;
+}
+
+static bool game_path_inside_xbox_tree(const std::string& path) {
+    std::filesystem::path current = std::filesystem::path(path).parent_path();
+    std::error_code ec;
+    for (int depth = 0; depth < 8 && !current.empty(); ++depth) {
+        ec.clear();
+        if (std::filesystem::is_regular_file(current / "default.xex", ec))
+            return true;
+        const std::filesystem::path parent = current.parent_path();
+        if (parent == current) break;
+        current = parent;
+    }
+    return false;
+}
+
 static std::string game_system_for_path(const std::string& path) {
     const std::string lower = lower_copy(path);
+    const std::string file = lower_copy(basename_only(path));
+
     if (ends_with_lower(lower, ".nes")) return "NES";
-    if (ends_with_lower(lower, ".sfc") || ends_with_lower(lower, ".smc")) return "SNES";
+    if (ends_with_lower(lower, ".sfc") || ends_with_lower(lower, ".smc"))
+        return "SNES";
     if (ends_with_lower(lower, ".gb")) return "Game Boy";
     if (ends_with_lower(lower, ".gbc")) return "Game Boy Color";
     if (ends_with_lower(lower, ".gba")) return "Game Boy Advance";
-    if (ends_with_lower(lower, ".n64") || ends_with_lower(lower, ".z64") || ends_with_lower(lower, ".v64")) return "Nintendo 64";
-    if (ends_with_lower(lower, ".a26")) return "Atari 2600";
+    if (ends_with_lower(lower, ".n64") || ends_with_lower(lower, ".z64") ||
+        ends_with_lower(lower, ".v64")) return "Nintendo 64";
+
+    // v48 Atari repair: the owner's 2600 library uses raw .bin dumps.
+    // Nougat does not currently own another .bin console format, so .bin is
+    // Atari 2600 for this emulator set. Save states (.sta) stay invisible.
+    if (ends_with_lower(lower, ".a26") || ends_with_lower(lower, ".bin"))
+        return "Atari 2600";
     if (ends_with_lower(lower, ".a52")) return "Atari 5200";
     if (ends_with_lower(lower, ".a78")) return "Atari 7800";
-    if (ends_with_lower(lower, ".atr") || ends_with_lower(lower, ".xfd")) return "Atari 8-bit";
     if (ends_with_lower(lower, ".lnx")) return "Atari Lynx";
+
+    if (ends_with_lower(lower, ".atr") || ends_with_lower(lower, ".xfd") ||
+        ends_with_lower(lower, ".atx"))
+        return "Atari 8-bit";
+
+    // XEX is shared terminology. Extracted Xbox 360 games boot from
+    // default.xex; ordinary XEX files are Atari 8-bit executables.
+    if (ends_with_lower(lower, ".xex"))
+        return file == "default.xex" ? "Xbox 360" : "Atari 8-bit";
+
+    if ((ends_with_lower(lower, ".car") || ends_with_lower(lower, ".rom") ||
+         ends_with_lower(lower, ".cas")) && game_path_has_atari_hint(path))
+        return "Atari 8-bit";
+
+    if (ends_with_lower(lower, ".iso")) return "Xbox 360";
+    return {};
+}
+
+static std::string game_system_for_path_in_context(const std::string& path,
+                                                   const std::string& container) {
+    std::string system = game_system_for_path(path);
+
+    // Do not turn helper .xex files inside an extracted Xbox title into Atari
+    // cards just because only default.xex belongs to Xbox semantically.
+    if (system == "Atari 8-bit" && ends_with_lower(path, ".xex") &&
+        lower_copy(basename_only(path)) != "default.xex" &&
+        game_path_inside_xbox_tree(path)) {
+        return {};
+    }
+
+    if (!system.empty()) return system;
+
+    const std::string combined = container + "/" + path;
+    if ((ends_with_lower(path, ".com") || ends_with_lower(path, ".exe")) &&
+        game_path_has_atari_hint(combined))
+        return "Atari 8-bit";
+
     return {};
 }
 
@@ -855,10 +931,19 @@ static unsigned long long stable_game_cache_hash(const std::string& value) {
     return hash;
 }
 
-static bool safe_zip_game_entry(const std::string& entry) {
-    if (entry.empty() || entry.front() == '/' || entry.front() == '\\') return false;
-    if (entry.find("../") != std::string::npos || entry.find("..\\") != std::string::npos) return false;
-    return !game_system_for_path(entry).empty();
+static bool safe_zip_game_entry(const std::string& entry,
+                                const std::string& archive_path = {}) {
+    if (entry.empty() || entry.front() == '/' || entry.front() == '\\')
+        return false;
+    if (entry.find("../") != std::string::npos ||
+        entry.find("..\\") != std::string::npos)
+        return false;
+
+    const std::string system =
+        game_system_for_path_in_context(entry, archive_path);
+
+    // Xbox disc/extracted-game images can be huge. Keep those linked on disk.
+    return !system.empty() && system != "Xbox 360";
 }
 
 static std::string game_sidecar_artwork(const std::string& path) {
@@ -877,37 +962,224 @@ static std::string game_sidecar_artwork(const std::string& path) {
     return {};
 }
 
+static std::string game_directory_artwork(const std::string& directory) {
+    const std::filesystem::path folder(directory);
+    const std::string name = folder.filename().string();
+    const std::filesystem::path candidates[] = {
+        folder / "cover.png", folder / "cover.jpg", folder / "cover.jpeg", folder / "cover.bmp",
+        folder / (name + ".png"), folder / (name + ".jpg"), folder / (name + ".jpeg"), folder / (name + ".bmp")
+    };
+    std::error_code ec;
+    for (const auto& candidate : candidates) {
+        if (std::filesystem::is_regular_file(candidate, ec)) return candidate.string();
+        ec.clear();
+    }
+    return {};
+}
+
+static int dos_launcher_score(const std::filesystem::path& file,
+                              const std::string& directory_name_lower) {
+    const std::string extension = lower_copy(file.extension().string());
+    if (extension != ".exe" && extension != ".com" && extension != ".bat") return -1;
+
+    const std::string stem = lower_copy(file.stem().string());
+    static const std::set<std::string> reject = {
+        "setup", "install", "installer", "uninstall", "unins000", "config",
+        "configure", "setsound", "sound", "readme", "help"
+    };
+    if (reject.count(stem) != 0U) return -1;
+    if (stem.rfind("unins", 0U) == 0U) return -1;
+
+    int score = 10;
+    std::string compact_dir;
+    for (char c : directory_name_lower)
+        if (std::isalnum(static_cast<unsigned char>(c))) compact_dir.push_back(c);
+    std::string compact_stem;
+    for (char c : stem)
+        if (std::isalnum(static_cast<unsigned char>(c))) compact_stem.push_back(c);
+
+    if (!compact_dir.empty() && !compact_stem.empty()) {
+        if (compact_dir == compact_stem) score += 140;
+        else if (compact_dir.find(compact_stem) != std::string::npos ||
+                 compact_stem.find(compact_dir) != std::string::npos) score += 80;
+    }
+    if (stem == "start" || stem == "play" || stem == "run" || stem == "game") score += 110;
+    if (extension == ".bat") score += 8;
+    return score;
+}
+
+static std::string dos_entrypoint_for_directory(const std::string& directory) {
+    const std::filesystem::path folder(directory);
+    std::error_code ec;
+    if (!std::filesystem::is_directory(folder, ec)) return {};
+
+    const std::filesystem::path explicit_launchers[] = {
+        folder / "NOU_LAUNCH.BAT",
+        folder / "NOU_LAUNCH.COM",
+        folder / "NOU_LAUNCH.EXE"
+    };
+    for (const auto& launcher : explicit_launchers) {
+        ec.clear();
+        if (std::filesystem::is_regular_file(launcher, ec))
+            return launcher.filename().string();
+    }
+
+    const std::string dir_name = lower_copy(folder.filename().string());
+    int best_score = -1;
+    std::string best_name;
+    for (std::filesystem::directory_iterator it(
+             folder, std::filesystem::directory_options::skip_permission_denied, ec), end;
+         it != end; it.increment(ec)) {
+        if (ec) { ec.clear(); continue; }
+        if (!it->is_regular_file(ec)) { ec.clear(); continue; }
+        const int score = dos_launcher_score(it->path(), dir_name);
+        if (score > best_score ||
+            (score == best_score && it->path().filename().string() < best_name)) {
+            best_score = score;
+            best_name = it->path().filename().string();
+        }
+    }
+    return best_score >= 10 ? best_name : std::string{};
+}
+
+static void scan_dos_game_directories(const std::string& root, bool bundled,
+                                      std::vector<GameEntry>& games,
+                                      std::set<std::string>& seen) {
+    if (bundled) return;
+    std::error_code ec;
+    const std::filesystem::path base(root);
+    if (!std::filesystem::is_directory(base, ec)) return;
+
+    const auto is_preservation_container = [](const std::filesystem::path& folder) {
+        std::error_code check;
+        const bool manifest = std::filesystem::is_regular_file(folder / "MANIFEST.json", check);
+        check.clear();
+        const bool original_dos = std::filesystem::is_directory(folder / "Original_DOS", check);
+        check.clear();
+        const bool original_windows = std::filesystem::is_directory(folder / "Original_Windows", check);
+        check.clear();
+        const bool max_package = std::filesystem::is_directory(folder / "MAX_Compatibility_Package", check);
+        return manifest && original_dos && original_windows && max_package;
+    };
+
+    if (is_preservation_container(base)) return;
+
+    const auto add_directory = [&](const std::filesystem::path& folder) -> bool {
+        const std::string entrypoint = dos_entrypoint_for_directory(folder.string());
+        if (entrypoint.empty()) return false;
+        const std::string key = "dos::" + folder.string();
+        if (!seen.insert(key).second) return true;
+
+        GameEntry game;
+        game.title = game_title_from_path(folder.filename().string());
+        game.path = folder.string();
+        game.system = "DOS";
+        game.bundled = false;
+        game.artwork_path = game_directory_artwork(folder.string());
+        game.entry_point = entrypoint;
+        game.directory_game = true;
+        games.push_back(std::move(game));
+        return true;
+    };
+
+    if (add_directory(base)) return;
+
+    const auto options = std::filesystem::directory_options::skip_permission_denied;
+    std::filesystem::recursive_directory_iterator it(base, options, ec), end;
+    for (; it != end; it.increment(ec)) {
+        if (ec) { ec.clear(); continue; }
+        if (it->is_symlink(ec) || !it->is_directory(ec)) {
+            ec.clear();
+            continue;
+        }
+        if (is_preservation_container(it->path())) {
+            it.disable_recursion_pending();
+            continue;
+        }
+        if (add_directory(it->path()))
+            it.disable_recursion_pending();
+    }
+}
+
 static void scan_game_directory(const std::string& root, bool bundled,
                                 std::vector<GameEntry>& games,
                                 std::set<std::string>& seen) {
     std::error_code ec;
     const std::filesystem::path base(root);
     if (!std::filesystem::is_directory(base, ec)) return;
-    const auto options = std::filesystem::directory_options::skip_permission_denied;
+
+    const auto add_game = [&](const std::string& path,
+                              const std::string& system,
+                              bool archived,
+                              const std::string& archive_entry) {
+        const std::string key =
+            archived ? path + "::" + archive_entry : path;
+        if (!seen.insert(key).second) return;
+
+        GameEntry game;
+        game.title = game_title_from_path(
+            archived ? archive_entry : path);
+        game.path = path;
+        game.system = system;
+        game.bundled = bundled;
+        game.archived = archived;
+        game.archive_entry = archive_entry;
+        game.artwork_path = game_sidecar_artwork(path);
+
+        if (!archived && system == "Xbox 360" &&
+            lower_copy(basename_only(path)) == "default.xex") {
+            game.title = game_title_from_path(
+                std::filesystem::path(path).parent_path().filename().string());
+        }
+        games.push_back(std::move(game));
+    };
+
+    const auto options =
+        std::filesystem::directory_options::skip_permission_denied;
     std::filesystem::recursive_directory_iterator it(base, options, ec), end;
+
     for (; it != end; it.increment(ec)) {
-        if (ec) { ec.clear(); continue; }
-        const auto& entry = *it;
-        if (entry.is_symlink(ec) || !entry.is_regular_file(ec)) continue;
-        const std::string path = entry.path().string();
-        const std::string system = game_system_for_path(path);
-        if (!system.empty()) {
-            if (!seen.insert(path).second) continue;
-            games.push_back({game_title_from_path(path), path, system, bundled, false, {}, game_sidecar_artwork(path)});
+        if (ec) {
+            ec.clear();
             continue;
         }
+
+        const auto& entry = *it;
+        if (entry.is_symlink(ec) || !entry.is_regular_file(ec)) {
+            ec.clear();
+            continue;
+        }
+
+        const std::string path = entry.path().string();
+        const std::string system =
+            game_system_for_path_in_context(path, root);
+
+        if (!system.empty()) {
+            add_game(path, system, false, {});
+            continue;
+        }
+
         if (!ends_with_lower(path, ".zip")) continue;
-        const std::string listing = run_command_capture("unzip -Z1 " + shell_quote(path) + " 2>/dev/null");
+
+        const std::string listing =
+            run_command_capture("unzip -Z1 " + shell_quote(path) +
+                                " 2>/dev/null");
         if (listing.empty()) continue;
+
         std::istringstream lines(listing);
-        std::string archivedName;
-        while (std::getline(lines, archivedName)) {
-            while (!archivedName.empty() && archivedName.back() == '\r') archivedName.pop_back();
-            if (!safe_zip_game_entry(archivedName)) continue;
-            const std::string key = path + "::" + archivedName;
-            if (!seen.insert(key).second) continue;
-            games.push_back({game_title_from_path(archivedName), path, game_system_for_path(archivedName), bundled,
-                             true, archivedName, game_sidecar_artwork(path)});
+        std::string archived_name;
+        while (std::getline(lines, archived_name)) {
+            while (!archived_name.empty() &&
+                   archived_name.back() == '\r')
+                archived_name.pop_back();
+
+            if (!safe_zip_game_entry(archived_name, path)) continue;
+
+            const std::string archived_system =
+                game_system_for_path_in_context(archived_name, path);
+            if (archived_system.empty()) continue;
+
+            add_game(path, archived_system, true, archived_name);
         }
     }
 }
@@ -1443,6 +1715,10 @@ public:
     int securityScroll = 0;
     std::shared_ptr<GameUiState> gameState = std::make_shared<GameUiState>();
     std::thread gameScanWorker;
+    nougat::games::EmulatorHost gameHost;
+    bool currentMediaIsGame = false;
+    std::string activeGameTitle;
+    std::string activeGameSystem;
     GamesPanel gamesPanel = GamesPanel::Library;
     GamesDisplayMode gamesDisplayMode = GamesDisplayMode::Grid;
     int gamesSelected = -1;
@@ -2787,7 +3063,8 @@ public:
                           kPageControlY, debugButtonsScrollX);
         debugListBox = {28, 126, std::max(240, W-56), std::max(150, H-154)};
         update_video_prompt_layout();
-    }
+    
+}
     void update_video_prompt_layout() {
         const int promptX = std::max(12, (videoW - kCompactButtonW * 4) / 2);
         const int promptY = std::max(88, videoH/2+36);
@@ -2829,7 +3106,9 @@ public:
         }
         update_video_prompt_layout();
         apply_video_corner_shape();
-    }
+    
+        if (gameHost.active()) gameHost.resize(videoW, videoH);
+}
     void apply_video_corner_shape() {
         if (!video || !xShapeCombineMask) return;
         constexpr int kShapeBounding = 0;
@@ -3309,6 +3588,7 @@ public:
         ytdlpSeekStartedAtMs = 0;
     }
     void cleanup_player() {
+        if (currentMediaIsGame || gameHost.active()) stop_game_session(false);
         currentMediaIsWorldTv=false;
         worldTvReconnectEnabled=false;
         worldTvPlayingIndex=-1;
@@ -3588,6 +3868,10 @@ public:
         redraw();
     }
     void stop_media() {
+        if (currentMediaIsGame || gameHost.active()) {
+            stop_game_session(true);
+            return;
+        }
         if (currentMediaIsWorldTv) {
             worldTvReconnectEnabled=false;
             currentMediaIsWorldTv=false;
@@ -3881,6 +4165,17 @@ public:
     }
 
     void draw_video_message() {
+        if (currentMediaIsGame) {
+            if (gameHost.embedded()) return;
+            hide_player_activity_overlay_window();
+            XClearWindow(d, video);
+            const std::string message = activeGameTitle.empty()
+                ? "Starting game inside Nougat..."
+                : "Starting " + activeGameTitle + " inside Nougat...";
+            text(video, 24, 34, head_to_width(message, std::max(120, videoW - 48)), rgb8(248,235,214));
+            XFlush(d);
+            return;
+        }
         if (upNextVisible) {
             hide_player_activity_overlay_window();
             // Countdown updates used to XClearWindow(video) once per second, exposing
@@ -4005,7 +4300,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.47";
+        const std::string versionLabel = "v0.0.48";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -9320,7 +9615,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.47";
+        input.app_version = "Nougat Media Suite v0.0.48";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -10792,7 +11087,10 @@ public:
             std::vector<GameEntry> games;
             std::set<std::string> seen;
             scan_game_directory(bundledFolder, true, games, seen);
-            for (const std::string& folder : userFolders) scan_game_directory(folder, false, games, seen);
+            for (const std::string& folder : userFolders) {
+                scan_dos_game_directories(folder, false, games, seen);
+                scan_game_directory(folder, false, games, seen);
+            }
             std::stable_sort(games.begin(), games.end(), [](const GameEntry& a, const GameEntry& b) {
                 if (a.system != b.system) return a.system < b.system;
                 return lower_copy(a.title) < lower_copy(b.title);
@@ -10871,7 +11169,8 @@ public:
 
     std::string extracted_game_path(const GameEntry& selected) const {
         if (!selected.archived) return selected.path;
-        if (!exists_file(selected.path) || !safe_zip_game_entry(selected.archive_entry)) return {};
+        if (!exists_file(selected.path) ||
+            !safe_zip_game_entry(selected.archive_entry, selected.path)) return {};
         const std::filesystem::path entryPath(selected.archive_entry);
         const std::string extension = entryPath.extension().string();
         const std::string key = selected.path + "::" + selected.archive_entry;
@@ -11008,44 +11307,368 @@ public:
         return ok;
     }
 
-        void launch_selected_game() {
+        
+    std::string game_executable_on_path(const std::string& name) const {
+        if (name.empty()) return {};
+        if (name.find('/') != std::string::npos) {
+            return exists_file(name) && access(name.c_str(), X_OK) == 0 ? name : std::string{};
+        }
+        const char* path_env = std::getenv("PATH");
+        if (!path_env) return {};
+        std::istringstream paths(path_env);
+        std::string part;
+        while (std::getline(paths, part, ':')) {
+            if (part.empty()) part = ".";
+            const std::filesystem::path candidate = std::filesystem::path(part) / name;
+            if (exists_file(candidate.string()) && access(candidate.string().c_str(), X_OK) == 0)
+                return candidate.string();
+        }
+        return {};
+    }
+
+    std::string first_game_executable(const std::vector<std::string>& candidates) const {
+        for (const std::string& candidate : candidates) {
+            const std::string found = game_executable_on_path(candidate);
+            if (!found.empty()) return found;
+        }
+        return {};
+    }
+
+    std::string game_emulator_log_path() const {
+        const std::filesystem::path dir = std::filesystem::path(home_dir()) /
+            ".cache" / "reddmedia" / "games" / "logs";
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        if (ec) return {};
+        chmod(dir.string().c_str(), 0700);
+        return (dir / "embedded-emulator.log").string();
+    }
+
+    static std::string dosbox_quote(const std::string& value) {
+        std::string out = "\"";
+        for (char c : value) {
+            if (c == '"') out += "\\\"";
+            else out.push_back(c);
+        }
+        out += "\"";
+        return out;
+    }
+
+    bool make_game_launch_request(const GameEntry& selected,
+                                  const std::string& launchPath,
+                                  nougat::games::LaunchRequest& request,
+                                  std::string& error) const {
+        request.title = selected.title;
+        request.log_path = game_emulator_log_path();
+        request.window_timeout_ms =
+            selected.system == "Xbox 360" ? 90000 : 45000;
+        request.environment = {
+            {"SDL_VIDEODRIVER", "x11"},
+            {"QT_QPA_PLATFORM", "xcb"},
+            {"GDK_BACKEND", "x11"}
+        };
+
+        if (selected.system == "DOS") {
+            if (!selected.directory_game || selected.entry_point.empty()) {
+                error = "That DOS folder does not have a detected game launcher.";
+                return false;
+            }
+
+            const char* override_value = std::getenv("NOUGAT_DOSBOX");
+            std::vector<std::string> candidates;
+            if (override_value && *override_value)
+                candidates.emplace_back(override_value);
+            candidates.push_back(
+                exe_dir() + "/components/games/runtime/dosbox-staging/dosbox");
+            candidates.push_back("dosbox-staging");
+            candidates.push_back("dosbox");
+
+            const std::string emulator =
+                first_game_executable(candidates);
+            if (emulator.empty()) {
+                error =
+                    "DOSBox Staging/DOSBox is unavailable. Install it, place it in "
+                    "components/games/runtime/dosbox-staging/, or set NOUGAT_DOSBOX.";
+                return false;
+            }
+
+            request.backend = basename_only(emulator);
+            request.argv = {
+                emulator,
+                "--noprimaryconf",
+                "--nolocalconf"
+            };
+
+            const std::string game_config =
+                (std::filesystem::path(launchPath) /
+                 "nougat-dosbox.conf").string();
+            if (exists_file(game_config)) {
+                request.argv.push_back("--conf");
+                request.argv.push_back(game_config);
+            }
+
+            // These overrides deliberately come after the per-game config.
+            // A reparented DOSBox child must remain a normal resizable window.
+            request.argv.push_back("--set");
+            request.argv.push_back("fullscreen=off");
+            request.argv.push_back("--set");
+            request.argv.push_back("output=texture");
+
+            request.argv.push_back("-c");
+            request.argv.push_back(
+                "mount c " + dosbox_quote(launchPath));
+            request.argv.push_back("-c");
+            request.argv.push_back("c:");
+
+            if (selected.entry_point.find('/') != std::string::npos ||
+                selected.entry_point.find('\\') != std::string::npos ||
+                selected.entry_point.find('"') != std::string::npos ||
+                selected.entry_point.find('\r') != std::string::npos ||
+                selected.entry_point.find('\n') != std::string::npos) {
+                error = "The detected DOS launcher name is unsafe.";
+                return false;
+            }
+
+            for (unsigned char c : selected.entry_point) {
+                if (std::isspace(c)) {
+                    error =
+                        "The detected DOS launcher contains whitespace. "
+                        "Add a root NOU_LAUNCH.BAT wrapper for this game.";
+                    return false;
+                }
+            }
+
+            std::string dos_command = selected.entry_point;
+            if (lower_copy(
+                    std::filesystem::path(selected.entry_point)
+                        .extension().string()) == ".bat") {
+                dos_command = "call " + selected.entry_point;
+            }
+
+            request.argv.push_back("-c");
+            request.argv.push_back(dos_command);
+            request.argv.push_back("-c");
+            request.argv.push_back("exit");
+            return true;
+        }
+
+        if (selected.system == "Xbox 360") {
+            request.environment.push_back({"APPIMAGE_EXTRACT_AND_RUN", "1"});
+
+            const char* native_override =
+                std::getenv("NOUGAT_XENIA");
+            std::vector<std::string> native_candidates;
+            if (native_override && *native_override)
+                native_candidates.emplace_back(native_override);
+
+            native_candidates.push_back(
+                exe_dir() + "/components/games/runtime/xenia/xenia_canary");
+            native_candidates.push_back(
+                exe_dir() + "/components/games/runtime/xenia/xenia");
+            native_candidates.push_back("xenia_canary");
+            native_candidates.push_back("xenia-canary");
+            native_candidates.push_back("xenia");
+
+            const std::string native_xenia =
+                first_game_executable(native_candidates);
+            if (!native_xenia.empty() &&
+                !ends_with_lower(native_xenia, ".exe")) {
+                request.backend = basename_only(native_xenia);
+                request.argv = {native_xenia, launchPath};
+                return true;
+            }
+
+            std::string windows_xenia;
+            if (native_override && *native_override &&
+                ends_with_lower(native_override, ".exe") &&
+                exists_file(native_override)) {
+                windows_xenia = native_override;
+            }
+
+            if (windows_xenia.empty()) {
+                const std::string canary =
+                    exe_dir() +
+                    "/components/games/runtime/xenia/xenia_canary.exe";
+                const std::string master =
+                    exe_dir() +
+                    "/components/games/runtime/xenia/xenia.exe";
+                if (exists_file(canary)) windows_xenia = canary;
+                else if (exists_file(master)) windows_xenia = master;
+            }
+
+            if (!windows_xenia.empty()) {
+                const char* runner_override =
+                    std::getenv("NOUGAT_XENIA_RUNNER");
+                std::vector<std::string> runners;
+                if (runner_override && *runner_override)
+                    runners.emplace_back(runner_override);
+                runners.push_back("umu-run");
+                runners.push_back("wine64");
+                runners.push_back("wine");
+
+                const std::string runner =
+                    first_game_executable(runners);
+                if (runner.empty()) {
+                    error =
+                        "Xenia Canary for Windows was found, but Nougat cannot find "
+                        "a Linux runner. Set NOUGAT_XENIA_RUNNER to your Proton/Wine launcher.";
+                    return false;
+                }
+
+                request.backend =
+                    basename_only(windows_xenia) + " via " +
+                    basename_only(runner);
+                request.argv =
+                    {runner, windows_xenia, launchPath};
+                return true;
+            }
+
+            error =
+                "Xenia Canary is unavailable. Put a native build or "
+                "xenia_canary.exe in components/games/runtime/xenia/, "
+                "or set NOUGAT_XENIA.";
+            return false;
+        }
+
+        const std::string emulator =
+            installed_game_emulator(selected.system);
+        if (emulator.empty()) {
+            error =
+                "No supported " + selected.system +
+                " emulator is available.";
+            return false;
+        }
+
+        request.backend = basename_only(emulator);
+        const std::string backend_lower =
+            lower_copy(basename_only(emulator));
+
+        // Mesen documents ROM path first, then --fullscreen.
+        if (backend_lower == "mesen" ||
+            backend_lower == "mesen2") {
+            request.argv =
+                {emulator, launchPath, "--fullscreen"};
+            return true;
+        }
+
+        const bool atari800_backend =
+            backend_lower == "apprun" &&
+            emulator.find("/atari800/") != std::string::npos;
+
+        if (selected.system == "Atari 5200" &&
+            (atari800_backend || backend_lower == "atari800")) {
+            request.argv = {emulator, "-5200", launchPath};
+        } else {
+            request.argv = {emulator, launchPath};
+        }
+        return true;
+    }
+
+    void stop_game_session(bool returnToGames) {
+        gameHost.stop();
+        currentMediaIsGame = false;
+        activeGameTitle.clear();
+        activeGameSystem.clear();
+        if (returnToGames && currentView == ViewMode::VideoPlayer) {
+            switch_view(ViewMode::Games);
+            gamesPanel = GamesPanel::Library;
+        }
+        if (d) redraw();
+    }
+
+    void poll_game_session() {
+        if (!currentMediaIsGame && !gameHost.active()) return;
+        const nougat::games::HostEvent event = gameHost.poll();
+        if (!event.changed) return;
+
+        {
+            std::lock_guard<std::mutex> lock(gameState->mutex);
+            if (!event.message.empty()) gameState->status = event.message;
+            gameState->updated = true;
+        }
+
+        if (event.state == nougat::games::HostState::Failed ||
+            event.state == nougat::games::HostState::Exited) {
+            currentMediaIsGame = false;
+            activeGameTitle.clear();
+            activeGameSystem.clear();
+            if (currentView == ViewMode::VideoPlayer) {
+                switch_view(ViewMode::Games);
+                gamesPanel = GamesPanel::Library;
+            }
+            redraw();
+            return;
+        }
+
+        if (event.state == nougat::games::HostState::Embedded) {
+            gameHost.resize(videoW, videoH);
+            gameHost.focus();
+        }
+        redraw();
+    }
+
+    void launch_selected_game() {
         GameEntry selected;
         {
             std::lock_guard<std::mutex> lock(gameState->mutex);
-            if (gamesSelected<0 || gamesSelected>=static_cast<int>(gameState->games.size())) {
-                gameState->status="Select a game first."; gameState->updated=true; return;
+            if (gamesSelected < 0 || gamesSelected >= static_cast<int>(gameState->games.size())) {
+                gameState->status = "Select a game first.";
+                gameState->updated = true;
+                return;
             }
-            selected=gameState->games[static_cast<std::size_t>(gamesSelected)];
+            selected = gameState->games[static_cast<std::size_t>(gamesSelected)];
         }
-        const std::string launchPath=extracted_game_path(selected);
-        if (launchPath.empty() || !exists_file(launchPath)) {
+
+        std::string launchPath;
+        if (selected.system == "DOS" && selected.directory_game) {
+            std::error_code ec;
+            if (std::filesystem::is_directory(selected.path, ec)) launchPath = selected.path;
+        } else {
+            launchPath = extracted_game_path(selected);
+        }
+
+        if (launchPath.empty()) {
             std::lock_guard<std::mutex> lock(gameState->mutex);
-            gameState->status=selected.archived ? "Nougat could not safely extract that ROM from its ZIP archive."
-                : "That game file is unavailable. Press Refresh after reconnecting its ROM folder.";
-            gameState->updated=true; return;
+            gameState->status = selected.archived
+                ? "Nougat could not safely extract that ROM from its ZIP archive."
+                : "That game is unavailable. Press Refresh after reconnecting its game folder.";
+            gameState->updated = true;
+            return;
         }
-        const std::string emulator=installed_game_emulator(selected.system);
-        if (emulator.empty()) {
+
+        nougat::games::LaunchRequest request;
+        std::string error;
+        if (!make_game_launch_request(selected, launchPath, request, error)) {
             std::lock_guard<std::mutex> lock(gameState->mutex);
-            gameState->status="No supported "+selected.system+" emulator is available.";
-            gameState->updated=true; return;
+            gameState->status = error;
+            gameState->updated = true;
+            return;
         }
-        const pid_t child=fork();
-        if (child==0) {
-            const bool atari800Backend=basename_only(emulator)=="AppRun" && emulator.find("/atari800/")!=std::string::npos;
-            if (selected.system=="Atari 5200" && atari800Backend)
-                execl(emulator.c_str(),emulator.c_str(),"-5200",launchPath.c_str(),static_cast<char*>(nullptr));
-            else if (selected.system=="Atari 5200" && basename_only(emulator)=="atari800")
-                execlp(emulator.c_str(),emulator.c_str(),"-5200",launchPath.c_str(),static_cast<char*>(nullptr));
-            else if (emulator.find('/')!=std::string::npos)
-                execl(emulator.c_str(),emulator.c_str(),launchPath.c_str(),static_cast<char*>(nullptr));
-            else execlp(emulator.c_str(),emulator.c_str(),launchPath.c_str(),static_cast<char*>(nullptr));
-            _exit(127);
+
+        cleanup_player();
+        switch_view(ViewMode::VideoPlayer);
+        currentMediaIsGame = true;
+        activeGameTitle = selected.title;
+        activeGameSystem = selected.system;
+
+        if (!gameHost.start(d, win, video, videoW, videoH, request, error)) {
+            currentMediaIsGame = false;
+            activeGameTitle.clear();
+            activeGameSystem.clear();
+            switch_view(ViewMode::Games);
+            std::lock_guard<std::mutex> lock(gameState->mutex);
+            gameState->status = error;
+            gameState->updated = true;
+            redraw();
+            return;
         }
-        std::lock_guard<std::mutex> lock(gameState->mutex);
-        if (child<0) gameState->status="Nougat could not start the emulator process.";
-        else gameState->status="Launching "+selected.title+" with "+basename_only(emulator)+".";
-        gameState->updated=true;
+
+        {
+            std::lock_guard<std::mutex> lock(gameState->mutex);
+            gameState->status = "Starting " + selected.title + " inside Nougat Video Player...";
+            gameState->updated = true;
+        }
+        redraw();
     }
 
     LibraryGridMetrics games_grid_metrics() const {
@@ -11206,7 +11829,7 @@ public:
             section_text(target,gamesListBox.x+14,y,"GAME LIBRARY SETTINGS",palette.text); y+=30;
             text(target,gamesListBox.x+14,y,"Bundled library: "+exe_dir()+"/components/games/bundled",palette.text); y+=24;
             const auto folders=load_game_rom_folders();
-            if (folders.empty()) text(target,gamesListBox.x+14,y,"No user ROM folders linked yet.",palette.muted);
+            if (folders.empty()) text(target,gamesListBox.x+14,y,"No user game folders linked yet.",palette.muted);
             for (const std::string& folder:folders) { text(target,gamesListBox.x+14,y,head_to_width(folder,gamesListBox.w-28),palette.text); y+=22; }
             text(target,gamesListBox.x+14,gamesListBox.y+gamesListBox.h-38,"ZIP archives stay in place; selected ROMs extract only to Nougat's private cache.",palette.muted);
             text(target,gamesListBox.x+14,gamesListBox.y+gamesListBox.h-18,"Artwork: local sidecar first, then cached Libretro Named_Boxarts lookup by ROM filename.",palette.muted);
@@ -13138,6 +13761,10 @@ public:
         if (!pointerHidden) { XDefineCursor(d, video, blankCursor); pointerHidden=true; XFlush(d); }
     }
     bool final_player_cleanup_bounded(int timeoutMs) {
+        if (gameHost.active()) gameHost.stop();
+        currentMediaIsGame = false;
+        activeGameTitle.clear();
+        activeGameSystem.clear();
         if (currentMediaIsYtDlpStream || ytdlpSeekBuffering || ytdlpStream.running()) stop_ytdlp_stream_process();
         libvlc_media_player_t* player = mp;
         mp = nullptr;
@@ -13185,6 +13812,7 @@ public:
         redraw();
         int xfd = ConnectionNumber(d);
         while (running) {
+            poll_game_session();
             while (XPending(d)) {
                 XEvent e; XNextEvent(d, &e);
                 if (e.type == Expose) {
@@ -13206,7 +13834,20 @@ public:
                     }
                 }
                 else if (e.type == ConfigureNotify && e.xconfigure.window == win) resize(e.xconfigure.width, e.xconfigure.height);
-                else if (e.type == ClientMessage) { shuttingDown=true; running=false; break; }
+                else if (e.type == ClientMessage) {
+                    const Atom wmProtocols =
+                        XInternAtom(d, "WM_PROTOCOLS", False);
+                    const Atom wmDelete =
+                        XInternAtom(d, "WM_DELETE_WINDOW", False);
+
+                    if (e.xclient.window == win &&
+                        e.xclient.message_type == wmProtocols &&
+                        static_cast<Atom>(e.xclient.data.l[0]) == wmDelete) {
+                        shuttingDown = true;
+                        running = false;
+                        break;
+                    }
+                }
                 else if (e.type == ButtonPress) {
                     if (e.xbutton.button == 8U) navigate_back();
                     else if (e.xbutton.button == 9U) navigate_forward();
@@ -13661,7 +14302,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.47\n");
+        printf("Nougat Media Suite v0.0.48\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v47-fullscreen-controls-self-test") {

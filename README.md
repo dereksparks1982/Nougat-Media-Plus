@@ -11,6 +11,20 @@ Nougat's **Library** organizes local Movies and TV into collections, series, sea
 Nougat also includes built-in **P2P downloading and stream-while-downloading playback**, on-demand **security analysis**, evidence-based **system diagnostics**, local recommendation AI, persistent viewing history, and an integrated Jellyfin-backed catalog/server foundation. v0.0.46 adds cancellable process-group security scanning with a faster tiered bulk-scan path, verified-start World TV handling, and the versioned local-only foundation for future phone, tablet, laptop, and TV-browser access to locally owned media. The LAN design explicitly requires local media access to remain independent of WAN Internet connectivity and does not require a cloud login, automatic router port forwarding, or a cloud relay.
 
 
+## v0.0.48 - Embedded Emulation, DOS, Xbox 360, and Atari Repair
+
+v0.0.48 expands Games around one Nougat-owned embedded emulator host inside the native Video Player and repairs the emulator integration found during owner testing.
+
+- Adds a shared X11/XWayland emulator host so supported emulator backends run inside Nougat's Video Player instead of falling back to separate desktop windows.
+- Adds DOS folder discovery and a pinned DOSBox Staging 0.82.2 runtime, including per-game configuration support and repaired DOS launcher handling.
+- Adds Xbox 360 `.iso` and extracted `default.xex` discovery with the pinned Xenia Canary Linux runtime. Large Xbox images are deliberately not unpacked from ZIP archives.
+- Hardens foreign X11 window handling against disappearing-window/`BadWindow` races so an emulator closing cannot take the entire Nougat process down.
+- Reasserts embedded-child geometry after the final player layout is calculated, repairing the small/offset emulator-window presentation.
+- Repairs Mesen presentation so the game occupies the Nougat player correctly while its menu remains hidden during play and becomes available by moving the pointer to the top edge. Owner testing verified this behavior with NES.
+- Expands Atari recognition: `.bin` is recognized as Atari 2600 for the current supported backend set, ordinary `.xex` is Atari 8-bit, only `default.xex` is Xbox 360, and `.sta` save-state files remain excluded from the game library.
+- Preserves the accepted v0.0.47 World TV, Secure Search, Live TV, Library, Stream, Studio, P2P, diagnostics, desktop identity, and fullscreen-control behavior.
+- Nougat does not bundle copyrighted commercial ROMs or game images. Users supply their own legally obtained game dumps.
+
 ## v0.0.47 - World TV Channels, Playback Reliability, and Desktop Identity
 
 v0.0.47 expands World TV as a normal channel surface and repairs owner-tested playback and desktop-identity failures.

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.0.48 - Embedded Emulation, DOS, Xbox 360, and Atari Repair
+
+- Adds one Nougat-owned embedded X11/XWayland emulator host inside the native Video Player.
+- Adds DOS folder discovery with pinned DOSBox Staging 0.82.2 and repaired per-game launch/config handling.
+- Adds Xbox 360 `.iso` / `default.xex` discovery with pinned Xenia Canary Linux support while refusing large Xbox ZIP extraction.
+- Hardens foreign X11 window operations against `BadWindow` races and emulator shutdown crashes.
+- Repairs emulator sizing so the embedded child follows the final Video Player geometry.
+- Repairs Mesen fullscreen presentation; owner testing verified correct embedded NES playback and top-edge menu access.
+- Adds Atari 2600 `.bin` recognition, restores ordinary `.xex` to Atari 8-bit, reserves `default.xex` for Xbox 360, and ignores `.sta` save states.
+- Preserves accepted v0.0.47 subsystems and the no-copyrighted-ROM distribution policy.
+
 ## v0.0.47 - World TV Channels, Playback Reliability, and Desktop Identity
 
 - Expands World TV with Al Quran Al Kareem TV, a larger Russian channel group, and additional Turkish and Asian channels without YouTube catalog entries.
