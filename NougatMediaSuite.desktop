@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Nougat Media Suite
-Comment=Nougat Media Suite Home, native player, library, Discover AI, Live TV guide, decentralized Search, Stream, Workshop, Games, security, and System controls
+Comment=Nougat video player with optional installable plugins
 Exec=/opt/nougat-media-suite/Nougat_Media_Suite_v50
 Icon=nougat-media-suite-concept-sheet-v24
 StartupWMClass=NougatMediaSuite
