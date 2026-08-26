@@ -47,6 +47,7 @@ def main() -> int:
         forbidden_prefixes = (
             ".git/", "build/", "repair_payload/", "components/games/runtime/",
             "components/security/runtime/", "components/ai/runtime/", "components/jellyfin/runtime/",
+            ".github/v50-validation-trigger",
         )
         forbidden_suffixes = (".pyc",)
         selected: list[Path] = []
@@ -81,6 +82,8 @@ def main() -> int:
             names = archive.namelist()
             if any("/.git/" in name or name.endswith("/.git") for name in names):
                 raise RuntimeError("canonical source ZIP accidentally contains .git")
+            if any("v50-validation-trigger" in name for name in names):
+                raise RuntimeError("canonical source ZIP accidentally contains a CI trigger file")
             if not any(name.endswith("/src/main.cpp") for name in names):
                 raise RuntimeError("canonical source ZIP is missing src/main.cpp")
             if not any(name.endswith("/COMPANY_BIBLE.md") for name in names):
