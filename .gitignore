@@ -1,15 +1,61 @@
-# Generated Nougat Security Analysis runtime and private scanner state.
-/components/security/runtime/
+# Nougat Media Suite source-tree boundary
+# v0.0.50 moves downloaded/generated runtimes, models, caches, user data, and
+# build output outside the canonical source project.
 
-# Local build handoff packages.
+# Generated CMake/build output.
+/build/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/compile_commands.json
+
+# Generated promoted executables. Accepted binaries belong in release assets,
+# not in the canonical source ZIP/tree.
+/Nougat_Media_Suite_v[0-9]*
+
+# Managed/downloaded component runtime payloads must live under
+# ~/.local/share/nougat/runtime/, not here.
+/components/security/runtime/
+/components/ai/runtime/
+/components/ai/models/*.gguf
+/components/jellyfin/runtime/
+/components/jellyfin/packages/*.deb
+/components/jellyfin/packages/*.rpm
+/components/jellyfin/packages/*.tar.*
+/components/jellyfin/source/*.zip
+/components/jellyfin/source/*.tar.*
+/components/games/runtime/
+
+# Download staging and generated component packages.
+/components/**/downloads/
+/components/**/download/
+/components/**/tmp/
+/components/**/cache/
+/components/**/*.AppImage
+/components/**/*.deb
+/components/**/*.rpm
+
+# Local handoff/repair packages and temporary extraction trees.
 /1of2.zip
 /2of2.zip
+/*.part[0-9][0-9][0-9].zip
+/*.manifest.json
+/repair_payload/
+/repair-payload/
+/tmp/
+/temp/
 
-/components/ai/runtime/
-/components/jellyfin/runtime/
+# Python/generated developer debris.
 **/__pycache__/
 *.pyc
-components/games/runtime/
+*.pyo
+.pytest_cache/
 
-# Generated CMake build tree. Never commit release build output.
-/build/
+# Local logs, diagnostics, and transient state must never become source.
+/logs/
+*.log
+
+# Editor/OS noise.
+*~
+*.swp
+.DS_Store
