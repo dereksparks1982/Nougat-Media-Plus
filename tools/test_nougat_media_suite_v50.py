@@ -28,7 +28,10 @@ def main() -> int:
         paths_cpp = (ROOT / "src/platform/nougat_paths.cpp").read_text(encoding="utf-8")
         manifest = json.loads((ROOT / "config/components/components-v1.json").read_text(encoding="utf-8"))
         workshop_plugin = json.loads((ROOT / "plugins/workshop/plugin.json").read_text(encoding="utf-8"))
-        installer = (ROOT / "installer/nougat_v50_installer.py").read_text(encoding="utf-8")
+        installer_wrapper = (ROOT / "installer/nougat_v50_installer.py").read_text(encoding="utf-8")
+        installer_backend = (ROOT / "installer/nougat_v50_installer_backend.py").read_text(encoding="utf-8")
+        installer_gui = (ROOT / "installer/nougat_installer_gui_v50.cpp").read_text(encoding="utf-8")
+        installer_packager = (ROOT / "tools/package_v50_installer.py").read_text(encoding="utf-8")
 
         contains_all(cmake, [
             "VERSION 0.0.50",
@@ -148,28 +151,68 @@ def main() -> int:
         need(any(isinstance(item, dict) and item.get("install_as") == "nougat_split_archive.py" for item in resources),
              "Workshop plugin does not declare its split worker resource")
 
-        contains_all(installer, [
-            'choices=["default", "custom", "advanced"]',
+        contains_all(installer_wrapper, [
+            "nougat_v50_installer_backend",
+            "main",
+        ], "v50 installer compatibility entry point")
+
+        contains_all(installer_backend, [
             'APP_PREFIX = Path("/opt/nougat-media-suite")',
-            'user_plugin_root()',
-            'install_plugin(',
-            'remove_plugin(',
+            'choices=["default", "custom", "advanced"]',
+            "safe_runtime_shutdown()",
+            "stop_verified_owned_jellyfin()",
+            "NOUGAT_MEDIA_SERVER_OWNER",
+            "pkexec",
+            "metadata::custom-icon",
+            "APP_ICON_SHA256",
+            "class Rollback",
+            "rollback.restore()",
+            "install_plugin(",
+            "remove_plugin(",
             '"plugins": plugins',
-        ], "v50 installer")
+        ], "transactional v50 installer backend")
+
+        contains_all(installer_gui, [
+            "Nougat Media Suite Installer v0.0.50",
+            "Video Player + Nougat Plugin Core   REQUIRED",
+            "Default",
+            "Custom",
+            "Advanced Custom",
+            "Install",
+            "Launch Nougat Media Suite",
+            "Close Installer",
+            "--automated-install",
+            "--window-self-test",
+            "_NET_WM_ICON",
+            "nougat_media_suite_icon::kIcon64",
+        ], "native graphical v50 installer")
+
+        contains_all(installer_packager, [
+            'GUI_BINARY = ROOT / "Nougat_Installer_v50"',
+            'TOP = "Nougat_Media_Suite_v0.0.50"',
+            '"entrypoint": "Nougat_Installer_v50"',
+            '"mandatory_core": "payload/Nougat_Media_Suite_v50"',
+            "player core must not be exposed at the package top level",
+            "PACKAGE_MANIFEST.json",
+        ], "graphical installer packager")
 
         for script in [
             ROOT / "components/workshop/nougat_split_archive.py",
             ROOT / "tools/apply_v50_core.py",
             ROOT / "tools/apply_v50_dialog_labels.py",
             ROOT / "tools/apply_v50_plugin_foundation.py",
+            ROOT / "tools/package_v50_installer.py",
             ROOT / "installer/nougat_v50_installer.py",
+            ROOT / "installer/nougat_v50_installer_backend.py",
             ROOT / "tests/v50/test_plugin_installer.py",
+            ROOT / "tests/v50/test_installer_bundle.py",
         ]:
             py_compile.compile(str(script), doraise=True)
 
         print("PASS: Nougat Media Suite v0.0.50 source contract")
         print("PASS: minimal installation contract is core-player only")
         print("PASS: Workshop is optional Plugin #1 with managed resource lookup")
+        print("PASS: v0.0.50 requires a native graphical installer with transactional rollback and icon verification")
         return 0
     except Exception as exc:
         print("FAIL:", exc)
