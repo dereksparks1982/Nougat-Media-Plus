@@ -19,12 +19,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install native build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake g++ libx11-dev python3
+          sudo apt-get install -y --no-install-recommends cmake g++ libx11-dev python3 xvfb xauth
 
       - name: Apply guarded v50 source migration
         run: |
@@ -52,12 +52,15 @@ jobs:
           test -x /tmp/nougat-v50-build/Nougat_Media_Suite_v50
           test "$(/tmp/nougat-v50-build/Nougat_Media_Suite_v50 --version)" = "Nougat Media Suite v0.0.50"
 
-      - name: Run retained native self-tests
+      - name: Run retained non-display native self-tests
         run: |
           /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v49-games-self-test
           /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-nav-self-test
-          /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-fullscreen-controls-self-test
-          /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-window-identity-self-test
+
+      - name: Run retained X11 native self-tests
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-fullscreen-controls-self-test
+          xvfb-run -a -s "-screen 0 1920x1080x24" /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v47-window-identity-self-test
 
       - name: Upload v50 candidate executable
         uses: actions/upload-artifact@v4
