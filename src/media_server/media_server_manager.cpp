@@ -1,4 +1,5 @@
 #include "media_server_manager.hpp"
+#include "../platform/nougat_paths.hpp"
 
 #include <arpa/inet.h>
 #include <cerrno>
@@ -126,16 +127,15 @@ void MediaServerManager::resolve_paths() {
     char executable[PATH_MAX] {};
     const ssize_t length = readlink("/proc/self/exe", executable, sizeof(executable) - 1);
     application_dir_ = length > 0 ? parent_directory(std::string(executable, static_cast<std::size_t>(length))) : ".";
-    runtime_path_ = application_dir_ + "/components/jellyfin/runtime/jellyfin/jellyfin";
 
-    const char* home = std::getenv("HOME");
-    const std::string home_path = home ? home : ".";
-    data_path_ = home_path + "/.local/share/reddmedia/server/data";
-    config_path_ = home_path + "/.config/reddmedia/server";
-    cache_path_ = home_path + "/.cache/reddmedia/server";
-    log_path_ = home_path + "/.local/share/reddmedia/server/log";
-    ownership_path_ = home_path + "/.local/share/reddmedia/server/nougat-owned.pid";
-    enabled_path_ = home_path + "/.config/reddmedia/server/persistent-enabled";
+    const auto& paths = nougat::paths::layout();
+    runtime_path_ = (nougat::paths::component_runtime("jellyfin") / "jellyfin" / "jellyfin").string();
+    data_path_ = paths.server_data.string();
+    config_path_ = paths.server_config.string();
+    cache_path_ = paths.server_cache.string();
+    log_path_ = paths.server_logs.string();
+    ownership_path_ = (paths.state / "server" / "nougat-owned.pid").string();
+    enabled_path_ = (paths.server_config / "persistent-enabled").string();
 }
 
 bool MediaServerManager::same_user_process(pid_t pid) const {
@@ -266,10 +266,22 @@ void MediaServerManager::persist_enabled(bool enabled) const {
 }
 
 bool MediaServerManager::load_enabled_state() const {
-    std::ifstream in(enabled_path_);
-    int enabled = 1; // upgrade compatibility: v0.0.32 automatically ran the server.
-    if (in >> enabled) return enabled != 0;
-    return true;
+    {
+        std::ifstream in(enabled_path_);
+        int enabled = 0;
+        if (in >> enabled) return enabled != 0;
+    }
+
+    // Upgrade bridge only. A fresh v0.0.50 installation does not silently
+    // enable an optional media server, but an existing user's explicit old
+    // persistent-server setting is honored until it is rewritten to Nougat's
+    // new config path.
+    for (const auto& root : nougat::paths::legacy_config_roots()) {
+        std::ifstream legacy(root / "server" / "persistent-enabled");
+        int enabled = 0;
+        if (legacy >> enabled) return enabled != 0;
+    }
+    return false;
 }
 
 bool MediaServerManager::health_ready() const {
@@ -350,6 +362,7 @@ bool MediaServerManager::launch_runtime() {
     ensure_directory(config_path_);
     ensure_directory(cache_path_);
     ensure_directory(log_path_);
+    ensure_directory(parent_directory(ownership_path_));
 
     const std::string token = make_owner_token();
     const pid_t child = fork();
@@ -505,7 +518,7 @@ std::string MediaServerManager::status_label() const {
     case MediaServerState::Starting: return owns_server() ? "Server: Starting (background)" : "Server: Starting";
     case MediaServerState::Ready: return owns_server() ? "Server: Ready (background)" : "Server: Ready (external)";
     case MediaServerState::Fault: return "Server: Fault";
-    case MediaServerState::RuntimeMissing: return "Server: Runtime Missing";
+    case MediaServerState::RuntimeMissing: return "Server: Component Not Installed";
     case MediaServerState::Stopped: return "Server: Stopped";
     }
     return "Server: Fault";
