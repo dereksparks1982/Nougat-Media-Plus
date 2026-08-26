@@ -16,7 +16,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout candidate
         uses: actions/checkout@v5
@@ -62,6 +62,17 @@ jobs:
           test -x /tmp/nougat-v50-build/Nougat_Media_Suite_v50
           test "$(/tmp/nougat-v50-build/Nougat_Media_Suite_v50 --version)" = "Nougat Media Suite v0.0.50"
 
+      - name: Compile native graphical installer with warnings as errors
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -Isrc \
+            installer/nougat_installer_gui_v50.cpp -lX11 \
+            -o /tmp/Nougat_Installer_v50
+          test -x /tmp/Nougat_Installer_v50
+          test "$(/tmp/Nougat_Installer_v50 --version)" = "Nougat Media Suite Installer v0.0.50"
+
+      - name: Prove graphical installer X11 identity and approved embedded icon
+        run: xvfb-run -a /tmp/Nougat_Installer_v50 --window-self-test
+
       - name: Run retained non-display native self-tests
         run: |
           /tmp/nougat-v50-build/Nougat_Media_Suite_v50 --v49-games-self-test
@@ -75,21 +86,24 @@ jobs:
       - name: Build and verify canonical lean source ZIP
         run: python3 tools/package_v50_source.py /tmp/Nougat_Media_Suite_v0.0.50_SOURCE_CANDIDATE.zip
 
-      - name: Build and verify installable v50 bundle
+      - name: Build and verify graphical v50 installer package
         run: |
           cp /tmp/nougat-v50-build/Nougat_Media_Suite_v50 ./Nougat_Media_Suite_v50
           chmod +x ./Nougat_Media_Suite_v50
-          python3 tools/package_v50_installer.py --output /tmp/Nougat_Media_Suite_v0.0.50_INSTALLER.zip
-          rm -f ./Nougat_Media_Suite_v50
+          cp /tmp/Nougat_Installer_v50 ./Nougat_Installer_v50
+          chmod +x ./Nougat_Installer_v50
+          python3 tools/package_v50_installer.py \
+            --output /tmp/Nougat_Media_Suite_v0.0.50_GRAPHICAL_INSTALLER.zip
+          rm -f ./Nougat_Media_Suite_v50 ./Nougat_Installer_v50
 
-      - name: Install and exercise the actual packaged v50 bundle
-        run: python3 tests/v50/test_installer_bundle.py /tmp/Nougat_Media_Suite_v0.0.50_INSTALLER.zip
+      - name: Exercise exact graphical installer ZIP, rollback, player-only, and Workshop
+        run: python3 tests/v50/test_installer_bundle.py /tmp/Nougat_Media_Suite_v0.0.50_GRAPHICAL_INSTALLER.zip
 
-      - name: Upload v50 installer
+      - name: Upload v50 graphical installer
         uses: actions/upload-artifact@v4
         with:
-          name: Nougat_Media_Suite_v0.0.50_INSTALLER
-          path: /tmp/Nougat_Media_Suite_v0.0.50_INSTALLER.zip
+          name: Nougat_Media_Suite_v0.0.50_GRAPHICAL_INSTALLER
+          path: /tmp/Nougat_Media_Suite_v0.0.50_GRAPHICAL_INSTALLER.zip
           if-no-files-found: error
           retention-days: 14
 
