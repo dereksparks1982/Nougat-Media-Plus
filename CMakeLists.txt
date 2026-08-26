@@ -17,6 +17,7 @@ find_package(Threads REQUIRED)
 add_executable(Nougat_Media_Suite_v50
     src/main.cpp
     src/platform/nougat_paths.cpp
+    src/plugins/plugin_registry.cpp
     src/workshop/split_archive_service.cpp
     src/games/emulator_host.cpp
     src/nougat/nougat_bridge.cpp
@@ -44,8 +45,20 @@ add_executable(Nougat_Media_Suite_v50
     src/ytdlp_stream_server.cpp
 )
 
+target_include_directories(Nougat_Media_Suite_v50 PRIVATE src)
 target_compile_options(Nougat_Media_Suite_v50 PRIVATE -Wall -Wextra -Werror)
 target_link_libraries(Nougat_Media_Suite_v50 PRIVATE X11 dl Threads::Threads)
+
+# The plugin registry is part of the mandatory player/plugin core. This native
+# self-test proves the physical plugin directory is the source of truth without
+# requiring any optional feature plugin to be compiled into the test process.
+add_executable(nougat_plugin_registry_self_test
+    tests/v50/plugin_registry_self_test.cpp
+    src/plugins/plugin_registry.cpp
+    src/platform/nougat_paths.cpp
+)
+target_include_directories(nougat_plugin_registry_self_test PRIVATE src)
+target_compile_options(nougat_plugin_registry_self_test PRIVATE -Wall -Wextra -Werror)
 
 # Local AI is a managed optional component in v0.0.50. The source tree no
 # longer owns a downloaded llama.cpp runtime. AUTO uses a managed runtime when
