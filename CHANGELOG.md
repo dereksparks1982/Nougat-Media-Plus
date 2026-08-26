@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.49 - Games Runtime, Artwork, ZIP Library, and World TV Repair
+
+- Adds a managed Stella runtime for Atari 2600 and keeps Atari gameplay embedded inside Nougat's native Video Player with no separate emulator taskbar/pager entry.
+- Strengthens emulator-window ownership/capture while preserving the top-edge options bridge and accepted NES/SNES presentation.
+- Repairs persistent Atari artwork preparation and preservation-set filename matching with cached Libretro indexes and conservative aliases.
+- Prefers USA, then other English, then foreign-only same-game variants, with the newest final revision winning inside the chosen region tier.
+- Removes Games wheel-event coasting and stale scrollbar-drag redraw backlog.
+- Adds Sega Genesis / Mega Drive, Master System, and Game Gear discovery inside ZIP libraries with managed BlastEm support.
+- Treats DOS ZIP packages as one game, safely extracts the required package on launch, selects a safe launcher, and reuses the private extraction cache when unchanged.
+- Repairs Russia-24 World TV probing so accepted candidates must expose both video and audio.
+- Repairs visible/diagnostic v0.0.49 identity and preserves accepted v0.0.48 behavior outside this repair scope.
+- Keeps the LAN Web Player deferred beyond v0.0.49.
+
 ## v0.0.48 - Embedded Emulation, DOS, Xbox 360, and Atari Repair
 
 - Adds one Nougat-owned embedded X11/XWayland emulator host inside the native Video Player.

@@ -11,6 +11,21 @@ Nougat's **Library** organizes local Movies and TV into collections, series, sea
 Nougat also includes built-in **P2P downloading and stream-while-downloading playback**, on-demand **security analysis**, evidence-based **system diagnostics**, local recommendation AI, persistent viewing history, and an integrated Jellyfin-backed catalog/server foundation. v0.0.46 adds cancellable process-group security scanning with a faster tiered bulk-scan path, verified-start World TV handling, and the versioned local-only foundation for future phone, tablet, laptop, and TV-browser access to locally owned media. The LAN design explicitly requires local media access to remain independent of WAN Internet connectivity and does not require a cloud login, automatic router port forwarding, or a cloud relay.
 
 
+## v0.0.49 - Games Runtime, Artwork, ZIP Library, and World TV Repair
+
+v0.0.49 repairs and expands the Games runtime path found during owner testing while preserving the accepted v0.0.48 embedded-emulator foundation.
+
+- Adds a Nougat-managed Atari 2600 Stella runtime and keeps Atari gameplay embedded inside Nougat's native Video Player instead of exposing a separate desktop emulator window.
+- Strengthens X11/XWayland emulator-window ownership, hides captured emulator windows from the taskbar/pager, and preserves the top-edge emulator options bridge.
+- Repairs Atari artwork matching for preservation-set filenames with persistent Libretro directory caches, conservative normalized aliases, and prepared artwork that survives Nougat rebuilds.
+- Filters same-game variants so USA is preferred, then another English release, then foreign-only releases; newer final revisions win within the selected region tier.
+- Removes queued Games mouse-wheel coasting and limits scrollbar-drag redraw so the list follows current pointer movement instead of stale event backlog.
+- Adds Sega Genesis / Mega Drive, Master System, and Game Gear ROM discovery inside ZIP libraries with managed BlastEm runtime support.
+- Treats DOS ZIP packages as one game, safely extracts the complete package only when launched, chooses a safe EXE/COM/BAT entry point, and reuses the private extracted cache when the source is unchanged.
+- Repairs Russia-24 World TV source acceptance so a candidate must provide both video and audio, while preserving the existing probe behavior for other stations.
+- Repairs visible and diagnostic v0.0.49 identity and preserves accepted NES/SNES, DOS, Xbox 360, Atari800, World TV, Secure Search, Library, Live TV, Stream, Studio, P2P, diagnostics, and desktop behavior outside this scope.
+- The LAN Web Player remains deferred beyond v0.0.49.
+
 ## v0.0.48 - Embedded Emulation, DOS, Xbox 360, and Atari Repair
 
 v0.0.48 expands Games around one Nougat-owned embedded emulator host inside the native Video Player and repairs the emulator integration found during owner testing.
