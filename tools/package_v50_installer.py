@@ -5,7 +5,6 @@ from pathlib import Path
 import argparse
 import hashlib
 import os
-import shutil
 import stat
 import tempfile
 import zipfile
@@ -34,13 +33,22 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def add_file(zf: zipfile.ZipFile, source: Path, archive_name: str, mode: int) -> None:
+def zip_info(archive_name: str, mode: int) -> zipfile.ZipInfo:
     info = zipfile.ZipInfo(archive_name)
+    info.create_system = 3  # Unix, so POSIX executable bits survive extraction.
     info.compress_type = zipfile.ZIP_DEFLATED
     info.external_attr = (stat.S_IFREG | mode) << 16
     info.date_time = (2026, 8, 26, 0, 0, 0)
+    return info
+
+
+def add_file(zf: zipfile.ZipFile, source: Path, archive_name: str, mode: int) -> None:
     with source.open("rb") as handle:
-        zf.writestr(info, handle.read())
+        zf.writestr(zip_info(archive_name, mode), handle.read())
+
+
+def member_mode(info: zipfile.ZipInfo) -> int:
+    return (info.external_attr >> 16) & 0o777
 
 
 def main() -> int:
@@ -67,18 +75,12 @@ def main() -> int:
                 for rel, mode in FILES:
                     add_file(zf, ROOT / rel, f"{TOP}/{rel}", mode)
 
-                # Root launcher keeps the downloaded artifact simple: extract,
-                # then run INSTALL.sh. It delegates to the versioned installer.
                 launcher = (
                     '#!/bin/bash\n'
                     'BASE="$(cd "$(dirname "$0")" && pwd)"\n'
                     'python3 "$BASE/installer/nougat_v50_installer.py" --source-root "$BASE"\n'
                 )
-                info = zipfile.ZipInfo(f"{TOP}/INSTALL.sh")
-                info.compress_type = zipfile.ZIP_DEFLATED
-                info.external_attr = (stat.S_IFREG | 0o755) << 16
-                info.date_time = (2026, 8, 26, 0, 0, 0)
-                zf.writestr(info, launcher.encode("utf-8"))
+                zf.writestr(zip_info(f"{TOP}/INSTALL.sh", 0o755), launcher.encode("utf-8"))
 
             with zipfile.ZipFile(temp, "r") as zf:
                 bad = zf.testzip()
@@ -96,6 +98,17 @@ def main() -> int:
                 if absent:
                     raise RuntimeError("installer ZIP missing required entries: " + ", ".join(absent))
 
+                executable_members = {
+                    f"{TOP}/INSTALL.sh",
+                    f"{TOP}/Nougat_Media_Suite_v50",
+                    f"{TOP}/installer/nougat_v50_installer.py",
+                    f"{TOP}/components/workshop/nougat_split_archive.py",
+                }
+                for name in executable_members:
+                    info = zf.getinfo(name)
+                    if info.create_system != 3 or member_mode(info) & 0o111 == 0:
+                        raise RuntimeError("installer ZIP lost executable permission metadata: " + name)
+
             os.replace(temp, output)
         except Exception:
             try:
@@ -105,6 +118,7 @@ def main() -> int:
             raise
 
         print("PASS: Nougat Media Suite v0.0.50 installer ZIP verified")
+        print("PASS: Unix executable permissions verified inside installer ZIP")
         print("ZIP:", output)
         print(f"Size: {output.stat().st_size / (1024 * 1024):.1f} MiB")
         print("SHA-256:", sha256(output))
