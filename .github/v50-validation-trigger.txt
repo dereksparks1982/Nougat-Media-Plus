@@ -1,0 +1,2 @@
+Temporary CI trigger for the v0.0.50 validation child branch.
+This file has no runtime or product effect and is not intended for candidate/main merge.
