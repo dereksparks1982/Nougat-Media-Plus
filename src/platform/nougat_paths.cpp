@@ -15,6 +15,19 @@ fs::path env_path(const char* name, const fs::path& fallback) {
     return fallback;
 }
 
+bool safe_id(const std::string& value) {
+    if (value.empty() || value == "." || value == "..") return false;
+    return value.find('/') == std::string::npos && value.find('\\') == std::string::npos;
+}
+
+bool safe_relative_resource(const fs::path& value) {
+    if (value.empty() || value.is_absolute()) return false;
+    for (const fs::path& part : value) {
+        if (part == "." || part == ".." || part.empty()) return false;
+    }
+    return true;
+}
+
 Layout build_layout() {
     const char* home_env = std::getenv("HOME");
     const fs::path home = (home_env != nullptr && *home_env != '\0')
@@ -34,6 +47,7 @@ Layout build_layout() {
     out.state = state_home / "nougat";
     out.logs = out.state / "logs";
     out.runtime = out.data / "runtime";
+    out.plugins = env_path("NOUGAT_PLUGIN_ROOT", out.data / "plugins");
     out.server_data = out.data / "server";
     out.server_config = out.config / "server";
     out.server_cache = out.cache / "server";
@@ -70,6 +84,7 @@ bool ensure_runtime_layout(std::string* error) {
         p.state,
         p.logs,
         p.runtime,
+        p.plugins,
         p.server_data,
         p.server_config,
         p.server_cache,
@@ -85,7 +100,32 @@ bool ensure_runtime_layout(std::string* error) {
 }
 
 fs::path component_runtime(const std::string& component_id) {
+    if (!safe_id(component_id)) return {};
     return layout().runtime / component_id;
+}
+
+fs::path plugin_root(const std::string& plugin_id) {
+    if (!safe_id(plugin_id)) return {};
+    return layout().plugins / plugin_id;
+}
+
+fs::path plugin_manifest(const std::string& plugin_id) {
+    const fs::path root = plugin_root(plugin_id);
+    if (root.empty()) return {};
+    return root / "plugin.json";
+}
+
+fs::path plugin_resource(const std::string& plugin_id, const fs::path& relative_path) {
+    const fs::path root = plugin_root(plugin_id);
+    if (root.empty() || !safe_relative_resource(relative_path)) return {};
+    return root / relative_path;
+}
+
+bool plugin_installed(const std::string& plugin_id) {
+    const fs::path manifest = plugin_manifest(plugin_id);
+    if (manifest.empty()) return false;
+    std::error_code ec;
+    return fs::is_regular_file(manifest, ec) && !ec;
 }
 
 std::vector<fs::path> legacy_config_roots() {
