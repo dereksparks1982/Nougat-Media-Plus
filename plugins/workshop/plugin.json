@@ -23,7 +23,7 @@
     {
       "source": "plugins/workshop/bin/nougat-workshop-plugin",
       "install_as": "bin/nougat-workshop-plugin",
-      "kind": "native-executable"
+      "kind": "executable"
     }
   ],
   "features": [
