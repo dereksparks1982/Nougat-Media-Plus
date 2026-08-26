@@ -316,6 +316,19 @@ def reconcile_plugins(source_root: Path, catalog: dict[str, dict], selected: lis
     return installed_plugins
 
 
+def prepare_bundled_core(binary: Path, source_root: Path) -> None:
+    """Repair execute bits that some ZIP extractors discard on the bundled core."""
+    try:
+        bundled = (source_root / APP_BINARY).resolve(strict=True)
+    except OSError:
+        return
+    if binary != bundled:
+        return
+    mode = binary.stat().st_mode
+    if mode & 0o111 == 0:
+        binary.chmod(mode | 0o755)
+
+
 def verify_core(binary: Path) -> None:
     result = run([str(binary), "--version"], capture=True)
     output = (result.stdout or "").strip()
@@ -388,6 +401,7 @@ def main() -> int:
         binary = (args.binary or (source_root / APP_BINARY)).expanduser().resolve()
         if not binary.is_file():
             raise InstallError(f"Built Nougat player core is missing: {binary}")
+        prepare_bundled_core(binary, source_root)
         verify_core(binary)
 
         if staging_root is None:
