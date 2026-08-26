@@ -40,10 +40,12 @@ def validate(text: str) -> None:
     forbidden = [
         'std::filesystem::path(exe_dir()) /\n            "components" / "workshop" / "nougat_split_archive.py"',
         'std::filesystem::path(exe_dir()).parent_path() /\n            "components" / "workshop" / "nougat_split_archive.py"',
+        'draw_player_screen(target);',
+        'ViewMode::Player',
     ]
     present = [token for token in forbidden if token in text]
     if present:
-        fail("plugin foundation retains executable-relative Workshop path guessing")
+        fail("plugin foundation retains forbidden Workshop fallback/path guessing")
 
 
 def main() -> int:
@@ -73,17 +75,11 @@ def main() -> int:
         resolver = '''    std::string workshop_worker_script() const {\n        return nougat::paths::plugin_resource("workshop", "nougat_split_archive.py").string();\n    }\n\n'''
         text = text[:start] + resolver + text[end:]
 
-        # A stale session must never expose an uninstalled plugin. If Workshop
-        # somehow becomes the current view after removal, render the Player and
-        # return the UI to Player state immediately.
-        old_draw = '''    void draw_studio_screen(Drawable target) {\n        const ViewPalette palette = palette_for(ViewMode::Studio);'''
-        new_draw = '''    void draw_studio_screen(Drawable target) {\n        if (!nougat::paths::plugin_installed("workshop")) {\n            currentView = ViewMode::Player;\n            draw_player_screen(target);\n            return;\n        }\n        const ViewPalette palette = palette_for(ViewMode::Studio);'''
-        text = replace_once(text, old_draw, new_draw, "Workshop stale-session guard")
-
         MAIN.write_text(text, encoding="utf-8")
         validate(text)
         print("PASS: applied v0.0.50 player-core optional-plugin foundation")
         print("PASS: Workshop resource lookup is managed-plugin-only")
+        print("PASS: Workshop tab is hidden when the plugin is absent")
         return 0
     except Exception as exc:
         print("FAIL:", exc)
