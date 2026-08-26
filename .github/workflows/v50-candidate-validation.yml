@@ -76,6 +76,9 @@ jobs:
           python3 tools/package_v50_installer.py --output /tmp/Nougat_Media_Suite_v0.0.50_INSTALLER.zip
           rm -f ./Nougat_Media_Suite_v50
 
+      - name: Install and exercise the actual packaged v50 bundle
+        run: python3 tests/v50/test_installer_bundle.py /tmp/Nougat_Media_Suite_v0.0.50_INSTALLER.zip
+
       - name: Upload v50 installer
         uses: actions/upload-artifact@v4
         with:
