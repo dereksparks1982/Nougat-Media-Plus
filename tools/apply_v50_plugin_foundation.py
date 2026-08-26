@@ -70,7 +70,7 @@ def main() -> int:
         if start < 0 or end < 0:
             fail("Workshop worker resolver seam not found after v50 core patch")
 
-        resolver = '''    std::string workshop_worker_script() const {\n        return nougat::paths::plugin_resource(\n            "workshop", "nougat_split_archive.py").string();\n    }\n\n'''
+        resolver = '''    std::string workshop_worker_script() const {\n        return nougat::paths::plugin_resource("workshop", "nougat_split_archive.py").string();\n    }\n\n'''
         text = text[:start] + resolver + text[end:]
 
         # A stale session must never expose an uninstalled plugin. If Workshop
