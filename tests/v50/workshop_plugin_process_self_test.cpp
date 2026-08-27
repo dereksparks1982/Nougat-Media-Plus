@@ -48,7 +48,6 @@ int main(int argc, char** argv) {
     if (workshop == nullptr || workshop->runtime_kind != "x11-process" ||
         workshop->entrypoint.filename() != "nougat-workshop-plugin") {
         std::cerr << "FAIL: strict plugin registry did not accept Workshop\n";
-        for (const auto& diagnostic : scan.diagnostics) std::cerr << diagnostic << '\n';
         return 1;
     }
 
