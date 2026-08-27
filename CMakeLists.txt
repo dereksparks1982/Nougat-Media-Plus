@@ -19,7 +19,6 @@ add_executable(Nougat_Media_Suite_v50
     src/platform/nougat_paths.cpp
     src/plugins/plugin_registry.cpp
     src/plugins/plugin_process_host.cpp
-    src/games/emulator_host.cpp
     src/nougat/nougat_bridge.cpp
     src/search/secure_search.cpp
     src/privacy/privacy_policy.cpp
@@ -59,6 +58,18 @@ target_include_directories(nougat_workshop_plugin PRIVATE src)
 target_compile_options(nougat_workshop_plugin PRIVATE -Wall -Wextra -Werror)
 target_link_libraries(nougat_workshop_plugin PRIVATE X11 Threads::Threads)
 set_target_properties(nougat_workshop_plugin PROPERTIES OUTPUT_NAME "nougat-workshop-plugin")
+
+# Games Plugin #2 owns the game library, emulator selection, ROM/DOS handling,
+# controller inspection and EmulatorHost. None of that implementation is linked
+# into the mandatory Video Player + Plugin Core target.
+add_executable(nougat_games_plugin
+    plugins/games/nougat_games_plugin.cpp
+    src/games/emulator_host.cpp
+)
+target_include_directories(nougat_games_plugin PRIVATE src)
+target_compile_options(nougat_games_plugin PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(nougat_games_plugin PRIVATE X11 Threads::Threads)
+set_target_properties(nougat_games_plugin PROPERTIES OUTPUT_NAME "nougat-games-plugin")
 
 # The plugin registry is part of the mandatory player/plugin core. This native
 # self-test proves the physical plugin directory is the source of truth without
