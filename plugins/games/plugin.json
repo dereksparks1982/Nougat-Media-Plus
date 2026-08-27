@@ -1,0 +1,73 @@
+{
+  "format": "NOUGAT_PLUGIN",
+  "format_version": 1,
+  "id": "games",
+  "display_name": "Games",
+  "version": "0.0.50",
+  "nougat_plugin_api": 1,
+  "description": "Nougat's optional unified game library and emulator workspace.",
+  "top_level_tab": "Games",
+  "required_for_application_start": false,
+  "recommended_by_default": true,
+  "runtime": {
+    "kind": "x11-process",
+    "entrypoint": "bin/nougat-games-plugin"
+  },
+  "dependencies": [],
+  "resources": [
+    {
+      "source": "plugins/games/bin/nougat-games-plugin",
+      "install_as": "bin/nougat-games-plugin",
+      "kind": "executable"
+    },
+    {
+      "source": "components/games/artwork_cache_worker.py",
+      "install_as": "artwork_cache_worker.py",
+      "kind": "python-worker"
+    },
+    {
+      "source": "components/games/bundled/2048.nes",
+      "install_as": "bundled/2048.nes",
+      "kind": "game-content"
+    },
+    {
+      "source": "components/games/bundled/Waveforms.nes",
+      "install_as": "bundled/Waveforms.nes",
+      "kind": "game-content"
+    },
+    {
+      "source": "components/games/bundled/artwork/2048.png",
+      "install_as": "bundled/artwork/2048.png",
+      "kind": "artwork"
+    },
+    {
+      "source": "components/games/bundled/artwork/Waveforms.png",
+      "install_as": "bundled/artwork/Waveforms.png",
+      "kind": "artwork"
+    },
+    {
+      "source": "components/games/bundled/BUNDLED_GAMES_SOURCES.md",
+      "install_as": "bundled/BUNDLED_GAMES_SOURCES.md",
+      "kind": "documentation"
+    },
+    {
+      "source": "components/games/bundled/licenses/2048-nes-UNLICENSE.txt",
+      "install_as": "bundled/licenses/2048-nes-UNLICENSE.txt",
+      "kind": "license"
+    },
+    {
+      "source": "components/games/bundled/licenses/NES-Waveforms-MIT.txt",
+      "install_as": "bundled/licenses/NES-Waveforms-MIT.txt",
+      "kind": "license"
+    }
+  ],
+  "features": [
+    "game-library",
+    "rom-folder-links",
+    "archive-rom-launch",
+    "dos-packages",
+    "embedded-emulators",
+    "controller-detection",
+    "bundled-legal-starter-library"
+  ]
+}
