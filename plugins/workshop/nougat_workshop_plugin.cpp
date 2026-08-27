@@ -14,6 +14,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <sys/wait.h>
 #include <unistd.h>
 
 namespace fs = std::filesystem;
