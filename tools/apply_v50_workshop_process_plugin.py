@@ -59,12 +59,21 @@ def validate(text: str) -> None:
         "workshopWorker",
         "workshopSourcePath",
         "workshopOutputFolder",
+        "workshopFileBtn",
+        "workshopFolderBtn",
+        "workshopOutputBtn",
+        "workshopModeBtn",
+        "workshopMinusBtn",
+        "workshopPlusBtn",
         "workshopSplitBtn",
+        "workshopReassembleBtn",
+        "start_workshop_inspect(",
         "start_workshop_split()",
         "start_workshop_reassemble(",
         "poll_workshop_worker();",
         "handle_workshop_click(x,y);",
         'nougat::paths::plugin_installed("workshop")',
+        "nougat::workshop::SplitArchiveService",
     ]
     present = [item for item in forbidden if item in text]
     if present:
@@ -220,6 +229,14 @@ def main() -> int:
 
         text = replace_once(
             text,
+            '            &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&debugTab,\n'
+            '            &workshopFileBtn,&workshopFolderBtn,&workshopOutputBtn,&workshopModeBtn,&workshopMinusBtn,&workshopPlusBtn,&workshopSplitBtn,&workshopReassembleBtn,\n',
+            '            &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&debugTab,\n',
+            "Workshop core hover target removal",
+        )
+
+        text = replace_once(
+            text,
             '            poll_server_worker();\n            poll_workshop_worker();\n',
             '            poll_server_worker();\n',
             "Workshop core worker poll removal",
@@ -253,8 +270,8 @@ def main() -> int:
             "Workshop process lifecycle redraw hook",
         )
 
-        MAIN.write_text(text, encoding="utf-8")
         validate(text)
+        MAIN.write_text(text, encoding="utf-8")
         print("PASS: Workshop implementation removed from Nougat player core")
         print("PASS: Workshop tab now requires a strict validated x11-process plugin")
         print("PASS: Workshop process stops when its view is left; plugin folder remains source of truth")
