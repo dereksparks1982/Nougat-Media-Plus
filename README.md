@@ -11,6 +11,23 @@ Nougat's **Library** organizes local Movies and TV into collections, series, sea
 Nougat also includes built-in **P2P downloading and stream-while-downloading playback**, on-demand **security analysis**, evidence-based **system diagnostics**, local recommendation AI, persistent viewing history, and an integrated Jellyfin-backed catalog/server foundation. v0.0.46 adds cancellable process-group security scanning with a faster tiered bulk-scan path, verified-start World TV handling, and the versioned local-only foundation for future phone, tablet, laptop, and TV-browser access to locally owned media. The LAN design explicitly requires local media access to remain independent of WAN Internet connectivity and does not require a cloud login, automatic router port forwarding, or a cloud relay.
 
 
+
+## v0.0.51 - Radio, Live TV, World TV, Games, File Splitter, and Nougat Identity
+
+v0.0.51 expands Nougat Media Suite across Radio, Live TV, World TV, Games, Studio tools, desktop identity, navigation, and local-network media foundations.
+
+- Adds the new top-level **Radio** area with AM, FM, Shortwave, Weather, DAB/DAB+, DRM, Internet Radio, SDR, Favorites, and Recordings architecture.
+- Advances **HDHomeRun FLEX DUO** support with physical-device grouping, two independent tuner resources, provider-neutral tuner status, expanded scan diagnostics, and continued full channel-scan pipeline work.
+- Advances **World TV** with guide-layout work, current-source verification, playback-health diagnostics, asynchronous stream resolution, bounded timeouts, and improved failure reporting.
+- Expands the **Games** architecture with additional emulator integration work, ROM/archive recognition, controller handling, artwork matching, and persistent prepared-artwork support.
+- Reworks **Studio -> Tools -> File Splitter** toward the full embedded Nougat workflow for folders, files, existing ZIPs, output destination, piece count, calculated piece size, splitting, reassembly, progress, and integrity verification.
+- Adds the owner-approved new **Nougat N** application identity and branded top-header artwork across the v0.0.51 desktop application.
+- Advances top-level navigation toward geometry-derived scrolling so the complete final tab remains reachable as Nougat grows.
+- Continues system-wide translucent floating-overlay and rounded-corner clipping work.
+- Carries forward the **LAN Web Viewer** foundation for local browser access to Nougat media, artwork, history, Live TV, sessions, pairing, and diagnostics without requiring a cloud login or automatic port forwarding.
+- Records the unified controller framework for Nougat UI navigation, Video Player, Games, and future Drone Flight contexts.
+- Carries forward all owner-tested v0.0.51 repair requirements documented in `docs/builds/NOUGAT_MEDIA_SUITE_v0_0_51_REJECTED_BUILD_LOG.md`.
+
 ## v0.0.50 - File Splitter, Unified Tuners, and Studio Foundation
 
 v0.0.50 advances Nougat Media Suite with the first File Splitter implementation, unified HDHomeRun/WinTV tuner groundwork, and Studio naming/architecture work.
