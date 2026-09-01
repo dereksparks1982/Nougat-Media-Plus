@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.0.52 candidate - Professional Radio Receiver
+
+- Focuses v0.0.52 exclusively on replacing the rejected Radio shell with a functional receiver/scanner architecture.
+- Adds a simple RADIO view for ordinary listening and a PRO view for frequency, modulation, tuning step, gain, squelch, device selection, scanning, recording, spectrum-engine/runtime status and TX-chain testing.
+- Adds truthful hardware discovery across Linux radio/DVB devices plus SoapySDR-class, RTL-SDR, HackRF, LimeSDR, UHD/USRP and Airspy tooling when present.
+- Adds real asynchronous RTL-SDR receive/scanning paths, persistent radio Favorites/Recordings, weather/emergency/ISS/shortwave presets, Internet Radio playback through Nougat's existing libVLC engine, and a TV Antenna Scan bridge to the existing Live TV tuner path.
+- Adds receive-only public-safety/P25 capability hooks through OP25 and preserves encrypted-system boundaries.
+- Keeps RF transmit disabled by default while adding RX/TX hardware capability reporting and a non-radiating generated-IQ TX-chain self-test so the architecture is not receiver-only.
+- Vendors/pins the owner-supplied radio open-source foundations and preserves their upstream licenses behind Nougat-owned boundaries.
+- Moves every non-Radio rejected-v0.0.51 repair into the v0.0.53 carry-forward document. No other rejected subsystem is repaired in v0.0.52.
+- Candidate remains uncommitted and untagged until owner testing and acceptance.
+
+
 ## v0.0.51 candidate
 
 - Repairs v0.0.50 File Splitter, HDHomeRun grouping/full-scan status, World TV guide/reliability, version identity and transient overlay clipping/opacity.

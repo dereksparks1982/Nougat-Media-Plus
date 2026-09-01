@@ -1,5 +1,10 @@
 # v0.0.34 dependency note
 
+## v0.0.52 Radio dependency boundary
+
+Nougat Radio uses a provider/worker architecture so RF hardware and specialized decoders remain replaceable. The v0.0.52 source-vendor tool pins SoapySDR, liquid-dsp, OP25, GNU Radio 4 core and KISS FFT snapshots corresponding to the owner-supplied projects. Specialized DAB/DAB+, DRM, satellite and trunked-radio workers remain separate upstream components when used. GPL components are not linked into Elderred Softworks LLC Original Materials; they remain separate executables/workers with their own upstream licenses and notices. The core v0.0.52 executable builds without requiring these optional runtimes so unsupported hardware is reported honestly instead of blocking Nougat startup.
+
+
 ## v0.0.51 candidate dependency notes
 
 - No new linked controller library is introduced in v0.0.51; controller support is roadmap architecture only in this candidate.

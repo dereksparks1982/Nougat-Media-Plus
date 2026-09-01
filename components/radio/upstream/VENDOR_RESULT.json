@@ -1,0 +1,50 @@
+{
+  "results": [
+    {
+      "id": "soapysdr",
+      "status": "staged",
+      "origin": "owner-archive:/home/dereksparks1982/Downloads/SoapySDR-master.zip",
+      "sha256": "64dd90cea31d3dc669f3c9cd7e0fa7a72980e6e32f8574bb9b407afe0d80a03d"
+    },
+    {
+      "id": "liquid-dsp",
+      "status": "staged",
+      "origin": "owner-archive:/home/dereksparks1982/Downloads/liquid-dsp-master.zip",
+      "sha256": "0cae794b1e8a840f212efaaf8f19169b0c007ab06becc2b7b4f1dd2d3e2acb91"
+    },
+    {
+      "id": "op25",
+      "status": "staged",
+      "origin": "owner-archive:/home/dereksparks1982/Downloads/op25-master.zip",
+      "sha256": "fc1a38312668a33c2cc8cfb19b40c9ce4458aeb9507b1a50a08be867613640c1"
+    },
+    {
+      "id": "gnuradio4-core",
+      "status": "staged",
+      "origin": "owner-archive:/home/dereksparks1982/Downloads/gnuradio4-core-main.zip",
+      "sha256": "1edd3e608681a7a7ae0f5aa4c08a63f6f96a15a53ef1b93fb63a7570a2562c3c"
+    },
+    {
+      "id": "kissfft",
+      "status": "staged",
+      "origin": "owner-archive:/home/dereksparks1982/Downloads/kiss-fft-master.zip",
+      "sha256": "d50761269d8196e567ae47d752b7764f87a7f7c257e7d014ae33eaad3f6bea10"
+    },
+    {
+      "id": "welle.io",
+      "status": "optional-not-requested"
+    },
+    {
+      "id": "dream",
+      "status": "optional-not-requested"
+    },
+    {
+      "id": "satdump",
+      "status": "optional-not-requested"
+    },
+    {
+      "id": "trunk-recorder",
+      "status": "optional-not-requested"
+    }
+  ]
+}

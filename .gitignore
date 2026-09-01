@@ -13,3 +13,5 @@ components/games/runtime/
 
 # Generated CMake build tree. Never commit release build output.
 /build/
+
+/components.zip

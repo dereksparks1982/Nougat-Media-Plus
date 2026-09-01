@@ -1,0 +1,9 @@
+{
+  "id": "liquid-dsp",
+  "origin": "owner-archive:/home/dereksparks1982/Downloads/liquid-dsp-master.zip",
+  "archive_sha256": "0cae794b1e8a840f212efaaf8f19169b0c007ab06becc2b7b4f1dd2d3e2acb91",
+  "repository": "jgaeddert/liquid-dsp",
+  "pinned_commit": "0909bb29d5a2f4e0c8facf6207398d9456e70d20",
+  "license_declared": "MIT",
+  "boundary": "DSP library source; optional future in-process use"
+}

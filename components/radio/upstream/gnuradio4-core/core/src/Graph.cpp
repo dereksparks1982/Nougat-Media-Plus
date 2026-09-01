@@ -1,0 +1,158 @@
+#include <gnuradio-4.0/Graph.hpp>
+#include <gnuradio-4.0/Graph_yaml_importer.hpp>
+#include <gnuradio-4.0/PluginLoader.hpp>
+
+namespace gr {
+
+Graph::Graph(property_map settings) : gr::Block<Graph>(std::move(settings)), _pluginLoader(std::addressof(gr::globalPluginLoader())) {
+    _blocks.reserve(100); // TODO: remove
+
+    propertyCallbacks[graph::property::kInspectBlock]           = static_cast<BlockBase::PropertyCallback>(&Graph::propertyCallbackInspectBlock);
+    propertyCallbacks[graph::property::kGraphInspect]           = static_cast<BlockBase::PropertyCallback>(&Graph::propertyCallbackGraphInspect);
+    propertyCallbacks[graph::property::kRegistryBlockTypes]     = static_cast<BlockBase::PropertyCallback>(&Graph::propertyCallbackRegistryBlockTypes);
+    propertyCallbacks[graph::property::kRegistrySchedulerTypes] = static_cast<BlockBase::PropertyCallback>(&Graph::propertyCallbackRegistrySchedulerTypes);
+}
+
+[[maybe_unused]] std::shared_ptr<BlockModel> const& Graph::emplaceBlock(std::string_view type, property_map initialSettings) {
+    if (type.starts_with("gr::Graph")) {
+        auto subGraphModel = std::unique_ptr<BlockModel>(std::make_unique<GraphWrapper<Graph>>().release());
+        return addBlock(std::move(subGraphModel));
+    } else if (std::shared_ptr<BlockModel> block_load = _pluginLoader->instantiate(type, std::move(initialSettings)); block_load) {
+        const std::shared_ptr<BlockModel>& newBlock = addBlock(block_load);
+        return newBlock;
+    } else if (std::shared_ptr<SchedulerModel> scheduler_load = _pluginLoader->instantiateScheduler(type, std::move(initialSettings)); scheduler_load) {
+        const std::shared_ptr<BlockModel>& newBlock = addBlock(SchedulerModel::asBlockModelPtr(scheduler_load));
+        return newBlock;
+    }
+    throw gr::exception(std::format("Cannot create block '{}'", type));
+}
+
+std::pair<std::shared_ptr<BlockModel>, std::shared_ptr<BlockModel>> Graph::replaceBlock(std::string_view uniqueName, std::string_view type, const property_map& properties) {
+    auto it = std::ranges::find_if(_blocks, [&uniqueName](const auto& block) { return block->uniqueName() == uniqueName; });
+    if (it == _blocks.end()) {
+        throw gr::exception(std::format("Block {} was not found in {}", uniqueName, this->unique_name));
+    }
+
+    auto newBlock = gr::globalPluginLoader().instantiate(type, properties);
+    if (!newBlock) {
+        throw gr::exception(std::format("Can not create block {}", type));
+    }
+
+    addBlock(newBlock);
+
+    for (auto& edge : _edges) {
+        if (edge._sourceBlock == *it) {
+            edge._sourceBlock = newBlock;
+        }
+
+        if (edge._destinationBlock == *it) {
+            edge._destinationBlock = newBlock;
+        }
+    }
+
+    std::shared_ptr<BlockModel> oldBlock = std::move(*it);
+    _blocks.erase(it);
+
+    return {std::move(oldBlock), newBlock};
+}
+
+std::optional<Message> Graph::propertyCallbackRegistryBlockTypes([[maybe_unused]] std::string_view propertyName, Message message) {
+    assert(propertyName == graph::property::kRegistryBlockTypes);
+    const auto&        availableBlocks = _pluginLoader->availableBlocks();
+    Tensor<pmt::Value> types(availableBlocks | std::views::transform([](const std::string& type) { return pmt::Value(type); }));
+    message.data = property_map{{"types", types}};
+    return message;
+}
+
+std::optional<Message> Graph::propertyCallbackRegistrySchedulerTypes([[maybe_unused]] std::string_view propertyName, Message message) {
+    assert(propertyName == graph::property::kRegistryBlockTypes);
+    const auto&        availableSchedulers = _pluginLoader->availableSchedulers();
+    Tensor<pmt::Value> types(availableSchedulers | std::views::transform([](const std::string& type) { return pmt::Value(type); }));
+    message.data = property_map{{"types", types}};
+    return message;
+}
+
+std::optional<Message> Graph::propertyCallbackInspectBlock([[maybe_unused]] std::string_view propertyName, Message message) {
+    assert(propertyName == graph::property::kInspectBlock);
+    using namespace std::string_literals;
+
+    gr::Message reply;
+    reply.endpoint = graph::property::kBlockInspected;
+
+    if (!message.data) {
+        reply.data = std::unexpected(Error{"Invalid block specification"s});
+        return reply;
+    }
+    const auto& data       = *message.data;
+    const auto  uniqueName = data.at("uniqueName").value_or(std::string_view{});
+    if (uniqueName.empty()) {
+        reply.data = std::unexpected(Error{"Invalid block specification"s});
+        return reply;
+    }
+
+    auto it = std::ranges::find_if(_blocks, [&uniqueName](const auto& block) { return block->uniqueName() == uniqueName; });
+    if (it == _blocks.end()) {
+        reply.data = std::unexpected(Error{std::format("Block {} was not found in {}", uniqueName, this->unique_name)});
+        return reply;
+    }
+
+    const bool yamlSerialize = [&] {
+        if (const auto fmt = data.find("serialization_format"); fmt != data.cend()) {
+            return fmt->second == "yaml";
+        }
+        return false;
+    }();
+
+    if (yamlSerialize) {
+        reply.data = property_map{{"yamlData", pmt::yaml::serialize(serializeBlock(*_pluginLoader, *it, BlockSerializationFlags::All))}};
+    } else {
+        reply.data = serializeBlock(*_pluginLoader, *it, BlockSerializationFlags::All);
+    }
+    return {reply};
+}
+
+std::optional<Message> Graph::propertyCallbackGraphInspect([[maybe_unused]] std::string_view propertyName, Message message) {
+    assert(propertyName == graph::property::kGraphInspect);
+
+    if (const bool yamlSerialize =
+            [&] {
+                if (!message.data) {
+                    return false;
+                }
+                if (const auto it = message.data->find("serialization_format"); it != message.data->cend()) {
+                    return it->second == "yaml";
+                }
+                return false;
+            }();
+        !yamlSerialize) {
+        message.data = [&] {
+            property_map _result;
+            auto&        result = _result;
+
+            result[std::pmr::string(serialization_fields::BLOCK_NAME)]        = std::string(name);
+            result[std::pmr::string(serialization_fields::BLOCK_UNIQUE_NAME)] = std::string(unique_name);
+            result[std::pmr::string(serialization_fields::BLOCK_CATEGORY)]    = std::string(gr::meta::enumName(blockCategory).value_or(""));
+
+            property_map serializedChildren;
+            for (const auto& child : blocks()) {
+                serializedChildren[std::pmr::string(child->uniqueName())] = serializeBlock(*_pluginLoader, child, BlockSerializationFlags::All);
+            }
+            result[std::pmr::string(serialization_fields::BLOCK_CHILDREN)] = std::move(serializedChildren);
+
+            property_map serializedEdges;
+            std::size_t  index = 0UZ;
+            for (const auto& edge : edges()) {
+                serializedEdges[convert_string_domain(std::to_string(index))] = serializeEdge(edge);
+                index++;
+            }
+            result[std::pmr::string(serialization_fields::BLOCK_EDGES)] = std::move(serializedEdges);
+            return result;
+        }();
+    } else {
+        message.data = {{"yamlData", saveGrc(*_pluginLoader, *this)}};
+    }
+
+    message.endpoint = graph::property::kGraphInspected;
+    return message;
+}
+} // namespace gr

@@ -12,6 +12,10 @@ Nougat also includes built-in **P2P downloading and stream-while-downloading pla
 
 
 
+## v0.0.52 - Radio Receiver Expansion and Hardware Foundation
+
+Nougat Media Suite v0.0.52 expands the Radio receiver and hardware foundation, including the new Radio backend, hardware capability handling, receiver controls, component sources, and provider-neutral tuner work. Known Radio and UI issues remain carried forward for repair.
+
 ## v0.0.51 - Radio, Live TV, World TV, Games, File Splitter, and Nougat Identity
 
 v0.0.51 expands Nougat Media Suite across Radio, Live TV, World TV, Games, Studio tools, desktop identity, navigation, and local-network media foundations.

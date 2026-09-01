@@ -1,0 +1,9 @@
+{
+  "id": "gnuradio4-core",
+  "origin": "owner-archive:/home/dereksparks1982/Downloads/gnuradio4-core-main.zip",
+  "archive_sha256": "1edd3e608681a7a7ae0f5aa4c08a63f6f96a15a53ef1b93fb63a7570a2562c3c",
+  "repository": "gnuradio/gnuradio4-core",
+  "pinned_commit": "657ef622258b77d2b6a9e432f24de103e809434b",
+  "license_declared": "MIT",
+  "boundary": "staged source; optional future flowgraph core"
+}

@@ -1,0 +1,84 @@
+cff-version: 1.2.0
+title: "GNU Radio 4.0"
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+license: MIT
+repository-code: "https://github.com/gnuradio/gnuradio4"
+keywords:
+  - signal processing
+  - software-defined radio
+  - SDR
+  - C++23
+  - GNU Radio
+authors:
+  - family-names: Steinhagen
+    given-names: Ralph J.
+    affiliation: "GSI Helmholtzzentrum für Schwerionenforschung / FAIR"
+    orcid: "https://orcid.org/0009-0009-8537-7029"
+  - family-names: Lebedev
+    given-names: Simon
+    affiliation: "GSI Helmholtzzentrum für Schwerionenforschung"
+    orcid: "https://orcid.org/0009-0006-8329-990X"
+  - family-names: Krimm
+    given-names: Alexander
+    affiliation: "GSI Helmholtzzentrum für Schwerionenforschung"
+    orcid: "https://orcid.org/0000-0003-0804-756X"
+  - family-names: Čukić
+    given-names: Ivan
+    affiliation: "KDAB"
+    orcid: "https://orcid.org/0000-0001-5358-0828"
+  - family-names: Kretz
+    given-names: Matthias
+    affiliation: "GSI Helmholtzzentrum für Schwerionenforschung"
+    orcid: "https://orcid.org/0000-0002-0867-243X"
+  - family-names: Osterfeld
+    given-names: Frank
+    affiliation: "KDAB"
+  - family-names: Gorman
+    given-names: Chris
+  - family-names: Martins
+    given-names: Sergio
+    affiliation: "KDAB"
+  - family-names: Nicoletti
+    given-names: Daniel
+    affiliation: "KDAB"
+  - family-names: Groß
+    given-names: Magnus
+    affiliation: "KDAB"
+  - family-names: Estévez
+    given-names: Daniel
+    orcid: "https://orcid.org/0000-0002-3435-139X"
+  - family-names: Morman
+    given-names: Josh
+    affiliation: "GNU Radio Project"
+  - family-names: Camuffo
+    given-names: Giulio
+    affiliation: "KDAB"
+  - family-names: Klein
+    given-names: Dennis
+    affiliation: "GSI Helmholtzzentrum für Schwerionenforschung"
+    orcid: "https://orcid.org/0000-0003-3891-4302"
+  - family-names: Rode
+    given-names: Andrej
+    orcid: "https://orcid.org/0000-0002-6101-7485"
+  - family-names: Müller
+    given-names: Marcus
+    affiliation: "GNU Radio Project"
+  - family-names: Niedermayer
+    given-names: Philipp
+    affiliation: "GSI Helmholtzzentrum für Schwerionenforschung"
+    orcid: "https://orcid.org/0000-0002-4722-6619"
+  - family-names: Flynn
+    given-names: Toby
+    orcid: "https://orcid.org/0000-0002-3282-8131"
+  - family-names: Ahmed
+    given-names: Waqar
+    affiliation: "KDAB"
+  - family-names: McFarlane
+    given-names: Ian
+  - family-names: Campbell
+    given-names: Bailey
+  - family-names: Hensel
+    given-names: Tom
+  - family-names: Gupta
+    given-names: Krish

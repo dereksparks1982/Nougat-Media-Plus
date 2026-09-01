@@ -1,0 +1,9 @@
+{
+  "id": "soapysdr",
+  "origin": "owner-archive:/home/dereksparks1982/Downloads/SoapySDR-master.zip",
+  "archive_sha256": "64dd90cea31d3dc669f3c9cd7e0fa7a72980e6e32f8574bb9b407afe0d80a03d",
+  "repository": "pothosware/SoapySDR",
+  "pinned_commit": "1551ea0d39ce546b32a15808b9b1241018a89fc8",
+  "license_declared": "Boost Software License 1.0",
+  "boundary": "provider/library source; optional runtime"
+}

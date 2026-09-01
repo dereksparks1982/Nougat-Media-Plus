@@ -1,3 +1,7 @@
+## v0.0.53 planned - Rejected v0.0.51 carry-forward and alerts
+
+The complete mandatory carry-forward list is recorded in `docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_CARRY_FORWARD.md`. v0.0.52 is Radio-only. v0.0.53 resumes the deferred File Splitter, HDHomeRun/full-scan, World TV, Games/emulator/artwork, navigation, identity, overlay/process, LAN and related repair work. AMBER Alerts and the broader official public-warning integration are also assigned to v0.0.53.
+
 ## v0.0.51 and forward: Controller, Radio, LAN Viewer, and Aerial Production
 
 - **Unified Controller & Remote Input Framework:** app-wide controller navigation, not a drone-only input stack. Controller setup is in the **System tab**. Default vocabulary includes D-pad/left stick navigation, A/Cross Select, B/Circle Back/Cancel, tab/page movement, player seek/play, subtitles/audio and context actions, with remapping, dead zones, sensitivity and test input. Separate UI, Video Player, Games and **Drone Flight** contexts. Drone Flight receives exclusive flight-axis ownership while armed.

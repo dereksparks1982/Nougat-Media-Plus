@@ -1,0 +1,9 @@
+{
+  "id": "kissfft",
+  "origin": "owner-archive:/home/dereksparks1982/Downloads/kiss-fft-master.zip",
+  "archive_sha256": "d50761269d8196e567ae47d752b7764f87a7f7c257e7d014ae33eaad3f6bea10",
+  "repository": "mborgerding/kissfft",
+  "pinned_commit": "e5e3fac46e0d94a8f8170c06706b7a4218828333",
+  "license_declared": "BSD-style",
+  "boundary": "FFT library source; optional future in-process use"
+}

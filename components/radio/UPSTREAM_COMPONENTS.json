@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "build": "Nougat Media Suite v0.0.52",
+  "policy": "Upstream source remains under its own license. GPL-family components are separate worker/runtime boundaries and are not linked into Elderred Softworks LLC Original Materials.",
+  "components": [
+    {
+      "id": "soapysdr",
+      "owner_archive": "SoapySDR-master.zip",
+      "repository": "pothosware/SoapySDR",
+      "commit": "1551ea0d39ce546b32a15808b9b1241018a89fc8",
+      "license": "Boost Software License 1.0",
+      "boundary": "provider/library source; optional runtime"
+    },
+    {
+      "id": "liquid-dsp",
+      "owner_archive": "liquid-dsp-master.zip",
+      "repository": "jgaeddert/liquid-dsp",
+      "commit": "0909bb29d5a2f4e0c8facf6207398d9456e70d20",
+      "license": "MIT",
+      "boundary": "DSP library source; optional future in-process use"
+    },
+    {
+      "id": "op25",
+      "owner_archive": "op25-master.zip",
+      "repository": "boatbod/op25",
+      "commit": "71abcd0ead32f86f51615ea6cc8a6a4dba4c949a",
+      "license": "GPL family",
+      "boundary": "separate worker/runtime only"
+    },
+    {
+      "id": "gnuradio4-core",
+      "owner_archive": "gnuradio4-core-main.zip",
+      "repository": "gnuradio/gnuradio4-core",
+      "commit": "657ef622258b77d2b6a9e432f24de103e809434b",
+      "license": "MIT",
+      "boundary": "staged source; optional future flowgraph core"
+    },
+    {
+      "id": "kissfft",
+      "owner_archive": "kiss-fft-master.zip",
+      "repository": "mborgerding/kissfft",
+      "commit": "e5e3fac46e0d94a8f8170c06706b7a4218828333",
+      "license": "BSD-style",
+      "boundary": "FFT library source; optional future in-process use"
+    },
+    {
+      "id": "welle.io",
+      "repository": "AlbrechtL/welle.io",
+      "commit": "512558d1f8ac4c524d3c63e97510ea36c1bd7a70",
+      "license": "upstream license files govern",
+      "boundary": "separate DAB/DAB+ worker/runtime",
+      "optional": true
+    },
+    {
+      "id": "dream",
+      "repository": "wwek/dream",
+      "commit": "fddf0cc69d0085d864d35e43e761de76104cfb17",
+      "license": "GPL family",
+      "boundary": "separate DRM worker/runtime",
+      "optional": true
+    },
+    {
+      "id": "satdump",
+      "repository": "SatDump/SatDump",
+      "commit": "96b71ca366c47c34b7855593d219f08364feca63",
+      "license": "upstream license files govern",
+      "boundary": "separate satellite worker/runtime",
+      "optional": true
+    },
+    {
+      "id": "trunk-recorder",
+      "repository": "TrunkRecorder/trunk-recorder",
+      "commit": "ebe770d018d5590ac43417af7e3b33c25379f4f7",
+      "license": "GPL-3.0",
+      "boundary": "separate unencrypted trunked-radio worker/runtime",
+      "optional": true
+    }
+  ]
+}

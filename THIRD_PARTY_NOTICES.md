@@ -43,3 +43,8 @@ Search may use the system Python standard library, SQLite FTS5, curl, and a sepa
 ## Distribution rule
 
 When a release bundles a third-party binary, source tree, model, or artwork asset, the release package must carry the corresponding notices/license material required by that exact artifact. If a component is merely a system dependency, its installed package continues under the terms supplied by its distributor/upstream project.
+
+
+## Nougat Radio v0.0.52 upstream components
+
+Nougat Radio may use separately licensed upstream components including SoapySDR (Boost Software License 1.0), liquid-dsp (MIT), KISS FFT (BSD-style), GNU Radio 4 core (MIT), and OP25 (GPL family), plus specialized DAB/DAB+, DRM, satellite and trunked-radio workers when installed. Their original source trees and license files are preserved under `components/radio/upstream/`; those licenses govern those upstream components. Nothing in this notice relicenses upstream code under Nougat's PolyForm license.

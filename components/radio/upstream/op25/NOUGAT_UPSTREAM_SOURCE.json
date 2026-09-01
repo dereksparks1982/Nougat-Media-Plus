@@ -1,0 +1,9 @@
+{
+  "id": "op25",
+  "origin": "owner-archive:/home/dereksparks1982/Downloads/op25-master.zip",
+  "archive_sha256": "fc1a38312668a33c2cc8cfb19b40c9ce4458aeb9507b1a50a08be867613640c1",
+  "repository": "boatbod/op25",
+  "pinned_commit": "71abcd0ead32f86f51615ea6cc8a6a4dba4c949a",
+  "license_declared": "GPL family",
+  "boundary": "separate worker/runtime only"
+}
