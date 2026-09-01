@@ -47,6 +47,7 @@
 #include "media_server/library_metadata_cache.hpp"
 #include "media_server/media_server_manager.hpp"
 #include "live_tv/tuner_backend.hpp"
+#include "live_tv/hdhomerun_provider.hpp"
 #include "diagnostics/diagnostic_engine.hpp"
 #include "recommendations/recommendation_engine.hpp"
 #include "recommendations/watch_provider_preferences.hpp"
@@ -1708,6 +1709,7 @@ public:
     Rect fullscreenRewindRect, fullscreenPlayRect, fullscreenForwardRect;
     int fullscreenTransportHover=-1;
     Rect homeTab, videoPlayerTab, libraryTab, discoverTab, liveTvTab, worldTvTab, nougatTab, ytdlpTab, studioTab, gamesTab, debugTab;
+    Rect studioSplitFileBtn, studioSplitFolderBtn, studioReassembleBtn, studioVerifyBtn;
     Rect libraryMoviesBtn, libraryTvBtn, libraryGridBtn, libraryListViewBtn, libraryAddFolderBtn, libraryUnlinkFolderBtn;
     Rect libraryRefreshBtn, libraryBackBtn, librarySearchRect, librarySearchBtn, libraryListBox;
     Rect libraryVerticalScrollTrack, libraryVerticalScrollThumb;
@@ -1921,6 +1923,7 @@ public:
     reddmedia::MediaServerManager mediaServer;
     reddmedia::lan::LanMediaService lanMedia;
     reddmedia::NougatTunerBackend tunerBackend;
+    reddmedia::HdHomeRunProvider hdHomeRunProvider;
     std::shared_ptr<LiveTvScanUiState> liveTvScanState = std::make_shared<LiveTvScanUiState>();
     std::thread liveTvScanWorker;
     std::shared_ptr<LiveTvGuideUiState> liveTvGuideState = std::make_shared<LiveTvGuideUiState>();
@@ -1970,6 +1973,12 @@ public:
     LiveTvTunerUse liveTvTunerUse = LiveTvTunerUse::Idle;
     bool liveTvGuideRefreshQueued = false;
     int liveTvPlayingChannel = -1;
+    int liveTvPlayingTuner = -1;
+    int liveTvScanTuner = -1;
+    int liveTvGuideTuner = -1;
+    bool liveTvScanBusy = false;
+    bool liveTvGuideBusy = false;
+    std::string studioStatus = "File Splitter / Reassembler ready.";
     std::shared_ptr<reddmedia::JellyfinApiClient> libraryClient =
         std::make_shared<reddmedia::JellyfinApiClient>();
     std::shared_ptr<reddmedia::LibraryMetadataCache> libraryMetadataCache =
@@ -3918,10 +3927,10 @@ public:
         currentMediaIsYtDlpStream=false;
         currentMediaIsNetwork=false;
         if (currentMediaIsLiveTv) {
+            release_live_tv_playing_resource();
             currentMediaIsLiveTv=false;
             liveTvPlayingChannel=-1;
             liveTvPlayingLabel.clear();
-            liveTvTunerUse=LiveTvTunerUse::Idle;
         }
     }
     bool open_media(const std::string& path, long long seek=0) {
@@ -8628,88 +8637,233 @@ public:
         outline_round(target, slot, 5, palette.border);
     }
 
+
+    bool live_tv_tuner_leased(int index) const {
+        return index >= 0 && (index == liveTvPlayingTuner || index == liveTvScanTuner || index == liveTvGuideTuner);
+    }
+
+    bool live_tv_channel_usable_on_tuner(const reddmedia::TunerDevice& tuner,
+                                         const reddmedia::LiveTvChannel* channel) const {
+        if (!channel) return true;
+        if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) {
+            std::string deviceId;
+            int tunerIndex = -1;
+            if (!reddmedia::HdHomeRunProvider::decode_tuner_id(tuner, deviceId, tunerIndex)) return false;
+            return !channel->id.empty() && channel->service.find("HDHomeRun " + deviceId) != std::string::npos;
+        }
+        return channel->physical_channel > 0 && channel->program_number > 0;
+    }
+
+    bool live_tv_tuner_available(int index, const reddmedia::LiveTvChannel* channel=nullptr) {
+        if (index < 0 || index >= static_cast<int>(liveTvTuners.size())) return false;
+        if (live_tv_tuner_leased(index)) return false;
+        const auto& tuner = liveTvTuners[static_cast<std::size_t>(index)];
+        if (!tuner.readable || !live_tv_channel_usable_on_tuner(tuner, channel)) return false;
+        if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) {
+            reddmedia::HdHomeRunTunerStatus runtime;
+            std::string status;
+            if (!hdHomeRunProvider.probe_runtime_status(tuner, runtime, status)) return false;
+            if (runtime.busy) return false;
+        }
+        return true;
+    }
+
+    int find_free_live_tv_tuner(int preferred, const reddmedia::LiveTvChannel* channel=nullptr) {
+        if (live_tv_tuner_available(preferred, channel)) return preferred;
+        if (preferred >= 0 && preferred < static_cast<int>(liveTvTuners.size()) &&
+            reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(liveTvTuners[static_cast<std::size_t>(preferred)])) {
+            std::string preferredDevice;
+            int preferredTuner = -1;
+            if (reddmedia::HdHomeRunProvider::decode_tuner_id(
+                    liveTvTuners[static_cast<std::size_t>(preferred)], preferredDevice, preferredTuner)) {
+                for (int index = 0; index < static_cast<int>(liveTvTuners.size()); ++index) {
+                    std::string device;
+                    int tunerIndex = -1;
+                    if (!reddmedia::HdHomeRunProvider::decode_tuner_id(
+                            liveTvTuners[static_cast<std::size_t>(index)], device, tunerIndex)) continue;
+                    if (device == preferredDevice && live_tv_tuner_available(index, channel)) return index;
+                }
+            }
+        }
+        for (int index = 0; index < static_cast<int>(liveTvTuners.size()); ++index) {
+            if (live_tv_tuner_available(index, channel)) return index;
+        }
+        return -1;
+    }
+
+    static std::pair<int,int> live_tv_channel_order(const std::string& id) {
+        const std::size_t dot = id.find('.');
+        const int major = std::atoi(id.substr(0, dot).c_str());
+        const int minor = dot == std::string::npos ? 0 : std::atoi(id.substr(dot + 1U).c_str());
+        return {major, minor};
+    }
+
+    void merge_live_tv_channels(const std::vector<reddmedia::LiveTvChannel>& incoming) {
+        for (const auto& candidate : incoming) {
+            auto found = std::find_if(liveTvChannels.begin(), liveTvChannels.end(), [&candidate](const auto& existing) {
+                return existing.id == candidate.id;
+            });
+            if (found == liveTvChannels.end()) {
+                liveTvChannels.push_back(candidate);
+                continue;
+            }
+            if ((found->name.empty() || found->name.rfind("Channel ", 0U) == 0U) && !candidate.name.empty())
+                found->name = candidate.name;
+            if (found->physical_channel <= 0 && candidate.physical_channel > 0) {
+                found->physical_channel = candidate.physical_channel;
+                found->frequency = candidate.frequency;
+                found->program_number = candidate.program_number;
+                found->source_id = candidate.source_id;
+            }
+            if (!candidate.service.empty() && found->service.find(candidate.service) == std::string::npos) {
+                if (!found->service.empty()) found->service += " | ";
+                found->service += candidate.service;
+            }
+        }
+        std::sort(liveTvChannels.begin(), liveTvChannels.end(), [](const auto& a, const auto& b) {
+            return live_tv_channel_order(a.id) < live_tv_channel_order(b.id);
+        });
+    }
+
+    void release_live_tv_playing_resource() {
+        if (liveTvPlayingTuner >= 0 && liveTvPlayingTuner < static_cast<int>(liveTvTuners.size())) {
+            const auto& tuner = liveTvTuners[static_cast<std::size_t>(liveTvPlayingTuner)];
+            if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) {
+                std::string releaseStatus;
+                hdHomeRunProvider.release_tuner(tuner, releaseStatus);
+            }
+        }
+        liveTvPlayingTuner = -1;
+        if (liveTvScanBusy) liveTvTunerUse = LiveTvTunerUse::Scanning;
+        else if (liveTvGuideBusy) liveTvTunerUse = LiveTvTunerUse::GuideRefreshing;
+        else liveTvTunerUse = LiveTvTunerUse::Idle;
+    }
+
+    void launch_studio_splitter_action(const std::string& action) {
+        const std::string tool = exe_dir() + "/tools/nougat_file_splitter.py";
+        if (!exists_file(tool)) {
+            studioStatus = "File Splitter tool is missing from the Nougat project.";
+            redraw();
+            return;
+        }
+        pid_t first = fork();
+        if (first < 0) {
+            studioStatus = "Could not launch the File Splitter.";
+            redraw();
+            return;
+        }
+        if (first == 0) {
+            pid_t second = fork();
+            if (second < 0) _exit(127);
+            if (second == 0) {
+                execlp("python3", "python3", tool.c_str(), "studio-gui", action.c_str(), static_cast<char*>(nullptr));
+                _exit(127);
+            }
+            _exit(0);
+        }
+        int status = 0;
+        waitpid(first, &status, 0);
+        studioStatus = "File Splitter opened. Complete the Nougat Studio dialogs.";
+        redraw();
+    }
+
+    void handle_studio_click(int x, int y) {
+        if (studioSplitFileBtn.contains(x,y)) { launch_studio_splitter_action("split-file"); return; }
+        if (studioSplitFolderBtn.contains(x,y)) { launch_studio_splitter_action("split-folder"); return; }
+        if (studioReassembleBtn.contains(x,y)) { launch_studio_splitter_action("reassemble"); return; }
+        if (studioVerifyBtn.contains(x,y)) { launch_studio_splitter_action("verify"); return; }
+    }
+
     void refresh_live_tv_tuners(bool announce=true) {
-        std::string status;
-        liveTvTuners = tunerBackend.detect(status);
+        std::string dvbStatus;
+        std::string hdhrStatus;
+        liveTvTuners = tunerBackend.detect(dvbStatus);
+        std::vector<reddmedia::TunerDevice> networkTuners = hdHomeRunProvider.detect(hdhrStatus);
+        liveTvTuners.insert(liveTvTuners.end(), networkTuners.begin(), networkTuners.end());
+
         liveTvChannels = tunerBackend.load_channels();
+        std::set<std::string> loadedDevices;
+        for (const auto& tuner : networkTuners) {
+            std::string deviceId;
+            int tunerIndex = -1;
+            if (!reddmedia::HdHomeRunProvider::decode_tuner_id(tuner, deviceId, tunerIndex)) continue;
+            if (!loadedDevices.insert(deviceId).second) continue;
+            std::vector<reddmedia::LiveTvChannel> lineup;
+            std::string lineupStatus;
+            if (hdHomeRunProvider.load_lineup(tuner, lineup, lineupStatus)) merge_live_tv_channels(lineup);
+        }
+
         restore_live_tv_last_channel();
         if (liveTvTuners.empty()) liveTvSelectedTuner = -1;
-        else if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size())) liveTvSelectedTuner = 0;
-        liveTvStatus = status;
+        else if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size()) ||
+                 !liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)].readable) {
+            liveTvSelectedTuner = -1;
+            for (int i=0; i<static_cast<int>(liveTvTuners.size()); ++i) {
+                if (liveTvTuners[static_cast<std::size_t>(i)].readable) { liveTvSelectedTuner=i; break; }
+            }
+        }
+        std::string combined = dvbStatus;
+        if (!hdhrStatus.empty()) {
+            if (!combined.empty()) combined += " ";
+            combined += hdhrStatus;
+        }
+        liveTvStatus = combined.empty() ? "Tuner detection complete." : combined;
         if (announce && liveTvTuners.empty())
-            liveTvStatus += " Connect the WinTV-HVR-955Q, then press Detect Tuners again.";
+            liveTvStatus += " Connect a Linux DVB/WinTV tuner or an HDHomeRun on this LAN, then press Detect Tuners again.";
     }
 
     void start_live_tv_scan() {
-        if (liveTvTunerUse != LiveTvTunerUse::Idle) {
-            liveTvStatus = liveTvTunerUse == LiveTvTunerUse::Watching
-                ? "Stop Live TV playback before scanning channels."
-                : "The tuner is already busy.";
+        if (liveTvScanBusy) { liveTvStatus="A channel scan is already running."; return; }
+        if (liveTvTuners.empty()) refresh_live_tv_tuners(false);
+        if (liveTvTuners.empty()) { liveTvStatus="Detect a tuner before scanning channels."; redraw(); return; }
+        const int scanIndex = find_free_live_tv_tuner(liveTvSelectedTuner, nullptr);
+        if (scanIndex < 0) {
+            liveTvStatus = "No free physical tuner is available for a channel scan.";
+            redraw();
             return;
         }
-        if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size())) {
-            liveTvStatus = "Detect and select a tuner before scanning channels.";
-            return;
-        }
-        if (liveTvScanWorker.joinable()) {
-            bool busy = false;
-            { std::lock_guard<std::mutex> lock(liveTvScanState->mutex); busy = liveTvScanState->busy; }
-            if (busy) {
-                liveTvStatus = "Channel scan is already running.";
-                return;
-            }
-            liveTvScanWorker.join();
-        }
-
-        const reddmedia::TunerDevice tuner = liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)];
+        if (liveTvScanWorker.joinable()) liveTvScanWorker.join();
+        const reddmedia::TunerDevice tuner = liveTvTuners[static_cast<std::size_t>(scanIndex)];
+        const bool network = reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner);
         const reddmedia::NougatTunerBackend backend = tunerBackend;
+        const reddmedia::HdHomeRunProvider hdhr = hdHomeRunProvider;
         const auto state = liveTvScanState;
         {
             std::lock_guard<std::mutex> lock(state->mutex);
-            state->busy = true;
-            state->updated = true;
-            state->cancel = false;
-            state->finished = false;
-            state->success = false;
-            state->physical_channel = 0;
-            state->frequency_hz = 0;
-            state->completed = 0;
-            state->total = 35;
-            state->locked = false;
-            state->signal_percent = -1;
-            state->quality_percent = -1;
-            state->channels_found = 0;
+            state->busy=true; state->updated=true; state->cancel=false; state->finished=false; state->success=false;
+            state->physical_channel=0; state->frequency_hz=0; state->completed=0; state->total=35;
+            state->locked=false; state->signal_percent=-1; state->quality_percent=-1; state->channels_found=0;
             state->channels.clear();
-            state->status = "Starting native ATSC channel scan...";
+            state->status = network ? "Starting HDHomeRun ATSC channel scan..." : "Starting native Linux DVB ATSC channel scan...";
         }
-        liveTvStatus = "Starting native ATSC channel scan...";
-        liveTvTunerUse = LiveTvTunerUse::Scanning;
-        liveTvScanWorker = std::thread([state, tuner, backend]() mutable {
+        liveTvScanBusy = true;
+        liveTvScanTuner = scanIndex;
+        if (!currentMediaIsLiveTv) liveTvTunerUse = LiveTvTunerUse::Scanning;
+        liveTvStatus = state->status;
+        liveTvScanWorker = std::thread([state, tuner, backend, hdhr, network]() mutable {
             std::vector<reddmedia::LiveTvChannel> channels;
             std::string status;
-            const bool ok = backend.scan_channels(tuner, channels, status,
-                [state](const reddmedia::ChannelScanProgress& progress) {
-                    std::lock_guard<std::mutex> lock(state->mutex);
-                    state->physical_channel = progress.physical_channel;
-                    state->frequency_hz = progress.frequency_hz;
-                    state->completed = progress.completed;
-                    state->total = progress.total;
-                    state->locked = progress.locked;
-                    state->signal_percent = progress.signal_percent;
-                    state->quality_percent = progress.quality_percent;
-                    state->channels_found = progress.channels_found;
-                    state->status = progress.message;
-                    state->updated = true;
-                    return !state->cancel;
-                });
+            const auto callback = [state](const reddmedia::ChannelScanProgress& progress) {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                if (state->cancel) return false;
+                state->physical_channel=progress.physical_channel;
+                state->frequency_hz=progress.frequency_hz;
+                state->completed=progress.completed;
+                state->total=progress.total;
+                state->locked=progress.locked;
+                state->signal_percent=progress.signal_percent;
+                state->quality_percent=progress.quality_percent;
+                state->channels_found=progress.channels_found;
+                state->status=progress.message;
+                state->updated=true;
+                return true;
+            };
+            const bool ok = network ? hdhr.scan_channels(tuner, channels, status, callback)
+                                    : backend.scan_channels(tuner, channels, status, callback);
             std::lock_guard<std::mutex> lock(state->mutex);
-            state->busy = false;
-            state->finished = true;
-            state->success = ok;
-            state->status = status.empty() ? (ok ? "Channel scan complete." : "Channel scan failed.") : status;
-            state->channels = std::move(channels);
-            state->channels_found = static_cast<int>(state->channels.size());
-            state->updated = true;
+            state->busy=false; state->finished=true; state->success=ok;
+            state->status=status; state->channels=std::move(channels);
+            state->channels_found=static_cast<int>(state->channels.size()); state->updated=true;
         });
     }
 
@@ -8733,8 +8887,17 @@ public:
         if (!updated) return;
         liveTvStatus = status;
         if (!busy && finished) {
-            liveTvTunerUse = LiveTvTunerUse::Idle;
-            if (success) { liveTvChannels = std::move(channels); restore_live_tv_last_channel(); }
+            liveTvScanBusy = false;
+            liveTvScanTuner = -1;
+            if (liveTvPlayingTuner >= 0) liveTvTunerUse = LiveTvTunerUse::Watching;
+            else if (liveTvGuideBusy) liveTvTunerUse = LiveTvTunerUse::GuideRefreshing;
+            else liveTvTunerUse = LiveTvTunerUse::Idle;
+            if (success) {
+                merge_live_tv_channels(channels);
+                std::string saveError;
+                if (!tunerBackend.save_channels(liveTvChannels, saveError) && !saveError.empty()) liveTvStatus += " " + saveError;
+                restore_live_tv_last_channel();
+            }
         }
         if (!fullscreen && currentView == ViewMode::LiveTV) redraw();
     }
@@ -8962,19 +9125,35 @@ public:
 
     void watch_live_tv_channel(int index) {
         if (index < 0 || index >= static_cast<int>(liveTvChannels.size())) { liveTvStatus="Select a channel to watch."; redraw(); return; }
-        if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size())) { liveTvStatus="Detect and select a tuner first."; redraw(); return; }
-        if (liveTvTunerUse == LiveTvTunerUse::Scanning || liveTvTunerUse == LiveTvTunerUse::GuideRefreshing) { liveTvStatus="The tuner is busy. Wait for the current tuner job to finish."; redraw(); return; }
+        if (liveTvTuners.empty()) refresh_live_tv_tuners(false);
         if (currentMediaIsLiveTv) cleanup_player();
         liveTvSelectedChannel=index;
         save_live_tv_last_channel();
         const auto& channel=liveTvChannels[static_cast<std::size_t>(index)];
+        const int tunerIndex = find_free_live_tv_tuner(liveTvSelectedTuner, &channel);
+        if (tunerIndex < 0) {
+            liveTvStatus="No free tuner can play this channel. A physical tuner may already be scanning, refreshing guide data, or in use.";
+            redraw(); return;
+        }
+        liveTvSelectedTuner=tunerIndex;
+        const auto& tuner=liveTvTuners[static_cast<std::size_t>(tunerIndex)];
         std::string mrl,status; std::vector<std::string> options;
-        if (!tunerBackend.live_playback_input(liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)],channel,mrl,options,status)) { liveTvStatus=status; redraw(); return; }
+        const bool network=reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner);
+        const bool prepared = network ? hdHomeRunProvider.live_playback_input(tuner,channel,mrl,options,status)
+                                      : tunerBackend.live_playback_input(tuner,channel,mrl,options,status);
+        if (!prepared) { liveTvStatus=status; redraw(); return; }
+        // SiliconDust's documented HTTP /auto path chooses one free physical tuner.
+        // Keep the Linux-DVB lease explicit; HDHomeRun availability is re-probed per tuner
+        // before any concurrent scan/guide allocation.
+        liveTvPlayingTuner=network ? -1 : tunerIndex;
         liveTvStatus=status;
         const std::string label=channel.id+" "+channel.name;
         if (!open_live_tv_location(mrl,options,index,label)) {
-            liveTvTunerUse=LiveTvTunerUse::Idle;
-            liveTvStatus="VLC could not open the ATSC tuner stream for "+label+".";
+            liveTvPlayingTuner=-1;
+            if (liveTvScanBusy) liveTvTunerUse=LiveTvTunerUse::Scanning;
+            else if (liveTvGuideBusy) liveTvTunerUse=LiveTvTunerUse::GuideRefreshing;
+            else liveTvTunerUse=LiveTvTunerUse::Idle;
+            liveTvStatus="VLC could not open the tuner stream for "+label+".";
             switch_view(ViewMode::LiveTV); redraw(); return;
         }
     }
@@ -9931,7 +10110,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.49";
+        input.app_version = "Nougat Media Suite v0.0.50";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -10124,12 +10303,22 @@ public:
             reddmedia::DiagnosticTunerSnapshot snapshot;
             snapshot.name = tuner.name; snapshot.frontend_path = tuner.frontend_path;
             snapshot.backend = tuner.backend; snapshot.status = tuner.status; snapshot.readable = tuner.readable;
-            snapshot.delivery_systems = tuner.frontend_path.empty() ? "V4L2 / unknown" : "ATSC 1.0 / 8VSB";
-            if (!tuner.frontend_path.empty()) {
-                const std::size_t slash = tuner.frontend_path.rfind('/');
-                if (slash != std::string::npos) {
-                    const std::string base = tuner.frontend_path.substr(0, slash + 1U);
-                    snapshot.demux_path = base + "demux0"; snapshot.dvr_path = base + "dvr0";
+            if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) {
+                reddmedia::HdHomeRunTunerStatus runtime;
+                std::string runtimeStatus;
+                snapshot.readable = hdHomeRunProvider.probe_runtime_status(tuner, runtime, runtimeStatus);
+                snapshot.status = runtimeStatus.empty() ? tuner.status : runtimeStatus;
+                snapshot.delivery_systems = "HDHomeRun LAN / ATSC 1.0 / 8VSB";
+                snapshot.demux_path.clear();
+                snapshot.dvr_path.clear();
+            } else {
+                snapshot.delivery_systems = tuner.frontend_path.empty() ? "V4L2 / unknown" : "ATSC 1.0 / 8VSB";
+                if (!tuner.frontend_path.empty()) {
+                    const std::size_t slash = tuner.frontend_path.rfind('/');
+                    if (slash != std::string::npos) {
+                        const std::string base = tuner.frontend_path.substr(0, slash + 1U);
+                        snapshot.demux_path = base + "demux0"; snapshot.dvr_path = base + "dvr0";
+                    }
                 }
             }
             input.live_tv_tuners.push_back(std::move(snapshot));
@@ -12443,12 +12632,30 @@ public:
     void draw_studio_screen(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::Studio);
         draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Studio);
-        section_text(target, 28, 70, "GOLD STUDIO", palette.text);
-        text(target, 28, 96, "Nougat media-processing workspace foundation.", palette.muted);
-        Rect panel{28, 118, std::max(240, W - 56), std::max(150, H - 148)};
+        section_text(target, 28, 70, "STUDIO", palette.text);
+        text(target, 28, 96, "Nougat creation, production, and media-processing workspace.", palette.muted);
+        Rect panel{28, 118, std::max(240, W - 56), std::max(220, H - 148)};
         draw_primary_panel(target, panel, palette);
-        text(target, panel.x + 16, panel.y + 30, "Planned processing engine: FFmpeg/libav-backed Convert, Audio Lab, Quick Edit, Batch, and full timeline Studio.", palette.text);
-        text(target, panel.x + 16, panel.y + 56, "v0.0.40 keeps the Gold Studio navigation/palette foundation; processing tools remain roadmap work.", palette.muted);
+        text(target, panel.x + 16, panel.y + 30, "File Splitter / Reassembler", palette.text);
+        text(target, panel.x + 16, panel.y + 52,
+             "Split large files or complete folders into SHA-256 verified transport parts, then verify or reconstruct them exactly.",
+             palette.muted);
+        const int buttonY = panel.y + 72;
+        const int gap = 10;
+        const int usable = std::max(320, panel.w - 32);
+        const int buttonW = std::max(110, (usable - gap * 3) / 4);
+        studioSplitFileBtn = {panel.x + 16, buttonY, buttonW, 32};
+        studioSplitFolderBtn = {studioSplitFileBtn.x + buttonW + gap, buttonY, buttonW, 32};
+        studioReassembleBtn = {studioSplitFolderBtn.x + buttonW + gap, buttonY, buttonW, 32};
+        studioVerifyBtn = {studioReassembleBtn.x + buttonW + gap, buttonY, buttonW, 32};
+        button_on(target, studioSplitFileBtn, "Split File");
+        button_on(target, studioSplitFolderBtn, "Split Folder");
+        button_on(target, studioReassembleBtn, "Reassemble");
+        button_on(target, studioVerifyBtn, "Verify Parts");
+        text(target, panel.x + 16, buttonY + 58, head_to_width(studioStatus, panel.w - 32), palette.text);
+        text(target, panel.x + 16, buttonY + 92,
+             "Studio roadmap: professional video/audio/photo editing, green-screen compositing, animation, VFX, motion capture, and production-scale workflows.",
+             palette.muted);
     }
 
     void draw_debug_screen(Drawable target) {
@@ -14087,6 +14294,10 @@ public:
             handle_nougat_click(x, y);
             return;
         }
+        if (currentView == ViewMode::Studio) {
+            handle_studio_click(x, y);
+            return;
+        }
         if (currentView == ViewMode::LiveTV) {
             handle_live_tv_click(x,y,eventTime);
             return;
@@ -14364,10 +14575,10 @@ public:
             if (!currentMediaIsLiveTv) liveTvPlayingLabel.clear();
         }
         if (currentMediaIsLiveTv) {
+            release_live_tv_playing_resource();
             currentMediaIsLiveTv=false;
             liveTvPlayingChannel=-1;
             liveTvPlayingLabel.clear();
-            liveTvTunerUse=LiveTvTunerUse::Idle;
         }
         if (!player) return true;
 
@@ -14913,7 +15124,7 @@ public:
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.49\n");
+        printf("Nougat Media Suite v0.0.50\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

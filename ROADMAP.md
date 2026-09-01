@@ -1,3 +1,11 @@
+## Studio professional-production direction after v0.0.50
+
+Studio remains Nougat's integrated production environment. After the v0.0.50 File Splitter foundation, the roadmap includes professional video/audio/photo editing, green-screen keying and compositing, animation, VFX, camera/object tracking, rotoscoping, motion capture and retargeting, production asset management, high-resolution rendering, and render-queue/farm workflows. Architecture should remain capable of scaling toward large live-action/VFX feature-film production rather than a consumer-only editor.
+
+Future Studio work also includes **Nougat Studio Aerial Production** for movie shoots: a Nougat-owned computer ground station with live drone-camera ingest and telemetry, DualSense/gamepad plus keyboard/mouse control, aircraft/gimbal/camera mapping, waypoint missions, automated and repeatable cinematic flight/gimbal paths, shot presets, synchronized flight/gimbal/camera metadata, exact-take replay, and production ingest into Studio for stabilization, camera tracking, compositing, and VFX. The provider boundary should support open autopilots such as PX4/ArduPilot and supported proprietary platforms including DJI. Model-specific custom drone software/firmware swaps and deeper DJI integration may be supported after the exact aircraft, controller, flight controller, and firmware combination is verified. Safety-critical flight behavior stays on a verified flight-control layer with manual takeover, link-loss behavior, return-to-home, battery limits, and geofencing available to the production crew.
+
+No Aerial Production implementation or LAN Web Viewer code is part of v0.0.50. v0.0.51 is assigned to remaining emulator support plus the LAN Web Viewer foundation/scaffolding.
+
 ## v0.0.46 planned — World TV Repair, Scanner Control, Kaaba Live, and LAN Media Foundation
 
 - Repair World TV's X11/libVLC window ownership so the black video surface can never cover the station list.

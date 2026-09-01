@@ -588,11 +588,18 @@ DiagnosticReport DiagnosticEngine::evaluate(const DiagnosticInput& input) const 
                     "Nougat native tuner detection.", "Connect/detect the tuner if you want Live TV. This does not make unrelated Nougat features unhealthy.");
     } else {
         std::size_t unreadable_nodes = 0;
+        std::size_t unreachable_network_tuners = 0;
         for (const auto& tuner : live_tuners) {
-            add_fact(report, "Live TV", "Tuner", tuner.name.empty() ? "Detected tuner" : tuner.name,
+            const bool network_tuner = lower_copy(tuner.backend).find("hdhomerun") != std::string::npos;
+            add_fact(report, "Live TV", network_tuner ? "Network tuner" : "Tuner",
+                     tuner.name.empty() ? "Detected tuner" : tuner.name,
                      tuner.frontend_path + (tuner.status.empty() ? std::string() : " | " + tuner.status));
             add_fact(report, "Live TV", "Delivery systems", tuner.delivery_systems.empty() ? "Not reported" : tuner.delivery_systems,
                      tuner.frontend_path);
+            if (network_tuner) {
+                if (!tuner.readable || tuner.frontend_path.empty()) ++unreachable_network_tuners;
+                continue;
+            }
             for (const auto& node : {tuner.frontend_path, tuner.demux_path, tuner.dvr_path}) {
                 if (!node.empty() && !path_readable(node)) ++unreadable_nodes;
             }
@@ -601,11 +608,16 @@ DiagnosticReport DiagnosticEngine::evaluate(const DiagnosticInput& input) const 
             add_fact(report, "Live TV", "Network node", input.live_tv_net_path,
                      input.live_tv_net_accessible ? "Accessible" : "Not accessible");
         }
-        add_finding(report, "Live TV", unreadable_nodes == 0U ? DiagnosticSeverity::Passed : DiagnosticSeverity::Problem,
-                    "LIVE_TV_DEVICE_NODES", "TV tuner device nodes",
-                    "Frontend/demux/DVR nodes used by Nougat are readable.",
-                    unreadable_nodes == 0U ? "Required reported nodes are readable." : std::to_string(unreadable_nodes) + " required node(s) are unreadable.",
-                    "/dev/dvb filesystem access checks.", unreadable_nodes == 0U ? "No action required." : "Check Linux DVB driver, group permissions, and device ownership.");
+        const bool tuner_access_ok = unreadable_nodes == 0U && unreachable_network_tuners == 0U;
+        std::ostringstream tuner_access_observed;
+        tuner_access_observed << unreadable_nodes << " unreadable DVB node(s), "
+                              << unreachable_network_tuners << " unreachable network tuner(s).";
+        add_finding(report, "Live TV", tuner_access_ok ? DiagnosticSeverity::Passed : DiagnosticSeverity::Problem,
+                    "LIVE_TV_TUNER_ACCESS", "TV tuner access",
+                    "Linux DVB nodes are readable and detected HDHomeRun network tuners answer a live status probe.",
+                    tuner_access_ok ? "All reported tuner resources are accessible." : tuner_access_observed.str(),
+                    "Linux /dev/dvb access plus HDHomeRun per-tuner status probes.",
+                    tuner_access_ok ? "No action required." : "Check Linux DVB permissions or HDHomeRun LAN reachability, as applicable.");
     }
 
     if (live_signal_tested) {

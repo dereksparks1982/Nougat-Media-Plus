@@ -1,5 +1,10 @@
 # v0.0.34 dependency note
 
+## Nougat Media Suite v0.0.50 Studio splitter and HDHomeRun requirements
+
+v0.0.50 adds no new linked third-party library. HDHomeRun control/discovery uses the installed `hdhomerun_config` command from Ubuntu's `hdhomerun-config` package behind a Nougat-owned provider boundary. MPEG-TS playback is handed directly to the existing embedded libVLC player. `curl`, Python 3, and Zenity are already part of Nougat's accepted dependency stack and are reused by the HDHomeRun lineup path and Studio File Splitter dialogs. The File Splitter core uses Python standard-library modules only.
+
+
 v0.0.34 adds no new runtime dependency. It retains the accepted v0.0.33 stack, including libtorrent 2.x, the Nougat-managed Jellyfin runtime, llama.cpp/Nomic embeddings, and the one-shot YARA-X/capa/Magika security runtime.
 
 The v0.0.34 installer builds natively against the owner machine's existing accepted runtime stack and verifies the retained v0.0.33 security runtime rather than replacing it.

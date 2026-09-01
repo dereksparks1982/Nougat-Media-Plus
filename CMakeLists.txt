@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(NougatMediaSuite VERSION 0.0.49 LANGUAGES CXX)
+project(NougatMediaSuite VERSION 0.0.50 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,7 +10,7 @@ option(REDDMEDIA_AI_STUB "Build deterministic AI test lane without loading llama
 
 find_package(Threads REQUIRED)
 
-add_executable(Nougat_Media_Suite_v49
+add_executable(Nougat_Media_Suite_v50
     src/main.cpp
     src/games/emulator_host.cpp
     src/nougat/nougat_bridge.cpp
@@ -28,6 +28,7 @@ add_executable(Nougat_Media_Suite_v49
     src/media_server/library_metadata_cache.cpp
     src/media_server/media_server_manager.cpp
     src/live_tv/tuner_backend.cpp
+    src/live_tv/hdhomerun_provider.cpp
     src/recommendations/embedding_engine.cpp
     src/recommendations/recommendation_engine.cpp
     src/recommendations/tmdb_client.cpp
@@ -38,11 +39,11 @@ add_executable(Nougat_Media_Suite_v49
     src/ytdlp_stream_server.cpp
 )
 
-target_compile_options(Nougat_Media_Suite_v49 PRIVATE -Wall -Wextra -Werror)
-target_link_libraries(Nougat_Media_Suite_v49 PRIVATE X11 dl Threads::Threads)
+target_compile_options(Nougat_Media_Suite_v50 PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(Nougat_Media_Suite_v50 PRIVATE X11 dl Threads::Threads)
 
 if(REDDMEDIA_AI_STUB)
-    target_compile_definitions(Nougat_Media_Suite_v49 PRIVATE REDDMEDIA_AI_STUB=1)
+    target_compile_definitions(Nougat_Media_Suite_v50 PRIVATE REDDMEDIA_AI_STUB=1)
 else()
     set(REDDMEDIA_AI_RUNTIME "${CMAKE_SOURCE_DIR}/components/ai/runtime" CACHE PATH
         "Installed llama.cpp runtime used by Nougat Media Suite")
@@ -52,22 +53,22 @@ else()
     find_library(LLAMA_LIBRARY llama
         PATHS "${REDDMEDIA_AI_RUNTIME}/lib" "${REDDMEDIA_AI_RUNTIME}/lib64"
         NO_DEFAULT_PATH REQUIRED)
-    target_include_directories(Nougat_Media_Suite_v49 PRIVATE "${LLAMA_INCLUDE_DIR}")
-    target_link_libraries(Nougat_Media_Suite_v49 PRIVATE "${LLAMA_LIBRARY}")
-    target_link_options(Nougat_Media_Suite_v49 PRIVATE
+    target_include_directories(Nougat_Media_Suite_v50 PRIVATE "${LLAMA_INCLUDE_DIR}")
+    target_link_libraries(Nougat_Media_Suite_v50 PRIVATE "${LLAMA_LIBRARY}")
+    target_link_options(Nougat_Media_Suite_v50 PRIVATE
         "-Wl,--disable-new-dtags"
         "-Wl,-rpath-link,${REDDMEDIA_AI_RUNTIME}/lib"
         "-Wl,-rpath-link,${REDDMEDIA_AI_RUNTIME}/lib64")
-    set_target_properties(Nougat_Media_Suite_v49 PROPERTIES
+    set_target_properties(Nougat_Media_Suite_v50 PROPERTIES
         BUILD_WITH_INSTALL_RPATH TRUE
         INSTALL_RPATH "\$ORIGIN/components/ai/runtime/lib;\$ORIGIN/components/ai/runtime/lib64"
         INSTALL_RPATH_USE_LINK_PATH FALSE)
 endif()
 
 if(REDDMEDIA_P2P_STUB)
-    target_compile_definitions(Nougat_Media_Suite_v49 PRIVATE REDDMEDIA_P2P_STUB=1)
+    target_compile_definitions(Nougat_Media_Suite_v50 PRIVATE REDDMEDIA_P2P_STUB=1)
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(LIBTORRENT REQUIRED IMPORTED_TARGET libtorrent-rasterbar)
-    target_link_libraries(Nougat_Media_Suite_v49 PRIVATE PkgConfig::LIBTORRENT)
+    target_link_libraries(Nougat_Media_Suite_v50 PRIVATE PkgConfig::LIBTORRENT)
 endif()

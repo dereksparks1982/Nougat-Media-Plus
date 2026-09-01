@@ -1,0 +1,31 @@
+#!/bin/sh
+if [ "$1" = "discover" ]; then
+  echo "hdhomerun device 1091F714 found at fe80::218:ddff:fe09:1f71%2"
+  echo "hdhomerun device 1091F714 found at 192.168.1.165"
+  exit 0
+fi
+ID="$1"; ACTION="$2"; PATHARG="$3"; EXTRA="$4"
+if [ "$ACTION" = "get" ] && [ "$PATHARG" = "/sys/model" ]; then
+  echo "HDHomeRun FLEX DUO"
+  exit 0
+fi
+if [ "$ACTION" = "get" ] && [ "$PATHARG" = "/tuner0/status" ]; then
+  echo "ch=8vsb:15 lock=8vsb ss=91 snq=100 seq=100 bps=19392658 pps=10315"
+  exit 0
+fi
+if [ "$ACTION" = "get" ] && [ "$PATHARG" = "/tuner1/status" ]; then
+  echo "ch=none lock=none ss=0 snq=0 seq=0 bps=0 pps=0"
+  exit 0
+fi
+if [ "$ACTION" = "get" ] && [ "$PATHARG" = "/tuner2/status" ]; then
+  exit 1
+fi
+if [ "$ACTION" = "scan" ] && [ "$PATHARG" = "/tuner1" ]; then
+  echo "SCANNING: 479000000 (us-bcast:15)"
+  echo "LOCK: 8vsb (ss=93 snq=100 seq=100)"
+  echo "PROGRAM 3: 3.1 KSNW-DT"
+  echo "PROGRAM 4: 3.2 T'Mundo"
+  exit 0
+fi
+if [ "$ACTION" = "set" ]; then exit 0; fi
+exit 1

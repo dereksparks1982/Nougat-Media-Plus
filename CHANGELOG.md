@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.0.50 - Studio File Splitter and Unified Tuners
+
+- Adds the Studio File Splitter / Reassembler with configurable part sizes, per-part SHA-256 verification, byte-exact reconstruction, folder packaging, corruption refusal, and Zenity-backed Studio actions.
+- Keeps the area named Studio; the old Gold Studio wording is removed from the active Studio screen.
+- Adds HDHomeRun LAN tuner discovery alongside the accepted Linux DVB / Hauppauge WinTV backend without using an external viewer.
+- Exposes HDHomeRun physical tuners independently so a FLEX DUO can keep playback on one tuner while a channel scan uses the other when free.
+- Merges HDHomeRun lineup/scan results into Nougat's existing Live TV channel model and sends HDHomeRun MPEG-TS streams through Nougat's embedded libVLC player.
+- Keeps all LAN Web Viewer code out of v0.0.50. v0.0.51 is assigned to remaining emulator support plus the LAN Web Viewer foundation/scaffolding.
+
+
 ## v0.0.49 - Games Runtime, Artwork, ZIP Library, and World TV Repair
 
 - Adds a managed Stella runtime for Atari 2600 and keeps Atari gameplay embedded inside Nougat's native Video Player with no separate emulator taskbar/pager entry.
