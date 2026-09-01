@@ -182,6 +182,8 @@ Snapshot, local Git commit, and GitHub push are three separately named operation
 
 ## 16. Checkpoint, Git, and GitHub law
 
+**OWNER COMMIT SHORTHAND LAW:** When the owner says **commit**, that instruction means the complete Nougat save-and-publish sequence automatically: create and verify the required snapshot, create and verify the local Git commit, create/update the release tag when applicable, push the exact commit and tag to the configured GitHub remote, and verify GitHub resolves to that exact commit. Do not interpret the owner's word **commit** as local Git only unless the owner explicitly says **local commit only**.
+
 After the owner approves saving a state:
 
 1. create and verify one recoverable snapshot;

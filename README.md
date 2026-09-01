@@ -11,6 +11,20 @@ Nougat's **Library** organizes local Movies and TV into collections, series, sea
 Nougat also includes built-in **P2P downloading and stream-while-downloading playback**, on-demand **security analysis**, evidence-based **system diagnostics**, local recommendation AI, persistent viewing history, and an integrated Jellyfin-backed catalog/server foundation. v0.0.46 adds cancellable process-group security scanning with a faster tiered bulk-scan path, verified-start World TV handling, and the versioned local-only foundation for future phone, tablet, laptop, and TV-browser access to locally owned media. The LAN design explicitly requires local media access to remain independent of WAN Internet connectivity and does not require a cloud login, automatic router port forwarding, or a cloud relay.
 
 
+## v0.0.50 - File Splitter, Unified Tuners, and Studio Foundation
+
+v0.0.50 advances Nougat Media Suite with the first File Splitter implementation, unified HDHomeRun/WinTV tuner groundwork, and Studio naming/architecture work.
+
+- Adds the initial Nougat File Splitter implementation and its regression-test foundation.
+- Adds HDHomeRun discovery and tuner-provider support alongside the existing Linux DVB/WinTV path.
+- Detects the owner's HDHomeRun FLEX DUO and exposes its two independently usable tuner resources.
+- Adds HDHomeRun provider tests using deterministic synthetic tuner responses.
+- Preserves the existing native Live TV, Games, Library, Search, Stream, World TV, Studio, diagnostics, and media-server foundations outside the approved v0.0.50 work.
+- Renames the production area to **Studio** as the foundation for Nougat's future filmmaking and production environment.
+- v0.0.50 is accepted with documented known issues carried forward to v0.0.51, including File Splitter workflow repair, HDHomeRun physical-device grouping and full-scan completion, provider-neutral Live TV status, visible version/icon identity, World TV guide presentation, World TV playback reliability, and World TV popup transparency/clipping.
+
+See `docs/builds/NOUGAT_MEDIA_SUITE_v0_0_50_ACCEPTED_KNOWN_ISSUES.md` for the complete accepted-known-issues record.
+
 ## v0.0.49 - Games Runtime, Artwork, ZIP Library, and World TV Repair
 
 v0.0.49 repairs and expands the Games runtime path found during owner testing while preserving the accepted v0.0.48 embedded-emulator foundation.
