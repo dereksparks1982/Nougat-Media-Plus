@@ -1,5 +1,14 @@
 # v0.0.34 dependency note
 
+## v0.0.51 candidate dependency notes
+
+- No new linked controller library is introduced in v0.0.51; controller support is roadmap architecture only in this candidate.
+- Studio File Splitter uses Python 3 standard-library ZIP64/ZIP handling and Zenity for the current desktop chooser/dialog flow.
+- HDHomeRun continues to use `hdhomerun_config` and `curl` behind Nougat's provider boundary.
+- World TV continues to use `ffprobe`/`ffmpeg`, with longer bounded verification windows and evidence-bearing failure messages.
+- The approved v0.0.51 N and brand lockup are bundled raster assets; no runtime font dependency is required.
+
+
 ## Nougat Media Suite v0.0.50 Studio splitter and HDHomeRun requirements
 
 v0.0.50 adds no new linked third-party library. HDHomeRun control/discovery uses the installed `hdhomerun_config` command from Ubuntu's `hdhomerun-config` package behind a Nougat-owned provider boundary. MPEG-TS playback is handed directly to the existing embedded libVLC player. `curl`, Python 3, and Zenity are already part of Nougat's accepted dependency stack and are reused by the HDHomeRun lineup path and Studio File Splitter dialogs. The File Splitter core uses Python standard-library modules only.

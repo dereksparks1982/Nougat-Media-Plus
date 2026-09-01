@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.0.51 candidate
+
+- Repairs v0.0.50 File Splitter, HDHomeRun grouping/full-scan status, World TV guide/reliability, version identity and transient overlay clipping/opacity.
+- Keeps World TV source verification off the X11 event thread and prevents application teardown from blocking on long-running World TV resolver/guide/artwork network workers.
+- Adds the Mulberry Radio top-level foundation as an independent root view that cannot expose the Video Player resume child simply by opening Radio.
+- Repairs top-level navigation so its full horizontal scroll extent is derived from the actual rendered final System tab rather than a stale hard-coded count.
+- Replaces the old N with the owner-approved new N everywhere, repairs the rounded icon alpha silhouette at both bottom corners, and uses the approved cursive brand lockup in the application header.
+- Enforces replacement-style root promotion so v50 cannot remain beside v51 after a successful candidate apply, while preserving v50 in rollback evidence.
+- Records the Nougat-wide controller framework roadmap with configuration under System and separate Drone Flight context.
+- Candidate stays uncommitted/unpushed until owner acceptance.
+
+
 ## v0.0.50 - Studio File Splitter and Unified Tuners
 
 - Adds the Studio File Splitter / Reassembler with configurable part sizes, per-part SHA-256 verification, byte-exact reconstruction, folder packaging, corruption refusal, and Zenity-backed Studio actions.

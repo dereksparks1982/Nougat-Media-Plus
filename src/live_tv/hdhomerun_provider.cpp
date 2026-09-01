@@ -499,20 +499,36 @@ bool HdHomeRunProvider::scan_channels(const TunerDevice& tuner,
     if (raw >= 0 && WIFEXITED(raw)) code = WEXITSTATUS(raw);
     const CommandResult clear_result = config_command(shell_quote(device_id) + " set /tuner" +
         std::to_string(tuner_index) + "/channel none");
-    (void)clear_result;
     if (cancelled) {
         status = "HDHomeRun channel scan cancelled.";
         return false;
     }
-    if (code != 0) {
-        status = "HDHomeRun channel scan failed on tuner " + std::to_string(tuner_index) + ".";
+
+    const bool rf_traversal_complete = completed >= 35;
+    if (code != 0 && !rf_traversal_complete) {
+        status = "HDHomeRun RF scan stopped before full traversal on tuner " +
+                 std::to_string(tuner_index) + " (" + std::to_string(completed) +
+                 "/35 RF steps, helper exit " + std::to_string(code) + ").";
         return false;
     }
 
     for (auto& item : found) channels.push_back(std::move(item.second));
-    std::sort(channels.begin(), channels.end(), [](const LiveTvChannel& a, const LiveTvChannel& b) { return a.id < b.id; });
-    status = "HDHomeRun scan complete on tuner " + std::to_string(tuner_index) + ": " +
-             std::to_string(channels.size()) + " channel(s) found.";
+    std::sort(channels.begin(), channels.end(), [](const LiveTvChannel& a, const LiveTvChannel& b) {
+        const auto numeric=[](const std::string& id) {
+            const std::size_t dot=id.find('.');
+            const int major=std::atoi(id.substr(0,dot).c_str());
+            const int minor=dot==std::string::npos?0:std::atoi(id.substr(dot+1U).c_str());
+            return major*1000+minor;
+        };
+        return numeric(a.id)<numeric(b.id);
+    });
+    status = "HDHomeRun RF scan complete: " + std::to_string(channels.size()) + " channel(s) found.";
+    if (code != 0)
+        status += " Full RF traversal completed; helper exit " + std::to_string(code) + " retained as diagnostic evidence.";
+    if (clear_result.code != 0)
+        status += " Tuner release needs attention: " + (clear_result.output.empty()?std::string("release command failed"):clear_result.output) + ".";
+    else
+        status += " Tuner released.";
     return true;
 }
 

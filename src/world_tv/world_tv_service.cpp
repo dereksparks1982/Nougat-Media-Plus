@@ -90,7 +90,7 @@ std::string WorldTvService::run_worker(const std::vector<std::string>& args,
     int status = 0;
     bool reaped = false;
     constexpr std::size_t kMaxOutput = 1024U * 1024U;
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(32);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(70);
 
     const auto drain = [&]() {
         char buffer[4096];

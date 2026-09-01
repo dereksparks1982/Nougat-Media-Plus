@@ -26,7 +26,7 @@ GUIDES_API = f"{API_BASE}/guides.json"
 ALoula_CHANNELS = "https://aloula.faulio.com/api/v1/channels"
 ALoula_PLAYER = "https://aloula.faulio.com/api/v1.1/channels/{channel}/player"
 
-UA = "Mozilla/5.0 (X11; Linux x86_64) NougatMediaSuite/0.0.47"
+UA = "Mozilla/5.0 (X11; Linux x86_64) NougatMediaSuite/0.0.51"
 CACHE_ROOT = Path.home() / ".cache" / "reddmedia" / "world_tv"
 API_CACHE = CACHE_ROOT / "api"
 
@@ -172,122 +172,82 @@ def aloula_resolve_quran() -> tuple[str, str, str]:
 
 
 # NOUGAT_V49_RUSSIA24_AUDIO_REPAIR: require a real audio stream for Russia-24.
+LAST_PROBE_REASON = ""
+
 def ffprobe_candidate(url: str, referrer: str, user_agent: str,
                       require_audio: bool = False) -> bool:
+    global LAST_PROBE_REASON
+    LAST_PROBE_REASON = ""
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
+        LAST_PROBE_REASON = "ffprobe is not installed"
         return False
-
-    probe_args = [
-        ffprobe,
-        "-v", "error",
-        "-rw_timeout", "4000000",
-    ]
+    probe_args = [ffprobe, "-v", "error", "-rw_timeout", "7000000"]
     if user_agent:
         probe_args += ["-user_agent", user_agent]
-    headers = ""
-    if referrer:
-        headers += f"Referer: {referrer}\r\n"
+    headers = f"Referer: {referrer}\\r\\n" if referrer else ""
     if headers:
         probe_args += ["-headers", headers]
-
-    probe_args += [
-        "-show_entries", "stream=codec_type,width,height,codec_name",
-        "-of", "json",
-        url,
-    ]
-
+    probe_args += ["-show_entries", "stream=codec_type,width,height,codec_name", "-of", "json", url]
     try:
-        result = subprocess.run(
-            probe_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=4,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+        result = subprocess.run(probe_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, timeout=8)
+    except subprocess.TimeoutExpired:
+        LAST_PROBE_REASON = "stream probe timed out"
+        return False
+    except OSError as exc:
+        LAST_PROBE_REASON = f"stream probe could not start: {exc}"
         return False
     if result.returncode != 0:
+        detail = clean((result.stderr or "").splitlines()[-1] if result.stderr else "")
+        LAST_PROBE_REASON = "ffprobe rejected source" + (f": {detail}" if detail else "")
         return False
-
     try:
         payload = json.loads(result.stdout or "{}")
     except json.JSONDecodeError:
+        LAST_PROBE_REASON = "ffprobe returned malformed stream metadata"
         return False
-
-    has_video = False
-    has_audio = False
-    for stream in payload.get("streams", []):
-        if not isinstance(stream, dict):
-            continue
-        codec_type = stream.get("codec_type")
-        codec_name = clean(stream.get("codec_name"))
-        if codec_type == "video" and codec_name:
-            has_video = True
-        elif codec_type == "audio" and codec_name:
-            has_audio = True
-    if not has_video or (require_audio and not has_audio):
+    has_video = any(isinstance(s,dict) and s.get("codec_type")=="video" and clean(s.get("codec_name")) for s in payload.get("streams",[]))
+    has_audio = any(isinstance(s,dict) and s.get("codec_type")=="audio" and clean(s.get("codec_name")) for s in payload.get("streams",[]))
+    if not has_video:
+        LAST_PROBE_REASON = "source has no decodable video stream"
         return False
-
-    # A stream that technically opens but supplies only black video is not a
-    # successful World TV station. Sample up to three tiny grayscale frames.
+    if require_audio and not has_audio:
+        LAST_PROBE_REASON = "source has video but no decodable audio stream"
+        return False
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
+        LAST_PROBE_REASON = "verified by ffprobe; ffmpeg frame sample unavailable"
         return True
-
-    frame_args = [
-        ffmpeg,
-        "-nostdin", "-v", "error",
-        "-rw_timeout", "4000000",
-    ]
+    frame_args=[ffmpeg,"-nostdin","-v","error","-rw_timeout","7000000"]
     if user_agent:
-        frame_args += ["-user_agent", user_agent]
+        frame_args += ["-user_agent",user_agent]
     if headers:
-        frame_args += ["-headers", headers]
-    frame_args += [
-        "-i", url,
-        "-t", "2",
-        "-vf", "fps=1,scale=32:18:force_original_aspect_ratio=decrease,"
-               "pad=32:18:(ow-iw)/2:(oh-ih)/2,format=gray",
-        "-frames:v", "2",
-        "-f", "rawvideo",
-        "pipe:1",
-    ]
-
+        frame_args += ["-headers",headers]
+    frame_args += ["-i",url,"-t","3","-vf",
+                   "fps=1,scale=32:18:force_original_aspect_ratio=decrease,pad=32:18:(ow-iw)/2:(oh-ih)/2,format=gray",
+                   "-frames:v","3","-f","rawvideo","pipe:1"]
     try:
-        sampled = subprocess.run(
-            frame_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+        sampled=subprocess.run(frame_args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=10)
+    except subprocess.TimeoutExpired:
+        LAST_PROBE_REASON = "video frame sample timed out after stream metadata succeeded"
         return False
-
-    frame_size = 32 * 18
-    data = sampled.stdout or b""
+    except OSError as exc:
+        LAST_PROBE_REASON = f"video frame sampler could not start: {exc}"
+        return False
+    frame_size=32*18
+    data=sampled.stdout or b""
     if sampled.returncode != 0 or len(data) < frame_size:
-        # World TV only reports a station playable when an actual visible frame
-        # can be sampled. A decoder/network success without picture is not enough.
+        LAST_PROBE_REASON = "stream opened but no complete video frame arrived"
         return False
-
-    frames = [
-        data[offset:offset + frame_size]
-        for offset in range(0, min(len(data), frame_size * 3), frame_size)
-        if len(data[offset:offset + frame_size]) == frame_size
-    ]
-    if not frames:
-        return False
-
+    frames=[data[o:o+frame_size] for o in range(0,min(len(data),frame_size*3),frame_size) if len(data[o:o+frame_size])==frame_size]
     for frame in frames:
-        low = min(frame)
-        high = max(frame)
-        mean = sum(frame) / len(frame)
-        # Any meaningful picture variance or luminance counts as visible video.
-        if mean >= 8.0 or high - low >= 14:
+        low=min(frame); high=max(frame); mean=sum(frame)/len(frame)
+        if mean>=8.0 or high-low>=14:
+            LAST_PROBE_REASON = "playable video verified"
             return True
+    LAST_PROBE_REASON = "stream opened but sampled frames remained black/blank"
     return False
-
 
 def resolve_mode(channel_id: str, feed_id: str, preferred_url: str,
                  resolver: str, max_height: int, exclude_url: str) -> int:
@@ -355,8 +315,8 @@ def resolve_mode(channel_id: str, feed_id: str, preferred_url: str,
     # video-only candidate for that station; walk farther through its current
     # direct-source alternates until both video and a decodable audio stream exist.
     require_audio = channel_id == "Russia24.ru"
-    max_checks = 6 if require_audio else 3
-    deadline = time.monotonic() + (36.0 if require_audio else 24.0)
+    max_checks = 8 if require_audio else 6
+    deadline = time.monotonic() + (60.0 if require_audio else 48.0)
     checked = 0
     for item in candidates:
         if blocked_label(item["label"]):
@@ -374,7 +334,7 @@ def resolve_mode(channel_id: str, feed_id: str, preferred_url: str,
             )
             return 0
 
-    emit(OK=0, ERROR="No playable non-YouTube direct source passed the World TV probe.")
+    emit(OK=0, ERROR=f"No playable direct source passed verification after {checked} checks from {len(candidates)} candidates. Last probe: {LAST_PROBE_REASON or 'no candidate completed'}.")
     return 3
 
 

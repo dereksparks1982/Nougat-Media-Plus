@@ -1,3 +1,11 @@
+## v0.0.51 and forward: Controller, Radio, LAN Viewer, and Aerial Production
+
+- **Unified Controller & Remote Input Framework:** app-wide controller navigation, not a drone-only input stack. Controller setup is in the **System tab**. Default vocabulary includes D-pad/left stick navigation, A/Cross Select, B/Circle Back/Cancel, tab/page movement, player seek/play, subtitles/audio and context actions, with remapping, dead zones, sensitivity and test input. Separate UI, Video Player, Games and **Drone Flight** contexts. Drone Flight receives exclusive flight-axis ownership while armed.
+- **Radio:** top-level Mulberry Radio area with AM, FM, Shortwave, Weather, DAB/DAB+, DRM, Internet Radio, SDR, Favorites and Recordings. Capability-gated by actual hardware/providers. Reception controls roadmap includes Short Range, Normal and Long Range antenna modes where hardware supports or user metadata makes them meaningful.
+- **Regional tuner profiles:** keep Live TV provider-neutral for the home HDHomeRun FLEX DUO and portable Hauppauge/other regional USB tuners, including future Turkey-compatible DVB hardware. Frequency plan and scan behavior belong to provider/region capability data, not WinTV-specific assumptions.
+- **LAN Web Viewer:** versioned local catalog/history/artwork/media/Live-TV/device/session/pairing/health/browser contracts, LAN-only default, no cloud-login requirement, no automatic port forwarding, no external relay.
+- **Studio Aerial Production:** DJI/open-autopilot ground-control integration, gamepad/PS5 DualSense control, repeatable cinematic flight/gimbal/camera paths, live video/telemetry and synchronized production metadata. Flight controls remain in Aerial Production; System owns controller configuration.
+
 ## Studio professional-production direction after v0.0.50
 
 Studio remains Nougat's integrated production environment. After the v0.0.50 File Splitter foundation, the roadmap includes professional video/audio/photo editing, green-screen keying and compositing, animation, VFX, camera/object tracking, rotoscoping, motion capture and retargeting, production asset management, high-resolution rendering, and render-queue/farm workflows. Architecture should remain capable of scaling toward large live-action/VFX feature-film production rather than a consumer-only editor.

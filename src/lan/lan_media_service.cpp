@@ -5,12 +5,17 @@ namespace reddmedia::lan {
 
 LanMediaService::LanMediaService() {
     status_.endpoints = {
+        {"health", "/nougat/v1/health", "LAN service health and version contract"},
         {"catalog", "/nougat/v1/catalog", "Local Library catalog and collection metadata"},
-        {"history", "/nougat/v1/history", "Local viewing history and resume state"},
+        {"history", "/nougat/v1/history", "Local viewing history and exact resume state"},
+        {"artwork", "/nougat/v1/artwork", "Local poster, backdrop, channel and game artwork"},
         {"media", "/nougat/v1/media", "Direct byte-range delivery of locally owned media"},
-        {"hls", "/nougat/v1/hls", "Reserved versioned HLS/transcoding surface"},
-        {"pair", "/nougat/v1/pair", "Reserved local pairing/authentication surface"},
-        {"web", "/", "Reserved local phone/tablet/laptop/TV browser UI"},
+        {"hls", "/nougat/v1/hls", "Versioned HLS/transcoding surface for browser-incompatible media"},
+        {"livetv", "/nougat/v1/live-tv", "Local Live TV channel, guide and stream endpoint foundation"},
+        {"devices", "/nougat/v1/devices", "Paired LAN device/session inventory"},
+        {"session", "/nougat/v1/session", "Versioned playback/session state"},
+        {"pair", "/nougat/v1/pair", "Local pairing/PIN authentication surface"},
+        {"web", "/", "Local phone/tablet/laptop/TV browser UI surface"},
     };
 }
 

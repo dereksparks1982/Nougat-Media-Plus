@@ -17,6 +17,8 @@ struct LanMediaStatus {
     bool cloud_login_required = false;
     bool automatic_upnp = false;
     bool automatic_cloud_relay = false;
+    bool pairing_required = true;
+    bool private_lan_only = true;
     std::string discovery_name = "nougat.local";
     std::uint16_t preferred_port = 8097;
     std::vector<LanEndpoint> endpoints;
