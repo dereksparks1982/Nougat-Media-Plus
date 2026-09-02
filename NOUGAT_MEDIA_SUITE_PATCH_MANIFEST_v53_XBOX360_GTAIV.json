@@ -1,0 +1,62 @@
+{
+  "package": "Nougat_Media_Suite_v0.0.53_XBOX360_GTAIV_CHANGED_FILES.zip",
+  "version": "0.0.53",
+  "status": "candidate_for_owner_testing",
+  "scope": "Xbox 360 / Xenia runtime support for GTA IV plus owner-directed Company Bible no-installer correction",
+  "existing_root_executable": {
+    "path": "Nougat_Media_Suite_v53",
+    "action": "preserve_do_not_replace",
+    "reason": "Current v53 emulator handoff explicitly says the executable already contains Xenia launch/embedding logic and must not be disturbed."
+  },
+  "xenia": {
+    "release": "0d0fadb",
+    "asset": "xenia_canary_linux.AppImage",
+    "sha256": "615bf2391fd0ca014c9504220c132210f67b3f9ab311d0733297d2e0cf4fe89c",
+    "runtime_bridge": "components/games/runtime/xenia/xenia_canary",
+    "gta4_title_id": "545407F2",
+    "gpu": "vulkan",
+    "fullscreen": false
+  },
+  "files": [
+    {
+      "path": "COMPANY_BIBLE.md",
+      "bytes": 27833,
+      "sha256": "01d48d33c67c2c7d84919f797c6865b01aa3d4b47a2ecc11a280fe81807cffdd"
+    },
+    {
+      "path": "README_V53_XBOX360_GTAIV.txt",
+      "bytes": 874,
+      "sha256": "b3f10309b4d159ee98a94d03c2437a5be100a6460eac065dfdc79a43adf2ae5a"
+    },
+    {
+      "path": "components/games/emulators/XENIA_CANARY_RUNTIME_SOURCE.md",
+      "bytes": 780,
+      "sha256": "d36de91469afaaf57a4e45d1576788c631bcb4c1648400c905c554933551c6eb"
+    },
+    {
+      "path": "components/games/runtime/xenia/LICENSE-XENIA.txt",
+      "bytes": 1481,
+      "sha256": "369ea6b0f7ba57544067e9d470ca82a927da787fb0a749b11cb55f1fd0ba47ae"
+    },
+    {
+      "path": "components/games/runtime/xenia/NOUGAT_GTA4_RUNTIME.txt",
+      "bytes": 821,
+      "sha256": "748faf920ef9985f49d46d897a47d456b66b668e837b951d48515a597b5a96bb"
+    },
+    {
+      "path": "components/games/runtime/xenia/config/545407F2.config.toml",
+      "bytes": 155,
+      "sha256": "66ab04fbc7f03d502c437b5b61bd0aa3f1c25bd5a749084b3fb17f8e844b74c2"
+    },
+    {
+      "path": "components/games/runtime/xenia/xenia_canary",
+      "bytes": 2409,
+      "sha256": "a9d5afbd437937195f3072a95de278ece8ff138c2ea31db6d5cb2381744c76e9"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_XBOX360_GTAIV_RUNTIME_VALIDATION.md",
+      "bytes": 2156,
+      "sha256": "8b80c253ac6c5846e906e524c81fad7c14a758b6bd9e9850e0e15d36045aa898"
+    }
+  ]
+}

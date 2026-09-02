@@ -32,6 +32,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 #include <limits.h>
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
@@ -55,8 +56,14 @@
 #include "search/secure_search.hpp"
 #include "security/scanner_process.hpp"
 #include "lan/lan_media_service.hpp"
+#include "lan/lan_viewer_service.hpp"
+#include "safety/child_safe_controls.hpp"
+#include "security/security_advisory_service.hpp"
+#include "alerts/public_safety_alerts.hpp"
 #include "world_tv/world_tv_service.hpp"
 #include "radio/radio_backend.hpp"
+
+// NOUGAT_V53_CANDIDATE
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -894,6 +901,12 @@ static std::string game_system_for_path(const std::string& path) {
     if (ends_with_lower(lower, ".a52")) return "Atari 5200";
     if (ends_with_lower(lower, ".a78")) return "Atari 7800";
     if (ends_with_lower(lower, ".lnx")) return "Atari Lynx";
+    if (ends_with_lower(lower, ".gcm")) return "GameCube";
+    if (ends_with_lower(lower, ".wbfs")) return "Wii";
+    if (ends_with_lower(lower, ".wud") || ends_with_lower(lower, ".wux")) return "Wii U";
+    if (ends_with_lower(lower, ".xci") || ends_with_lower(lower, ".nsp")) return "Nintendo Switch";
+    if (ends_with_lower(lower, ".cso")) return "PlayStation Portable";
+    if (ends_with_lower(lower, ".pbp") || ends_with_lower(lower, ".cue")) return "PlayStation";
 
     if (ends_with_lower(lower, ".atr") || ends_with_lower(lower, ".xfd") ||
         ends_with_lower(lower, ".atx"))
@@ -917,6 +930,20 @@ static std::string game_system_for_path_in_context(const std::string& path,
     const std::string combined = container + "/" + path;
     if (ends_with_lower(path, ".bin") && game_path_has_sega_hint(combined))
         return "Sega Genesis";
+
+    const std::string context = lower_copy(combined);
+    const bool disc_image = ends_with_lower(path, ".iso") || ends_with_lower(path, ".chd") ||
+                            ends_with_lower(path, ".bin") || ends_with_lower(path, ".cue") ||
+                            ends_with_lower(path, ".rvz");
+    if (disc_image) {
+        if (context.find("playstation 2") != std::string::npos || context.find("/ps2") != std::string::npos) return "PlayStation 2";
+        if (context.find("playstation 3") != std::string::npos || context.find("/ps3") != std::string::npos) return "PlayStation 3";
+        if (context.find("playstation") != std::string::npos || context.find("/ps1") != std::string::npos || context.find("/psx") != std::string::npos) return "PlayStation";
+        if (context.find("psp") != std::string::npos) return "PlayStation Portable";
+        if (context.find("gamecube") != std::string::npos) return "GameCube";
+        if (context.find("wii u") != std::string::npos || context.find("wiiu") != std::string::npos) return "Wii U";
+        if (context.find("/wii") != std::string::npos || context.find("nintendo wii") != std::string::npos) return "Wii";
+    }
 
     std::string system = game_system_for_path(path);
 
@@ -1712,6 +1739,13 @@ public:
     int fullscreenTransportHover=-1;
     Rect homeTab, videoPlayerTab, libraryTab, discoverTab, liveTvTab, worldTvTab, radioTab, nougatTab, ytdlpTab, studioTab, gamesTab, debugTab;
     Rect studioSplitFileBtn, studioSplitFolderBtn, studioReassembleBtn, studioVerifyBtn;
+    Rect studioSourceRect, studioOutputRect, studioNameRect, studioPiecesRect, studioMaxMiBRect;
+    int studioInputFocus = 0;
+    std::string studioSourcePath;
+    std::string studioOutputPath;
+    std::string studioOutputName;
+    std::string studioPiecesText = "3";
+    std::string studioMaxMiBText = "0";
     Rect radioSimpleBtn, radioProBtn;
     Rect radioLocalBtn, radioEmergencyBtn, radioWeatherBtn, radioSatelliteBtn, radioShortwaveBtn, radioInternetBtn;
     Rect radioFavoritesBtn, radioRecordingsBtn, radioAntennaScanBtn;
@@ -1937,6 +1971,17 @@ public:
     P2PStreamServer p2pStream{p2p};
     reddmedia::MediaServerManager mediaServer;
     reddmedia::lan::LanMediaService lanMedia;
+    reddmedia::lan::LanViewerService lanViewer;
+    reddmedia::safety::ChildSafeControls childSafeControls;
+    reddmedia::security::SecurityAdvisoryService securityAdvisories;
+    reddmedia::alerts::PublicSafetyAlertService publicSafetyAlerts;
+    std::vector<reddmedia::lan::LanPeer> lanViewerPeers;
+    std::vector<reddmedia::lan::LanRemoteItem> lanViewerItems;
+    std::vector<reddmedia::security::RuntimeComponentAdvisory> securityInventory;
+    std::vector<reddmedia::alerts::PublicSafetyAlert> activePublicAlerts;
+    std::string publicAlertArea;
+    std::string v53SystemStatus = "v0.0.53 safety/network services ready.";
+    bool parentSystemUnlocked = false;
     reddmedia::NougatTunerBackend tunerBackend;
     reddmedia::HdHomeRunProvider hdHomeRunProvider;
     std::shared_ptr<LiveTvScanUiState> liveTvScanState = std::make_shared<LiveTvScanUiState>();
@@ -3117,6 +3162,8 @@ public:
         if (mediaServer.persistent_enabled()) mediaServer.start();
         else mediaServer.refresh();
         lanMedia.prepare();
+        { std::string childStatus; childSafeControls.load(childStatus); v53SystemStatus=childStatus; }
+        if (const char* alertArea=std::getenv("NOUGAT_ALERT_AREA")) publicAlertArea=alertArea;
         liveTvChannels = tunerBackend.load_channels();
         liveTvPrograms = tunerBackend.load_guide();
         restore_live_tv_last_channel();
@@ -3288,7 +3335,7 @@ public:
         const Rect worldFrame = page_content_frame(ViewMode::WorldTV);
         worldTvPlayBtn = {worldFrame.x + 16, kPageControlY, kCompactButtonW, kCompactButtonH};
         worldTvOfficialBtn = {worldTvPlayBtn.x + kCompactButtonW + 6, kPageControlY, kCompactButtonW, kCompactButtonH};
-        worldTvListBox = {worldFrame.x + 16, 88, std::max(180, worldFrame.w - 32), std::max(120, worldFrame.y + worldFrame.h - 100)};
+        worldTvListBox = {worldFrame.x + 16, 96, std::max(180, worldFrame.w - 32), std::max(100, worldFrame.y + worldFrame.h - 108)};
         const Rect radioFrame = page_content_frame(ViewMode::Radio);
         const int radioGap = 6;
         const int left = radioFrame.x + 16;
@@ -4723,7 +4770,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.52";
+        const std::string versionLabel = "v0.0.53";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -8839,35 +8886,102 @@ public:
         else liveTvTunerUse = LiveTvTunerUse::Idle;
     }
 
+    std::string& focused_studio_text() {
+        switch (studioInputFocus) {
+        case 2: return studioOutputPath;
+        case 3: return studioOutputName;
+        case 4: return studioPiecesText;
+        case 5: return studioMaxMiBText;
+        case 1:
+        default: return studioSourcePath;
+        }
+    }
+
+    static bool studio_positive_integer(const std::string& value, bool allow_zero=false) {
+        if (value.empty()) return false;
+        for (char c : value) if (!std::isdigit(static_cast<unsigned char>(c))) return false;
+        const long long parsed = std::strtoll(value.c_str(), nullptr, 10);
+        return allow_zero ? parsed >= 0 : parsed > 0;
+    }
+
+    void handle_studio_key(XKeyEvent& event, KeySym ks) {
+        if (studioInputFocus <= 0) return;
+        if (ks == XK_Escape) { studioInputFocus=0; redraw(); return; }
+        if (ks == XK_Tab) { studioInputFocus = studioInputFocus % 5 + 1; redraw(); return; }
+        if (ks == XK_BackSpace) {
+            std::string& target=focused_studio_text();
+            if (!target.empty()) target.pop_back();
+            redraw(); return;
+        }
+        char buf[64]; KeySym outks=0;
+        const int n=XLookupString(&event,buf,sizeof(buf)-1,&outks,nullptr);
+        if (n>0) {
+            buf[n]=0;
+            std::string value(buf,static_cast<std::size_t>(n));
+            if ((studioInputFocus==4 || studioInputFocus==5) &&
+                !std::all_of(value.begin(),value.end(),[](unsigned char c){ return std::isdigit(c)!=0; })) return;
+            focused_studio_text() += value;
+            redraw();
+        }
+    }
+
     void launch_studio_splitter_action(const std::string& action) {
         const std::string tool = exe_dir() + "/tools/nougat_file_splitter.py";
         if (!exists_file(tool)) {
-            studioStatus = "File Splitter tool is missing from the Nougat project.";
+            studioStatus = "File Splitter worker is missing from the Nougat project.";
             redraw();
             return;
         }
-        pid_t first = fork();
-        if (first < 0) {
-            studioStatus = "Could not launch the File Splitter.";
-            redraw();
-            return;
-        }
-        if (first == 0) {
-            pid_t second = fork();
-            if (second < 0) _exit(127);
-            if (second == 0) {
-                execlp("python3", "python3", tool.c_str(), "studio-gui", action.c_str(), static_cast<char*>(nullptr));
-                _exit(127);
+
+        std::string command = "python3 " + shell_quote(tool) + " ";
+        if (action == "split") {
+            if (studioSourcePath.empty() || studioOutputPath.empty() || studioOutputName.empty() ||
+                !studio_positive_integer(studioPiecesText) || !studio_positive_integer(studioMaxMiBText,true)) {
+                studioStatus = "Split needs Source, Output Folder, Output Name, positive Pieces, and Max MiB >= 0.";
+                redraw(); return;
             }
-            _exit(0);
+            command += "split " + shell_quote(studioSourcePath) + " " + shell_quote(studioOutputPath) +
+                       " --name " + shell_quote(studioOutputName) +
+                       " --pieces " + studioPiecesText +
+                       " --max-piece-mib " + studioMaxMiBText;
+            studioStatus = "Splitting inside Nougat Studio...";
+        } else if (action == "verify") {
+            if (studioSourcePath.empty()) {
+                studioStatus = "Verify needs the .zip.parts.json manifest in Source.";
+                redraw(); return;
+            }
+            command += "verify " + shell_quote(studioSourcePath);
+            studioStatus = "Verifying parts inside Nougat Studio...";
+        } else if (action == "reassemble") {
+            if (studioSourcePath.empty()) {
+                studioStatus = "Reassemble needs the .zip.parts.json manifest in Source.";
+                redraw(); return;
+            }
+            command += "reassemble " + shell_quote(studioSourcePath);
+            if (!studioOutputPath.empty()) command += " --output " + shell_quote(studioOutputPath);
+            studioStatus = "Reassembling inside Nougat Studio...";
+        } else return;
+
+        redraw();
+        XFlush(d);
+        const std::string result = run_command_capture(command + " 2>&1");
+        if (result.empty()) {
+            studioStatus = "File Splitter worker returned no completion message.";
+        } else {
+            const std::size_t last = result.find_last_of('\n');
+            const std::string tail = last == std::string::npos ? result : result.substr(last+1U);
+            studioStatus = tail.empty() ? result : tail;
         }
-        int status = 0;
-        waitpid(first, &status, 0);
-        studioStatus = "File Splitter opened. Complete the Nougat Studio dialogs.";
         redraw();
     }
 
     void handle_studio_click(int x, int y) {
+        if (studioSourceRect.contains(x,y)) { studioInputFocus=1; redraw(); return; }
+        if (studioOutputRect.contains(x,y)) { studioInputFocus=2; redraw(); return; }
+        if (studioNameRect.contains(x,y)) { studioInputFocus=3; redraw(); return; }
+        if (studioPiecesRect.contains(x,y)) { studioInputFocus=4; redraw(); return; }
+        if (studioMaxMiBRect.contains(x,y)) { studioInputFocus=5; redraw(); return; }
+        studioInputFocus=0;
         if (studioSplitFileBtn.contains(x,y)) { launch_studio_splitter_action("split"); return; }
         if (studioReassembleBtn.contains(x,y)) { launch_studio_splitter_action("reassemble"); return; }
         if (studioVerifyBtn.contains(x,y)) { launch_studio_splitter_action("verify"); return; }
@@ -8952,7 +9066,7 @@ public:
         {
             std::lock_guard<std::mutex> lock(state->mutex);
             state->busy=true; state->updated=true; state->cancel=false; state->finished=false; state->success=false;
-            state->physical_channel=0; state->frequency_hz=0; state->completed=0; state->total=35;
+            state->physical_channel=0; state->frequency_hz=0; state->completed=0; state->total=network ? 100 : 35;
             state->locked=false; state->signal_percent=-1; state->quality_percent=-1; state->channels_found=0;
             state->channels.clear();
             state->status = network ? "Starting HDHomeRun ATSC channel scan..." : "Starting native Linux DVB ATSC channel scan...";
@@ -9016,7 +9130,13 @@ public:
             if (success) {
                 merge_live_tv_channels(channels);
                 std::string saveError;
-                if (!tunerBackend.save_channels(liveTvChannels, saveError) && !saveError.empty()) liveTvStatus += " " + saveError;
+                const bool saveOk=tunerBackend.save_channels(liveTvChannels, saveError);
+                if (!saveOk && !saveError.empty()) liveTvStatus += " Phase 3 channel import/update failed: " + saveError;
+                else if (status.find("HDHomeRun") != std::string::npos) {
+                    liveTvStatus += " Phase 3 channel import/update complete. Phase 5 guide update: current HDHomeRun provider exposes lineup/channel data but no separate guide feed, so no guide update was fabricated. Phase 6 finalization complete.";
+                    std::lock_guard<std::mutex> phaseLock(liveTvScanState->mutex);
+                    liveTvScanState->completed=100; liveTvScanState->total=100; liveTvScanState->updated=true;
+                }
                 restore_live_tv_last_channel();
             }
         }
@@ -9780,9 +9900,9 @@ public:
 
         const int top=worldTvListBox.y+66;
         const int left=worldTvListBox.x+8;
-        const int channelW=210;
+        const int channelW=166;
         const int headerH=34;
-        const int rowH=62;
+        const int rowH=46;
         const int gridX=left+channelW;
         const int gridW=std::max(120,worldTvListBox.w-channelW-16);
         const int slotCount=std::max(3,std::min(8,gridW/112));
@@ -10571,7 +10691,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.52";
+        input.app_version = "Nougat Media Suite v0.0.53";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -12142,6 +12262,14 @@ public:
         else if (system == "Atari 5200" || system == "Atari 8-bit") candidates = {"atari800"};
         else if (system == "Atari 7800") candidates = {"a7800"};
         else if (system == "Atari Lynx") candidates = {"mednafen"};
+        else if (system == "GameCube" || system == "Wii") candidates = {"dolphin-emu", "dolphin"};
+        else if (system == "PlayStation") candidates = {"duckstation-qt", "duckstation"};
+        else if (system == "PlayStation 2") candidates = {"pcsx2-qt", "pcsx2"};
+        else if (system == "PlayStation Portable") candidates = {"PPSSPPSDL", "PPSSPPQt", "ppsspp"};
+        else if (system == "PlayStation 3") candidates = {"rpcs3"};
+        else if (system == "Wii U") candidates = {"Cemu", "cemu"};
+        else if (system == "Arcade") candidates = {"mame"};
+        else if (system == "Nintendo Switch") candidates = {"Ryujinx", "ryujinx", "suyu", "yuzu"};
         for (const std::string& candidate : candidates) {
             const std::string found = run_command_capture("command -v " + candidate + " 2>/dev/null");
             if (!found.empty()) return candidate;
@@ -12689,6 +12817,29 @@ public:
             return true;
         }
 
+        if (backend_lower.find("dolphin") != std::string::npos) {
+            request.argv = {emulator, "-b", "-e", launchPath};
+            return true;
+        }
+        if (backend_lower.find("duckstation") != std::string::npos) {
+            request.argv = {emulator, "-batch", "-fullscreen", launchPath};
+            return true;
+        }
+        if (backend_lower.find("pcsx2") != std::string::npos) {
+            request.argv = {emulator, "-fullscreen", launchPath};
+            return true;
+        }
+        if (backend_lower.find("cemu") != std::string::npos) {
+            request.argv = {emulator, "-g", launchPath};
+            return true;
+        }
+        if (backend_lower == "rpcs3" || backend_lower.find("ppsspp") != std::string::npos ||
+            backend_lower == "mame" || backend_lower == "ryujinx" || backend_lower == "suyu" ||
+            backend_lower == "yuzu") {
+            request.argv = {emulator, launchPath};
+            return true;
+        }
+
         if (backend_lower == "blastem") {
             request.argv = {emulator};
             if (selected.system == "Sega Master System") {
@@ -13033,7 +13184,7 @@ public:
         int y=gamesListBox.y+32;
         if (gamesPanel==GamesPanel::Systems) {
             section_text(target,gamesListBox.x+14,y,"EMULATION BACKENDS",palette.text); y+=30;
-            const std::vector<std::string> systems={"NES","SNES","Game Boy","Game Boy Color","Game Boy Advance","Nintendo 64","Sega Genesis","Sega Master System","Sega Game Gear","Atari 2600","Atari 5200","Atari 7800","Atari 8-bit","Atari Lynx"};
+            const std::vector<std::string> systems={"NES","SNES","Game Boy","Game Boy Color","Game Boy Advance","Nintendo 64","Sega Genesis","Sega Master System","Sega Game Gear","Atari 2600","Atari 5200","Atari 7800","Atari 8-bit","Atari Lynx","PlayStation","PlayStation 2","PlayStation Portable","PlayStation 3","GameCube","Wii","Wii U","Arcade","Nintendo Switch"};
             for (const std::string& system:systems) {
                 const std::string emulator=installed_game_emulator(system);
                 text(target,gamesListBox.x+14,y,system+": "+(emulator.empty()?"No supported backend installed":basename_only(emulator)+" (automatic)"),emulator.empty()?palette.muted:palette.text);
@@ -13095,24 +13246,55 @@ public:
         draw_quilted_background(target, {0,kTopBarH,W,H-kTopBarH}, ViewMode::Studio);
         section_text(target, 28, 70, "STUDIO", palette.text);
         text(target, 28, 96, "Nougat creation, production, and media-processing workspace.", palette.muted);
-        Rect panel{28,118,std::max(240,W-56),std::max(220,H-148)};
+        Rect panel{28,118,std::max(240,W-56),std::max(300,H-148)};
         draw_primary_panel(target,panel,palette);
-        text(target,panel.x+16,panel.y+30,"File Splitter / Reassembler",palette.text);
-        text(target,panel.x+16,panel.y+52,
-             "Choose a normal folder, normal file, or existing ZIP. Nougat handles ZIP packaging and split pieces for you.",palette.muted);
-        const int buttonY=panel.y+76;
+        text(target,panel.x+16,panel.y+26,"FILE SPLITTER / REASSEMBLER",palette.text);
+        text(target,panel.x+16,panel.y+50,
+             "All routine controls stay inside Nougat. Paste paths directly into these fields.",palette.muted);
+
+        const int labelW=112;
+        const int fieldX=panel.x+16+labelW;
+        const int fieldW=std::max(120,panel.w-labelW-32);
+        const int fieldH=30;
+        int y=panel.y+70;
+        const auto field=[&](const char* label,Rect& rect,std::string value,int focus) {
+            text(target,panel.x+16,y+20,label,palette.text);
+            rect={fieldX,y,fieldW,fieldH};
+            fill(target,rect,rgb8(250,240,218));
+            outline(target,rect,studioInputFocus==focus?rgb8(126,72,28):rgb8(166,112,56));
+            const std::string shown=tail_to_width(value,rect.w-16);
+            text(target,rect.x+8,rect.y+20,shown,palette.text);
+            y+=38;
+        };
+        field("Source / Manifest",studioSourceRect,studioSourcePath,1);
+        field("Output",studioOutputRect,studioOutputPath,2);
+        field("Output Name",studioNameRect,studioOutputName,3);
+
+        const int compactW=120;
+        text(target,panel.x+16,y+20,"Pieces",palette.text);
+        studioPiecesRect={fieldX,y,compactW,fieldH};
+        fill(target,studioPiecesRect,rgb8(250,240,218));
+        outline(target,studioPiecesRect,studioInputFocus==4?rgb8(126,72,28):rgb8(166,112,56));
+        text(target,studioPiecesRect.x+8,studioPiecesRect.y+20,studioPiecesText,palette.text);
+        text(target,studioPiecesRect.x+compactW+20,y+20,"Max MiB",palette.text);
+        studioMaxMiBRect={studioPiecesRect.x+compactW+84,y,compactW,fieldH};
+        fill(target,studioMaxMiBRect,rgb8(250,240,218));
+        outline(target,studioMaxMiBRect,studioInputFocus==5?rgb8(126,72,28):rgb8(166,112,56));
+        text(target,studioMaxMiBRect.x+8,studioMaxMiBRect.y+20,studioMaxMiBText,palette.text);
+        y+=44;
+
         const int gap=10;
         const int buttonW=std::max(130,std::min(190,(panel.w-52)/3));
-        studioSplitFileBtn={panel.x+16,buttonY,buttonW,32};
+        studioSplitFileBtn={panel.x+16,y,buttonW,32};
         studioSplitFolderBtn={0,0,0,0};
-        studioReassembleBtn={studioSplitFileBtn.x+buttonW+gap,buttonY,buttonW,32};
-        studioVerifyBtn={studioReassembleBtn.x+buttonW+gap,buttonY,buttonW,32};
+        studioReassembleBtn={studioSplitFileBtn.x+buttonW+gap,y,buttonW,32};
+        studioVerifyBtn={studioReassembleBtn.x+buttonW+gap,y,buttonW,32};
         button_on(target,studioSplitFileBtn,"Split Folder / File / ZIP");
         button_on(target,studioReassembleBtn,"Reassemble");
         button_on(target,studioVerifyBtn,"Verify Parts");
-        text(target,panel.x+16,buttonY+62,head_to_width(studioStatus,panel.w-32),palette.text);
-        text(target,panel.x+16,buttonY+88,
-             "You choose the output name and number of pieces. An optional maximum piece size drives mathematical minimum-piece suggestions.",palette.muted);
+        text(target,panel.x+16,y+58,head_to_width(studioStatus,panel.w-32),palette.text);
+        text(target,panel.x+16,y+84,
+             "Verify/Reassemble: put the .zip.parts.json manifest in Source. Reassemble Output is optional.",palette.muted);
     }
 
     void draw_debug_screen(Drawable target) {
@@ -13149,8 +13331,13 @@ public:
         debugIssueRows.clear();
         if (!has_report) {
             text(target, debugListBox.x + 14, debugListBox.y + 30,
-                 "Run Quick Diagnostic for normal health or Deep Diagnostic to exercise AI and explicit subsystem probes.",
+                 head_to_width(v53SystemStatus,debugListBox.w-28), palette.text);
+            text(target, debugListBox.x + 14, debugListBox.y + 54,
+                 "LAN Viewer: private-LAN read-only catalog + Verified Clean gate | Alerts: NOAA/NWS | Security advisories: OSV inventory mapping.",
                  palette.muted);
+            text(target, debugListBox.x + 14, debugListBox.y + 78,
+                 std::string("Child Safe: ")+(childSafeControls.enabled()?"ON - System password protected":"OFF"),
+                 childSafeControls.enabled()?palette.text:palette.muted);
             return;
         }
         unsigned long health_color = col(0x7777,0x7777,0x7777);
@@ -14068,6 +14255,7 @@ public:
         if (v == ViewMode::LiveTV) liveTvWorldMode = false;
 
         if (currentView == v) return;
+        if (currentView == ViewMode::Debug && v != ViewMode::Debug && childSafeControls.enabled()) parentSystemUnlocked=false;
         if (currentView == ViewMode::VideoPlayer) { persist_current_resume(true); clear_seek_preview_hover(); }
         if (currentView == ViewMode::Home) set_home_hover({}, 0);
         push_navigation_history();
@@ -14513,9 +14701,11 @@ public:
             redraw(); return true;
         }
         if (currentView == ViewMode::WorldTV && target == win && worldTvListBox.contains(x,y)) {
-            const int total=static_cast<int>(world_tv_catalog().size());
-            const int rowH=38; const int top=worldTvListBox.y+80;
-            const int visible=std::max(1,(worldTvListBox.y+worldTvListBox.h-top-8)/rowH);
+            const int total=static_cast<int>(world_tv_visible_indices().size());
+            const int rowH=46;
+            const int top=worldTvListBox.y+66;
+            const int headerH=34;
+            const int visible=std::max(1,(worldTvListBox.y+worldTvListBox.h-(top+headerH)-8)/rowH);
             const int maxScroll=std::max(0,total-visible);
             worldTvScroll=std::max(0,std::min(maxScroll,worldTvScroll+(button==Button4?-1:1)));
             redraw(); return true;
@@ -14759,6 +14949,16 @@ public:
             return;
         }
         if (topNavHit && debugTab.contains(x,y)) {
+            if (childSafeControls.enabled() && !parentSystemUnlocked) {
+                v53SystemStatus="Child Safe: System/settings are locked. Set NOUGAT_PARENT_PASSWORD for this candidate session and click System again.";
+                const char* supplied=std::getenv("NOUGAT_PARENT_PASSWORD");
+                if (supplied && childSafeControls.verify_password(supplied)) {
+                    parentSystemUnlocked=true;
+                    v53SystemStatus="Parent password accepted. System/settings unlocked for this visit.";
+                    if (currentView != ViewMode::Debug) switch_view(ViewMode::Debug);
+                } else redraw();
+                return;
+            }
             if (currentView != ViewMode::Debug) switch_view(ViewMode::Debug);
             return;
         }
@@ -15296,6 +15496,7 @@ public:
                         }
                     }
                     else if (currentView == ViewMode::Nougat) { handle_nougat_key(e.xkey, ks); }
+                    else if (currentView == ViewMode::Studio) { handle_studio_key(e.xkey, ks); }
                     else if (currentView == ViewMode::Stream && urlFocused) {
                         if (ks == XK_Escape) { urlFocused=false; urlSelectAll=false; redraw(); }
                         else if (ks == XK_Return || ks == XK_KP_Enter) { start_ytdlp_download(); }
@@ -15628,8 +15829,9 @@ public:
 };
 
 int main(int argc, char** argv) {
+    prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.52\n");
+        printf("Nougat Media Suite v0.0.53\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {
@@ -15829,7 +16031,11 @@ int main(int argc, char** argv) {
             game_system_for_path("probe.a52") == "Atari 5200" &&
             game_system_for_path("probe.a78") == "Atari 7800" &&
             game_system_for_path("probe.atr") == "Atari 8-bit" &&
-            game_system_for_path("probe.lnx") == "Atari Lynx";
+            game_system_for_path("probe.lnx") == "Atari Lynx" &&
+            game_system_for_path("probe.gcm") == "GameCube" &&
+            game_system_for_path("probe.wbfs") == "Wii" &&
+            game_system_for_path("probe.xci") == "Nintendo Switch" &&
+            game_system_for_path("probe.cso") == "PlayStation Portable";
         const bool zip_ok = safe_zip_game_entry("folder/probe.nes") &&
             !safe_zip_game_entry("../probe.nes") &&
             !safe_zip_game_entry("/probe.nes") &&

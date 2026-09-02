@@ -89,6 +89,7 @@ std::string WorldTvService::run_worker(const std::vector<std::string>& args,
     output.reserve(4096);
     int status = 0;
     bool reaped = false;
+    bool timed_out = false;
     constexpr std::size_t kMaxOutput = 1024U * 1024U;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(70);
 
@@ -117,6 +118,7 @@ std::string WorldTvService::run_worker(const std::vector<std::string>& args,
     }
 
     if (!reaped) {
+        timed_out = true;
         // Never let a dead/hostile CDN hold Nougat shutdown indefinitely.
         if (::kill(-child, SIGTERM) != 0) ::kill(child, SIGTERM);
         const auto term_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
@@ -139,6 +141,9 @@ std::string WorldTvService::run_worker(const std::vector<std::string>& args,
     drain();
     ::close(pipe_fd[0]);
     if (reaped && WIFEXITED(status)) exit_code = WEXITSTATUS(status);
+    if (timed_out && output.find("ERROR_CLASS=") == std::string::npos) {
+        output += "ERROR_CLASS=startup_timeout\nERROR=World TV startup exceeded the 70-second worker limit.\n";
+    }
     return output;
 }
 
@@ -193,9 +198,16 @@ WorldTvResolveResult WorldTvService::resolve(const std::string& channel_id,
     result.url = value_for(output, "URL");
     result.referrer = value_for(output, "REFERRER");
     result.user_agent = value_for(output, "USER_AGENT");
+    result.error_class = value_for(output, "ERROR_CLASS");
     result.error = value_for(output, "ERROR");
+    if (!result.ok && result.error_class.empty()) {
+        result.error_class = exit_code == 127 ? "dependency" : "stream";
+    }
     if (!result.ok && result.error.empty()) {
         result.error = "No playable direct World TV source was verified.";
+    }
+    if (!result.ok && !result.error_class.empty()) {
+        result.error = "World TV " + result.error_class + " failure: " + result.error;
     }
     return result;
 }

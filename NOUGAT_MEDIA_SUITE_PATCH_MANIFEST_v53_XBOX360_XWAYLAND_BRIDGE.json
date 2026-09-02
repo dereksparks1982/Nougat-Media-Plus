@@ -1,0 +1,35 @@
+{
+  "package": "Nougat_Media_Suite_v0.0.53_XBOX360_XWAYLAND_BRIDGE_CHANGED_FILES.zip",
+  "version": "0.0.53",
+  "scope": "Xbox 360 Xenia Edge native Nougat viewport integration only",
+  "changed_files": [
+    "components/games/runtime/xenia/xenia_canary",
+    "components/games/runtime/xenia/nougat_xenia_xwayland_bridge",
+    "components/games/runtime/xenia/nougat_xenia_xwayland_hook.so",
+    "components/games/runtime/xenia/embed-source/nougat_xenia_xwayland_bridge.c",
+    "components/games/runtime/xenia/embed-source/nougat_xenia_xwayland_hook.c",
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_XBOX360_XWAYLAND_BRIDGE_VALIDATION.md"
+  ],
+  "uses_existing_runtime": "components/games/runtime/xenia/xenia_edge_linux.AppImage",
+  "no_nougat_rebuild": true,
+  "no_edge_rebuild": true,
+  "no_installer": true,
+  "no_commit_tag_push": true,
+  "validation": {
+    "exact_v53_host_harness": "PASS",
+    "host_state_embedded": "PASS",
+    "surface_xid_equals_embedded_xid": "PASS",
+    "project_path_with_spaces": "PASS",
+    "gtk_toplevel_opacity_zero": "PASS",
+    "gtk_skip_taskbar_pager": "PASS",
+    "real_owner_machine_title_test": "REQUIRED"
+  },
+  "sha256": {
+    "components/games/runtime/xenia/xenia_canary": "20c320dad79c6d46e5470fab6165b881836e414d5eeb1470b2fec6eefedf168f",
+    "components/games/runtime/xenia/nougat_xenia_xwayland_bridge": "49f4a2f4acf032fc563ac5ce5afa9208ca282810917e81f6beb806468dfccac9",
+    "components/games/runtime/xenia/nougat_xenia_xwayland_hook.so": "76e025ae879f76409fae2f2df28613730cb47b6cf808057adee10e2db76c890d",
+    "components/games/runtime/xenia/embed-source/nougat_xenia_xwayland_bridge.c": "8810d54613935705a2360d8dd585dbd14f7b33e430ecd709c8e1293d6609f5b7",
+    "components/games/runtime/xenia/embed-source/nougat_xenia_xwayland_hook.c": "af9d2c06f69804e61c24af8939e2a60493fec6880af173b64da1b5c3c0c5b789",
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_XBOX360_XWAYLAND_BRIDGE_VALIDATION.md": "206bef5c953364d2c4d966287bf10125d9c141dd078514a8e849f2a2654cf31e"
+  }
+}

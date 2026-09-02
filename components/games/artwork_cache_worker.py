@@ -32,6 +32,15 @@ COLLECTIONS = {
     "Atari 7800": "Atari - 7800",
     "Atari 8-bit": "Atari - 8-bit",
     "Atari Lynx": "Atari - Lynx",
+    "PlayStation": "Sony - PlayStation",
+    "PlayStation 2": "Sony - PlayStation 2",
+    "PlayStation Portable": "Sony - PlayStation Portable",
+    "PlayStation 3": "Sony - PlayStation 3",
+    "GameCube": "Nintendo - GameCube",
+    "Wii": "Nintendo - Wii",
+    "Wii U": "Nintendo - Wii U",
+    "Arcade": "MAME",
+    "Nintendo Switch": "Nintendo - Nintendo Switch",
 }
 CATEGORIES = ("Named_Boxarts", "Named_Titles", "Named_Snaps")
 INVALID_LIBRETRO = set('&*/:\\`<>?|"')
@@ -88,9 +97,18 @@ def short_name(value: str) -> str:
     return value[:cut].strip(" ._-\t")
 
 
+def strip_release_noise(value: str) -> str:
+    value = html.unescape(urllib.parse.unquote(value)).replace("_", " ")
+    value = re.sub(r"\[[^\]]*(?:!|b|h|o|p|t|f|bad|hack|overdump|trainer|translated)[^\]]*\]", " ", value, flags=re.I)
+    value = re.sub(r"\((?:usa|us|u|europe|eur|pal|japan|jpn|world|asia|australia|korea|rev(?:ision)?[^)]*|v(?:er(?:sion)?)?\s*\d[^)]*|beta[^)]*|proto(?:type)?[^)]*|demo[^)]*)\)", " ", value, flags=re.I)
+    value = re.sub(r"\b(?:rev(?:ision)?\s*[a-z0-9.]+|v(?:er(?:sion)?)?\s*\d+(?:\.\d+)*|beta\s*\d*|prototype|proto|demo|sample|preview)\b", " ", value, flags=re.I)
+    value = re.sub(r"\s+", " ", value).strip(" ._-")
+    return value
+
+
 def artwork_name_candidates(rom_stem: str, display_title: str) -> list[str]:
     raw: list[str] = []
-    for value in (rom_stem, display_title, short_name(rom_stem), short_name(display_title)):
+    for value in (rom_stem, display_title, short_name(rom_stem), short_name(display_title), strip_release_noise(rom_stem), strip_release_noise(display_title)):
         value = value.strip()
         if value and value not in raw:
             raw.append(value)
@@ -230,7 +248,7 @@ def fetch_directory_index(collection: str, category: str) -> list[str]:
             return [line.rstrip("\n") for line in cache.read_text(encoding="utf-8").splitlines() if line.strip()]
         base = "https://thumbnails.libretro.com/" + urllib.parse.quote(collection, safe="") + "/" + category + "/"
         try:
-            request = urllib.request.Request(base, headers={"User-Agent": "Nougat-Media-Suite-v0.0.49"})
+            request = urllib.request.Request(base, headers={"User-Agent": "Nougat-Media-Suite-v0.0.53"})
             with urllib.request.urlopen(request, timeout=15) as response:
                 page = response.read().decode("utf-8", "replace")
             names = parse_directory_index(page)
@@ -262,7 +280,7 @@ def download_candidate(url: str, target: Path) -> bool:
     os.close(fd)
     temp = Path(temp_name)
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "Nougat-Media-Suite-v0.0.49"})
+        request = urllib.request.Request(url, headers={"User-Agent": "Nougat-Media-Suite-v0.0.53"})
         with urllib.request.urlopen(request, timeout=15) as response, temp.open("wb") as out:
             shutil.copyfileobj(response, out)
         if not valid_image(temp):

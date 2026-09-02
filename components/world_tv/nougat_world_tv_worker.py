@@ -26,7 +26,7 @@ GUIDES_API = f"{API_BASE}/guides.json"
 ALoula_CHANNELS = "https://aloula.faulio.com/api/v1/channels"
 ALoula_PLAYER = "https://aloula.faulio.com/api/v1.1/channels/{channel}/player"
 
-UA = "Mozilla/5.0 (X11; Linux x86_64) NougatMediaSuite/0.0.51"
+UA = "Mozilla/5.0 (X11; Linux x86_64) NougatMediaSuite/0.0.53"
 CACHE_ROOT = Path.home() / ".cache" / "reddmedia" / "world_tv"
 API_CACHE = CACHE_ROOT / "api"
 
@@ -334,7 +334,21 @@ def resolve_mode(channel_id: str, feed_id: str, preferred_url: str,
             )
             return 0
 
-    emit(OK=0, ERROR=f"No playable direct source passed verification after {checked} checks from {len(candidates)} candidates. Last probe: {LAST_PROBE_REASON or 'no candidate completed'}.")
+    if shutil.which("ffprobe") is None:
+        error_class = "dependency"
+    elif not candidates:
+        error_class = "resolver"
+    elif checked == 0:
+        error_class = "provider"
+    elif "timed out" in (LAST_PROBE_REASON or "").lower():
+        error_class = "startup_timeout"
+    else:
+        error_class = "stream"
+    emit(
+        OK=0,
+        ERROR_CLASS=error_class,
+        ERROR=f"No playable direct source passed verification after {checked} checks from {len(candidates)} candidates. Last probe: {LAST_PROBE_REASON or 'no candidate completed'}.",
+    )
     return 3
 
 
@@ -538,7 +552,7 @@ def guide_mode(channel_id: str, feed_id: str) -> int:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        emit(OK=0, ERROR="missing mode")
+        emit(OK=0, ERROR_CLASS="resolver", ERROR="missing mode")
         return 64
 
     mode = sys.argv[1]
@@ -556,7 +570,7 @@ def main() -> int:
     if mode == "guide" and len(sys.argv) == 4:
         return guide_mode(sys.argv[2], sys.argv[3])
 
-    emit(OK=0, ERROR="invalid World TV worker arguments")
+    emit(OK=0, ERROR_CLASS="resolver", ERROR="invalid World TV worker arguments")
     return 64
 
 

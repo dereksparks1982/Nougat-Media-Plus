@@ -70,7 +70,7 @@ The active Git commit, branch, worktree state, expected executable, rollback sna
 
 The owner-approved rounded-square chocolate/caramel **N** emblem at the top center of `docs/design/NOUGAT_UI_COMPONENT_SHEET_APPROVED.png` is Nougat Media Suite's sole active icon source beginning with v0.0.21. The concept sheet itself is the authority. Do not redraw, regenerate, substitute, approximate, or replace the N with generic executable, gear, letter, or placeholder artwork.
 
-**NO EXCEPTIONS RELEASE GATE:** every Nougat Media Suite build, patch, repair, hotfix, installer, and version bump must preserve and verify that exact approved N on every active application identity surface before the candidate may be handed to the owner. This requirement is permanent and is not optional even when the build scope is unrelated to artwork.
+**NO EXCEPTIONS RELEASE GATE:** every Nougat Media Suite build, patch, repair, hotfix, and version bump must preserve and verify that exact approved N on every active application identity surface before the candidate may be handed to the owner. This requirement is permanent and is not optional even when the build scope is unrelated to artwork.
 
 The mandatory identity surfaces are:
 - the raw versioned root executable as shown by Files/Nautilus;
@@ -79,9 +79,9 @@ The mandatory identity surfaces are:
 - the Ubuntu/GNOME dock and app-switcher identity;
 - the in-app Nougat badge where used.
 
-The final raw executable must be written first. Only after the final executable bytes are in place may the installer set `metadata::custom-icon` to the approved concept-sheet N master URI. The installer must immediately read the metadata back and prove it resolves to that exact master. Rebuilding, moving, or replacing the executable after that proof invalidates the icon gate and requires the icon assignment and verification to be repeated.
+The final raw versioned executable must be written first and is a mandatory handoff artifact. Only after the final executable bytes are in place may its `metadata::custom-icon` be set directly to the approved concept-sheet N master URI. The metadata must immediately be read back and proved to resolve to that exact master. Rebuilding, moving, or replacing the executable after that proof invalidates the icon gate and requires the icon assignment and verification to be repeated.
 
-Each version-changing installer must also install or refresh the approved icon-theme assets and canonical desktop launchers, verify their icon key and executable target, and refresh desktop/icon caches when the relevant host utilities are available. A generic icon on any required surface is a build rejection, not a cosmetic follow-up.
+Each version-changing build must also refresh the approved icon-theme assets and canonical desktop launchers as required, verify their icon key and executable target, and refresh desktop/icon caches when the relevant host utilities are available. A generic icon on any required surface is a build rejection, not a cosmetic follow-up.
 
 Automated validation must verify the approved concept-sheet source, approved N master, embedded X11 icon-data source, launcher icon key, and raw-executable custom-icon readback. Owner visual confirmation in Files/Nautilus and the running dock remains required for final acceptance.
 
@@ -141,9 +141,11 @@ The accepted red-tree artwork remains historical ReddMedia identity through v0.0
 
 The normal handoff is one changed-files-only ZIP containing exactly the files required to move the verified base to the candidate.
 
+**NO INSTALLERS:** Nougat Media Suite handoff packages must not contain, generate, or require an installer. The owner receives the changed files and the final runnable versioned root executable directly.
+
 The package must include:
 
-- an installer with exact base preflight and rollback;
+- the final runnable versioned root executable for the candidate, with the exact approved Nougat N identity preserved and verified;
 - a manifest with file paths, byte counts, and SHA-256 hashes;
 - changed source and documentation;
 - required tests and build records;
@@ -151,26 +153,26 @@ The package must include:
 
 The package must not include generated runtime directories, caches, temporary build trees, credentials, or unrelated files. The ZIP itself must pass an integrity test before delivery.
 
-## 14. Installer and rollback law
+## 14. Package apply and rollback law
 
 - Preflight must verify the exact approved base commit, branch, tracked worktree, staged state, executable version, rollback snapshot, and required tools.
 - Expected generated runtime directories may remain untracked and must be preserved.
 - Unexpected tracked or untracked changes are a stop condition; do not erase them.
 - Verify the package manifest before applying files.
 - Build in a temporary directory and replace the active executable only after validation succeeds.
-- If installation fails after application begins, restore the exact prior tracked state and active executable while preserving user data and expected runtimes.
-- Never report rollback or installation as passed unless the proof actually passed.
+- If package application or executable replacement fails after application begins, restore the exact prior tracked state and active executable while preserving user data and expected runtimes.
+- Never report rollback or package application as passed unless the proof actually passed.
 
 ## 15. Terminal-command communication law
 
 When the owner must run a command:
 
-- every Nougat Media Suite **install, repair, build, validation, package-apply, or acceptance-preflight** terminal block must begin with a safe runtime-shutdown stage before build or filesystem work begins;
+- every Nougat Media Suite **repair, build, validation, package-apply, or acceptance-preflight** terminal block must begin with a safe runtime-shutdown stage before build or filesystem work begins;
 - that shutdown stage must stop any running Nougat Media Suite application process and the **verified Nougat-owned integrated Jellyfin** process, then verify both are down before continuing;
 - never kill Jellyfin blindly by process name. Use Nougat ownership/runtime evidence (including the recorded ownership file/runtime path where available). If Jellyfin ownership is ambiguous, print a clear STOP/FAIL message with the relevant PID/process information and leave the unknown process running for owner review;
 - if the owner explicitly instructs that an independently started Jellyfin instance should also be stopped, that broader shutdown is allowed for that operation;
 - terminal command blocks must contain commands only: never include the shell prompt (for example `user@host:~$`) or copied/expected terminal output as executable lines;
-- first state exactly what the command does and whether it is snapshot, Git, GitHub, install, validation, or another operation;
+- first state exactly what the command does and whether it is snapshot, Git, GitHub, package-apply, validation, or another operation;
 - provide one complete copy-and-paste command block for that operation;
 - ensure all quoting and multiline messages terminate correctly;
 - do not leave the shell at a continuation prompt;
@@ -210,7 +212,7 @@ A Nougat Media Suite candidate is ready for owner testing only when:
 - Movie/TV separation is proven;
 - TMDb credential lifecycle and poster paths are proven;
 - the final raw executable has the approved Nougat Media Suite icon metadata assignment read back;
-- the owner receives one clearly explained install command and the explicit remaining visual checks.
+- the owner receives the final runnable versioned root executable with the exact approved Nougat N icon verified, plus one clearly explained package-apply command only when filesystem changes beyond replacing the executable are required, and the explicit remaining visual checks.
 
 Only the owner decides whether the candidate is accepted.
 

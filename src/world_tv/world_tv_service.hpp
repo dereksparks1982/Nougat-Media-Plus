@@ -22,6 +22,7 @@ struct WorldTvResolveResult {
     std::string url;
     std::string referrer;
     std::string user_agent;
+    std::string error_class;
     std::string error;
 };
 

@@ -1,12 +1,14 @@
 #include "hdhomerun_provider.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
 #include <set>
 #include <sstream>
+#include <thread>
 #include <sys/wait.h>
 
 namespace reddmedia {
@@ -193,7 +195,7 @@ std::vector<std::string> json_objects(const std::string& document) {
     return objects;
 }
 
-int physical_channel_from_scan(const std::string& line) {
+[[maybe_unused]] int physical_channel_from_scan(const std::string& line) {
     const std::size_t colon = line.rfind(':');
     const std::size_t close = line.rfind(')');
     if (colon == std::string::npos || close == std::string::npos || colon >= close) return 0;
@@ -202,7 +204,7 @@ int physical_channel_from_scan(const std::string& line) {
     return std::atoi(candidate.c_str());
 }
 
-unsigned frequency_from_scan(const std::string& line) {
+[[maybe_unused]] unsigned frequency_from_scan(const std::string& line) {
     const std::size_t marker = line.find(':');
     if (marker == std::string::npos) return 0;
     std::size_t pos = marker + 1U;
@@ -218,8 +220,9 @@ unsigned frequency_from_scan(const std::string& line) {
 }
 
 bool parse_program_line(const std::string& line, int& program, std::string& guide, std::string& name) {
-    if (line.rfind("PROGRAM ", 0U) != 0U) return false;
-    std::size_t pos = 8U;
+    std::size_t pos = 0U;
+    if (line.rfind("PROGRAM ", 0U) == 0U) pos = 8U;
+    else if (line.empty() || !std::isdigit(static_cast<unsigned char>(line[0]))) return false;
     program = 0;
     bool any = false;
     while (pos < line.size() && std::isdigit(static_cast<unsigned char>(line[pos]))) {
@@ -246,6 +249,18 @@ std::string device_label(const HdHomeRunDevice& device) {
     std::string label = device.model.empty() ? "HDHomeRun" : device.model;
     label += " " + device.device_id;
     return label;
+}
+
+unsigned atsc_physical_frequency_hz(int physical_channel) {
+    if (physical_channel >= 2 && physical_channel <= 4)
+        return 57000000U + static_cast<unsigned>(physical_channel - 2) * 6000000U;
+    if (physical_channel >= 5 && physical_channel <= 6)
+        return 79000000U + static_cast<unsigned>(physical_channel - 5) * 6000000U;
+    if (physical_channel >= 7 && physical_channel <= 13)
+        return 177000000U + static_cast<unsigned>(physical_channel - 7) * 6000000U;
+    if (physical_channel >= 14 && physical_channel <= 51)
+        return 473000000U + static_cast<unsigned>(physical_channel - 14) * 6000000U;
+    return 0U;
 }
 
 } // namespace
@@ -433,83 +448,127 @@ bool HdHomeRunProvider::scan_channels(const TunerDevice& tuner,
         return false;
     }
 
-    const std::string command = shell_quote(config_program()) + " " + shell_quote(device_id) +
-        " scan /tuner" + std::to_string(tuner_index) + " 2>&1";
-    FILE* pipe = popen(command.c_str(), "r");
-    if (!pipe) { status = "Could not start HDHomeRun channel scan."; return false; }
-
     std::map<std::string, LiveTvChannel> found;
-    int physical = 0;
-    unsigned frequency = 0;
-    int signal = -1;
-    int quality = -1;
-    bool locked = false;
-    int completed = 0;
     bool cancelled = false;
-    char buffer[4096];
-    while (std::fgets(buffer, sizeof(buffer), pipe)) {
-        const std::string line = trim_copy(buffer);
-        if (line.rfind("SCANNING:", 0U) == 0U) {
-            frequency = frequency_from_scan(line);
-            physical = physical_channel_from_scan(line);
-            signal = -1;
-            quality = -1;
-            locked = false;
-            ++completed;
-        } else if (line.rfind("LOCK:", 0U) == 0U) {
-            locked = line.find("none") == std::string::npos;
-            signal = integer_field(line, "ss=");
-            quality = integer_field(line, "snq=");
-        } else {
-            int program = 0;
-            std::string guide;
-            std::string name;
-            if (parse_program_line(line, program, guide, name)) {
-                LiveTvChannel channel;
-                channel.id = guide;
-                channel.name = name;
-                channel.service = "HDHomeRun " + device_id + " | program " + std::to_string(program);
-                if (physical > 0) channel.service += " | RF " + std::to_string(physical);
-                channel.frequency = frequency > 0 ? std::to_string(frequency) : std::string();
-                channel.program_number = program;
-                channel.physical_channel = physical;
-                channel.source_id = 0;
-                found[channel.id] = std::move(channel);
+    bool failed = false;
+    std::string failure;
+    int rf_attempted = 0;
+    int rf_locked = 0;
+    int raw_service_rows = 0;
+    int parsed_services = 0;
+    int rejected_service_rows = 0;
+    constexpr int kFirstPhysical = 2;
+    constexpr int kLastPhysical = 51;
+    constexpr int kTotal = kLastPhysical - kFirstPhysical + 1;
+
+    for (int physical = kFirstPhysical; physical <= kLastPhysical; ++physical) {
+        ++rf_attempted;
+        const unsigned frequency = atsc_physical_frequency_hz(physical);
+        if (frequency == 0U) {
+            failed = true;
+            failure = "ATSC frequency plan rejected RF " + std::to_string(physical) + ".";
+            break;
+        }
+
+        const std::string tuner_path = "/tuner" + std::to_string(tuner_index);
+        const CommandResult tune = config_command(
+            shell_quote(device_id) + " set " + tuner_path + "/channel auto:" + std::to_string(frequency));
+        if (tune.code != 0) {
+            failed = true;
+            failure = tune.output.empty()
+                ? "HDHomeRun tune command failed on RF " + std::to_string(physical) + "."
+                : tune.output;
+            break;
+        }
+
+        bool locked = false;
+        int signal = -1;
+        int quality = -1;
+        std::string lock_name = "none";
+        for (int attempt = 0; attempt < 6; ++attempt) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(attempt == 0 ? 120 : 140));
+            const CommandResult runtime = config_command(
+                shell_quote(device_id) + " get " + tuner_path + "/status");
+            if (runtime.code != 0) continue;
+            lock_name = token_field(runtime.output, "lock=");
+            signal = integer_field(runtime.output, "ss=");
+            quality = integer_field(runtime.output, "snq=");
+            locked = !lock_name.empty() && lock_name != "none";
+            if (locked) break;
+        }
+
+        if (locked) {
+            ++rf_locked;
+            const CommandResult info = config_command(
+                shell_quote(device_id) + " get " + tuner_path + "/streaminfo");
+            if (info.code == 0) {
+                std::istringstream rows(info.output);
+                std::string row;
+                while (std::getline(rows, row)) {
+                    row = trim_copy(row);
+                    if (row.empty()) continue;
+                    ++raw_service_rows;
+                    int program = 0;
+                    std::string guide;
+                    std::string name;
+                    if (!parse_program_line(row, program, guide, name)) { ++rejected_service_rows; continue; }
+                    ++parsed_services;
+                    LiveTvChannel channel;
+                    channel.id = guide;
+                    channel.name = name;
+                    channel.service = "HDHomeRun " + device_id + " | program " +
+                                      std::to_string(program) + " | RF " + std::to_string(physical);
+                    channel.frequency = std::to_string(frequency);
+                    channel.program_number = program;
+                    channel.physical_channel = physical;
+                    channel.source_id = 0;
+                    found[channel.id] = std::move(channel);
+                }
             }
         }
 
-        if (callback && (line.rfind("SCANNING:", 0U) == 0U || line.rfind("LOCK:", 0U) == 0U || line.rfind("PROGRAM ", 0U) == 0U)) {
+        if (callback) {
             ChannelScanProgress progress;
             progress.physical_channel = physical;
             progress.frequency_hz = frequency;
-            progress.completed = completed;
-            progress.total = 35;
+            progress.completed = ((physical - kFirstPhysical + 1) * 65) / kTotal;
+            progress.total = 100;
             progress.locked = locked;
             progress.signal_percent = signal;
             progress.quality_percent = quality;
             progress.channels_found = static_cast<int>(found.size());
             progress.message = "HDHomeRun tuner " + std::to_string(tuner_index) +
-                               " scanning RF " + (physical > 0 ? std::to_string(physical) : std::string("...")) +
-                               ": " + std::to_string(found.size()) + " channel(s) found.";
-            if (!callback(progress)) { cancelled = true; break; }
+                               " scanning RF " + std::to_string(physical) +
+                               " @ " + std::to_string(frequency) + " Hz | " +
+                               (locked ? ("lock " + lock_name) : "no lock") + " | " +
+                               std::to_string(found.size()) + " program(s) found.";
+            if (!callback(progress)) {
+                cancelled = true;
+                break;
+            }
         }
     }
-    const int raw = pclose(pipe);
-    int code = raw;
-    if (raw >= 0 && WIFEXITED(raw)) code = WEXITSTATUS(raw);
-    const CommandResult clear_result = config_command(shell_quote(device_id) + " set /tuner" +
-        std::to_string(tuner_index) + "/channel none");
+
     if (cancelled) {
-        status = "HDHomeRun channel scan cancelled.";
+        config_command(shell_quote(device_id) + " set /tuner" + std::to_string(tuner_index) + "/channel none");
+        status = "HDHomeRun channel scan cancelled during RF traversal. State returned to Idle.";
+        return false;
+    }
+    if (failed) {
+        config_command(shell_quote(device_id) + " set /tuner" + std::to_string(tuner_index) + "/channel none");
+        status = "HDHomeRun channel scan failed during RF traversal: " + failure + " State returned to Idle.";
         return false;
     }
 
-    const bool rf_traversal_complete = completed >= 35;
-    if (code != 0 && !rf_traversal_complete) {
-        status = "HDHomeRun RF scan stopped before full traversal on tuner " +
-                 std::to_string(tuner_index) + " (" + std::to_string(completed) +
-                 "/35 RF steps, helper exit " + std::to_string(code) + ").";
-        return false;
+    if (callback) {
+        ChannelScanProgress phase;
+        phase.completed = 72; phase.total = 100; phase.channels_found = static_cast<int>(found.size());
+        phase.message = "HDHomeRun phase 2/6: service/program parsing complete.";
+        if (!callback(phase)) {
+            status = "HDHomeRun channel scan cancelled during service/program parsing. State returned to Idle.";
+            config_command(shell_quote(device_id) + " set /tuner" + std::to_string(tuner_index) + "/channel none");
+            return false;
+        }
     }
 
     for (auto& item : found) channels.push_back(std::move(item.second));
@@ -522,11 +581,31 @@ bool HdHomeRunProvider::scan_channels(const TunerDevice& tuner,
         };
         return numeric(a.id)<numeric(b.id);
     });
-    status = "HDHomeRun RF scan complete: " + std::to_string(channels.size()) + " channel(s) found.";
-    if (code != 0)
-        status += " Full RF traversal completed; helper exit " + std::to_string(code) + " retained as diagnostic evidence.";
+
+    if (callback) {
+        ChannelScanProgress phase;
+        phase.completed = 82; phase.total = 100; phase.channels_found = static_cast<int>(channels.size());
+        phase.message = "HDHomeRun phase 4/6: service/channel resolution complete; handing channels to Nougat import.";
+        if (!callback(phase)) {
+            config_command(shell_quote(device_id) + " set /tuner" + std::to_string(tuner_index) + "/channel none");
+            status = "HDHomeRun channel scan cancelled before channel import. State returned to Idle.";
+            return false;
+        }
+    }
+
+    const CommandResult clear_result = config_command(
+        shell_quote(device_id) + " set /tuner" + std::to_string(tuner_index) + "/channel none");
+
+    status = "HDHomeRun phases 1-4 complete: RF attempted " + std::to_string(rf_attempted) +
+             ", multiplexes locked " + std::to_string(rf_locked) +
+             ", raw service rows " + std::to_string(raw_service_rows) +
+             ", parsed services " + std::to_string(parsed_services) +
+             ", rejected rows " + std::to_string(rejected_service_rows) +
+             ", unique channels ready for import " + std::to_string(channels.size()) +
+             ". Phase 6 tuner finalization complete. Guide update runs where provider data is available.";
     if (clear_result.code != 0)
-        status += " Tuner release needs attention: " + (clear_result.output.empty()?std::string("release command failed"):clear_result.output) + ".";
+        status += " Tuner release needs attention: " +
+                  (clear_result.output.empty() ? std::string("release command failed") : clear_result.output) + ".";
     else
         status += " Tuner released.";
     return true;

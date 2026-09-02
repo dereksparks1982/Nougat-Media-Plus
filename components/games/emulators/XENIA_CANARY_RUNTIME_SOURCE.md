@@ -1,41 +1,21 @@
-# Xenia Canary runtime source for Nougat Media Suite v0.0.48
+# Xenia Canary Runtime Source - Nougat Media Suite v0.0.53
 
-Nougat v0.0.48 adds an Xbox 360 backend intended for Xenia Canary.
+Nougat backend: Xbox 360 -> Xenia
 
-Upstream:
-https://github.com/xenia-canary/xenia-canary
+Pinned upstream project:
+- Project: xenia-canary/xenia-canary
+- Release/tag: 0d0fadb
+- Asset: xenia_canary_linux.AppImage
+- SHA-256: 615bf2391fd0ca014c9504220c132210f67b3f9ab311d0733297d2e0cf4fe89c
+- License: upstream BSD license, reproduced at
+  `components/games/runtime/xenia/LICENSE-XENIA.txt`
 
-Current Xenia Canary documentation lists Linux with Proton as a supported minimum-OS path, while
-native Linux work remains experimental. Nougat therefore accepts either:
+GTA IV:
+- Title: Grand Theft Auto IV
+- Xbox 360 Title ID: 545407F2
+- Nougat runtime forces Xenia's Vulkan backend for this title/runtime path.
+- Nougat keeps Xenia windowed so the existing v53 X11 EmulatorHost can
+  reparent the Xenia window into the Games viewport.
 
-1. `NOUGAT_XENIA` pointing to a native/experimental Xenia executable
-2. `components/games/runtime/xenia/xenia_canary`
-3. `components/games/runtime/xenia/xenia`
-4. Xenia on PATH
-5. `xenia_canary.exe` / `xenia.exe` in `components/games/runtime/xenia/`, launched through
-   `NOUGAT_XENIA_RUNNER`, `umu-run`, `wine64`, or `wine`
-
-For custom Proton setups, set `NOUGAT_XENIA_RUNNER` to an executable wrapper that accepts
-`<xenia.exe> <game-path>`.
-
-Nougat recognizes Xbox 360 `.iso` images and extracted `default.xex` titles. A `default.xex` title
-uses its containing directory name in the Games library. Large Xbox 360 images are deliberately not
-extracted from ZIP archives.
-
-The first owner acceptance title is Grand Theft Auto IV. Emulator compatibility and frame rate are
-Xenia/hardware dependent, so per-title owner testing should separately verify library detection, launch,
-embedding, input, stop, resize/fullscreen behavior, and actual game compatibility.
-
-This changed-files package does not redistribute Xenia. Consult the upstream license before
-redistributing a runtime binary.
-
-## v0.0.48 pinned Linux runtime
-
-The v0.0.48 build installer pins the official Linux AppImage from Xenia Canary release `1e834f8`,
-published 2026-08-24.
-
-SHA-256:
-`91df919a912bd305a214c535e0ab8abee43c18eb1bab1ef5e35991d16738b05e`
-
-Nougat sets `APPIMAGE_EXTRACT_AND_RUN=1` for Xbox 360 sessions so the AppImage does not depend on a
-system FUSE mount path.
+No game, ROM, ISO, XEX, BIOS, firmware, keys, console system files, or title
+updates are distributed by this package.
