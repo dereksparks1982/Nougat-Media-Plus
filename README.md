@@ -18,6 +18,18 @@ Studio and media tools provide built-in utilities including File Splitter and ex
 
 The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.
 
+## v0.0.53 - System Expansion and Xbox 360 Integration Checkpoint
+
+Nougat Media Suite v0.0.53 is the current development checkpoint built on the accepted v0.0.52 base. It is not yet an accepted release and is not release-tagged; owner testing remains the acceptance gate.
+
+- Aligns World TV with the Live TV Guide geometry while preserving World TV's own orange presentation and adds clearer dependency, resolver, provider, stream, and startup-timeout failure reporting.
+- Reworks HDHomeRun ATSC scanning around physical RF channels 2 through 51 with explicit lock/service evidence, phased scan progress, truthful guide availability, and improved import diagnostics.
+- Expands Games emulator discovery and launch mappings for Dolphin, DuckStation, PCSX2, PPSSPP, RPCS3, Cemu, MAME, installed Linux Switch backends, and the existing Nougat emulator set, while expanding persistent artwork matching and release-name normalization.
+- Adds LAN Viewer v1 backend contracts for private-LAN discovery, read-only catalog access, trust state, and Verified Clean direct streaming without WAN relay or automatic port forwarding.
+- Adds Child Safe Controls configuration/password protection, runtime component advisory/CVE inventory using OSV as the configured public advisory source, and NOAA/NWS public-safety alert support with protected local history.
+- Repairs Linux process identity, preserves the approved translucent/rounded overlay path, and updates v0.0.53 launcher/executable icon identity from the approved Nougat N artwork.
+- Advances Xbox 360 integration to the native Linux Xenia Edge runtime. At this checkpoint GTA IV launches through Nougat and game audio is heard through the player, but the embedded game picture is still black. Xbox 360 embedded video presentation remains active v0.0.53 work and this checkpoint must not be treated as accepted until owner testing passes.
+
 ## v0.0.52 - Radio Receiver Expansion and Hardware Foundation
 
 Nougat Media Suite v0.0.52 expands the Radio receiver and hardware foundation, including the new Radio backend, hardware capability handling, receiver controls, component sources, provider-neutral tuner work, SDR foundations, receiver discovery, multi-device support, scanning, favorites, recordings, signal monitoring, and experimental Hauppauge WinTV-HVR-955Q / Silicon Labs Si2157 FM support work. Known Radio and UI issues remain carried forward for repair.
@@ -517,7 +529,7 @@ The v0.0.10 stabilization pass keeps the same feature version while repairing de
 - Seek/time and volume partial updates are buffered offscreen before being copied to the X11 window, preventing the direct erase/redraw path that caused visible flashing.
 - A new P2P HTTP range request supersedes obsolete stream workers so an old seek cannot continue fighting a newer seek for P2P transfer pieces.
 - Old time-critical P2P transfer piece deadlines are cleared when VLC starts a new stream range request.
-- HTTP suffix byte ranges such as `Range: bytes=-5000000` are supported for VLC/container probing.
+- HTTP suffix byte ranges such as `Range: bytes=-5000000` are supported for VLC/container probing/seeking.
 - Stream sockets have bounded send/receive waits so abandoned seek connections cannot hang indefinitely.
 - The installer reapplies and verifies the ReddMedia red-triangle custom icon on the versioned executable.
 
