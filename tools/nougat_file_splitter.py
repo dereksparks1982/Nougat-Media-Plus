@@ -8,16 +8,24 @@ import math
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import signal
 import stat
-import subprocess
 import tempfile
 import zipfile
 
-FORMAT = "nougat-split-zip-v2"
+FORMAT = "nougat-split-zip-v3"
+LEGACY_FORMATS = {"nougat-split-zip-v2"}
 BLOCK = 4 * 1024 * 1024
+DEFAULT_TARGET_PIECE_BYTES = 1024 * 1024 * 1024
+
 
 class SplitterError(RuntimeError):
     pass
+
+
+class SplitterCancelled(SplitterError):
+    pass
+
 
 class PieceCountTooSmall(SplitterError):
     def __init__(self, requested: int, minimum: int, max_bytes: int):
@@ -27,11 +35,75 @@ class PieceCountTooSmall(SplitterError):
         super().__init__(f"{requested} pieces are too large; minimum recommended count is {minimum}.")
 
 
-def sha256_file(path: Path) -> str:
+_cancel_requested = False
+
+
+def _on_signal(signum, _frame):
+    del signum
+    global _cancel_requested
+    _cancel_requested = True
+
+
+def install_signal_handlers() -> None:
+    signal.signal(signal.SIGTERM, _on_signal)
+    signal.signal(signal.SIGINT, _on_signal)
+
+
+def check_cancelled() -> None:
+    if _cancel_requested:
+        raise SplitterCancelled("Operation cancelled.")
+
+
+class ProgressReporter:
+    def __init__(self, start: int = 0, end: int = 100):
+        self.start = max(0, min(100, start))
+        self.end = max(self.start, min(100, end))
+        self.last = -1
+
+    def update(self, done: int, total: int) -> None:
+        check_cancelled()
+        if total <= 0:
+            pct = self.end
+        else:
+            fraction = max(0.0, min(1.0, float(done) / float(total)))
+            pct = self.start + int(round((self.end - self.start) * fraction))
+        if pct != self.last:
+            self.last = pct
+            print(f"PROGRESS {pct}", flush=True)
+
+    def complete(self) -> None:
+        if self.last != self.end:
+            self.last = self.end
+            print(f"PROGRESS {self.end}", flush=True)
+
+
+def status(message: str) -> None:
+    print(f"STATUS {message}", flush=True)
+
+
+def human_size(value: int) -> str:
+    amount = float(max(0, value))
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB", "PiB"):
+        if amount < 1024.0 or unit == "PiB":
+            return f"{amount:.2f} {unit}"
+        amount /= 1024.0
+    return str(value)
+
+
+def sha256_file(path: Path, reporter: ProgressReporter | None = None,
+                done_base: int = 0, total_all: int = 0) -> str:
     h = hashlib.sha256()
+    local = 0
     with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(BLOCK), b""):
+        while True:
+            check_cancelled()
+            block = handle.read(BLOCK)
+            if not block:
+                break
             h.update(block)
+            local += len(block)
+            if reporter is not None:
+                reporter.update(done_base + local, total_all)
     return h.hexdigest()
 
 
@@ -41,7 +113,80 @@ def clean_name(value: str) -> str:
         value = value[:-4].rstrip()
     if not value:
         raise SplitterError("Output name cannot be empty.")
+    if value in {".", ".."}:
+        raise SplitterError("Output name is invalid.")
     return value
+
+
+def source_default_name(source: Path) -> str:
+    name = source.name
+    if source.is_file() and source.suffix.lower() == ".zip":
+        name = source.stem
+    elif source.is_file() and source.suffix:
+        name = source.stem
+    return clean_name(name or "Nougat Split")
+
+
+def source_mode(source: Path) -> str:
+    if source.is_dir():
+        return "folder"
+    if source.is_file() and source.suffix.lower() == ".zip":
+        return "existing_zip"
+    if source.is_file():
+        return "file"
+    raise SplitterError(f"Source does not exist: {source}")
+
+
+def source_size(source: Path) -> int:
+    source = source.expanduser().resolve()
+    mode = source_mode(source)
+    if mode != "folder":
+        return source.stat().st_size
+    total = 0
+    status("Analyzing folder size...")
+    for path in source.rglob("*"):
+        check_cancelled()
+        try:
+            if path.is_file() and not path.is_symlink():
+                total += path.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def recommend_piece_count(size: int, target_piece_bytes: int = DEFAULT_TARGET_PIECE_BYTES) -> int:
+    if size <= 0:
+        return 1
+    target = max(64 * 1024 * 1024, target_piece_bytes)
+    return max(2, math.ceil(size / target))
+
+
+def analyze(source: Path, target_piece_bytes: int = DEFAULT_TARGET_PIECE_BYTES) -> dict:
+    source = source.expanduser().resolve()
+    mode = source_mode(source)
+    size = source_size(source)
+    # For files/folders that Nougat packages into ZIP first, source bytes are a
+    # conservative estimate. Compression may make the final parts smaller.
+    estimated = size
+    pieces = recommend_piece_count(estimated, target_piece_bytes)
+    approx = math.ceil(estimated / pieces) if pieces else 0
+    result = {
+        "mode": mode,
+        "source_bytes": size,
+        "estimated_payload_bytes": estimated,
+        "recommended_pieces": pieces,
+        "approx_piece_bytes": approx,
+        "default_name": source_default_name(source),
+        "target_piece_bytes": target_piece_bytes,
+    }
+    print(f"SOURCE_MODE {mode}", flush=True)
+    print(f"SOURCE_BYTES {size}", flush=True)
+    print(f"ESTIMATED_PAYLOAD_BYTES {estimated}", flush=True)
+    print(f"SUGGESTED_PIECES {pieces}", flush=True)
+    print(f"APPROX_PIECE_BYTES {approx}", flush=True)
+    print(f"DEFAULT_NAME {result['default_name']}", flush=True)
+    status(f"Suggested {pieces} piece{'s' if pieces != 1 else ''}, about {human_size(approx)} each.")
+    return result
 
 
 def zipinfo_for(path: Path, arcname: str) -> zipfile.ZipInfo:
@@ -51,14 +196,35 @@ def zipinfo_for(path: Path, arcname: str) -> zipfile.ZipInfo:
     return info
 
 
-def package_folder(source: Path, output_zip: Path) -> None:
+def _write_file_to_zip(zf: zipfile.ZipFile, path: Path, arcname: str,
+                       reporter: ProgressReporter, progress_state: list[int],
+                       total_bytes: int) -> None:
+    info = zipinfo_for(path, arcname)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    with path.open("rb") as src, zf.open(info, "w", force_zip64=True) as out:
+        while True:
+            check_cancelled()
+            block = src.read(BLOCK)
+            if not block:
+                break
+            out.write(block)
+            progress_state[0] += len(block)
+            reporter.update(progress_state[0], total_bytes)
+
+
+def package_folder(source: Path, output_zip: Path, reporter: ProgressReporter | None = None,
+                   known_size: int | None = None) -> None:
     source = source.resolve()
+    total = source_size(source) if known_size is None else known_size
+    reporter = reporter or ProgressReporter(0, 100)
+    done = [0]
     root_name = source.name
     with zipfile.ZipFile(output_zip, "w", compression=zipfile.ZIP_DEFLATED,
                          allowZip64=True, compresslevel=6) as zf:
         root_info = zipinfo_for(source, root_name + "/")
         zf.writestr(root_info, b"")
         for path in sorted(source.rglob("*"), key=lambda p: p.as_posix().lower()):
+            check_cancelled()
             relative = path.relative_to(source).as_posix()
             arc = f"{root_name}/{relative}"
             if path.is_symlink():
@@ -68,31 +234,39 @@ def package_folder(source: Path, output_zip: Path) -> None:
             elif path.is_dir():
                 zf.writestr(zipinfo_for(path, arc.rstrip("/") + "/"), b"")
             elif path.is_file():
-                zf.write(path, arc)
+                _write_file_to_zip(zf, path, arc, reporter, done, total)
+    reporter.complete()
 
 
-def package_file(source: Path, output_zip: Path) -> None:
+def package_file(source: Path, output_zip: Path, reporter: ProgressReporter | None = None) -> None:
+    total = source.stat().st_size
+    reporter = reporter or ProgressReporter(0, 100)
+    done = [0]
     with zipfile.ZipFile(output_zip, "w", compression=zipfile.ZIP_DEFLATED,
                          allowZip64=True, compresslevel=6) as zf:
-        zf.write(source.resolve(), source.name)
+        _write_file_to_zip(zf, source.resolve(), source.name, reporter, done, total)
+    reporter.complete()
 
 
-def create_payload(source: Path, temp_dir: Path, base: str):
+def create_payload(source: Path, temp_dir: Path, base: str,
+                   reporter: ProgressReporter | None = None):
     source = source.expanduser().resolve()
-    if source.is_dir():
+    mode = source_mode(source)
+    if mode == "folder":
         payload = temp_dir / f"{base}.zip"
-        print("STATUS Creating ZIP from selected folder...", flush=True)
-        package_folder(source, payload)
-        return payload, "folder", source.name
-    if not source.is_file():
-        raise SplitterError(f"Source does not exist: {source}")
-    if source.suffix.lower() == ".zip":
-        print("STATUS Using existing ZIP directly...", flush=True)
-        return source, "existing_zip", source.name
+        status("Packaging folder into a streaming ZIP payload...")
+        size = source_size(source)
+        package_folder(source, payload, reporter, size)
+        return payload, mode, source.name
+    if mode == "existing_zip":
+        status("Using existing ZIP directly...")
+        if reporter is not None:
+            reporter.complete()
+        return source, mode, source.name
     payload = temp_dir / f"{base}.zip"
-    print("STATUS Creating ZIP from selected file...", flush=True)
-    package_file(source, payload)
-    return payload, "file", source.name
+    status("Packaging file into a streaming ZIP payload...")
+    package_file(source, payload, reporter)
+    return payload, mode, source.name
 
 
 def minimum_count(size: int, max_piece_bytes: int) -> int:
@@ -101,132 +275,186 @@ def minimum_count(size: int, max_piece_bytes: int) -> int:
     return max(1, math.ceil(size / max_piece_bytes))
 
 
-def split(source: Path, output_dir: Path, output_name: str, pieces: int,
-          max_piece_bytes: int = 0) -> Path:
-    if pieces < 1:
-        raise SplitterError("Piece count must be at least 1.")
-    output_dir = output_dir.expanduser().resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    base = clean_name(output_name)
-
-    with tempfile.TemporaryDirectory(prefix="nougat-split-v51-") as temp_name:
-        payload, mode, source_name = create_payload(source, Path(temp_name), base)
-        size = payload.stat().st_size
-        minimum = minimum_count(size, max_piece_bytes)
-        if pieces < minimum:
-            raise PieceCountTooSmall(pieces, minimum, max_piece_bytes)
-
-        width = max(3, len(str(pieces)))
-        part_paths = [output_dir / f"{base}.zip.{index:0{width}d}"
-                      for index in range(1, pieces + 1)]
-        manifest = output_dir / f"{base}.zip.parts.json"
-        for path in [manifest, *part_paths]:
-            if path.exists():
-                raise SplitterError(f"Refusing to overwrite existing output: {path}")
-
-        overall = hashlib.sha256()
-        records = []
-        remaining = size
-        with payload.open("rb") as src:
-            for index, final in enumerate(part_paths, start=1):
-                remaining_parts = pieces - index + 1
-                target = 0 if remaining <= 0 else math.ceil(remaining / remaining_parts)
-                tmp = final.with_suffix(final.suffix + ".tmp")
-                part_hash = hashlib.sha256()
-                written = 0
-                with tmp.open("xb") as out:
-                    left = target
-                    while left > 0:
-                        block = src.read(min(BLOCK, left))
-                        if not block:
-                            break
-                        out.write(block)
-                        overall.update(block)
-                        part_hash.update(block)
-                        written += len(block)
-                        left -= len(block)
-                    out.flush()
-                    os.fsync(out.fileno())
-                os.replace(tmp, final)
-                remaining -= written
-                records.append({
-                    "index": index,
-                    "name": final.name,
-                    "size": written,
-                    "sha256": part_hash.hexdigest(),
-                })
-                done = size - remaining
-                percent = 100 if size == 0 else min(100, int(done * 100 / size))
-                print(f"PROGRESS {percent}", flush=True)
-
-        record = {
-            "format": FORMAT,
-            "mode": mode,
-            "source_name": source_name,
-            "output_base": base,
-            "payload_name": f"{base}.zip",
-            "payload_size": size,
-            "payload_sha256": overall.hexdigest(),
-            "piece_count": pieces,
-            "approx_piece_size": math.ceil(size / pieces) if pieces else 0,
-            "max_piece_bytes": max_piece_bytes,
-            "parts": records,
-        }
-        manifest.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        print(f"MANIFEST {manifest}", flush=True)
-        return manifest
-
-
 def load_manifest(manifest: Path) -> dict:
     data = json.loads(manifest.read_text(encoding="utf-8"))
-    if data.get("format") != FORMAT:
+    fmt = data.get("format")
+    if fmt != FORMAT and fmt not in LEGACY_FORMATS:
         raise SplitterError("Unsupported Nougat split-ZIP manifest.")
     if not isinstance(data.get("parts"), list):
         raise SplitterError("Manifest is missing its part list.")
     return data
 
 
-def verify(manifest: Path) -> dict:
+def verify(manifest: Path, reporter: ProgressReporter | None = None,
+           quiet_final: bool = False) -> dict:
     manifest = manifest.expanduser().resolve()
     data = load_manifest(manifest)
+    total_expected = sum(max(0, int(part.get("size", 0))) for part in data["parts"])
     total = 0
+    reporter = reporter or ProgressReporter(0, 100)
     for expected, part in enumerate(data["parts"], start=1):
+        check_cancelled()
         name = str(part.get("name", ""))
         if Path(name).name != name or int(part.get("index", -1)) != expected:
             raise SplitterError("Manifest contains an invalid part entry.")
         path = manifest.parent / name
         if not path.is_file():
             raise SplitterError(f"Missing part: {path}")
-        if path.stat().st_size != int(part.get("size", -1)):
+        expected_size = int(part.get("size", -1))
+        if path.stat().st_size != expected_size:
             raise SplitterError(f"Part size mismatch: {path.name}")
-        if sha256_file(path) != str(part.get("sha256", "")):
+        actual_hash = sha256_file(path, reporter, total, total_expected)
+        if actual_hash != str(part.get("sha256", "")):
             raise SplitterError(f"Part SHA-256 mismatch: {path.name}")
-        total += path.stat().st_size
+        total += expected_size
+        reporter.update(total, total_expected)
     if total != int(data.get("payload_size", -1)):
         raise SplitterError("Combined part size does not match ZIP payload size.")
-    print("VERIFY PASS", flush=True)
+    reporter.complete()
+    if not quiet_final:
+        print("VERIFY PASS", flush=True)
     return data
 
 
-def join_zip(manifest: Path, output_zip: Path) -> dict:
-    data = verify(manifest)
+def split(source: Path, output_dir: Path, output_name: str, pieces: int,
+          max_piece_bytes: int = 0) -> Path:
+    if pieces < 1:
+        raise SplitterError("Piece count must be at least 1.")
+    source = source.expanduser().resolve()
+    output_dir = output_dir.expanduser().resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    base = clean_name(output_name)
+    created: list[Path] = []
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="nougat-split-v54-") as temp_name:
+            payload, mode, source_name = create_payload(
+                source, Path(temp_name), base, ProgressReporter(0, 30))
+            check_cancelled()
+            size = payload.stat().st_size
+            minimum = minimum_count(size, max_piece_bytes)
+            if pieces < minimum:
+                raise PieceCountTooSmall(pieces, minimum, max_piece_bytes)
+
+            width = max(3, len(str(pieces)))
+            part_paths = [output_dir / f"{base}.zip.{index:0{width}d}"
+                          for index in range(1, pieces + 1)]
+            manifest = output_dir / f"{base}.zip.parts.json"
+            for path in [manifest, *part_paths]:
+                if path.exists():
+                    raise SplitterError(f"Refusing to overwrite existing output: {path}")
+
+            status("Writing balanced split pieces...")
+            split_reporter = ProgressReporter(30, 75)
+            overall = hashlib.sha256()
+            records = []
+            remaining = size
+            done_total = 0
+            with payload.open("rb") as src:
+                for index, final in enumerate(part_paths, start=1):
+                    check_cancelled()
+                    remaining_parts = pieces - index + 1
+                    target = 0 if remaining <= 0 else math.ceil(remaining / remaining_parts)
+                    tmp = final.with_suffix(final.suffix + ".tmp")
+                    part_hash = hashlib.sha256()
+                    written = 0
+                    try:
+                        with tmp.open("xb") as out:
+                            left = target
+                            while left > 0:
+                                check_cancelled()
+                                block = src.read(min(BLOCK, left))
+                                if not block:
+                                    break
+                                out.write(block)
+                                overall.update(block)
+                                part_hash.update(block)
+                                written += len(block)
+                                left -= len(block)
+                                done_total += len(block)
+                                split_reporter.update(done_total, size)
+                            out.flush()
+                            os.fsync(out.fileno())
+                        os.replace(tmp, final)
+                        created.append(final)
+                    except BaseException:
+                        tmp.unlink(missing_ok=True)
+                        raise
+                    remaining -= written
+                    records.append({
+                        "index": index,
+                        "name": final.name,
+                        "size": written,
+                        "sha256": part_hash.hexdigest(),
+                    })
+            split_reporter.complete()
+
+            record = {
+                "format": FORMAT,
+                "mode": mode,
+                "source_name": source_name,
+                "output_base": base,
+                "payload_name": f"{base}.zip",
+                "payload_size": size,
+                "payload_sha256": overall.hexdigest(),
+                "piece_count": pieces,
+                "approx_piece_size": math.ceil(size / pieces) if pieces else 0,
+                "max_piece_bytes": max_piece_bytes,
+                "parts": records,
+            }
+            manifest.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            created.append(manifest)
+            print(f"MANIFEST {manifest}", flush=True)
+
+            status("Verifying every written piece with SHA-256...")
+            verify(manifest, ProgressReporter(75, 100), quiet_final=True)
+            print("VERIFY PASS", flush=True)
+            status(f"Split complete: {pieces} verified pieces in {output_dir}")
+            return manifest
+    except BaseException:
+        # Never leave a half-finished Nougat set that looks complete.
+        for path in reversed(created):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
+
+
+def join_zip(manifest: Path, output_zip: Path,
+             reporter: ProgressReporter | None = None) -> dict:
+    data = load_manifest(manifest)
     if output_zip.exists():
         raise SplitterError(f"Refusing to overwrite: {output_zip}")
+    total = int(data.get("payload_size", 0))
+    reporter = reporter or ProgressReporter(0, 100)
     h = hashlib.sha256()
     tmp = output_zip.with_suffix(output_zip.suffix + ".tmp")
-    with tmp.open("xb") as out:
-        for part in data["parts"]:
-            with (manifest.parent / part["name"]).open("rb") as src:
-                for block in iter(lambda: src.read(BLOCK), b""):
-                    out.write(block)
-                    h.update(block)
-        out.flush()
-        os.fsync(out.fileno())
-    if h.hexdigest() != data["payload_sha256"]:
+    done = 0
+    try:
+        with tmp.open("xb") as out:
+            for part in data["parts"]:
+                check_cancelled()
+                with (manifest.parent / part["name"]).open("rb") as src:
+                    while True:
+                        block = src.read(BLOCK)
+                        if not block:
+                            break
+                        check_cancelled()
+                        out.write(block)
+                        h.update(block)
+                        done += len(block)
+                        reporter.update(done, total)
+            out.flush()
+            os.fsync(out.fileno())
+        if h.hexdigest() != data["payload_sha256"]:
+            raise SplitterError("Reassembled ZIP SHA-256 does not match the manifest.")
+        os.replace(tmp, output_zip)
+        reporter.complete()
+        return data
+    except BaseException:
         tmp.unlink(missing_ok=True)
-        raise SplitterError("Reassembled ZIP SHA-256 does not match the manifest.")
-    os.replace(tmp, output_zip)
-    return data
+        raise
 
 
 def safe_member(name: str) -> PurePosixPath:
@@ -236,9 +464,15 @@ def safe_member(name: str) -> PurePosixPath:
     return p
 
 
-def extract_packaged(zip_path: Path, destination: Path) -> None:
+def extract_packaged(zip_path: Path, destination: Path,
+                     reporter: ProgressReporter | None = None) -> None:
+    reporter = reporter or ProgressReporter(0, 100)
     with zipfile.ZipFile(zip_path, "r") as zf:
-        for info in zf.infolist():
+        infos = zf.infolist()
+        total = sum(max(0, info.file_size) for info in infos if not info.is_dir())
+        done = 0
+        for info in infos:
+            check_cancelled()
             rel = safe_member(info.filename)
             target = destination.joinpath(*rel.parts)
             mode = (info.external_attr >> 16) & 0xFFFF
@@ -254,181 +488,109 @@ def extract_packaged(zip_path: Path, destination: Path) -> None:
                 os.symlink(zf.read(info).decode("utf-8"), target)
             else:
                 with zf.open(info) as src, target.open("xb") as out:
-                    shutil.copyfileobj(src, out, BLOCK)
+                    while True:
+                        block = src.read(BLOCK)
+                        if not block:
+                            break
+                        check_cancelled()
+                        out.write(block)
+                        done += len(block)
+                        reporter.update(done, total)
                 if mode & 0o7777:
                     os.chmod(target, mode & 0o7777)
+        reporter.complete()
 
 
 def reassemble(manifest: Path, output: Path | None = None) -> Path:
     manifest = manifest.expanduser().resolve()
     data = load_manifest(manifest)
+    status("Verifying split pieces before reassembly...")
+    verify(manifest, ProgressReporter(0, 30), quiet_final=True)
+
     if data["mode"] == "existing_zip":
         final = output.expanduser().resolve() if output else manifest.parent / f"{data['output_base']}.reassembled.zip"
         final.parent.mkdir(parents=True, exist_ok=True)
-        join_zip(manifest, final)
+        status("Reassembling ZIP...")
+        join_zip(manifest, final, ProgressReporter(30, 100))
         print(f"REASSEMBLED {final}", flush=True)
+        print("VERIFY PASS", flush=True)
+        status(f"Reassembly complete and verified: {final}")
         return final
 
     destination = output.expanduser().resolve() if output else manifest.parent
     destination.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="nougat-reassemble-v51-") as temp_name:
+    final = destination / data["source_name"]
+    if final.exists() or final.is_symlink():
+        raise SplitterError(f"Refusing to overwrite restored path: {final}")
+
+    with tempfile.TemporaryDirectory(prefix="nougat-reassemble-v54-") as temp_name:
         joined = Path(temp_name) / f"{data['output_base']}.zip"
-        join_zip(manifest, joined)
-        extract_packaged(joined, destination)
-    restored = destination / data["source_name"]
-    if not restored.exists() and not restored.is_symlink():
-        raise SplitterError("Expected original folder/file was not restored.")
-    print(f"REASSEMBLED {restored}", flush=True)
-    return restored
+        status("Reassembling verified ZIP payload...")
+        join_zip(manifest, joined, ProgressReporter(30, 65))
+        extract_parent = Path(temp_name) / "restore"
+        extract_parent.mkdir()
+        status("Restoring original file/folder...")
+        extract_packaged(joined, extract_parent, ProgressReporter(65, 100))
+        restored_tmp = extract_parent / data["source_name"]
+        if not restored_tmp.exists() and not restored_tmp.is_symlink():
+            raise SplitterError("Expected original folder/file was not restored.")
+        shutil.move(str(restored_tmp), str(final))
 
-
-def zenity(args: list[str]) -> subprocess.CompletedProcess:
-    if shutil.which("zenity") is None:
-        raise SplitterError("Zenity is required for the Studio File Splitter interface.")
-    return subprocess.run(["zenity", *args], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-
-def zvalue(args: list[str]) -> str:
-    result = zenity(args)
-    return result.stdout.strip() if result.returncode == 0 else ""
-
-
-def human_size(value: int) -> str:
-    amount = float(value)
-    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
-        if amount < 1024.0 or unit == "TiB":
-            return f"{amount:.2f} {unit}"
-        amount /= 1024.0
-    return str(value)
-
-
-def gui_split() -> int:
-    kind = zvalue(["--list", "--title=Nougat File Splitter", "--text=Choose the original input.",
-                   "--column=Input", "Folder", "File or existing ZIP"])
-    if not kind:
-        return 0
-    if kind == "Folder":
-        source = zvalue(["--file-selection", "--directory", "--title=Choose Folder"])
-    else:
-        source = zvalue(["--file-selection", "--title=Choose File or Existing ZIP"])
-    if not source:
-        return 0
-    source_path = Path(source)
-    output_dir = zvalue(["--file-selection", "--directory", "--title=Choose Output Folder"])
-    if not output_dir:
-        return 0
-    default = source_path.stem if source_path.is_file() else source_path.name
-    name = zvalue(["--entry", "--title=Output Name", "--text=Name for the split ZIP pieces:",
-                   f"--entry-text={default}"])
-    if not name:
-        return 0
-    pieces_text = zvalue(["--entry", "--title=Number of Pieces", "--text=How many pieces do you want?",
-                          "--entry-text=3"])
-    if not pieces_text:
-        return 0
-    try:
-        pieces = int(pieces_text)
-        if pieces < 1:
-            raise ValueError
-    except ValueError as exc:
-        raise SplitterError("Piece count must be a positive whole number.") from exc
-    max_text = zvalue(["--entry", "--title=Maximum Piece Size",
-                       "--text=Optional maximum size per piece in MiB. Enter 0 for no maximum.",
-                       "--entry-text=0"])
-    max_mib = int(max_text or "0")
-    if max_mib < 0:
-        raise SplitterError("Maximum piece size cannot be negative.")
-    max_bytes = max_mib * 1024 * 1024
-
-    base = clean_name(name)
-    with tempfile.TemporaryDirectory(prefix="nougat-preview-v51-") as temp_name:
-        payload, _, _ = create_payload(source_path, Path(temp_name), base)
-        size = payload.stat().st_size
-        minimum = minimum_count(size, max_bytes)
-        if pieces < minimum:
-            answer = zenity(["--question", "--title=Piece Count Suggestion",
-                             "--text", f"{pieces} pieces are too large for the configured maximum.\n"
-                                       f"Minimum recommended count: {minimum}\n\nUse {minimum} pieces?"])
-            if answer.returncode != 0:
-                return 0
-            pieces = minimum
-        approx = math.ceil(size / pieces) if pieces else 0
-        confirm = zenity(["--question", "--title=Ready to Split",
-                          "--text", f"ZIP payload: {human_size(size)}\nPieces: {pieces}\n"
-                                    f"Approximate piece size: {human_size(approx)}\n"
-                                    f"Output: {base}.zip.001 ...\n\nStart splitting?"])
-        if confirm.returncode != 0:
-            return 0
-
-    manifest = split(source_path, Path(output_dir), base, pieces, max_bytes)
-    zenity(["--info", "--title=Nougat File Splitter", "--text", f"Split complete.\n{manifest}"])
-    return 0
-
-
-def gui_reassemble() -> int:
-    manifest = zvalue(["--file-selection", "--title=Choose Nougat Parts Manifest",
-                       "--file-filter=Nougat manifests | *.zip.parts.json"])
-    if not manifest:
-        return 0
-    data = load_manifest(Path(manifest))
-    if data["mode"] == "existing_zip":
-        default = str(Path(manifest).parent / f"{data['output_base']}.reassembled.zip")
-        output = zvalue(["--file-selection", "--save", "--confirm-overwrite", f"--filename={default}",
-                         "--title=Save Reassembled ZIP"])
-    else:
-        output = zvalue(["--file-selection", "--directory", "--title=Choose Reassembly Destination"])
-    if not output:
-        return 0
-    result = reassemble(Path(manifest), Path(output))
-    zenity(["--info", "--title=Nougat File Splitter", "--text", f"Reassembly verified.\n{result}"])
-    return 0
+    print(f"REASSEMBLED {final}", flush=True)
+    print("VERIFY PASS", flush=True)
+    status(f"Reassembly complete and verified: {final}")
+    return final
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    install_signal_handlers()
+    parser = argparse.ArgumentParser(description="Nougat Media Suite professional File Splitter worker")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    a = sub.add_parser("analyze")
+    a.add_argument("source", type=Path)
+    a.add_argument("--target-piece-mib", type=int, default=1024)
+
     s = sub.add_parser("split")
     s.add_argument("source", type=Path)
     s.add_argument("output_dir", type=Path)
     s.add_argument("--name", required=True)
     s.add_argument("--pieces", type=int, required=True)
     s.add_argument("--max-piece-mib", type=int, default=0)
+
     v = sub.add_parser("verify")
     v.add_argument("manifest", type=Path)
+
     r = sub.add_parser("reassemble")
     r.add_argument("manifest", type=Path)
     r.add_argument("--output", type=Path)
-    g = sub.add_parser("studio-gui")
-    g.add_argument("action", choices=["split", "reassemble", "verify"])
-    args = parser.parse_args()
 
-    if args.command == "split":
+    args = parser.parse_args()
+    if args.command == "analyze":
+        target = max(64, args.target_piece_mib) * 1024 * 1024
+        analyze(args.source, target)
+    elif args.command == "split":
         split(args.source, args.output_dir, args.name, args.pieces,
               max(0, args.max_piece_mib) * 1024 * 1024)
     elif args.command == "verify":
+        status("Verifying every split piece with SHA-256...")
         verify(args.manifest)
+        status("All split pieces passed SHA-256 verification.")
     elif args.command == "reassemble":
         reassemble(args.manifest, args.output)
-    elif args.command == "studio-gui":
-        if args.action == "split":
-            return gui_split()
-        if args.action == "reassemble":
-            return gui_reassemble()
-        manifest = zvalue(["--file-selection", "--title=Choose Nougat Parts Manifest",
-                           "--file-filter=Nougat manifests | *.zip.parts.json"])
-        if manifest:
-            verify(Path(manifest))
-            zenity(["--info", "--title=Nougat File Splitter",
-                    "--text=All split ZIP pieces passed SHA-256 verification."])
     return 0
+
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except PieceCountTooSmall as exc:
-        print(f"SUGGESTED_PIECES {exc.minimum}")
-        print(f"ERROR {exc}")
+        print(f"SUGGESTED_PIECES {exc.minimum}", flush=True)
+        print(f"ERROR {exc}", flush=True)
         raise SystemExit(2)
-    except (SplitterError, ValueError, json.JSONDecodeError, zipfile.BadZipFile) as exc:
-        print(f"ERROR {exc}")
+    except SplitterCancelled as exc:
+        print(f"CANCELLED {exc}", flush=True)
+        raise SystemExit(130)
+    except (SplitterError, ValueError, json.JSONDecodeError, zipfile.BadZipFile, OSError) as exc:
+        print(f"ERROR {exc}", flush=True)
         raise SystemExit(1)

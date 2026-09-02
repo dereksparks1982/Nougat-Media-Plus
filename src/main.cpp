@@ -63,7 +63,7 @@
 #include "world_tv/world_tv_service.hpp"
 #include "radio/radio_backend.hpp"
 
-// NOUGAT_V53_CANDIDATE
+// NOUGAT_V54_FILE_SPLITTER_PROFESSIONAL
 
 struct libvlc_instance_t;
 struct libvlc_media_t;
@@ -647,6 +647,8 @@ enum class StreamPlatform { YouTube, Vimeo, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
 enum class GamesDisplayMode { Grid, List };
 enum class GamesPanel { Library, Systems, Controllers, Settings };
+enum class StudioPanel { Tools, FileSplitter };
+enum class StudioBrowserPurpose { Inactive, SourceFile, SourceFolder, SourceZipManifest, OutputFolder };
 enum class RadioPanel { Local, Emergency, Weather, Satellite, Shortwave, Internet, Favorites, Recordings };
 enum class CardContextKind { Unset, Home, Library, Discover, LiveTV, WorldTV, Games };
 enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
@@ -1738,14 +1740,48 @@ public:
     Rect fullscreenRewindRect, fullscreenPlayRect, fullscreenForwardRect;
     int fullscreenTransportHover=-1;
     Rect homeTab, videoPlayerTab, libraryTab, discoverTab, liveTvTab, worldTvTab, radioTab, nougatTab, ytdlpTab, studioTab, gamesTab, debugTab;
-    Rect studioSplitFileBtn, studioSplitFolderBtn, studioReassembleBtn, studioVerifyBtn;
-    Rect studioSourceRect, studioOutputRect, studioNameRect, studioPiecesRect, studioMaxMiBRect;
+    // NOUGAT_V54_FILE_SPLITTER_PROFESSIONAL
+    // File Splitter is a button inside Studio > Tools. Its complete workflow
+    // stays inside Nougat with no external chooser/question/info dialogs.
+    StudioPanel studioPanel = StudioPanel::Tools;
+    Rect studioToolsTab, studioFileSplitterToolBtn, studioBackToToolsBtn;
+    Rect studioAnalyzeBtn, studioUseSuggestionBtn, studioSplitFileBtn;
+    Rect studioReassembleBtn, studioVerifyBtn, studioStopBtn;
+    Rect studioSourceRect, studioOutputRect, studioNameRect, studioPiecesRect;
+    Rect studioAddFileBtn, studioAddFolderBtn, studioAddZipManifestBtn, studioChooseLocationBtn;
+    StudioBrowserPurpose studioBrowserPurpose = StudioBrowserPurpose::Inactive;
+    std::string studioBrowserPath = home_dir();
+    std::string studioBrowserSelectedPath;
+    int studioBrowserScroll = 0;
+    Rect studioBrowserUpBtn, studioBrowserHomeBtn, studioBrowserCancelBtn, studioBrowserSelectBtn;
+    Rect studioBrowserPathRect, studioBrowserListRect;
+    std::vector<std::pair<Rect,std::string>> studioBrowserRows;
     int studioInputFocus = 0;
+    bool studioInputSelectAll = false;
     std::string studioSourcePath;
-    std::string studioOutputPath;
+    std::string studioOutputPath = home_dir() + "/Downloads";
     std::string studioOutputName;
-    std::string studioPiecesText = "3";
-    std::string studioMaxMiBText = "0";
+    std::string studioPiecesText = "2";
+    bool studioOutputNameUserEdited = false;
+    bool studioPiecesUserEdited = false;
+    std::string studioAnalyzedSourcePath;
+    long long studioSourceEditMs = 0;
+    long long studioSourceBytes = 0;
+    long long studioEstimatedPayloadBytes = 0;
+    long long studioSuggestedApproxBytes = 0;
+    int studioSuggestedPieces = 0;
+    int studioProgress = 0;
+    bool studioIntegrityPassed = false;
+    std::string studioLastManifest;
+    std::string studioLastResult;
+    std::string studioJobAction;
+    std::string studioJobBuffer;
+    pid_t studioJobPid = -1;
+    pid_t studioJobGroup = -1;
+    int studioJobFd = -1;
+    bool studioJobRunning = false;
+    bool studioWorkerReportedError = false;
+    long long studioStopRequestedMs = 0;
     Rect radioSimpleBtn, radioProBtn;
     Rect radioLocalBtn, radioEmergencyBtn, radioWeatherBtn, radioSatelliteBtn, radioShortwaveBtn, radioInternetBtn;
     Rect radioFavoritesBtn, radioRecordingsBtn, radioAntennaScanBtn;
@@ -1980,7 +2016,7 @@ public:
     std::vector<reddmedia::security::RuntimeComponentAdvisory> securityInventory;
     std::vector<reddmedia::alerts::PublicSafetyAlert> activePublicAlerts;
     std::string publicAlertArea;
-    std::string v53SystemStatus = "v0.0.53 safety/network services ready.";
+    std::string v53SystemStatus = "v0.0.54 File Splitter candidate ready for owner testing.";
     bool parentSystemUnlocked = false;
     reddmedia::NougatTunerBackend tunerBackend;
     reddmedia::HdHomeRunProvider hdHomeRunProvider;
@@ -2384,7 +2420,7 @@ public:
             case ViewMode::Radio:       r=112; g=38;  b=88;  blendPercent=58; break; // Mulberry radio
             case ViewMode::Nougat:      r=241; g=227; b=194; blendPercent=8;  break; // Search stays cream
             case ViewMode::Stream:      r=205; g=76;  b=67;  blendPercent=22; break;
-            case ViewMode::Studio:      r=221; g=176; b=70;  blendPercent=48; break; // Gold Studio: true yellow/gold quilt
+            case ViewMode::Studio:      r=186; g=190; b=196; blendPercent=68; break; // Silver Screen Studio: cool silver quilt
             case ViewMode::Games:       r=45;  g=72;  b=112; blendPercent=54; break; // cartridge/navy blue
             case ViewMode::P2P:         r=105; g=160; b=192; blendPercent=17; break;
             case ViewMode::Debug:       r=41;  g=40;  b=48;  blendPercent=70; break; // licorice/charcoal
@@ -2621,10 +2657,10 @@ public:
             rgb8(199,111,167), cream, rgb8(222,151,70)};
         if (view == ViewMode::Stream) return stream_palette_for(streamPlatform);
         if (view == ViewMode::Studio) return {
-            rgb8(194,148,47), rgb8(222,181,85), rgb8(250,239,213),
-            rgb8(105,59,24), darkText, rgb8(119,83,45),
-            rgb8(228,188,91), rgb8(215,166,66), rgb8(111,62,25),
-            rgb8(248,215,143), darkText, rgb8(184,120,35)};
+            rgb8(184,188,194), rgb8(207,211,216), rgb8(246,246,244),
+            rgb8(72,76,82), rgb8(31,33,37), rgb8(91,95,101),
+            rgb8(180,185,192), rgb8(194,199,206), rgb8(86,91,99),
+            rgb8(232,235,239), rgb8(28,30,34), rgb8(116,122,130)};
         if (view == ViewMode::Games) return {
             rgb8(35,55,88), rgb8(45,72,112), rgb8(244,232,205),
             rgb8(24,38,62), cream, rgb8(205,217,232),
@@ -4770,7 +4806,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.53";
+        const std::string versionLabel = "v0.0.54";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -8891,100 +8927,571 @@ public:
         case 2: return studioOutputPath;
         case 3: return studioOutputName;
         case 4: return studioPiecesText;
-        case 5: return studioMaxMiBText;
         case 1:
         default: return studioSourcePath;
         }
     }
 
-    static bool studio_positive_integer(const std::string& value, bool allow_zero=false) {
+    static bool studio_positive_integer(const std::string& value) {
         if (value.empty()) return false;
         for (char c : value) if (!std::isdigit(static_cast<unsigned char>(c))) return false;
-        const long long parsed = std::strtoll(value.c_str(), nullptr, 10);
-        return allow_zero ? parsed >= 0 : parsed > 0;
+        return std::strtoll(value.c_str(), nullptr, 10) > 0;
+    }
+
+    static bool studio_manifest_path(const std::string& value) {
+        const std::string lower = lower_copy(value);
+        return lower.size() >= 15U &&
+               lower.rfind(".zip.parts.json") == lower.size() - 15U;
+    }
+
+    void studio_source_edited() {
+        studioSourceEditMs = now_ms();
+        studioAnalyzedSourcePath.clear();
+        studioSourceBytes = 0;
+        studioEstimatedPayloadBytes = 0;
+        studioSuggestedApproxBytes = 0;
+        studioSuggestedPieces = 0;
+        studioIntegrityPassed = false;
+        studioOutputNameUserEdited = false;
+        studioPiecesUserEdited = false;
+    }
+
+    void studio_field_changed() {
+        if (studioInputFocus == 1) {
+            studio_source_edited();
+        } else if (studioInputFocus == 3) {
+            studioOutputNameUserEdited = true;
+        } else if (studioInputFocus == 4) {
+            studioPiecesUserEdited = true;
+        }
+    }
+
+    void studio_paste_into_field() {
+        if (studioInputFocus <= 0) return;
+        std::string clip = clipboard_value();
+        while (!clip.empty() && (clip.back() == '\n' || clip.back() == '\r')) clip.pop_back();
+        if (clip.empty()) {
+            studioStatus = "Clipboard is empty.";
+            redraw();
+            return;
+        }
+        if (studioInputFocus == 4 &&
+            !std::all_of(clip.begin(), clip.end(), [](unsigned char c){ return std::isdigit(c) != 0; })) {
+            studioStatus = "Pieces accepts whole numbers only.";
+            redraw();
+            return;
+        }
+        std::string& target = focused_studio_text();
+        if (studioInputSelectAll) target.clear();
+        target += clip;
+        studioInputSelectAll = false;
+        studio_field_changed();
+        studioStatus = "Field updated.";
+        redraw();
     }
 
     void handle_studio_key(XKeyEvent& event, KeySym ks) {
+        if (studioPanel != StudioPanel::FileSplitter) return;
+        if (studio_browser_active()) {
+            if (ks == XK_Escape) { close_studio_browser(); return; }
+            if (ks == XK_BackSpace) {
+                std::filesystem::path current(studioBrowserPath);
+                const auto parent=current.parent_path();
+                if (!parent.empty() && parent!=current) studio_browser_enter(parent);
+                return;
+            }
+            if (ks == XK_Return || ks == XK_KP_Enter) { studio_browser_apply_selection(); return; }
+            return;
+        }
         if (studioInputFocus <= 0) return;
-        if (ks == XK_Escape) { studioInputFocus=0; redraw(); return; }
-        if (ks == XK_Tab) { studioInputFocus = studioInputFocus % 5 + 1; redraw(); return; }
-        if (ks == XK_BackSpace) {
-            std::string& target=focused_studio_text();
-            if (!target.empty()) target.pop_back();
-            redraw(); return;
+        if (ks == XK_Escape) { studioInputFocus=0; studioInputSelectAll=false; redraw(); return; }
+        if (ks == XK_Tab) {
+            studioInputFocus = studioInputFocus % 4 + 1;
+            studioInputSelectAll = false;
+            redraw();
+            return;
+        }
+        if ((event.state & ControlMask) && (ks == XK_a || ks == XK_A)) {
+            studioInputSelectAll = true;
+            redraw();
+            return;
+        }
+        if ((event.state & ControlMask) && (ks == XK_c || ks == XK_C) && studioInputSelectAll) {
+            own_clipboard_text(focused_studio_text());
+            studioStatus = "Field copied.";
+            redraw();
+            return;
+        }
+        if ((event.state & ControlMask) && (ks == XK_v || ks == XK_V)) {
+            studio_paste_into_field();
+            return;
+        }
+        if ((event.state & ShiftMask) && ks == XK_Insert) {
+            studio_paste_into_field();
+            return;
+        }
+        if (ks == XK_Return || ks == XK_KP_Enter) {
+            if (studioInputFocus == 1 && !studioSourcePath.empty() && !studio_manifest_path(studioSourcePath) &&
+                !studioJobRunning) {
+                studioInputFocus = 0;
+                studioInputSelectAll = false;
+                start_studio_splitter_action("analyze");
+            } else {
+                studioInputFocus = 0;
+                studioInputSelectAll = false;
+                redraw();
+            }
+            return;
+        }
+        if (ks == XK_BackSpace || ks == XK_Delete) {
+            std::string& target = focused_studio_text();
+            if (studioInputSelectAll) target.clear();
+            else if (!target.empty()) target.pop_back();
+            studioInputSelectAll = false;
+            studio_field_changed();
+            redraw();
+            return;
         }
         char buf[64]; KeySym outks=0;
         const int n=XLookupString(&event,buf,sizeof(buf)-1,&outks,nullptr);
         if (n>0) {
             buf[n]=0;
             std::string value(buf,static_cast<std::size_t>(n));
-            if ((studioInputFocus==4 || studioInputFocus==5) &&
+            if (studioInputFocus==4 &&
                 !std::all_of(value.begin(),value.end(),[](unsigned char c){ return std::isdigit(c)!=0; })) return;
-            focused_studio_text() += value;
+            std::string& target = focused_studio_text();
+            if (studioInputSelectAll) target.clear();
+            target += value;
+            studioInputSelectAll = false;
+            studio_field_changed();
             redraw();
         }
     }
 
-    void launch_studio_splitter_action(const std::string& action) {
+    void process_studio_worker_line(std::string line) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) return;
+        const auto value_after = [&line](const char* prefix) -> std::string {
+            const std::size_t n = std::strlen(prefix);
+            return line.size() >= n ? line.substr(n) : std::string{};
+        };
+        if (line.rfind("STATUS ",0) == 0) {
+            studioStatus = value_after("STATUS ");
+        } else if (line.rfind("PROGRESS ",0) == 0) {
+            studioProgress = std::max(0,std::min(100,std::atoi(value_after("PROGRESS ").c_str())));
+        } else if (line.rfind("SOURCE_BYTES ",0) == 0) {
+            studioSourceBytes = std::max(0LL,std::strtoll(value_after("SOURCE_BYTES ").c_str(),nullptr,10));
+        } else if (line.rfind("ESTIMATED_PAYLOAD_BYTES ",0) == 0) {
+            studioEstimatedPayloadBytes = std::max(0LL,std::strtoll(value_after("ESTIMATED_PAYLOAD_BYTES ").c_str(),nullptr,10));
+        } else if (line.rfind("SUGGESTED_PIECES ",0) == 0) {
+            studioSuggestedPieces = std::max(1,std::atoi(value_after("SUGGESTED_PIECES ").c_str()));
+            if (!studioPiecesUserEdited || studioPiecesText.empty()) {
+                studioPiecesText = std::to_string(studioSuggestedPieces);
+                studioPiecesUserEdited = false;
+            }
+        } else if (line.rfind("APPROX_PIECE_BYTES ",0) == 0) {
+            studioSuggestedApproxBytes = std::max(0LL,std::strtoll(value_after("APPROX_PIECE_BYTES ").c_str(),nullptr,10));
+        } else if (line.rfind("DEFAULT_NAME ",0) == 0) {
+            if (!studioOutputNameUserEdited || studioOutputName.empty()) {
+                studioOutputName = value_after("DEFAULT_NAME ");
+                studioOutputNameUserEdited = false;
+            }
+        } else if (line.rfind("MANIFEST ",0) == 0) {
+            studioLastManifest = value_after("MANIFEST ");
+            studioLastResult = studioLastManifest;
+        } else if (line.rfind("REASSEMBLED ",0) == 0) {
+            studioLastResult = value_after("REASSEMBLED ");
+        } else if (line == "VERIFY PASS") {
+            studioIntegrityPassed = true;
+        } else if (line.rfind("ERROR ",0) == 0) {
+            studioWorkerReportedError = true;
+            studioStatus = value_after("ERROR ");
+        } else if (line.rfind("CANCELLED ",0) == 0) {
+            studioWorkerReportedError = true;
+            studioStatus = "Cancelled. Incomplete temporary output was removed.";
+        }
+    }
+
+    bool spawn_studio_worker(const std::vector<std::string>& args, const std::string& action) {
+        if (studioJobRunning || args.empty()) return false;
+        int pipes[2] = {-1,-1};
+        if (pipe(pipes) != 0) {
+            studioStatus = "File Splitter could not create its progress channel.";
+            redraw();
+            return false;
+        }
+        const pid_t pid = fork();
+        if (pid < 0) {
+            close(pipes[0]); close(pipes[1]);
+            studioStatus = "File Splitter could not create its worker process.";
+            redraw();
+            return false;
+        }
+        if (pid == 0) {
+            setpgid(0,0);
+            dup2(pipes[1],STDOUT_FILENO);
+            dup2(pipes[1],STDERR_FILENO);
+            close(pipes[0]);
+            close(pipes[1]);
+            if (d) close(ConnectionNumber(d));
+            std::vector<char*> raw;
+            raw.reserve(args.size()+1U);
+            for (const std::string& item : args) raw.push_back(const_cast<char*>(item.c_str()));
+            raw.push_back(nullptr);
+            execvp(raw.front(),raw.data());
+            _exit(127);
+        }
+        setpgid(pid,pid);
+        close(pipes[1]);
+        const int flags=fcntl(pipes[0],F_GETFL,0);
+        if (flags >= 0) (void)fcntl(pipes[0],F_SETFL,flags|O_NONBLOCK);
+        studioJobPid=pid;
+        studioJobGroup=pid;
+        studioJobFd=pipes[0];
+        studioJobAction=action;
+        studioJobBuffer.clear();
+        studioJobRunning=true;
+        studioWorkerReportedError=false;
+        studioStopRequestedMs=0;
+        studioProgress=0;
+        studioIntegrityPassed=false;
+        redraw();
+        return true;
+    }
+
+    void start_studio_splitter_action(const std::string& action) {
+        if (studioJobRunning) {
+            studioStatus = "File Splitter is already working. Stop it before starting another operation.";
+            redraw();
+            return;
+        }
         const std::string tool = exe_dir() + "/tools/nougat_file_splitter.py";
         if (!exists_file(tool)) {
             studioStatus = "File Splitter worker is missing from the Nougat project.";
             redraw();
             return;
         }
-
-        std::string command = "python3 " + shell_quote(tool) + " ";
-        if (action == "split") {
+        std::vector<std::string> args = {"python3",tool};
+        if (action == "analyze") {
+            if (studioSourcePath.empty()) {
+                studioStatus = "Paste a source file or folder path first.";
+                redraw(); return;
+            }
+            if (studio_manifest_path(studioSourcePath)) {
+                studioStatus = "That is a parts manifest. Use Verify or Reassemble.";
+                redraw(); return;
+            }
+            args.insert(args.end(),{"analyze",studioSourcePath,"--target-piece-mib","1024"});
+            studioStatus = "Analyzing source and calculating a professional piece recommendation...";
+        } else if (action == "split") {
             if (studioSourcePath.empty() || studioOutputPath.empty() || studioOutputName.empty() ||
-                !studio_positive_integer(studioPiecesText) || !studio_positive_integer(studioMaxMiBText,true)) {
-                studioStatus = "Split needs Source, Output Folder, Output Name, positive Pieces, and Max MiB >= 0.";
+                !studio_positive_integer(studioPiecesText)) {
+                studioStatus = "Split needs Source, Download Location, Output Name, and a positive Pieces value.";
                 redraw(); return;
             }
-            command += "split " + shell_quote(studioSourcePath) + " " + shell_quote(studioOutputPath) +
-                       " --name " + shell_quote(studioOutputName) +
-                       " --pieces " + studioPiecesText +
-                       " --max-piece-mib " + studioMaxMiBText;
-            studioStatus = "Splitting inside Nougat Studio...";
+            if (studioAnalyzedSourcePath != studioSourcePath) {
+                studioStatus = "Analyzing this source first so Nougat can recommend the piece count.";
+                start_studio_splitter_action("analyze");
+                return;
+            }
+            args.insert(args.end(),{"split",studioSourcePath,studioOutputPath,"--name",studioOutputName,
+                                    "--pieces",studioPiecesText,"--max-piece-mib","0"});
+            studioStatus = "Preparing split operation...";
         } else if (action == "verify") {
-            if (studioSourcePath.empty()) {
-                studioStatus = "Verify needs the .zip.parts.json manifest in Source.";
+            if (studioSourcePath.empty() || !studio_manifest_path(studioSourcePath)) {
+                studioStatus = "Verify needs a .zip.parts.json manifest in Source / Manifest.";
                 redraw(); return;
             }
-            command += "verify " + shell_quote(studioSourcePath);
-            studioStatus = "Verifying parts inside Nougat Studio...";
+            args.insert(args.end(),{"verify",studioSourcePath});
+            studioStatus = "Verifying split pieces...";
         } else if (action == "reassemble") {
-            if (studioSourcePath.empty()) {
-                studioStatus = "Reassemble needs the .zip.parts.json manifest in Source.";
+            if (studioSourcePath.empty() || !studio_manifest_path(studioSourcePath)) {
+                studioStatus = "Reassemble needs a .zip.parts.json manifest in Source / Manifest.";
                 redraw(); return;
             }
-            command += "reassemble " + shell_quote(studioSourcePath);
-            if (!studioOutputPath.empty()) command += " --output " + shell_quote(studioOutputPath);
-            studioStatus = "Reassembling inside Nougat Studio...";
+            args.insert(args.end(),{"reassemble",studioSourcePath});
+            if (!studioOutputPath.empty()) args.insert(args.end(),{"--output",studioOutputPath});
+            studioStatus = "Preparing verified reassembly...";
         } else return;
+        (void)spawn_studio_worker(args,action);
+    }
 
-        redraw();
-        XFlush(d);
-        const std::string result = run_command_capture(command + " 2>&1");
-        if (result.empty()) {
-            studioStatus = "File Splitter worker returned no completion message.";
-        } else {
-            const std::size_t last = result.find_last_of('\n');
-            const std::string tail = last == std::string::npos ? result : result.substr(last+1U);
-            studioStatus = tail.empty() ? result : tail;
-        }
+    void stop_studio_job() {
+        if (!studioJobRunning || studioJobGroup <= 1) return;
+        kill(-studioJobGroup,SIGTERM);
+        studioStopRequestedMs=now_ms();
+        studioStatus="Stopping File Splitter safely...";
         redraw();
     }
 
+    void poll_studio_worker() {
+        if (!studioJobRunning) return;
+        bool changed=false;
+        if (studioJobFd >= 0) {
+            char buffer[4096];
+            while (true) {
+                const ssize_t n=read(studioJobFd,buffer,sizeof(buffer));
+                if (n>0) {
+                    studioJobBuffer.append(buffer,static_cast<std::size_t>(n));
+                    changed=true;
+                    while (true) {
+                        const std::size_t pos=studioJobBuffer.find('\n');
+                        if (pos==std::string::npos) break;
+                        process_studio_worker_line(studioJobBuffer.substr(0,pos));
+                        studioJobBuffer.erase(0,pos+1U);
+                    }
+                    continue;
+                }
+                if (n<0 && errno!=EAGAIN && errno!=EWOULDBLOCK && errno!=EINTR) {
+                    close(studioJobFd); studioJobFd=-1;
+                }
+                break;
+            }
+        }
+        if (studioStopRequestedMs>0 && studioJobGroup>1 && now_ms()-studioStopRequestedMs>2000LL) {
+            kill(-studioJobGroup,SIGKILL);
+        }
+        int childStatus=0;
+        const pid_t waited=studioJobPid>1 ? waitpid(studioJobPid,&childStatus,WNOHANG) : -1;
+        if (waited==studioJobPid) {
+            if (!studioJobBuffer.empty()) {
+                process_studio_worker_line(studioJobBuffer);
+                studioJobBuffer.clear();
+            }
+            if (studioJobFd>=0) { close(studioJobFd); studioJobFd=-1; }
+            const bool ok=WIFEXITED(childStatus) && WEXITSTATUS(childStatus)==0;
+            const bool cancelled=studioStopRequestedMs>0 ||
+                (WIFEXITED(childStatus) && WEXITSTATUS(childStatus)==130);
+            if (studioJobAction=="analyze" && ok) {
+                studioAnalyzedSourcePath=studioSourcePath;
+                if (studioSuggestedPieces>0) {
+                    studioStatus="Recommendation ready: "+std::to_string(studioSuggestedPieces)+
+                        " piece"+(studioSuggestedPieces==1?std::string{}:std::string("s"))+".";
+                }
+            } else if (cancelled) {
+                studioStatus="Cancelled. Incomplete temporary output was removed.";
+            } else if (!ok && !studioWorkerReportedError) {
+                studioStatus="File Splitter worker stopped before completing the operation.";
+            } else if (ok) {
+                studioProgress=100;
+            }
+            studioJobRunning=false;
+            studioJobPid=-1;
+            studioJobGroup=-1;
+            studioStopRequestedMs=0;
+            studioJobAction.clear();
+            changed=true;
+        }
+        if (changed && !fullscreen && currentView==ViewMode::Studio && studioPanel==StudioPanel::FileSplitter) redraw();
+    }
+
+    void maybe_auto_analyze_studio_source() {
+        if (fullscreen || currentView!=ViewMode::Studio || studioPanel!=StudioPanel::FileSplitter ||
+            studioJobRunning || studioSourcePath.empty() || studio_manifest_path(studioSourcePath) ||
+            studioAnalyzedSourcePath==studioSourcePath || studioSourceEditMs<=0) return;
+        if (now_ms()-studioSourceEditMs<650LL) return;
+        start_studio_splitter_action("analyze");
+    }
+
+    bool studio_browser_active() const {
+        return studioBrowserPurpose != StudioBrowserPurpose::Inactive;
+    }
+
+    static bool studio_zip_or_manifest_path(const std::filesystem::path& path) {
+        const std::string lower = lower_copy(path.filename().string());
+        return (lower.size() >= 4U && lower.rfind(".zip") == lower.size() - 4U) ||
+               (lower.size() >= 15U && lower.rfind(".zip.parts.json") == lower.size() - 15U);
+    }
+
+    bool studio_browser_file_allowed(const std::filesystem::path& path) const {
+        if (studioBrowserPurpose == StudioBrowserPurpose::SourceFile) return true;
+        if (studioBrowserPurpose == StudioBrowserPurpose::SourceZipManifest) return studio_zip_or_manifest_path(path);
+        return false;
+    }
+
+    std::filesystem::path studio_browser_existing_directory(std::filesystem::path candidate) const {
+        std::error_code ec;
+        if (candidate.empty()) candidate = std::filesystem::path(home_dir());
+        if (std::filesystem::is_regular_file(candidate, ec)) candidate = candidate.parent_path();
+        ec.clear();
+        if (!std::filesystem::is_directory(candidate, ec)) candidate = std::filesystem::path(home_dir());
+        ec.clear();
+        const auto absolute = std::filesystem::absolute(candidate, ec);
+        return ec ? candidate : absolute.lexically_normal();
+    }
+
+    void open_studio_browser(StudioBrowserPurpose purpose) {
+        studioBrowserPurpose = purpose;
+        std::filesystem::path initial;
+        if (purpose == StudioBrowserPurpose::OutputFolder) {
+            initial = studioOutputPath.empty() ? std::filesystem::path(home_dir()) : std::filesystem::path(studioOutputPath);
+        } else if (!studioSourcePath.empty()) {
+            initial = std::filesystem::path(studioSourcePath);
+        } else if (!studioOutputPath.empty()) {
+            initial = std::filesystem::path(studioOutputPath);
+        } else {
+            initial = std::filesystem::path(home_dir());
+        }
+        initial = studio_browser_existing_directory(initial);
+        studioBrowserPath = initial.string();
+        studioBrowserSelectedPath.clear();
+        studioBrowserScroll = 0;
+        studioInputFocus = 0;
+        studioInputSelectAll = false;
+        studioStatus = "Browse inside Nougat. No popup window will open.";
+        redraw();
+    }
+
+    void close_studio_browser() {
+        studioBrowserPurpose = StudioBrowserPurpose::Inactive;
+        studioBrowserSelectedPath.clear();
+        studioBrowserScroll = 0;
+        studioBrowserRows.clear();
+        redraw();
+    }
+
+    std::vector<std::filesystem::directory_entry> studio_browser_entries() const {
+        std::vector<std::filesystem::directory_entry> directories;
+        std::vector<std::filesystem::directory_entry> files;
+        std::error_code ec;
+        std::filesystem::directory_iterator it(std::filesystem::path(studioBrowserPath),
+                                               std::filesystem::directory_options::skip_permission_denied, ec);
+        if (ec) return {};
+        for (const auto& entry : it) {
+            std::error_code type_ec;
+            if (entry.is_directory(type_ec)) directories.push_back(entry);
+            else if (!type_ec && entry.is_regular_file(type_ec) && studio_browser_file_allowed(entry.path())) files.push_back(entry);
+        }
+        const auto by_name=[](const auto& a,const auto& b){
+            return lower_copy(a.path().filename().string()) < lower_copy(b.path().filename().string());
+        };
+        std::sort(directories.begin(),directories.end(),by_name);
+        std::sort(files.begin(),files.end(),by_name);
+        directories.insert(directories.end(),files.begin(),files.end());
+        return directories;
+    }
+
+    std::string studio_browser_title() const {
+        switch (studioBrowserPurpose) {
+            case StudioBrowserPurpose::SourceFile: return "ADD FILE";
+            case StudioBrowserPurpose::SourceFolder: return "ADD FOLDER";
+            case StudioBrowserPurpose::SourceZipManifest: return "ADD ZIP / PARTS MANIFEST";
+            case StudioBrowserPurpose::OutputFolder: return "CHOOSE DOWNLOAD LOCATION";
+            case StudioBrowserPurpose::Inactive: break;
+        }
+        return "BROWSE";
+    }
+
+    void studio_browser_enter(const std::filesystem::path& path) {
+        std::error_code ec;
+        if (!std::filesystem::is_directory(path,ec)) return;
+        const auto absolute=std::filesystem::absolute(path,ec);
+        studioBrowserPath=(ec?path:absolute).lexically_normal().string();
+        studioBrowserSelectedPath.clear();
+        studioBrowserScroll=0;
+        redraw();
+    }
+
+    void studio_browser_apply_selection() {
+        if (studioBrowserPurpose == StudioBrowserPurpose::SourceFolder ||
+            studioBrowserPurpose == StudioBrowserPurpose::OutputFolder) {
+            const std::string selected = studioBrowserPath;
+            if (studioBrowserPurpose == StudioBrowserPurpose::SourceFolder) {
+                studioSourcePath = selected;
+                studio_source_edited();
+                studioStatus = "Folder selected. Nougat is analyzing it now.";
+            } else {
+                studioOutputPath = selected;
+                studioStatus = "Download location selected.";
+            }
+            close_studio_browser();
+            return;
+        }
+        if (studioBrowserSelectedPath.empty()) {
+            studioStatus = "Select a file first.";
+            redraw();
+            return;
+        }
+        studioSourcePath = studioBrowserSelectedPath;
+        studio_source_edited();
+        studioStatus = studio_manifest_path(studioSourcePath)
+            ? "Parts manifest selected and ready to verify or reassemble."
+            : "Source selected. Nougat is analyzing it now.";
+        close_studio_browser();
+    }
+
+    void handle_studio_browser_click(int x,int y) {
+        if (!studio_browser_active()) return;
+        if (studioBrowserCancelBtn.contains(x,y)) { close_studio_browser(); return; }
+        if (studioBrowserHomeBtn.contains(x,y)) { studio_browser_enter(std::filesystem::path(home_dir())); return; }
+        if (studioBrowserUpBtn.contains(x,y)) {
+            std::filesystem::path current(studioBrowserPath);
+            const auto parent=current.parent_path();
+            if (!parent.empty() && parent!=current) studio_browser_enter(parent);
+            return;
+        }
+        if (studioBrowserSelectBtn.contains(x,y)) { studio_browser_apply_selection(); return; }
+        for (const auto& row : studioBrowserRows) {
+            if (!row.first.contains(x,y)) continue;
+            const std::filesystem::path path(row.second);
+            std::error_code ec;
+            if (std::filesystem::is_directory(path,ec)) studio_browser_enter(path);
+            else {
+                studioBrowserSelectedPath=path.string();
+                studioStatus="Selected: "+path.filename().string();
+                redraw();
+            }
+            return;
+        }
+    }
+
     void handle_studio_click(int x, int y) {
-        if (studioSourceRect.contains(x,y)) { studioInputFocus=1; redraw(); return; }
-        if (studioOutputRect.contains(x,y)) { studioInputFocus=2; redraw(); return; }
-        if (studioNameRect.contains(x,y)) { studioInputFocus=3; redraw(); return; }
-        if (studioPiecesRect.contains(x,y)) { studioInputFocus=4; redraw(); return; }
-        if (studioMaxMiBRect.contains(x,y)) { studioInputFocus=5; redraw(); return; }
+        if (studio_browser_active()) { handle_studio_browser_click(x,y); return; }
+        if (studioToolsTab.contains(x,y)) {
+            studioPanel=StudioPanel::Tools;
+            studioInputFocus=0;
+            studioInputSelectAll=false;
+            redraw(); return;
+        }
+        if (studioPanel==StudioPanel::Tools) {
+            if (studioFileSplitterToolBtn.contains(x,y)) {
+                studioPanel=StudioPanel::FileSplitter;
+                studioInputFocus=0;
+                studioInputSelectAll=false;
+                studioStatus="Paste a source path. Nougat will automatically suggest the piece count.";
+                redraw();
+            }
+            return;
+        }
+        if (studioBackToToolsBtn.contains(x,y)) {
+            studioPanel=StudioPanel::Tools;
+            studioInputFocus=0;
+            studioInputSelectAll=false;
+            redraw(); return;
+        }
+        if (studioAddFileBtn.contains(x,y)) { open_studio_browser(StudioBrowserPurpose::SourceFile); return; }
+        if (studioAddFolderBtn.contains(x,y)) { open_studio_browser(StudioBrowserPurpose::SourceFolder); return; }
+        if (studioAddZipManifestBtn.contains(x,y)) { open_studio_browser(StudioBrowserPurpose::SourceZipManifest); return; }
+        if (studioChooseLocationBtn.contains(x,y)) { open_studio_browser(StudioBrowserPurpose::OutputFolder); return; }
+        if (studioSourceRect.contains(x,y)) { studioInputFocus=1; studioInputSelectAll=true; redraw(); return; }
+        if (studioOutputRect.contains(x,y)) { studioInputFocus=2; studioInputSelectAll=true; redraw(); return; }
+        if (studioNameRect.contains(x,y)) { studioInputFocus=3; studioInputSelectAll=true; redraw(); return; }
+        if (studioPiecesRect.contains(x,y)) { studioInputFocus=4; studioInputSelectAll=true; redraw(); return; }
         studioInputFocus=0;
-        if (studioSplitFileBtn.contains(x,y)) { launch_studio_splitter_action("split"); return; }
-        if (studioReassembleBtn.contains(x,y)) { launch_studio_splitter_action("reassemble"); return; }
-        if (studioVerifyBtn.contains(x,y)) { launch_studio_splitter_action("verify"); return; }
+        studioInputSelectAll=false;
+        if (studioAnalyzeBtn.contains(x,y)) { start_studio_splitter_action("analyze"); return; }
+        if (studioUseSuggestionBtn.contains(x,y)) {
+            if (studioSuggestedPieces>0) {
+                studioPiecesText=std::to_string(studioSuggestedPieces);
+                studioPiecesUserEdited=false;
+                studioStatus="Using Nougat's recommended piece count.";
+            } else studioStatus="Analyze a source first to get a recommendation.";
+            redraw(); return;
+        }
+        if (studioSplitFileBtn.contains(x,y)) { start_studio_splitter_action("split"); return; }
+        if (studioReassembleBtn.contains(x,y)) { start_studio_splitter_action("reassemble"); return; }
+        if (studioVerifyBtn.contains(x,y)) { start_studio_splitter_action("verify"); return; }
+        if (studioStopBtn.contains(x,y)) { stop_studio_job(); return; }
     }
 
     void refresh_live_tv_tuners(bool announce=true) {
@@ -10691,7 +11198,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.53";
+        input.app_version = "Nougat Media Suite v0.0.54";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -13241,60 +13748,238 @@ public:
         }
     }
 
+    void draw_studio_film_strip(Drawable target,const Rect& r) {
+        if (r.w < 80 || r.h < 24) return;
+        const unsigned long black=rgb8(18,19,21);
+        const unsigned long charcoal=rgb8(49,52,57);
+        const unsigned long silver=rgb8(219,222,226);
+        const unsigned long pale=rgb8(242,243,244);
+        fill(target,r,black);
+        outline(target,r,charcoal);
+        const int rail=std::max(5,r.h/5);
+        Rect imageBand{r.x+5,r.y+rail,r.w-10,std::max(8,r.h-rail*2)};
+        fill(target,imageBand,silver);
+        const int frameW=std::max(38,imageBand.h*2);
+        for (int x=imageBand.x; x<imageBand.x+imageBand.w; x+=frameW) {
+            Rect frame{x+1,imageBand.y+1,std::min(frameW-3,imageBand.x+imageBand.w-x-2),std::max(2,imageBand.h-2)};
+            fill(target,frame,pale);
+            outline(target,frame,black);
+        }
+        const int holeH=std::max(3,rail-4);
+        const int holeW=std::max(5,holeH+3);
+        for (int x=r.x+8; x+holeW<r.x+r.w-6; x+=holeW+4) {
+            fill(target,{x,r.y+2,holeW,holeH},silver);
+            fill(target,{x,r.y+r.h-holeH-2,holeW,holeH},silver);
+        }
+    }
+
+    void draw_studio_browser(Drawable target,const Rect& panel,const ViewPalette& palette) {
+        studioBrowserRows.clear();
+        text(target,panel.x+18,panel.y+28,studio_browser_title(),palette.text);
+        text(target,panel.x+18,panel.y+50,"Browse entirely inside Nougat. Folders open in this page; no system chooser appears.",palette.muted);
+
+        const int topY=panel.y+64;
+        studioBrowserUpBtn={panel.x+18,topY,82,30};
+        studioBrowserHomeBtn={studioBrowserUpBtn.x+90,topY,82,30};
+        studioBrowserCancelBtn={panel.x+panel.w-110,topY,92,30};
+        button_on(target,studioBrowserUpBtn,"Up");
+        button_on(target,studioBrowserHomeBtn,"Home");
+        button_on(target,studioBrowserCancelBtn,"Cancel");
+
+        studioBrowserPathRect={studioBrowserHomeBtn.x+92,topY,std::max(120,studioBrowserCancelBtn.x-(studioBrowserHomeBtn.x+104)),30};
+        fill(target,studioBrowserPathRect,palette.field);
+        outline(target,studioBrowserPathRect,palette.border);
+        text(target,studioBrowserPathRect.x+8,studioBrowserPathRect.y+20,tail_to_width(studioBrowserPath,studioBrowserPathRect.w-16),palette.text);
+
+        const int listY=topY+40;
+        const int bottomReserve=60;
+        studioBrowserListRect={panel.x+18,listY,panel.w-36,std::max(120,panel.y+panel.h-listY-bottomReserve)};
+        fill(target,studioBrowserListRect,palette.field);
+        outline(target,studioBrowserListRect,palette.border);
+
+        const auto entries=studio_browser_entries();
+        const int rowH=30;
+        const int visible=std::max(1,(studioBrowserListRect.h-8)/rowH);
+        const int maxScroll=std::max(0,static_cast<int>(entries.size())-visible);
+        studioBrowserScroll=std::max(0,std::min(maxScroll,studioBrowserScroll));
+        int ry=studioBrowserListRect.y+4;
+        for (int i=0;i<visible && studioBrowserScroll+i<static_cast<int>(entries.size());++i) {
+            const auto& entry=entries[static_cast<std::size_t>(studioBrowserScroll+i)];
+            Rect row{studioBrowserListRect.x+4,ry,studioBrowserListRect.w-8,rowH-2};
+            const std::string path=entry.path().string();
+            const bool selected=!studioBrowserSelectedPath.empty() && path==studioBrowserSelectedPath;
+            if (selected) fill(target,row,palette.selection);
+            else if ((i&1)!=0) fill(target,row,rgb8(233,234,235));
+            std::error_code ec;
+            const bool directory=entry.is_directory(ec);
+            const std::string label=(directory?"[Folder]  ":"[File]    ")+entry.path().filename().string();
+            text(target,row.x+8,row.y+20,head_to_width(label,row.w-16),palette.text);
+            studioBrowserRows.push_back({row,path});
+            ry+=rowH;
+        }
+        if (entries.empty()) {
+            text(target,studioBrowserListRect.x+12,studioBrowserListRect.y+28,
+                 studioBrowserPurpose==StudioBrowserPurpose::SourceZipManifest
+                    ? "No ZIP or .zip.parts.json files are in this folder."
+                    : "This folder has no selectable items.",palette.muted);
+        }
+
+        const bool folderPurpose=studioBrowserPurpose==StudioBrowserPurpose::SourceFolder ||
+                                 studioBrowserPurpose==StudioBrowserPurpose::OutputFolder;
+        studioBrowserSelectBtn={panel.x+panel.w-190,panel.y+panel.h-44,172,30};
+        button_on(target,studioBrowserSelectBtn,folderPurpose?"Use This Folder":"Use Selected File");
+        const std::string selection=folderPurpose
+            ? "Folder: "+studioBrowserPath
+            : (studioBrowserSelectedPath.empty()?"Select a file from the list.":"Selected: "+studioBrowserSelectedPath);
+        text(target,panel.x+18,panel.y+panel.h-24,
+             head_to_width(selection,std::max(80,studioBrowserSelectBtn.x-panel.x-32)),palette.muted);
+    }
+
     void draw_studio_screen(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::Studio);
         draw_quilted_background(target, {0,kTopBarH,W,H-kTopBarH}, ViewMode::Studio);
-        section_text(target, 28, 70, "STUDIO", palette.text);
-        text(target, 28, 96, "Nougat creation, production, and media-processing workspace.", palette.muted);
-        Rect panel{28,118,std::max(240,W-56),std::max(300,H-148)};
-        draw_primary_panel(target,panel,palette);
-        text(target,panel.x+16,panel.y+26,"FILE SPLITTER / REASSEMBLER",palette.text);
-        text(target,panel.x+16,panel.y+50,
-             "All routine controls stay inside Nougat. Paste paths directly into these fields.",palette.muted);
 
-        const int labelW=112;
-        const int fieldX=panel.x+16+labelW;
-        const int fieldW=std::max(120,panel.w-labelW-32);
+        // Silver Screen identity: the film strip is the full-width Studio
+        // header band, matching the global top bar instead of reading as a
+        // small decoration embedded inside the page content.
+        draw_studio_film_strip(target,{0,kTopBarH,W,kTopBarH});
+        section_text(target, 28, kTopBarH*2+22, "STUDIO", palette.text);
+        text(target, 28, kTopBarH*2+44, "Nougat creation, production, and media-processing workspace.", palette.muted);
+
+        studioToolsTab={28,kTopBarH*2+56,126,34};
+        button_on(target,studioToolsTab,"Tools");
+
+        Rect panel{28,kTopBarH*2+98,std::max(240,W-56),std::max(300,H-(kTopBarH*2+128))};
+        draw_primary_panel(target,panel,palette);
+
+        if (studio_browser_active()) {
+            draw_studio_browser(target,panel,palette);
+            return;
+        }
+
+        if (studioPanel==StudioPanel::Tools) {
+            text(target,panel.x+18,panel.y+28,"TOOLS",palette.text);
+            text(target,panel.x+18,panel.y+52,
+                 "Silver Screen tools live here. Open a tool with its button; tools are not separate tabs.",palette.muted);
+            studioFileSplitterToolBtn={panel.x+18,panel.y+78,std::min(220,std::max(150,panel.w-36)),38};
+            button_on(target,studioFileSplitterToolBtn,"File Splitter");
+            text(target,panel.x+18,panel.y+140,
+                 "Split huge files, folders, and ZIPs into verified pieces, then verify or reassemble them later.",palette.text);
+            text(target,panel.x+18,panel.y+164,
+                 "No popups. Built-in browsing, download location, recommendations, progress, and results stay inside Nougat.",palette.muted);
+            return;
+        }
+
+        studioBackToToolsBtn={panel.x+panel.w-150,panel.y+12,132,30};
+        button_on(target,studioBackToToolsBtn,"Back to Tools");
+        text(target,panel.x+18,panel.y+28,"FILE SPLITTER",palette.text);
+        text(target,panel.x+18,panel.y+52,
+             "Add a file, folder, ZIP/manifest, or paste a path. Nougat suggests a balanced piece count automatically.",palette.muted);
+
+        const int labelW=138;
+        const int fieldX=panel.x+18+labelW;
+        const int fullFieldW=std::max(120,panel.w-labelW-36);
         const int fieldH=30;
         int y=panel.y+70;
-        const auto field=[&](const char* label,Rect& rect,std::string value,int focus) {
-            text(target,panel.x+16,y+20,label,palette.text);
-            rect={fieldX,y,fieldW,fieldH};
-            fill(target,rect,rgb8(250,240,218));
-            outline(target,rect,studioInputFocus==focus?rgb8(126,72,28):rgb8(166,112,56));
-            const std::string shown=tail_to_width(value,rect.w-16);
-            text(target,rect.x+8,rect.y+20,shown,palette.text);
-            y+=38;
+        const auto draw_field=[&](const char* label,Rect& rect,const std::string& value,int focus,const char* placeholder,int width) {
+            text(target,panel.x+18,y+20,label,palette.text);
+            rect={fieldX,y,width,fieldH};
+            fill(target,rect,palette.field);
+            outline(target,rect,studioInputFocus==focus?palette.accent:palette.border);
+            std::string shown=value.empty()?std::string(placeholder):tail_to_width(value,rect.w-16);
+            const unsigned long ink=value.empty()?palette.muted:palette.text;
+            text(target,rect.x+8,rect.y+20,shown,ink);
+            if (studioInputFocus==focus && studioInputSelectAll && !value.empty()) {
+                outline(target,{rect.x+3,rect.y+3,rect.w-6,rect.h-6},palette.selection);
+            }
         };
-        field("Source / Manifest",studioSourceRect,studioSourcePath,1);
-        field("Output",studioOutputRect,studioOutputPath,2);
-        field("Output Name",studioNameRect,studioOutputName,3);
 
-        const int compactW=120;
-        text(target,panel.x+16,y+20,"Pieces",palette.text);
-        studioPiecesRect={fieldX,y,compactW,fieldH};
-        fill(target,studioPiecesRect,rgb8(250,240,218));
-        outline(target,studioPiecesRect,studioInputFocus==4?rgb8(126,72,28):rgb8(166,112,56));
+        const int sourceButtonGap=6;
+        const int addFileW=94;
+        const int addFolderW=106;
+        const int addZipW=150;
+        const int sourceButtonsTotal=addFileW+addFolderW+addZipW+sourceButtonGap*3;
+        const int sourceFieldW=std::max(180,fullFieldW-sourceButtonsTotal);
+        draw_field("Source / Manifest",studioSourceRect,studioSourcePath,1,"Paste path or browse",sourceFieldW);
+        int sourceBx=studioSourceRect.x+studioSourceRect.w+sourceButtonGap;
+        studioAddFileBtn={sourceBx,y,addFileW,fieldH}; sourceBx+=addFileW+sourceButtonGap;
+        studioAddFolderBtn={sourceBx,y,addFolderW,fieldH}; sourceBx+=addFolderW+sourceButtonGap;
+        studioAddZipManifestBtn={sourceBx,y,addZipW,fieldH};
+        button_on(target,studioAddFileBtn,"Add File");
+        button_on(target,studioAddFolderBtn,"Add Folder");
+        button_on(target,studioAddZipManifestBtn,"Add ZIP / Manifest");
+        y+=38;
+
+        const int locationButtonW=150;
+        const int locationFieldW=std::max(180,fullFieldW-locationButtonW-sourceButtonGap);
+        draw_field("Download Location",studioOutputRect,studioOutputPath,2,"/home/.../Downloads",locationFieldW);
+        studioChooseLocationBtn={studioOutputRect.x+studioOutputRect.w+sourceButtonGap,y,locationButtonW,fieldH};
+        button_on(target,studioChooseLocationBtn,"Choose Location");
+        y+=38;
+
+        draw_field("Output Name",studioNameRect,studioOutputName,3,"Automatically filled from the source",fullFieldW);
+        y+=38;
+
+        text(target,panel.x+18,y+20,"Pieces",palette.text);
+        studioPiecesRect={fieldX,y,140,fieldH};
+        fill(target,studioPiecesRect,palette.field);
+        outline(target,studioPiecesRect,studioInputFocus==4?palette.accent:palette.border);
         text(target,studioPiecesRect.x+8,studioPiecesRect.y+20,studioPiecesText,palette.text);
-        text(target,studioPiecesRect.x+compactW+20,y+20,"Max MiB",palette.text);
-        studioMaxMiBRect={studioPiecesRect.x+compactW+84,y,compactW,fieldH};
-        fill(target,studioMaxMiBRect,rgb8(250,240,218));
-        outline(target,studioMaxMiBRect,studioInputFocus==5?rgb8(126,72,28):rgb8(166,112,56));
-        text(target,studioMaxMiBRect.x+8,studioMaxMiBRect.y+20,studioMaxMiBText,palette.text);
-        y+=44;
+        if (studioInputFocus==4 && studioInputSelectAll && !studioPiecesText.empty())
+            outline(target,{studioPiecesRect.x+3,studioPiecesRect.y+3,studioPiecesRect.w-6,studioPiecesRect.h-6},palette.selection);
+        if (studioSuggestedPieces>0) {
+            std::string suggestion="Recommended: "+std::to_string(studioSuggestedPieces)+" pieces";
+            if (studioSuggestedApproxBytes>0) suggestion += "  |  about "+format_bytes(studioSuggestedApproxBytes)+" each";
+            text(target,studioPiecesRect.x+160,y+20,head_to_width(suggestion,std::max(80,panel.x+panel.w-studioPiecesRect.x-178)),palette.muted);
+        } else {
+            text(target,studioPiecesRect.x+160,y+20,"Recommendation appears automatically after source analysis.",palette.muted);
+        }
+        y+=42;
 
-        const int gap=10;
-        const int buttonW=std::max(130,std::min(190,(panel.w-52)/3));
-        studioSplitFileBtn={panel.x+16,y,buttonW,32};
-        studioSplitFolderBtn={0,0,0,0};
-        studioReassembleBtn={studioSplitFileBtn.x+buttonW+gap,y,buttonW,32};
-        studioVerifyBtn={studioReassembleBtn.x+buttonW+gap,y,buttonW,32};
-        button_on(target,studioSplitFileBtn,"Split Folder / File / ZIP");
+        if (studioSourceBytes>0) {
+            std::string analysis="Source: "+format_bytes(studioSourceBytes);
+            if (studioEstimatedPayloadBytes>0) analysis += "  |  estimated split payload: "+format_bytes(studioEstimatedPayloadBytes);
+            text(target,panel.x+18,y+18,head_to_width(analysis,panel.w-36),palette.text);
+            y+=26;
+        }
+
+        const int gap=8;
+        const int buttonW=std::max(100,std::min(138,(panel.w-36-gap*5)/6));
+        int bx=panel.x+18;
+        studioAnalyzeBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
+        studioUseSuggestionBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
+        studioSplitFileBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
+        studioReassembleBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
+        studioVerifyBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
+        studioStopBtn={bx,y,buttonW,32};
+        button_on(target,studioAnalyzeBtn,"Analyze");
+        button_on(target,studioUseSuggestionBtn,"Use Suggestion");
+        button_on(target,studioSplitFileBtn,"Split");
         button_on(target,studioReassembleBtn,"Reassemble");
-        button_on(target,studioVerifyBtn,"Verify Parts");
-        text(target,panel.x+16,y+58,head_to_width(studioStatus,panel.w-32),palette.text);
-        text(target,panel.x+16,y+84,
-             "Verify/Reassemble: put the .zip.parts.json manifest in Source. Reassemble Output is optional.",palette.muted);
+        button_on(target,studioVerifyBtn,"Verify");
+        button_on(target,studioStopBtn,studioJobRunning?"Stop":"Stop");
+        y+=46;
+
+        Rect progress={panel.x+18,y,std::max(100,panel.w-36),24};
+        draw_sheet_track(target,progress,palette.border,palette.field,palette.buttonLight);
+        draw_sheet_track_fill(target,progress,progress.w*studioProgress/100,palette.buttonDark,palette.accent,palette.buttonLight);
+        const std::string progressText=std::to_string(studioProgress)+"%";
+        text(target,progress.x+progress.w/2-16,progress.y+17,progressText,palette.text);
+        y+=38;
+
+        std::string state=studioJobRunning?"Working: "+studioStatus:studioStatus;
+        if (studioIntegrityPassed && !studioJobRunning) state += "  [SHA-256 VERIFIED]";
+        text(target,panel.x+18,y+18,head_to_width(state,panel.w-36),palette.text);
+        y+=24;
+        if (!studioLastManifest.empty()) {
+            text(target,panel.x+18,y+18,head_to_width("Manifest: "+studioLastManifest,panel.w-36),palette.muted);
+            y+=22;
+        } else if (!studioLastResult.empty()) {
+            text(target,panel.x+18,y+18,head_to_width("Result: "+studioLastResult,panel.w-36),palette.muted);
+            y+=22;
+        }
+        text(target,panel.x+18,std::min(panel.y+panel.h-16,y+18),
+             "Tip: Ctrl+V pastes into the active field. Split and reassembly stream data instead of loading huge files into RAM.",palette.muted);
     }
 
     void draw_debug_screen(Drawable target) {
@@ -14694,6 +15379,14 @@ public:
             scroll_button_row(nougatNetworkButtonsScrollX,4,delta,nougatNetworkActionsViewport.w);
             return true;
         }
+        if (currentView == ViewMode::Studio && target == win && studio_browser_active() && studioBrowserListRect.contains(x,y)) {
+            const auto entries=studio_browser_entries();
+            const int rowH=30;
+            const int visible=std::max(1,(studioBrowserListRect.h-8)/rowH);
+            const int maxScroll=std::max(0,static_cast<int>(entries.size())-visible);
+            studioBrowserScroll=std::max(0,std::min(maxScroll,studioBrowserScroll+(button==Button4?-3:3)));
+            redraw(); return true;
+        }
         if (currentView == ViewMode::LiveTV && target == win && liveTvListBox.contains(x,y)) {
             const int visible = std::max(1,(liveTvListBox.h-108)/46);
             const int maxScroll=std::max(0,static_cast<int>(liveTvChannels.size())-visible);
@@ -15634,6 +16327,8 @@ public:
             poll_tv_autoplay_retry();
             poll_ytdlp_process();
             poll_nougat_workers();
+            poll_studio_worker();
+            maybe_auto_analyze_studio_source();
             poll_home_worker();
             poll_home_preview();
             poll_home_preview_update();
@@ -15731,6 +16426,21 @@ public:
     }
     void shutdown() {
         shuttingDown = true;
+        if (studioJobRunning) {
+            stop_studio_job();
+            const long long deadline=now_ms()+2200LL;
+            while (studioJobRunning && now_ms()<deadline) {
+                poll_studio_worker();
+                usleep(25000);
+            }
+            if (studioJobRunning && studioJobGroup>1) {
+                kill(-studioJobGroup,SIGKILL);
+                int childStatus=0;
+                if (studioJobPid>1) (void)waitpid(studioJobPid,&childStatus,0);
+                if (studioJobFd>=0) close(studioJobFd);
+                studioJobFd=-1; studioJobPid=-1; studioJobGroup=-1; studioJobRunning=false;
+            }
+        }
         persist_current_resume(true);
         clear_seek_preview_hover();
         if (homeWorker.joinable()) {
@@ -15831,7 +16541,7 @@ public:
 int main(int argc, char** argv) {
     prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.53\n");
+        printf("Nougat Media Suite v0.0.54\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

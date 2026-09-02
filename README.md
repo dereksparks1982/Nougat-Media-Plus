@@ -14,13 +14,26 @@ Radio provides a unified receiver environment for AM, FM, shortwave, weather rad
 
 Games provides a unified game library and emulator front end with persistent ROM folders, ZIP-contained game discovery, system recognition, artwork, controller support, automatic emulator selection, emulator runtime management, and support for legally redistributable bundled test and homebrew content while users provide their own commercial game dumps and required firmware or BIOS.
 
-Studio and media tools provide built-in utilities including File Splitter and expanding media-processing foundations. Nougat also includes a Jellyfin-backed media server foundation, network media access architecture for phones, tablets, laptops, televisions, browsers, and other clients, operation without mandatory cloud accounts or mandatory cloud relays, diagnostic and system-status tools, hardware reporting, security scanning foundations, expandable service integrations, and infrastructure designed so new media, tuner, receiver, emulator, networking, privacy, and hardware capabilities can be added without replacing the rest of the suite.
+Studio provides Nougat media-production tools including the professional in-app File Splitter for source analysis, piece recommendations, splitting, verification, and reassembly. Nougat also includes a Jellyfin-backed media server foundation, network media access architecture for phones, tablets, laptops, televisions, browsers, and other clients, operation without mandatory cloud accounts or mandatory cloud relays, diagnostic and system-status tools, hardware reporting, security scanning foundations, expandable service integrations, and infrastructure designed so new media, tuner, receiver, emulator, networking, privacy, and hardware capabilities can be added without replacing the rest of the suite.
 
 The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.
 
+## v0.0.54 - Professional File Splitter and Silver Screen Studio
+
+Nougat Media Suite v0.0.54 is the current owner-accepted release.
+
+- Promotes File Splitter from a prototype into a professional Studio tool opened from **Studio -> Tools -> File Splitter**, rather than giving File Splitter its own top-level tab.
+- Adds in-page **Add File**, **Add Folder**, **Add ZIP / Manifest**, and **Choose Location** browsing controls. File Splitter routine workflow remains inside Nougat without external chooser or status popups.
+- Analyzes the selected source and recommends a balanced number of pieces automatically while still allowing manual piece-count selection and a **Use Suggestion** action.
+- Adds calculated piece sizing, asynchronous Split/Reassemble/Verify operations, live in-page progress, and a real Stop control so large operations do not freeze the Nougat interface.
+- Streams large files rather than loading them wholly into memory, records SHA-256 hashes for produced pieces, verifies reassembled data, cleans incomplete output after cancellation, and retains compatibility with earlier Nougat v2 split manifests.
+- Gives Studio its Silver Screen identity with a silver top-level Studio button, silver Studio/Tools/File Splitter treatment, and a film-strip header across the Studio page.
+- Preserves the accepted v0.0.53 Xbox 360 embedded-video path, native player geometry, real libtorrent P2P support, local llama.cpp AI runtime, and the rest of the accepted Nougat feature set.
+- Enforces the one-root-executable release gate: **Nougat_Media_Suite_v54** is the sole active versioned executable in the project root.
+
 ## v0.0.53 - System Expansion and Xbox 360 Embedded Video
 
-Nougat Media Suite v0.0.53 is the current owner-tested release built on the accepted v0.0.52 base.
+Nougat Media Suite v0.0.53 is the accepted release immediately preceding v0.0.54, built on the accepted v0.0.52 base.
 
 - Aligns World TV with the Live TV Guide geometry while preserving World TV's own orange presentation and adds clearer dependency, resolver, provider, stream, and startup-timeout failure reporting.
 - Reworks HDHomeRun ATSC scanning around physical RF channels 2 through 51 with explicit lock/service evidence, phased scan progress, truthful guide availability, and improved import diagnostics.

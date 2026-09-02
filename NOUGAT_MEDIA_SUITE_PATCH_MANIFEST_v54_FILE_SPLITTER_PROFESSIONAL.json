@@ -1,0 +1,69 @@
+{
+  "package": "Nougat_Media_Suite_v0.0.54_FILE_SPLITTER_PROFESSIONAL_CHANGED_FILES.zip",
+  "version": "0.0.54",
+  "status": "candidate_for_owner_testing",
+  "base": "v0.0.53",
+  "scope": "Professional in-app File Splitter under Studio > Tools",
+  "production_build": {
+    "p2p_stub": false,
+    "ai_stub": false,
+    "libtorrent": "2.0.12",
+    "requires": [
+      "libllama.so.0",
+      "libtorrent-rasterbar.so.2.0"
+    ],
+    "ai_rpath": "$ORIGIN/components/ai/runtime/lib:$ORIGIN/components/ai/runtime/lib64"
+  },
+  "closed_v53_regression": {
+    "emulator_host_git_blob": "22f03639525a37997ef01a049b35641876399afc",
+    "xbox_host_changed": false,
+    "player_geometry_changed": false
+  },
+  "files": [
+    {
+      "path": "CMakeLists.txt",
+      "bytes": 3256,
+      "sha256": "d3266001ac637c0f866f82bbd450d5ac49d4319650df56a3d33ce38bb4cf1506"
+    },
+    {
+      "path": "NougatMediaSuite.desktop",
+      "bytes": 516,
+      "sha256": "31bba632ff254bed96e0fe8993a35680f9c348f28e55a41aabb7faa6ce11f531"
+    },
+    {
+      "path": "Nougat_Media_Suite_v54",
+      "bytes": 2983040,
+      "sha256": "f34335f63f65c67eee4d29f318fff5b96654befc9eef365b84233bf1cb981b28"
+    },
+    {
+      "path": "com.elderredsoftworks.NougatMediaSuite.desktop",
+      "bytes": 516,
+      "sha256": "31bba632ff254bed96e0fe8993a35680f9c348f28e55a41aabb7faa6ce11f531"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_54_FILE_SPLITTER_PROFESSIONAL_VALIDATION.md",
+      "bytes": 2432,
+      "sha256": "29c78e6e8f726b34bba0c6df1c2b00b46a5c72114627f7b959de75f78a30883e"
+    },
+    {
+      "path": "src/main.cpp",
+      "bytes": 929558,
+      "sha256": "9e2bb4b57af0b7afc8a696c1c196058cfe2c1c96c3b24f59b6f37d85d6fd62a4"
+    },
+    {
+      "path": "tools/nougat_file_splitter.py",
+      "bytes": 22777,
+      "sha256": "551aecda97f047a18bdf8fd5f799cc345c514511bdac21aa33b4935f656e3af3"
+    },
+    {
+      "path": "tools/test_nougat_file_splitter_v54.py",
+      "bytes": 6112,
+      "sha256": "c026d67ef9913ad4257a1b364bca770e14c6a660c62cb23a00134bb75e8f5784"
+    },
+    {
+      "path": "tools/test_v54_static.py",
+      "bytes": 4433,
+      "sha256": "7819ef55ad6fb83dfc730585f823463a876a1bf3e07a7330c07edc08a6e87373"
+    }
+  ]
+}

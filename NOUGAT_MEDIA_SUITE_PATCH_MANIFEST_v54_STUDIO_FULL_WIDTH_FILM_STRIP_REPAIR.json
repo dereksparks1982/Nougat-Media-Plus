@@ -1,0 +1,46 @@
+{
+  "package": "Nougat_Media_Suite_v0.0.54_STUDIO_FULL_WIDTH_FILM_STRIP_REPAIR_CHANGED_FILES.zip",
+  "version": "0.0.54",
+  "status": "candidate_for_owner_testing",
+  "scope": "Studio Silver Screen full-width film-strip header geometry repair only",
+  "base": "v0.0.54 Silver Screen + in-page browser candidate",
+  "changes": {
+    "film_strip_full_width": true,
+    "film_strip_height_matches_global_top_bar": true,
+    "studio_heading_below_film_strip": true,
+    "studio_button_remains_silver": true,
+    "file_splitter_behavior_changed": false,
+    "xbox_host_changed": false,
+    "player_geometry_changed": false
+  },
+  "validation": {
+    "warnings_as_errors_build": "PASS",
+    "v54_static_splitter_xbox_regression": "PASS",
+    "v54_silver_browser_gate": "PASS",
+    "real_llama_dependency": "libllama.so.0",
+    "real_libtorrent_dependency": "libtorrent-rasterbar.so.2.0",
+    "owner_visual_test": "REQUIRED"
+  },
+  "files": [
+    {
+      "path": "src/main.cpp",
+      "bytes": 945442,
+      "sha256": "2626097a74c496a9c6ec6ed832aa89f10337fb01314d76c0eec5c92547098de6"
+    },
+    {
+      "path": "Nougat_Media_Suite_v54",
+      "bytes": 3010584,
+      "sha256": "664b5e7d66e713d16d293b365515eab69cb7c41f41aa0d2aff80f167da1745d7"
+    },
+    {
+      "path": "tools/test_v54_studio_silver_browser.py",
+      "bytes": 2344,
+      "sha256": "9d7b2d6fbd0ff2168b914b074b2fa55a28200aa02904642356fc95b0225b382a"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_54_STUDIO_FULL_WIDTH_FILM_STRIP_REPAIR_VALIDATION.md",
+      "bytes": 970,
+      "sha256": "e0e90ac172470594de11b0564cad287f2e32604d2935bdbc2a385cd64b011b18"
+    }
+  ]
+}
