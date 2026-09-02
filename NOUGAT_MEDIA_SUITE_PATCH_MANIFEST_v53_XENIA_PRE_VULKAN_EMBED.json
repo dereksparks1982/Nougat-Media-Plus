@@ -1,0 +1,19 @@
+{
+  "version": "0.0.53",
+  "scope": "Xenia Edge separate-window repair using pre-Vulkan X11 attachment",
+  "upstream_release": "7be830a",
+  "payload": [
+    "components/games/runtime/xenia/xenia_canary",
+    "components/games/runtime/xenia/nougat_xenia_embed_preload.c",
+    "tools/apply_v53_xenia_pre_vulkan_embed_repair.py",
+    "tools/build_v53_xenia_pre_vulkan_embed_repair.sh"
+  ],
+  "constraints": [
+    "changed-files only",
+    "no cleanup",
+    "no CMake reconfigure",
+    "no version bump",
+    "no installer",
+    "no commit/tag/push"
+  ]
+}

@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -23,6 +24,8 @@
 
 namespace reddmedia {
 namespace {
+
+constexpr std::uint16_t kJellyfinBackendPort = 8098;
 
 constexpr const char* kClientHeader =
     "MediaBrowser Client=\"ReddMedia\", DeviceId=\"reddmedia-local\", "
@@ -509,7 +512,7 @@ JellyfinApiClient::HttpResponse JellyfinApiClient::request(
 
     sockaddr_in address {};
     address.sin_family = AF_INET;
-    address.sin_port = htons(8096);
+    address.sin_port = htons(kJellyfinBackendPort);
     inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
     if (connect(socket_fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0) {
         close(socket_fd);
@@ -518,7 +521,7 @@ JellyfinApiClient::HttpResponse JellyfinApiClient::request(
 
     std::ostringstream message;
     message << method << ' ' << target << " HTTP/1.1\r\n"
-            << "Host: 127.0.0.1:8096\r\n"
+            << "Host: 127.0.0.1:" << kJellyfinBackendPort << "\r\n"
             << "Accept: application/json\r\n"
             << "Content-Type: application/json\r\n"
             << "Authorization: " << authorization(authenticated) << "\r\n"

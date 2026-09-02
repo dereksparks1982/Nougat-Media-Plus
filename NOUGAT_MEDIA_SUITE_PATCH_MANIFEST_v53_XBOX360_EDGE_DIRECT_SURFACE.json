@@ -1,0 +1,46 @@
+{
+  "package": "Nougat_Media_Suite_v0.0.53_XBOX360_EDGE_DIRECT_SURFACE_CHANGED_FILES.zip",
+  "scope": "Xbox 360 Edge direct rendering into existing Nougat v53 X11 Games/video viewport",
+  "base": "existing local Nougat Media Suite v0.0.53 with pinned Xenia Edge already installed",
+  "xenia_edge_commit": "7be830a2dd9c7336dedea5f134d0f79adcefb46e",
+  "xenia_edge_appimage_sha256": "dce3d41f2d5126d5bdbd91e87f7d2ccded89d87e349306804688a3cb4e477591",
+  "installer": false,
+  "nougat_executable_replaced": false,
+  "files": [
+    {
+      "path": "README_V53_XBOX360_EDGE_DIRECT_SURFACE.txt",
+      "bytes": 648,
+      "sha256": "e81c780f76e3d9fdd7f3026052d1149610c795dd99f354285dc12026a23308c3"
+    },
+    {
+      "path": "components/games/runtime/xenia/embed-source/nougat_x11_parent_probe.c",
+      "bytes": 6593,
+      "sha256": "cb65d3b4ef6e029b49872441bc4ec707fbedcd86b7ce1d1c9c7892de5bbbf7b3"
+    },
+    {
+      "path": "components/games/runtime/xenia/embed-source/nougat_xenia_embed.c",
+      "bytes": 2776,
+      "sha256": "fe6a8f97cf4c1619bec94638ce8e2c1a06f61036b47e96e8ff7996b0e79f31ea"
+    },
+    {
+      "path": "components/games/runtime/xenia/nougat_x11_parent_probe",
+      "bytes": 17176,
+      "sha256": "a41f73414beeb760ca9db09ad367f6103748a0287316d429273fc34c864ce655"
+    },
+    {
+      "path": "components/games/runtime/xenia/nougat_xenia_embed.so",
+      "bytes": 16224,
+      "sha256": "b62b8064422e03a87fd92ba94c837883c2c19e4af0ef5db87d2020e5159e85b9"
+    },
+    {
+      "path": "components/games/runtime/xenia/xenia_canary",
+      "bytes": 1558,
+      "sha256": "7fcbd2de1768400332398e5bf8ee27b6de84d6e7326d749016cd5f251596c580"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_XBOX360_EDGE_DIRECT_SURFACE_VALIDATION.md",
+      "bytes": 2817,
+      "sha256": "61ec9ccfa010684fbdd0708c6c08502473abf1335fe457b688e1b798e25291a8"
+    }
+  ]
+}

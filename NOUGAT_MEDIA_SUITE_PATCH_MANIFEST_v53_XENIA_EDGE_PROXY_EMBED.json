@@ -1,0 +1,33 @@
+{
+  "package": "Nougat_Media_Suite_v0.0.53_XENIA_EDGE_PROXY_EMBED_CHANGED_FILES.zip",
+  "version": "0.0.53",
+  "scope": "Xbox 360 Xenia Edge in-Nougat viewport embedding repair",
+  "runtime_requirement": "Existing components/games/runtime/xenia/xenia_edge_linux.AppImage from the previously verified Xenia Edge installation.",
+  "changed_files": [
+    "components/games/runtime/xenia/xenia_canary",
+    "components/games/runtime/xenia/nougat_xenia_embed_helper",
+    "components/games/runtime/xenia/nougat_xenia_embed_helper.c"
+  ],
+  "architecture": [
+    "Create an X11 proxy identified as xenia_canary with _NET_WM_PID set to the launched Edge process PID.",
+    "Nougat v53's existing EmulatorHost selects and reparents the proxy into its native Games/player viewport.",
+    "The launcher waits until that capture is confirmed before starting Xenia Edge.",
+    "The helper finds only the official Edge top-level X11 client from the launched process tree and reparents it inside the already-embedded proxy.",
+    "Nougat continues tracking/resizing the proxy, while the helper keeps Edge sized to the proxy."
+  ],
+  "validation": {
+    "compile": "gcc -O2 -Wall -Wextra -Werror; PASS",
+    "dependencies": [
+      "libX11.so.6",
+      "libc.so.6",
+      "libxcb.so.1"
+    ],
+    "xvfb_integration_test": "PASS: mock Nougat host captured proxy; mock Xenia top-level parent became proxy; wrapper and helper exited 0."
+  },
+  "sha256": {
+    "components/games/runtime/xenia/xenia_canary": "9fb2f6f00b4cec4352a6fc64f5a6c94cee6b7199f4e55f90a91059aa82a0295c",
+    "components/games/runtime/xenia/nougat_xenia_embed_helper": "dfed0a0a4e260b7c9b9359d5a8f7182c8b51b6de6ed2a529312017546c503fc8",
+    "components/games/runtime/xenia/nougat_xenia_embed_helper.c": "b401502c2ddc5593f7913d97ab3c2b201778c78313aa93fe8357daf1c4dada81",
+    "NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_v53_XENIA_EDGE_PROXY_EMBED.json": ""
+  }
+}

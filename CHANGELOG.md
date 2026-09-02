@@ -1,3 +1,18 @@
+# Nougat Media Suite Change Log
+
+## v0.0.55 candidate — First-Party LAN Web Player
+
+- Repairs the rejected foreground-only Web Player architecture: the Nougat browser player now owns LAN port 8096 as a persistent background companion service supervised with the Nougat-owned media server, so closing the desktop UI does not remove phone/tablet access.
+- Moves the hidden Jellyfin `--nowebclient` backend to loopback-only port 8098. Jellyfin remains the catalog/API engine but is no longer the page exposed at the LAN address.
+- Migrates an already-running Nougat-owned legacy/rejected v55 Jellyfin process from 8096 to the corrected 8098 + Web Player 8096 stack without claiming or killing an independently started Jellyfin process.
+- Serves responsive Nougat-owned HTML/CSS/JavaScript with no cloud login, external relay, UPnP, or automatic Internet exposure.
+- Adds private-LAN health/catalog contracts, catalog-ID-only media selection, direct HTTP byte-range delivery, and FFmpeg fragmented-MP4 browser compatibility streaming.
+- Repairs the playback placeholder so its text cannot remain painted over active video and makes transient playback-status text clear after successful playback.
+- Adds a short-viewport desktop layout gate so the player fits a 1366×768-class display at 100% browser zoom instead of requiring browser zoom-out.
+- Leaves PS2 deferred and preserves the accepted Xbox/Xenia emulator-host source byte-for-byte.
+- Does not include the pending File Splitter recommendation repair or unrelated Games/runtime cleanup.
+- Preserves the five-button true-fullscreen transport overlay: `<<` rewind 10s, `<` previous item, `^` play/pause, `>` next item, and `>>` forward 10s, with larger drawn glyphs.
+
 # Changelog
 
 ## v0.0.52 candidate - Professional Radio Receiver

@@ -1,0 +1,113 @@
+{
+  "product": "Nougat Media Suite",
+  "version": "0.0.55",
+  "candidate": "Web Player + five-button fullscreen transport + mandatory Nougat N identity repair",
+  "accepted_base": "v0.0.54 e4d7ed25aeecc02fda60ae6f9f929fd52bcf6811",
+  "rejection_repaired": "generic gear shown for raw v55 executable because apply procedure omitted final metadata::custom-icon assignment/readback",
+  "scope": [
+    "first-party LAN Web Player on port 8097",
+    "five-button true-fullscreen transport",
+    "same-version executable identity repair"
+  ],
+  "explicitly_unchanged": [
+    "v55 executable bytes from rejected Web Player candidate",
+    "Games runtimes",
+    "Xbox/Xenia integration",
+    "PS2 deferred",
+    "Jellyfin hidden backend --nowebclient"
+  ],
+  "approved_icon_master": {
+    "path": "assets/icons/nougat-media-suite-concept-sheet-v24.png",
+    "sha256": "681ece987dd00d9958cf953939403bd71a5ad9d70d8ad284e133272a0204d804"
+  },
+  "v55_executable_sha256": "a0fdf08597e9026b45b22c507be2e42fec03e33984418572e5628a2ac5f234e7",
+  "xenia_emulator_host_sha256": "ccb778246a9677a13dd9c71133b817b8d9138264fe1d8a0cd885edda4f271bef",
+  "apply_identity_gate": "After the final v55 executable is extracted to the project root, set metadata::custom-icon to the approved icon master file URI and immediately read it back. Do not move or replace the executable afterward.",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 75815,
+      "sha256": "62b205e0a98553b322b26be2643a81df8ba1c47825b6a9ea19020ea083fa787b"
+    },
+    {
+      "path": "CMakeLists.txt",
+      "bytes": 3256,
+      "sha256": "ad41672460607df55f8236fbd114af113e47ddcbe0ae4aa070b201463ef3fcec"
+    },
+    {
+      "path": "NougatMediaSuite.desktop",
+      "bytes": 516,
+      "sha256": "97a6e9343319f6f3085be7d737add917589a5250191e9873766531d8f8e665df"
+    },
+    {
+      "path": "com.elderredsoftworks.NougatMediaSuite.desktop",
+      "bytes": 516,
+      "sha256": "97a6e9343319f6f3085be7d737add917589a5250191e9873766531d8f8e665df"
+    },
+    {
+      "path": "Nougat_Media_Suite_v55",
+      "bytes": 2926648,
+      "sha256": "a0fdf08597e9026b45b22c507be2e42fec03e33984418572e5628a2ac5f234e7"
+    },
+    {
+      "path": "assets/icons/nougat-media-suite-concept-sheet-v24.png",
+      "bytes": 265834,
+      "sha256": "681ece987dd00d9958cf953939403bd71a5ad9d70d8ad284e133272a0204d804"
+    },
+    {
+      "path": "components/web_player/app.js",
+      "bytes": 5906,
+      "sha256": "1822de2605b2e2021ad522c4001fa53b64a3387d168a995ebd4793255fc348e5"
+    },
+    {
+      "path": "components/web_player/index.html",
+      "bytes": 2203,
+      "sha256": "dbf1ac44a4b8b172e5bc8623dccaf52c4003234e8c81dcbf3349f5e704e37d4d"
+    },
+    {
+      "path": "components/web_player/styles.css",
+      "bytes": 5298,
+      "sha256": "e237779863a324679cd388b773350c40bac705688e153938273026a82650d6e7"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_55_WEB_PLAYER_HANDSHAKE.md",
+      "bytes": 2290,
+      "sha256": "8daf5360e6ee7541ef9d1f8d93bc5e3703ecefbc249d934d6b35fd539c3f1fd4"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_55_WEB_PLAYER_VALIDATION.md",
+      "bytes": 3015,
+      "sha256": "09e33229ec802cea13ee5d76cf79dacaae09555ca64cee32a36afa3e059fdfd7"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_55_WEB_PLAYER_ICON_REPAIR_VALIDATION.md",
+      "bytes": 2193,
+      "sha256": "eb1656f96af492c2ba24a0ce9c4e4d5a31d121c107101ec40f37fa6f8a516ff5"
+    },
+    {
+      "path": "src/lan/lan_media_service.cpp",
+      "bytes": 30682,
+      "sha256": "844d81a9176afad11f57c3503a02ea0c58c964718b59dec425db33198dc5a228"
+    },
+    {
+      "path": "src/lan/lan_media_service.hpp",
+      "bytes": 1191,
+      "sha256": "99f33cd8a0d3851416bfbb008eeb3b7b287598b987d510775c8595e28cafbc5c"
+    },
+    {
+      "path": "src/main.cpp",
+      "bytes": 948134,
+      "sha256": "eb104de39ba6d9881d1d195a496fb5ae6dd6f35cf9a1bc7fa7112a46c94f98cf"
+    },
+    {
+      "path": "tools/test_nougat_web_player_v55.py",
+      "bytes": 3905,
+      "sha256": "bdb002ba2143867bd965553a7445d625e5cafc4beb13de0fe7a7ddb3fe297e1a"
+    },
+    {
+      "path": "tools/test_nougat_identity_v55.py",
+      "bytes": 1412,
+      "sha256": "ecc09838538e3a3239e53bc3b0ed8416b86a3019a7abcbb8e4846e31da3bf65b"
+    }
+  ]
+}

@@ -38,6 +38,10 @@ public:
 
 private:
     bool health_ready() const;
+    bool backend_health_ready() const;
+    bool web_player_health_ready() const;
+    bool ensure_backend_network_configuration() const;
+    bool terminate_owned_stack(const std::string& token, pid_t recorded_pid);
     bool launch_runtime();
     bool adopt_owned_server();
     bool process_matches_runtime(pid_t pid) const;
@@ -56,6 +60,7 @@ private:
 
     std::string application_dir_;
     std::string runtime_path_;
+    std::string web_runtime_path_;
     std::string data_path_;
     std::string config_path_;
     std::string cache_path_;

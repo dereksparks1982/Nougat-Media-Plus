@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cctype>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <dirent.h>
@@ -14,6 +15,7 @@
 #include <limits>
 #include <netinet/in.h>
 #include <signal.h>
+#include <sstream>
 #include <string>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -26,6 +28,8 @@ namespace reddmedia {
 namespace {
 
 constexpr const char* kOwnerEnvironment = "NOUGAT_MEDIA_SERVER_OWNER";
+constexpr std::uint16_t kNougatWebPort = 8096;
+constexpr std::uint16_t kJellyfinBackendPort = 8098;
 
 long long monotonic_ms() {
     using namespace std::chrono;
@@ -110,6 +114,97 @@ bool process_is_zombie(pid_t pid) {
     return stat_line[close + 2] == 'Z';
 }
 
+bool write_text_file_atomic(const std::string& path, const std::string& text) {
+    const std::string temporary = path + ".tmp";
+    const int fd = open(temporary.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0600);
+    if (fd < 0) return false;
+    std::size_t written = 0;
+    while (written < text.size()) {
+        const ssize_t amount = write(fd, text.data() + written, text.size() - written);
+        if (amount <= 0) break;
+        written += static_cast<std::size_t>(amount);
+    }
+    const bool closed = close(fd) == 0;
+    if (written != text.size() || !closed) {
+        unlink(temporary.c_str());
+        return false;
+    }
+    chmod(temporary.c_str(), 0600);
+    if (rename(temporary.c_str(), path.c_str()) != 0) {
+        unlink(temporary.c_str());
+        return false;
+    }
+    return true;
+}
+
+bool replace_xml_element(std::string& xml, const std::string& name, const std::string& replacement) {
+    const std::string open_tag = "<" + name + ">";
+    const std::string close_tag = "</" + name + ">";
+    const std::size_t begin = xml.find(open_tag);
+    if (begin == std::string::npos) return false;
+    const std::size_t end = xml.find(close_tag, begin + open_tag.size());
+    if (end == std::string::npos) return false;
+    xml.replace(begin, end + close_tag.size() - begin, open_tag + replacement + close_tag);
+    return true;
+}
+
+bool replace_xml_empty_or_element(std::string& xml, const std::string& name, const std::string& replacement) {
+    const std::string empty_tag = "<" + name + " />";
+    const std::size_t empty = xml.find(empty_tag);
+    if (empty != std::string::npos) {
+        xml.replace(empty, empty_tag.size(), "<" + name + ">" + replacement + "</" + name + ">");
+        return true;
+    }
+    return replace_xml_element(xml, name, replacement);
+}
+
+bool probe_http(std::uint16_t port, const char* path, const char* expected) {
+    const int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_fd < 0) return false;
+    const int original_flags = fcntl(socket_fd, F_GETFL, 0);
+    if (original_flags < 0 || fcntl(socket_fd, F_SETFL, original_flags | O_NONBLOCK) != 0) {
+        close(socket_fd);
+        return false;
+    }
+    sockaddr_in address {};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
+    int result = connect(socket_fd, reinterpret_cast<sockaddr*>(&address), sizeof(address));
+    if (result != 0 && errno == EINPROGRESS) {
+        fd_set write_set;
+        FD_ZERO(&write_set);
+        FD_SET(socket_fd, &write_set);
+        timeval timeout {0, 250000};
+        result = select(socket_fd + 1, nullptr, &write_set, nullptr, &timeout);
+        int socket_error = 0;
+        socklen_t error_length = sizeof(socket_error);
+        if (result <= 0 || getsockopt(socket_fd, SOL_SOCKET, SO_ERROR, &socket_error, &error_length) != 0 || socket_error != 0) {
+            close(socket_fd);
+            return false;
+        }
+    } else if (result != 0) {
+        close(socket_fd);
+        return false;
+    }
+    fcntl(socket_fd, F_SETFL, original_flags);
+    std::ostringstream request;
+    request << "GET " << path << " HTTP/1.1\r\nHost: 127.0.0.1:" << port << "\r\nConnection: close\r\n\r\n";
+    const std::string request_text = request.str();
+    if (send(socket_fd, request_text.data(), request_text.size(), MSG_NOSIGNAL) < 0) {
+        close(socket_fd);
+        return false;
+    }
+    timeval timeout {0, 500000};
+    setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    char response[512] {};
+    const ssize_t received = recv(socket_fd, response, sizeof(response) - 1, 0);
+    close(socket_fd);
+    if (received <= 0) return false;
+    const std::string text(response, static_cast<std::size_t>(received));
+    return text.find("HTTP/1.1 200") != std::string::npos && (!expected || text.find(expected) != std::string::npos);
+}
+
 } // namespace
 
 MediaServerManager::MediaServerManager() {
@@ -127,6 +222,7 @@ void MediaServerManager::resolve_paths() {
     const ssize_t length = readlink("/proc/self/exe", executable, sizeof(executable) - 1);
     application_dir_ = length > 0 ? parent_directory(std::string(executable, static_cast<std::size_t>(length))) : ".";
     runtime_path_ = application_dir_ + "/components/jellyfin/runtime/jellyfin/jellyfin";
+    web_runtime_path_ = application_dir_ + "/components/web_player/nougat-web-service";
 
     const char* home = std::getenv("HOME");
     const std::string home_path = home ? home : ".";
@@ -272,53 +368,90 @@ bool MediaServerManager::load_enabled_state() const {
     return true;
 }
 
+bool MediaServerManager::backend_health_ready() const {
+    return probe_http(kJellyfinBackendPort, "/health", nullptr);
+}
+
+bool MediaServerManager::web_player_health_ready() const {
+    return probe_http(kNougatWebPort, "/nougat/v1/health", "Nougat Media Suite");
+}
+
 bool MediaServerManager::health_ready() const {
-    const int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (socket_fd < 0) return false;
+    return backend_health_ready() && web_player_health_ready();
+}
 
-    const int original_flags = fcntl(socket_fd, F_GETFL, 0);
-    if (original_flags < 0 || fcntl(socket_fd, F_SETFL, original_flags | O_NONBLOCK) != 0) {
-        close(socket_fd);
-        return false;
+bool MediaServerManager::ensure_backend_network_configuration() const {
+    ensure_directory(config_path_);
+    const std::string path = config_path_ + "/network.xml";
+    std::string xml = read_binary_file(path);
+    if (xml.empty()) {
+        xml = R"XML(<?xml version="1.0" encoding="utf-8"?>
+<NetworkConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <BaseUrl />
+  <EnableHttps>false</EnableHttps>
+  <RequireHttps>false</RequireHttps>
+  <CertificatePath />
+  <CertificatePassword />
+  <InternalHttpPort>8098</InternalHttpPort>
+  <InternalHttpsPort>8920</InternalHttpsPort>
+  <PublicHttpPort>8098</PublicHttpPort>
+  <PublicHttpsPort>8920</PublicHttpsPort>
+  <AutoDiscovery>false</AutoDiscovery>
+  <EnableIPv4>true</EnableIPv4>
+  <EnableIPv6>false</EnableIPv6>
+  <EnableRemoteAccess>false</EnableRemoteAccess>
+  <LocalNetworkSubnets />
+  <LocalNetworkAddresses><string>127.0.0.1</string></LocalNetworkAddresses>
+  <KnownProxies />
+  <IgnoreVirtualInterfaces>true</IgnoreVirtualInterfaces>
+  <VirtualInterfaceNames><string>veth</string></VirtualInterfaceNames>
+  <EnablePublishedServerUriByRequest>false</EnablePublishedServerUriByRequest>
+  <PublishedServerUriBySubnet />
+  <RemoteIPFilter />
+  <IsRemoteIPFilterBlacklist>false</IsRemoteIPFilterBlacklist>
+</NetworkConfiguration>
+)XML";
+        return write_text_file_atomic(path, xml);
     }
 
-    sockaddr_in address {};
-    address.sin_family = AF_INET;
-    address.sin_port = htons(8096);
-    inet_pton(AF_INET, "127.0.0.1", &address.sin_addr);
-    int result = connect(socket_fd, reinterpret_cast<sockaddr*>(&address), sizeof(address));
-    if (result != 0 && errno == EINPROGRESS) {
-        fd_set write_set;
-        FD_ZERO(&write_set);
-        FD_SET(socket_fd, &write_set);
-        timeval timeout {0, 150000};
-        result = select(socket_fd + 1, nullptr, &write_set, nullptr, &timeout);
-        int socket_error = 0;
-        socklen_t error_length = sizeof(socket_error);
-        if (result <= 0 || getsockopt(socket_fd, SOL_SOCKET, SO_ERROR, &socket_error, &error_length) != 0 || socket_error != 0) {
-            close(socket_fd);
-            return false;
+    bool ok = true;
+    ok = replace_xml_element(xml, "InternalHttpPort", std::to_string(kJellyfinBackendPort)) && ok;
+    ok = replace_xml_element(xml, "PublicHttpPort", std::to_string(kJellyfinBackendPort)) && ok;
+    ok = replace_xml_element(xml, "EnableRemoteAccess", "false") && ok;
+    ok = replace_xml_empty_or_element(xml, "LocalNetworkAddresses", "<string>127.0.0.1</string>") && ok;
+    if (!ok) return false;
+    return write_text_file_atomic(path, xml);
+}
+
+bool MediaServerManager::terminate_owned_stack(const std::string& token, pid_t recorded_pid) {
+    std::vector<pid_t> processes = owned_processes(token, recorded_pid);
+    for (pid_t pid : processes) kill(pid, SIGTERM);
+    for (int attempt = 0; attempt < 120; ++attempt) {
+        processes = owned_processes(token, recorded_pid);
+        if (processes.empty()) {
+            clear_owned_pid();
+            owned_pid_ = -1;
+            owned_token_.clear();
+            return true;
         }
-    } else if (result != 0) {
-        close(socket_fd);
-        return false;
+        if (attempt > 0 && attempt % 20 == 0) {
+            for (pid_t pid : processes) kill(pid, SIGTERM);
+        }
+        usleep(50000);
     }
-
-    fcntl(socket_fd, F_SETFL, original_flags);
-    const char request[] = "GET /health HTTP/1.1\r\nHost: 127.0.0.1:8096\r\nConnection: close\r\n\r\n";
-    if (send(socket_fd, request, sizeof(request) - 1, MSG_NOSIGNAL) < 0) {
-        close(socket_fd);
-        return false;
+    processes = owned_processes(token, recorded_pid);
+    for (pid_t pid : processes) kill(pid, SIGKILL);
+    for (int attempt = 0; attempt < 100; ++attempt) {
+        processes = owned_processes(token, recorded_pid);
+        if (processes.empty()) {
+            clear_owned_pid();
+            owned_pid_ = -1;
+            owned_token_.clear();
+            return true;
+        }
+        usleep(50000);
     }
-
-    timeval timeout {0, 250000};
-    setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    char response[160] {};
-    const ssize_t received = recv(socket_fd, response, sizeof(response) - 1, 0);
-    close(socket_fd);
-    if (received <= 0) return false;
-    const std::string status(response, static_cast<std::size_t>(received));
-    return status.find("HTTP/1.1 200") != std::string::npos || status.find("HTTP/1.0 200") != std::string::npos;
+    return false;
 }
 
 bool MediaServerManager::adopt_owned_server() {
@@ -341,7 +474,7 @@ bool MediaServerManager::adopt_owned_server() {
 }
 
 bool MediaServerManager::launch_runtime() {
-    if (!regular_executable(runtime_path_)) {
+    if (!regular_executable(runtime_path_) || !regular_executable(web_runtime_path_)) {
         state_ = MediaServerState::RuntimeMissing;
         return false;
     }
@@ -350,6 +483,10 @@ bool MediaServerManager::launch_runtime() {
     ensure_directory(config_path_);
     ensure_directory(cache_path_);
     ensure_directory(log_path_);
+    if (!ensure_backend_network_configuration()) {
+        state_ = MediaServerState::Fault;
+        return false;
+    }
 
     const std::string token = make_owner_token();
     const pid_t child = fork();
@@ -381,6 +518,27 @@ bool MediaServerManager::launch_runtime() {
         _exit(127);
     }
 
+    const pid_t web_child = fork();
+    if (web_child < 0) {
+        kill(child, SIGTERM);
+        state_ = MediaServerState::Fault;
+        return false;
+    }
+    if (web_child == 0) {
+        if (setsid() < 0) _exit(126);
+        setenv(kOwnerEnvironment, token.c_str(), 1);
+        const std::string log_file = log_path_ + "/web-player.log";
+        const int log_fd = open(log_file.c_str(), O_CREAT | O_WRONLY | O_APPEND, 0644);
+        const int null_fd = open("/dev/null", O_RDONLY);
+        if (null_fd >= 0) dup2(null_fd, STDIN_FILENO);
+        if (log_fd >= 0) {
+            dup2(log_fd, STDOUT_FILENO);
+            dup2(log_fd, STDERR_FILENO);
+        }
+        execl(web_runtime_path_.c_str(), web_runtime_path_.c_str(), static_cast<char*>(nullptr));
+        _exit(127);
+    }
+
     owned_pid_ = child;
     owned_token_ = token;
     persist_owned_record(child, token);
@@ -391,12 +549,28 @@ bool MediaServerManager::launch_runtime() {
 void MediaServerManager::start() {
     persistent_enabled_ = true;
     persist_enabled(true);
+    if (!ensure_backend_network_configuration()) {
+        state_ = MediaServerState::Fault;
+        return;
+    }
 
-    if (adopt_owned_server()) return;
+    if (adopt_owned_server()) {
+        if (health_ready()) return;
+        // Same-version migration: earlier rejected v55 candidates left an owned
+        // Jellyfin process on public port 8096. The corrected stack reserves
+        // 8096 for the Nougat Web Player and moves Jellyfin to loopback 8098.
+        const pid_t recorded_pid = owned_pid_;
+        const std::string token = owned_token_;
+        if (!terminate_owned_stack(token, recorded_pid)) {
+            state_ = MediaServerState::Fault;
+            return;
+        }
+    }
 
-    // A healthy server not carrying Nougat ownership metadata is deliberately
-    // not claimed or killed. This preserves independently started Jellyfin.
-    if (health_ready()) {
+    // Never claim an independently started Jellyfin. The corrected Nougat stack
+    // uses loopback 8098 for its own backend, so an external 8096 service cannot
+    // be silently repurposed or killed.
+    if (backend_health_ready()) {
         state_ = MediaServerState::Ready;
         owned_pid_ = -1;
         owned_token_.clear();
@@ -482,7 +656,7 @@ void MediaServerManager::refresh() {
 
     owned_pid_ = -1;
     owned_token_.clear();
-    if (!regular_executable(runtime_path_)) state_ = MediaServerState::RuntimeMissing;
+    if (!regular_executable(runtime_path_) || !regular_executable(web_runtime_path_)) state_ = MediaServerState::RuntimeMissing;
     else state_ = MediaServerState::Stopped;
 }
 
@@ -494,7 +668,7 @@ bool MediaServerManager::poll() {
 
     if (!adopt_owned_server()) {
         if (health_ready()) state_ = MediaServerState::Ready; // independent server, not owned
-        else if (!regular_executable(runtime_path_)) state_ = MediaServerState::RuntimeMissing;
+        else if (!regular_executable(runtime_path_) || !regular_executable(web_runtime_path_)) state_ = MediaServerState::RuntimeMissing;
         else state_ = MediaServerState::Stopped;
     }
     return state_ != previous;

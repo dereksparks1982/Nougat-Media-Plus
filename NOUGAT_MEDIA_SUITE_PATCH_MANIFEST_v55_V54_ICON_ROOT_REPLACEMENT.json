@@ -1,0 +1,98 @@
+{
+  "project": "Nougat Media Suite",
+  "candidate_version": "0.0.55",
+  "accepted_base_commit": "e4d7ed25aeecc02fda60ae6f9f929fd52bcf6811",
+  "scope": "Web Player candidate plus exact accepted v54 icon/root replacement repair",
+  "root_executable": "Nougat_Media_Suite_v55",
+  "root_executable_sha256": "a0fdf08597e9026b45b22c507be2e42fec03e33984418572e5628a2ac5f234e7",
+  "accepted_v54_inherited_icon_master": "assets/icons/nougat-media-suite-v53.png",
+  "accepted_v54_inherited_icon_master_sha256": "40ebef58a7cc86e3883de287b0ed887d4eb3a60b2c4550c84fbebcaa3310734f",
+  "protected_xenia_host_sha256": "ccb778246a9677a13dd9c71133b817b8d9138264fe1d8a0cd885edda4f271bef",
+  "promotion_rule": "remove Nougat_Media_Suite_v54 only after v55 executable/icon/launcher/static validation succeeds",
+  "games_runtime_modified": false,
+  "xenia_runtime_modified": false,
+  "rejected_concept_icon_in_payload": false,
+  "commit_tag_push_performed": false,
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 76278,
+      "sha256": "3dd0332d1ea3d402e513d77e112e6746fb9562250270f34ea245ca367917e492"
+    },
+    {
+      "path": "CMakeLists.txt",
+      "bytes": 3256,
+      "sha256": "ad41672460607df55f8236fbd114af113e47ddcbe0ae4aa070b201463ef3fcec"
+    },
+    {
+      "path": "NougatMediaSuite.desktop",
+      "bytes": 516,
+      "sha256": "97a6e9343319f6f3085be7d737add917589a5250191e9873766531d8f8e665df"
+    },
+    {
+      "path": "Nougat_Media_Suite_v55",
+      "bytes": 2926648,
+      "sha256": "a0fdf08597e9026b45b22c507be2e42fec03e33984418572e5628a2ac5f234e7"
+    },
+    {
+      "path": "com.elderredsoftworks.NougatMediaSuite.desktop",
+      "bytes": 516,
+      "sha256": "97a6e9343319f6f3085be7d737add917589a5250191e9873766531d8f8e665df"
+    },
+    {
+      "path": "components/web_player/app.js",
+      "bytes": 5906,
+      "sha256": "1822de2605b2e2021ad522c4001fa53b64a3387d168a995ebd4793255fc348e5"
+    },
+    {
+      "path": "components/web_player/index.html",
+      "bytes": 2203,
+      "sha256": "dbf1ac44a4b8b172e5bc8623dccaf52c4003234e8c81dcbf3349f5e704e37d4d"
+    },
+    {
+      "path": "components/web_player/styles.css",
+      "bytes": 5298,
+      "sha256": "e237779863a324679cd388b773350c40bac705688e153938273026a82650d6e7"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_55_V54_ICON_ROOT_REPLACEMENT_VALIDATION.md",
+      "bytes": 1218,
+      "sha256": "6b7a1009e3cc72bec4677fcd65140c2742ccc21f22d4da423832b3c97224b4e9"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_55_WEB_PLAYER_HANDSHAKE.md",
+      "bytes": 2290,
+      "sha256": "8daf5360e6ee7541ef9d1f8d93bc5e3703ecefbc249d934d6b35fd539c3f1fd4"
+    },
+    {
+      "path": "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_55_WEB_PLAYER_VALIDATION.md",
+      "bytes": 3015,
+      "sha256": "09e33229ec802cea13ee5d76cf79dacaae09555ca64cee32a36afa3e059fdfd7"
+    },
+    {
+      "path": "src/lan/lan_media_service.cpp",
+      "bytes": 30682,
+      "sha256": "844d81a9176afad11f57c3503a02ea0c58c964718b59dec425db33198dc5a228"
+    },
+    {
+      "path": "src/lan/lan_media_service.hpp",
+      "bytes": 1191,
+      "sha256": "99f33cd8a0d3851416bfbb008eeb3b7b287598b987d510775c8595e28cafbc5c"
+    },
+    {
+      "path": "src/main.cpp",
+      "bytes": 948134,
+      "sha256": "eb104de39ba6d9881d1d195a496fb5ae6dd6f35cf9a1bc7fa7112a46c94f98cf"
+    },
+    {
+      "path": "tools/test_nougat_identity_v55.py",
+      "bytes": 2371,
+      "sha256": "3a9263e904769915035464cd7c17fd2369d9a2ef85ec81fad2a2f2e01a8d5403"
+    },
+    {
+      "path": "tools/test_nougat_web_player_v55.py",
+      "bytes": 3905,
+      "sha256": "bdb002ba2143867bd965553a7445d625e5cafc4beb13de0fe7a7ddb3fe297e1a"
+    }
+  ]
+}

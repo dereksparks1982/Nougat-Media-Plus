@@ -1,17 +1,25 @@
-# Generated Nougat Security Analysis runtime and private scanner state.
-/components/security/runtime/
+# Nougat Media Suite
+#
+# The complete runnable project, including runtimes, belongs in Git.
+# Only obsolete packaging/checkpoint archives are excluded.
 
-# Local build handoff packages.
-/1of2.zip
-/2of2.zip
+# Old split/package archives in project root
+/*.zip
+/*.tar
+/*.tar.gz
+/*.tgz
+/*.7z
+/*.rar
 
-/components/ai/runtime/
-/components/jellyfin/runtime/
-**/__pycache__/
-*.pyc
-components/games/runtime/
+# Old component transfer/package archives
+/components/*.zip
+/components/*.tar
+/components/*.tar.gz
+/components/*.tgz
+/components/*.7z
+/components/*.rar
 
-# Generated CMake build tree. Never commit release build output.
-/build/
-
-/components.zip
+# Changed-files packaging artifacts anywhere
+**/*CHANGED_FILES*.zip
+**/*CHANGED_FILES*.tar
+**/*CHANGED_FILES*.tar.gz

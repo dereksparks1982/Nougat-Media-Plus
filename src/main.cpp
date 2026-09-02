@@ -1737,7 +1737,7 @@ public:
     Rect openBtn, rewindBtn, previousBtn, playBtn, nextBtn, forwardBtn, stopBtn, fsBtn, seekRect, volRect, volumeHousingRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn, videoRestartBtn, videoCancelBtn, videoBackLibraryBtn;
     Rect videoUpNextPlayBtn, videoUpNextSeriesBtn, videoUpNextReplayBtn;
-    Rect fullscreenRewindRect, fullscreenPlayRect, fullscreenForwardRect;
+    Rect fullscreenRewindRect, fullscreenPreviousRect, fullscreenPlayRect, fullscreenNextRect, fullscreenForwardRect;
     int fullscreenTransportHover=-1;
     Rect homeTab, videoPlayerTab, libraryTab, discoverTab, liveTvTab, worldTvTab, radioTab, nougatTab, ytdlpTab, studioTab, gamesTab, debugTab;
     // NOUGAT_V54_FILE_SPLITTER_PROFESSIONAL
@@ -2016,7 +2016,7 @@ public:
     std::vector<reddmedia::security::RuntimeComponentAdvisory> securityInventory;
     std::vector<reddmedia::alerts::PublicSafetyAlert> activePublicAlerts;
     std::string publicAlertArea;
-    std::string v53SystemStatus = "v0.0.54 File Splitter candidate ready for owner testing.";
+    std::string v53SystemStatus = "v0.0.55 Nougat Web Player candidate ready for owner testing.";
     bool parentSystemUnlocked = false;
     reddmedia::NougatTunerBackend tunerBackend;
     reddmedia::HdHomeRunProvider hdHomeRunProvider;
@@ -3197,7 +3197,6 @@ public:
         }
         if (mediaServer.persistent_enabled()) mediaServer.start();
         else mediaServer.refresh();
-        lanMedia.prepare();
         { std::string childStatus; childSafeControls.load(childStatus); v53SystemStatus=childStatus; }
         if (const char* alertArea=std::getenv("NOUGAT_ALERT_AREA")) publicAlertArea=alertArea;
         liveTvChannels = tunerBackend.load_channels();
@@ -4591,8 +4590,10 @@ public:
 
     int fullscreen_transport_hit(int x,int y) const {
         if(fullscreenRewindRect.contains(x,y)) return 0;
-        if(fullscreenPlayRect.contains(x,y)) return 1;
-        if(fullscreenForwardRect.contains(x,y)) return 2;
+        if(fullscreenPreviousRect.contains(x,y)) return 1;
+        if(fullscreenPlayRect.contains(x,y)) return 2;
+        if(fullscreenNextRect.contains(x,y)) return 3;
+        if(fullscreenForwardRect.contains(x,y)) return 4;
         return -1;
     }
 
@@ -4606,31 +4607,65 @@ public:
         constexpr int buttonSize=52;
         constexpr int gap=8;
         constexpr int pad=8;
-        const int overlayW=pad*2+buttonSize*3+gap*2;
+        constexpr int buttonCount=5;
+        const int overlayW=pad*2+buttonSize*buttonCount+gap*(buttonCount-1);
         const int overlayH=pad*2+buttonSize;
         const int overlayX=std::max(0,(videoW-overlayW)/2);
         const int overlayY=std::max(0,videoH-overlayH-24);
         fullscreenRewindRect={pad,pad,buttonSize,buttonSize};
-        fullscreenPlayRect={pad+buttonSize+gap,pad,buttonSize,buttonSize};
-        fullscreenForwardRect={pad+(buttonSize+gap)*2,pad,buttonSize,buttonSize};
+        fullscreenPreviousRect={pad+(buttonSize+gap),pad,buttonSize,buttonSize};
+        fullscreenPlayRect={pad+(buttonSize+gap)*2,pad,buttonSize,buttonSize};
+        fullscreenNextRect={pad+(buttonSize+gap)*3,pad,buttonSize,buttonSize};
+        fullscreenForwardRect={pad+(buttonSize+gap)*4,pad,buttonSize,buttonSize};
         XMoveResizeWindow(d,fullscreenTransportWindow,overlayX,overlayY,
                           static_cast<unsigned>(overlayW),static_cast<unsigned>(overlayH));
         apply_transient_window_style(fullscreenTransportWindow,overlayW,overlayH,9);
         XMapRaised(d,fullscreenTransportWindow);
         fill(fullscreenTransportWindow,{0,0,overlayW,overlayH},rgb8(24,18,15));
         const ViewPalette palette=palette_for(ViewMode::VideoPlayer);
-        const auto draw_transport=[&](const Rect& r,const char* label,int index){
+
+        // v0.0.55: transport symbols are drawn as substantial Nougat glyphs
+        // instead of tiny font characters. This keeps their weight and scale
+        // visually matched to the approved stitched sheet-button surfaces.
+        const auto draw_chevron=[&](const Rect& r,int direction,int offset,unsigned long ink){
+            const int cx=r.x+r.w/2+offset;
+            const int cy=r.y+r.h/2;
+            constexpr int halfW=8;
+            constexpr int halfH=11;
+            XSetForeground(d,gc,ink);
+            XSetLineAttributes(d,gc,4,LineSolid,CapRound,JoinRound);
+            if(direction<0){
+                XDrawLine(d,fullscreenTransportWindow,gc,cx+halfW,cy-halfH,cx-halfW,cy);
+                XDrawLine(d,fullscreenTransportWindow,gc,cx-halfW,cy,cx+halfW,cy+halfH);
+            } else if(direction>0){
+                XDrawLine(d,fullscreenTransportWindow,gc,cx-halfW,cy-halfH,cx+halfW,cy);
+                XDrawLine(d,fullscreenTransportWindow,gc,cx+halfW,cy,cx-halfW,cy+halfH);
+            } else {
+                XDrawLine(d,fullscreenTransportWindow,gc,cx-halfW,cy+halfH,cx,cy-halfH);
+                XDrawLine(d,fullscreenTransportWindow,gc,cx,cy-halfH,cx+halfW,cy+halfH);
+            }
+            XSetLineAttributes(d,gc,1,LineSolid,CapButt,JoinMiter);
+        };
+        const auto draw_transport=[&](const Rect& r,int glyph,int index){
             const SheetControlState state=fullscreenTransportHover==index
                 ? SheetControlState::Hover : SheetControlState::Normal;
-            // Literal approved-sheet button grammar owns the square around each symbol.
             draw_sheet_button_surface(fullscreenTransportWindow,r,palette,state);
-            const int tx=r.x+std::max(0,(r.w-text_width(label))/2);
-            const int ty=r.y+r.h/2+5;
-            text(fullscreenTransportWindow,tx,ty,label,sheet_button_ink(palette,state));
+            const unsigned long ink=sheet_button_ink(palette,state);
+            if(glyph==-2){
+                draw_chevron(r,-1,-6,ink);
+                draw_chevron(r,-1,6,ink);
+            } else if(glyph==2){
+                draw_chevron(r,1,-6,ink);
+                draw_chevron(r,1,6,ink);
+            } else {
+                draw_chevron(r,glyph,0,ink);
+            }
         };
-        draw_transport(fullscreenRewindRect,"<",0);
-        draw_transport(fullscreenPlayRect,"^",1);
-        draw_transport(fullscreenForwardRect,">",2);
+        draw_transport(fullscreenRewindRect,-2,0);
+        draw_transport(fullscreenPreviousRect,-1,1);
+        draw_transport(fullscreenPlayRect,0,2);
+        draw_transport(fullscreenNextRect,1,3);
+        draw_transport(fullscreenForwardRect,2,4);
         XFlush(d);
     }
 
@@ -4806,7 +4841,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.54";
+        const std::string versionLabel = "v0.0.55";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -11198,7 +11233,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.54";
+        input.app_version = "Nougat Media Suite v0.0.55";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -15493,8 +15528,18 @@ public:
             const int hit=fullscreen_transport_hit(x,y);
             lastPlayerActivityMotionMs=now_ms(); playerActivityOverlayVisible=true;
             if(hit==0) seek_relative(-10000);
-            else if(hit==1) toggle_play();
-            else if(hit==2) seek_relative(10000);
+            else if(hit==1) {
+                if(currentMediaIsLiveTv) play_relative_live_tv_channel(-1);
+                else if(currentMediaIsWorldTv) play_relative_world_tv_station(-1);
+                else play_relative_episode(-1);
+            }
+            else if(hit==2) toggle_play();
+            else if(hit==3) {
+                if(currentMediaIsLiveTv) play_relative_live_tv_channel(1);
+                else if(currentMediaIsWorldTv) play_relative_world_tv_station(1);
+                else play_relative_episode(1);
+            }
+            else if(hit==4) seek_relative(10000);
             draw_fullscreen_transport_overlay(); return;
         }
         if (contextMenuOpen && target == contextMenu) { handle_context_menu_click(x,y); return; }
@@ -16541,7 +16586,7 @@ public:
 int main(int argc, char** argv) {
     prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.54\n");
+        printf("Nougat Media Suite v0.0.55\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {
@@ -16630,8 +16675,12 @@ int main(int argc, char** argv) {
         XSync(app.d,False);
         XWindowAttributes attrs{};
         const bool mapped=XGetWindowAttributes(app.d,app.fullscreenTransportWindow,&attrs)!=0&&attrs.map_state!=IsUnmapped;
-        const bool geometry=app.fullscreenRewindRect.w==52&&app.fullscreenPlayRect.w==52&&app.fullscreenForwardRect.w==52&&
-                            app.fullscreenRewindRect.x<app.fullscreenPlayRect.x&&app.fullscreenPlayRect.x<app.fullscreenForwardRect.x;
+        const bool geometry=app.fullscreenRewindRect.w==52&&app.fullscreenPreviousRect.w==52&&
+                            app.fullscreenPlayRect.w==52&&app.fullscreenNextRect.w==52&&app.fullscreenForwardRect.w==52&&
+                            app.fullscreenRewindRect.x<app.fullscreenPreviousRect.x&&
+                            app.fullscreenPreviousRect.x<app.fullscreenPlayRect.x&&
+                            app.fullscreenPlayRect.x<app.fullscreenNextRect.x&&
+                            app.fullscreenNextRect.x<app.fullscreenForwardRect.x;
         if(app.fontInfo) XFreeFont(app.d,app.fontInfo);
         XFreeGC(app.d,app.gc);
         XDestroyWindow(app.d,app.win);
@@ -16642,7 +16691,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr,"Nougat v0.0.47 fullscreen controls FAIL: mapped=%d geometry=%d\n",mapped?1:0,geometry?1:0);
             return 1;
         }
-        std::printf("Nougat v0.0.47 fullscreen controls PASS: sheet-square [<] [^] [>] overlay mapped.\n");
+        std::printf("Nougat v0.0.55 fullscreen controls PASS: sheet-square [<<] [<] [^] [>] [>>] overlay mapped with drawn transport glyphs.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v47-nav-self-test") {

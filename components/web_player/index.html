@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Nougat Web Player</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">NOUGAT MEDIA SUITE</div>
+      <h1>Web Player</h1>
+    </div>
+    <div class="lan-badge" id="healthBadge">Connecting…</div>
+  </header>
+
+  <main>
+    <section class="player-shell" aria-label="Nougat video player">
+      <div class="player-stage">
+        <video id="player" controls playsinline preload="metadata"></video>
+        <div class="empty-player" id="emptyPlayer">
+          <strong>Select something from your Nougat Library.</strong>
+          <span>Playback stays on your private LAN.</span>
+        </div>
+      </div>
+      <div class="now-playing">
+        <div>
+          <div class="eyebrow">NOW PLAYING</div>
+          <h2 id="nowTitle">Nothing selected</h2>
+          <p id="nowMeta">Choose a movie or episode below.</p>
+        </div>
+        <button type="button" id="compatButton" disabled>Browser Compatibility</button>
+      </div>
+      <p class="player-status" id="playerStatus" aria-live="polite">Ready.</p>
+    </section>
+
+    <section class="library-shell" aria-label="Nougat Library">
+      <div class="library-heading">
+        <div>
+          <div class="eyebrow">LOCAL LIBRARY</div>
+          <h2>Your media</h2>
+        </div>
+        <div class="library-actions">
+          <label class="search-label" for="search">Search Library</label>
+          <input id="search" type="search" placeholder="Search movies and episodes" autocomplete="off">
+          <button type="button" id="refreshButton">Refresh</button>
+        </div>
+      </div>
+      <p class="catalog-status" id="catalogStatus" aria-live="polite">Loading your Nougat Library…</p>
+      <div class="library-grid" id="libraryGrid"></div>
+    </section>
+  </main>
+
+  <footer>
+    Nougat Web Player v0.0.55 · First-party LAN player · No cloud login · No automatic Internet exposure
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
