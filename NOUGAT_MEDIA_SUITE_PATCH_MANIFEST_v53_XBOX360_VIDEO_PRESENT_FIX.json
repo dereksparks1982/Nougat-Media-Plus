@@ -1,0 +1,28 @@
+{
+  "package": "Nougat_Media_Suite_v0.0.53_XBOX360_VIDEO_PRESENT_FIX_CHANGED_FILES.zip",
+  "version": "0.0.53",
+  "scope": "Xbox 360 Xenia Edge embedded video presentation only",
+  "base_checkpoint": "5b2968709a1a7a5994a6dd1d7b4aa7e711190f40",
+  "changes_player_geometry": false,
+  "changes_root_executable": false,
+  "changes_launcher": false,
+  "changes_xwayland_bridge": false,
+  "changed_files": [
+    "components/games/runtime/xenia/nougat_xenia_xwayland_hook.so",
+    "components/games/runtime/xenia/embed-source/nougat_xenia_xwayland_hook.c",
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_XBOX360_VIDEO_PRESENT_VALIDATION.md"
+  ],
+  "validation": {
+    "warnings_as_errors_compile": "PASS",
+    "real_libvulkan_dlsym_intercept": "PASS",
+    "vkGetInstanceProcAddr_intercept": "PASS",
+    "vkCreateXcbSurfaceKHR_intercept": "PASS",
+    "nougat_player_geometry_unchanged": "PASS",
+    "owner_gta4_video_test": "REQUIRED"
+  },
+  "sha256": {
+    "components/games/runtime/xenia/nougat_xenia_xwayland_hook.so": "adb168b3a669623565018f6f1a0c52b296576c41c6786934e35767863a47e9da",
+    "components/games/runtime/xenia/embed-source/nougat_xenia_xwayland_hook.c": "1d0601f91370efa7d70d11dcce554a1743280f66734e7b5d9481f69ceadb9572",
+    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_XBOX360_VIDEO_PRESENT_VALIDATION.md": "0f8fd8fdcfb9f4962e456cb730a2a68a556a791d386c5512890624c9935496f6"
+  }
+}

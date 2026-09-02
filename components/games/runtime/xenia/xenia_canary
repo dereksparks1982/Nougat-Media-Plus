@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EDGE="$HERE/xenia_edge_linux.AppImage"
+BRIDGE="$HERE/nougat_xenia_xwayland_bridge"
+HOOK="$HERE/nougat_xenia_xwayland_hook.so"
+
+if [ ! -x "$EDGE" ]; then
+    echo "Nougat Xbox runtime error: Xenia Edge is missing or not executable: $EDGE" >&2
+    exit 1
+fi
+
+if [ ! -x "$BRIDGE" ]; then
+    echo "Nougat Xbox runtime error: XWayland bridge is missing or not executable: $BRIDGE" >&2
+    exit 1
+fi
+
+if [ ! -r "$HOOK" ]; then
+    echo "Nougat Xbox runtime error: XWayland surface hook is missing: $HOOK" >&2
+    exit 1
+fi
+
+# Reject every earlier experimental embedding environment. The bridge below is
+# the only active Xbox integration path.
+unset LD_PRELOAD
+unset NOUGAT_X11_PARENT
+unset NOUGAT_X11_PARENT_OVERRIDE
+unset NOUGAT_XENIA_DIRECT_XID
+unset NOUGAT_XENIA_FORCE_XID
+unset NOUGAT_EMBED_MODE
+
+export GDK_BACKEND=x11
+export APPIMAGE_EXTRACT_AND_RUN=1
+
+# Exec is intentional: the bridge becomes the exact child PID that Nougat v53
+# tracks. It creates an unmanaged xenia_canary surface that Nougat can safely
+# adopt even under XWayland, then starts Edge only after adoption succeeds.
+exec "$BRIDGE" --hook "$HOOK" --edge "$EDGE" "$@"

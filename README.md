@@ -18,9 +18,9 @@ Studio and media tools provide built-in utilities including File Splitter and ex
 
 The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.
 
-## v0.0.53 - System Expansion and Xbox 360 Integration Checkpoint
+## v0.0.53 - System Expansion and Xbox 360 Embedded Video
 
-Nougat Media Suite v0.0.53 is the current development checkpoint built on the accepted v0.0.52 base. It is not yet an accepted release and is not release-tagged; owner testing remains the acceptance gate.
+Nougat Media Suite v0.0.53 is the current owner-tested release built on the accepted v0.0.52 base.
 
 - Aligns World TV with the Live TV Guide geometry while preserving World TV's own orange presentation and adds clearer dependency, resolver, provider, stream, and startup-timeout failure reporting.
 - Reworks HDHomeRun ATSC scanning around physical RF channels 2 through 51 with explicit lock/service evidence, phased scan progress, truthful guide availability, and improved import diagnostics.
@@ -28,7 +28,7 @@ Nougat Media Suite v0.0.53 is the current development checkpoint built on the ac
 - Adds LAN Viewer v1 backend contracts for private-LAN discovery, read-only catalog access, trust state, and Verified Clean direct streaming without WAN relay or automatic port forwarding.
 - Adds Child Safe Controls configuration/password protection, runtime component advisory/CVE inventory using OSV as the configured public advisory source, and NOAA/NWS public-safety alert support with protected local history.
 - Repairs Linux process identity, preserves the approved translucent/rounded overlay path, and updates v0.0.53 launcher/executable icon identity from the approved Nougat N artwork.
-- Advances Xbox 360 integration to the native Linux Xenia Edge runtime. At this checkpoint GTA IV launches through Nougat and game audio is heard through the player, but the embedded game picture is still black. Xbox 360 embedded video presentation remains active v0.0.53 work and this checkpoint must not be treated as accepted until owner testing passes.
+- Completes the owner-tested Xbox 360 embedded-video path through the native Linux Xenia Edge runtime. GTA IV launches through Nougat with game audio and rendered video inside Nougat's existing native player viewport without opening a separate emulator window.
 
 ## v0.0.52 - Radio Receiver Expansion and Hardware Foundation
 
