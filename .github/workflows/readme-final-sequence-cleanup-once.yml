@@ -40,7 +40,6 @@ jobs:
           sha = current['sha']
           text = base64.b64decode(current['content']).decode()
 
-          # Fold the old v0.0.19 tail note into the actual v0.0.19 section.
           note_pat = re.compile(
               r'\n### Viewing-history completion repair\n'
               r'(.*?)(?=\n## |\Z)', re.S
@@ -51,39 +50,31 @@ jobs:
               text = text[:m.start()] + '\n' + text[m.end():]
 
           if note:
-              v19 = re.search(r'(?m)^## v0\.0\.19\b.*$', text)
+              v19 = re.search(r'(?m)^## .*?v0\.0\.19\b.*$', text)
               if not v19:
                   raise SystemExit('v0.0.19 section not found')
-              next_h = re.search(r'(?m)^## v0\.0\.18\b.*$', text[v19.end():])
+              next_h = re.search(r'(?m)^## .*?v0\.0\.18\b.*$', text[v19.end():])
               if not next_h:
                   raise SystemExit('v0.0.18 boundary not found')
               insert_at = v19.end() + next_h.start()
               addition = '\n\n### Viewing-history completion repair\n\n' + note + '\n'
               text = text[:insert_at].rstrip() + addition + '\n' + text[insert_at:].lstrip()
 
-          # Remove stale old development-build block that advertises ReddMedia v18
-          # after the numbered history has already reached v0.0.1.
           text = re.sub(
               r'\n## Running the current development build\n.*?(?=\n# Release history|\n## Licensing and third-party software|\Z)',
               '\n', text, flags=re.S
           )
 
-          # Remove the redundant second release-history label after v0.0.1.
           text = re.sub(
               r'\n# Release history\n\nThe entries below describe why each numbered ReddMedia build existed and what changed for the user\. They are reconstructed from the versioned build handshakes, validation records, changelog, and source history in this repository\.\n',
               '\n', text
           )
 
-          # Gate the level-2 release headings.
           version_heads = [int(x) for x in re.findall(r'(?m)^##\s+.*?v0\.0\.(\d+)\b.*$', text)]
-          if version_heads[:55] != list(range(55, 0, -1)):
-              raise SystemExit('Release heading order is not 55 through 1')
-          if len(version_heads) != 55:
-              raise SystemExit(f'Unexpected extra version headings: {version_heads[55:]}')
+          if version_heads != list(range(55, 0, -1)):
+              raise SystemExit('Release heading order is not exactly 55 through 1: ' + str(version_heads))
 
-          # After the v0.0.1 section ends, no semantic version references may
-          # remain anywhere in the README tail.
-          v1 = re.search(r'(?m)^## v0\.0\.1\b.*$', text)
+          v1 = re.search(r'(?m)^## .*?v0\.0\.1\b.*$', text)
           if not v1:
               raise SystemExit('v0.0.1 section not found')
           next_after_v1 = re.search(r'(?m)^##\s+', text[v1.end():])
