@@ -2,7 +2,7 @@
 
 Nougat Media Suite is an all-in-one native Linux media center built by Elderred Softworks LLC for personal media libraries, internet streaming, television, radio, games, search, downloading, media tools, servers, diagnostics, hardware integration, and network-connected media access through one unified Nougat interface.
 
-The Player provides file and network media playback with play and pause, stop, rewind and fast-forward, fullscreen, volume, progress tracking, resume support, episode progression, Up Next handling, keyboard and mouse controls, and Live TV channel navigation. Home provides Continue Watching and media shelves, while Library manages movies, television, music, videos, artwork, metadata, persistent media folders, search, list and grid views, playback history, and automatic media discovery.
+The Player provides file and network media playback with play and pause, stop, rewind and fast-forward, fullscreen, volume, progress tracking, chapter-aware seeking, clean television episode identity, resume support, episode progression, Up Next handling, keyboard and mouse controls, and Live TV channel navigation. Home provides Continue Watching and media shelves, while Library manages movies, television, music, videos, artwork, metadata, persistent media folders, search, list and grid views, playback history, and automatic media discovery.
 
 Stream provides direct URL playback and webpage access for supported internet video sources and services. Discover provides media discovery and recommendation-style browsing. Nougat Search combines privacy-first searching, crawler infrastructure, decentralized search architecture, Secure Search protections, replaceable privacy transports, query isolation, private retrieval research, and integrated P2P downloading with stream-while-downloading playback, security analysis, evidence-based diagnostics, on-device recommendation AI, persistent viewing history, torrent support, magnet links, torrent files, metadata retrieval, playable-file selection, and download progress.
 
@@ -19,6 +19,23 @@ Studio provides Nougat media-production tools including the professional in-app 
 Nougat's local-network media architecture now includes a Nougat-branded background Web Player for browsers and other LAN devices, with Jellyfin retained as hidden backend/catalog infrastructure. Local browser access is designed to keep working without a mandatory cloud account, cloud relay, or Internet connection. The GitHub repository also preserves the complete runnable Nougat project tree, including bundled emulator runtimes, Xenia, Jellyfin, AI, security components, source, assets, tools, and other required project dependencies, with oversized files stored through Git LFS rather than omitted.
 
 The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.
+
+## v0.0.56 - Player Identity and Fullscreen Playback Repair
+
+Nougat Media Suite v0.0.56 advances the native Player and fullscreen playback system while preserving the existing Games, Radio, Live TV, Web Player, server, Search, P2P, Studio, and media-library architecture.
+
+- Cleans television episode identity to the format **Series • SxxExx • Episode Title** without duplicate episode codes, redundant year information, raw filenames, or release metadata.
+- Applies the same clean identity to **Up Next**.
+- Preserves the established fullscreen transport behavior: **<<** previous episode/channel/station, **<** rewind 10 seconds, play/pause, **>** fast-forward 10 seconds, and **>>** next episode/channel/station.
+- Adds chapter-aware fullscreen seeking using real chapter timestamps when available and Nougat's automatic fallback chapter marks when real chapter metadata is unavailable.
+- Preserves the existing automatic fallback chapter spacing used by the normal Player.
+- Extends the fullscreen seek backdrop horizontally to provide dedicated space for elapsed and total playback time without increasing its height or changing the seekbar size.
+- Keeps fullscreen playback time updating while the activity controls are visible.
+- Preserves the additional Live TV timing information, including program start and end clock values.
+- Makes the main Nougat window disappear immediately when closed with the window-manager X while normal shutdown cleanup continues.
+- Advances the active root executable from **Nougat_Media_Suite_v55** to **Nougat_Media_Suite_v56**.
+
+Known carried-forward issue: the seekbar round-thumb edge/halo appearance remains visually incorrect and is deferred for repair in the next build.
 
 ## v0.0.55 - Background Web Player and Complete Runnable Project Checkpoint
 

@@ -298,6 +298,180 @@ static std::string strip_trailing_tv_season_marker(const std::string& input) {
     return value;
 }
 
+// NOUGAT_V56_R8_FINAL_EPISODE_IDENTITY
+static std::string nougat_v56_r8_trim(std::string value) {
+    const std::string bullet = "•";
+    for (;;) {
+        bool changed = false;
+        while (!value.empty()) {
+            const unsigned char c = static_cast<unsigned char>(value.front());
+            if (std::isspace(c) == 0 && value.front() != '-' && value.front() != '_' &&
+                value.front() != '.' && value.front() != ':' && value.front() != '|' && value.front() != '/') break;
+            value.erase(value.begin()); changed = true;
+        }
+        while (!value.empty()) {
+            const unsigned char c = static_cast<unsigned char>(value.back());
+            if (std::isspace(c) == 0 && value.back() != '-' && value.back() != '_' &&
+                value.back() != '.' && value.back() != ':' && value.back() != '|' && value.back() != '/') break;
+            value.pop_back(); changed = true;
+        }
+        if (value.rfind(bullet, 0U) == 0U) { value.erase(0U, bullet.size()); changed = true; continue; }
+        if (value.size() >= bullet.size() && value.compare(value.size()-bullet.size(), bullet.size(), bullet) == 0) {
+            value.erase(value.size()-bullet.size()); changed = true; continue;
+        }
+        if (!changed) break;
+    }
+    return value;
+}
+
+static bool nougat_v56_r8_episode_code_at(const std::string& value, std::size_t at,
+                                           std::size_t& end, int& season, int& episode) {
+    if (at >= value.size() || (value[at] != 'S' && value[at] != 's')) return false;
+    if (at > 0U && std::isalnum(static_cast<unsigned char>(value[at-1U])) != 0) return false;
+    std::size_t pos = at + 1U; season = 0; episode = 0; bool haveSeason = false;
+    while (pos < value.size() && std::isdigit(static_cast<unsigned char>(value[pos])) != 0) {
+        season = season * 10 + (value[pos]-'0'); haveSeason = true; ++pos;
+    }
+    if (!haveSeason || pos >= value.size() || (value[pos] != 'E' && value[pos] != 'e')) return false;
+    ++pos; bool haveEpisode = false;
+    while (pos < value.size() && std::isdigit(static_cast<unsigned char>(value[pos])) != 0) {
+        episode = episode * 10 + (value[pos]-'0'); haveEpisode = true; ++pos;
+    }
+    if (!haveEpisode) return false;
+    if (pos < value.size() && std::isalnum(static_cast<unsigned char>(value[pos])) != 0) return false;
+    end = pos; return true;
+}
+
+static bool nougat_v56_r8_find_episode_code(const std::string& value, std::size_t from,
+                                             std::size_t& begin, std::size_t& end,
+                                             int& season, int& episode) {
+    for (std::size_t i = from; i < value.size(); ++i) {
+        if (nougat_v56_r8_episode_code_at(value, i, end, season, episode)) { begin = i; return true; }
+    }
+    return false;
+}
+
+static bool nougat_v56_r8_starts_with_year(const std::string& value, std::size_t& consumed) {
+    consumed = 0U;
+    if (value.size() < 6U || (value[0] != '(' && value[0] != '[')) return false;
+    const char close = value[0] == '(' ? ')' : ']';
+    if (value[5] != close) return false;
+    for (std::size_t i=1U;i<5U;++i) if (std::isdigit(static_cast<unsigned char>(value[i])) == 0) return false;
+    consumed = 6U; return true;
+}
+
+static bool nougat_v56_r8_release_suffix(const std::string& suffix) {
+    const std::string lower = lower_copy(suffix);
+    static const char* tokens[] = {"2160p","1080p","720p","480p","web-dl","webdl","webrip",
+        "bluray","blu-ray","brrip","x264","x265","h264","h265","hevc","av1","aac","dts","ddp","amzn","hmax","silence"};
+    for (const char* token : tokens) if (lower.find(token) != std::string::npos) return true;
+    return false;
+}
+
+static std::string nougat_v56_r8_strip_release_suffix(std::string value) {
+    value = nougat_v56_r8_trim(value);
+    for (;;) {
+        if (value.size() < 3U || (value.back() != ')' && value.back() != ']')) return value;
+        const char open = value.back() == ')' ? '(' : '[';
+        const std::size_t at = value.rfind(open);
+        if (at == std::string::npos) return value;
+        const std::string suffix = value.substr(at+1U, value.size()-at-2U);
+        if (!nougat_v56_r8_release_suffix(suffix)) return value;
+        value = nougat_v56_r8_trim(value.substr(0U, at));
+    }
+}
+
+static std::string nougat_v56_r8_clean_series(std::string series) {
+    series = nougat_v56_r8_trim(series);
+    std::size_t begin=0U,end=0U; int season=0,episode=0;
+    if (nougat_v56_r8_find_episode_code(series,0U,begin,end,season,episode)) series = series.substr(0U,begin);
+    series = nougat_v56_r8_trim(series);
+    if (series.size() >= 6U && (series.back() == ')' || series.back() == ']')) {
+        const char open = series.back() == ')' ? '(' : '[';
+        const std::size_t at = series.rfind(open);
+        if (at != std::string::npos && at + 6U == series.size()) {
+            bool digits = true;
+            for (std::size_t i=at+1U;i<at+5U;++i) if (std::isdigit(static_cast<unsigned char>(series[i])) == 0) digits=false;
+            if (digits) series = nougat_v56_r8_trim(series.substr(0U,at));
+        }
+    }
+    series = strip_trailing_tv_season_marker(series);
+    return nougat_v56_r8_trim(series);
+}
+
+static bool nougat_v56_r8_starts_with_ci(const std::string& value, const std::string& prefix) {
+    if (prefix.empty() || value.size() < prefix.size()) return false;
+    const std::string a = lower_copy(value.substr(0U,prefix.size()));
+    const std::string b = lower_copy(prefix);
+    if (a != b) return false;
+    return value.size() == prefix.size() || std::isalnum(static_cast<unsigned char>(value[prefix.size()])) == 0;
+}
+
+static std::string nougat_v56_r8_clean_episode_text(std::string text, const std::string& cleanSeries) {
+    text = nougat_v56_r8_trim(text);
+    if (!cleanSeries.empty() && nougat_v56_r8_starts_with_ci(text,cleanSeries))
+        text = nougat_v56_r8_trim(text.substr(cleanSeries.size()));
+    for (int pass=0; pass<10; ++pass) {
+        const std::string before = text;
+        std::size_t begin=0U,end=0U; int season=0,episode=0;
+        if (nougat_v56_r8_find_episode_code(text,0U,begin,end,season,episode) && begin == 0U)
+            text = nougat_v56_r8_trim(text.substr(end));
+        std::size_t consumed=0U;
+        if (nougat_v56_r8_starts_with_year(text,consumed)) text = nougat_v56_r8_trim(text.substr(consumed));
+        text = nougat_v56_r8_strip_release_suffix(text);
+        if (text == before) break;
+    }
+    return nougat_v56_r8_trim(text);
+}
+
+static std::string nougat_v56_r8_series_folder(const std::string& path) {
+    std::string folder = dirname_only(path);
+    std::string name = basename_only(folder);
+    const std::string lower = lower_copy(name);
+    bool seasonFolder = lower.rfind("season",0U) == 0U;
+    if (!seasonFolder && lower.size() > 1U && lower[0] == 's' && std::isdigit(static_cast<unsigned char>(lower[1])) != 0) seasonFolder=true;
+    if (seasonFolder) name = basename_only(dirname_only(folder));
+    return nougat_v56_r8_clean_series(name);
+}
+
+static std::string nougat_v56_r8_identity_from_path(const std::string& path, const std::string& fallbackSeries) {
+    const std::string stem = stem_only(path);
+    std::size_t firstBegin=0U,firstEnd=0U; int season=0,episode=0;
+    if (!nougat_v56_r8_find_episode_code(stem,0U,firstBegin,firstEnd,season,episode)) return {};
+    std::size_t lastEnd=firstEnd, search=firstEnd;
+    for (;;) {
+        std::size_t begin=0U,end=0U; int s=0,e=0;
+        if (!nougat_v56_r8_find_episode_code(stem,search,begin,end,s,e)) break;
+        lastEnd=end; search=end;
+    }
+    std::string series = nougat_v56_r8_clean_series(stem.substr(0U,firstBegin));
+    if (series.empty()) series = nougat_v56_r8_clean_series(fallbackSeries);
+    if (series.empty()) series = nougat_v56_r8_series_folder(path);
+    if (series.empty()) series = "TV";
+    std::string title = nougat_v56_r8_clean_episode_text(stem.substr(lastEnd),series);
+    std::ostringstream out;
+    out << series << " • S" << std::setfill('0') << std::setw(2) << season << "E" << std::setw(2) << episode;
+    if (!title.empty()) out << " • " << title;
+    return out.str();
+}
+
+static std::string nougat_v56_r8_identity_for_node(const reddmedia::LibraryNode& node) {
+    if (!node.path.empty()) {
+        const std::string fromPath = nougat_v56_r8_identity_from_path(node.path,node.series_name);
+        if (!fromPath.empty()) return fromPath;
+    }
+    std::string series = nougat_v56_r8_clean_series(node.series_name);
+    if (series.empty()) series = "TV";
+    std::string title = !node.episode_title.empty() ? node.episode_title : node.name;
+    title = nougat_v56_r8_clean_episode_text(title,series);
+    std::ostringstream out; out << series;
+    if (node.season_number > 0 && node.episode_number > 0)
+        out << " • S" << std::setfill('0') << std::setw(2) << node.season_number << "E" << std::setw(2) << node.episode_number;
+    else if (node.episode_number > 0) out << " • Episode " << node.episode_number;
+    if (!title.empty()) out << " • " << title;
+    return out.str();
+}
+
 static std::string canonical_series_title_from_structure(const reddmedia::LibraryNode& node) {
     if (node.kind != reddmedia::LibraryNodeKind::Series) return node.name;
     std::string candidate = node.name;
@@ -1729,7 +1903,7 @@ struct FramePreviewState {
 };
 class App {
 public:
-    Display* d=nullptr; int screen=0; Window win=0, video=0, videoActivityOverlayWindow=0, fullscreenTransportWindow=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr; XFontStruct* boldFontInfo=nullptr; XFontStruct* sectionFontInfo=nullptr; XFontStruct* metadataFontInfo=nullptr;
+    Display* d=nullptr; int screen=0; Window win=0, video=0, videoActivityOverlayWindow=0, fullscreenTransportWindow=0, fullscreenSeekWindow=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr; XFontStruct* boldFontInfo=nullptr; XFontStruct* sectionFontInfo=nullptr; XFontStruct* metadataFontInfo=nullptr;
     Pixmap quiltTiles[13] = {};
     Pixmap streamQuiltTiles[6] = {};
     int W=1000,H=650;
@@ -2016,7 +2190,7 @@ public:
     std::vector<reddmedia::security::RuntimeComponentAdvisory> securityInventory;
     std::vector<reddmedia::alerts::PublicSafetyAlert> activePublicAlerts;
     std::string publicAlertArea;
-    std::string v53SystemStatus = "v0.0.55 Nougat Web Player candidate ready for owner testing.";
+    std::string v53SystemStatus = "v0.0.56 episode identity repair candidate ready for owner testing.";
     bool parentSystemUnlocked = false;
     reddmedia::NougatTunerBackend tunerBackend;
     reddmedia::HdHomeRunProvider hdHomeRunProvider;
@@ -3167,6 +3341,9 @@ public:
         fullscreenTransportWindow = XCreateSimpleWindow(d, video, 0, 0, 190, 68, 0,
                                                         rgb8(24,18,15), rgb8(24,18,15));
         XSelectInput(d, fullscreenTransportWindow, ExposureMask|ButtonPressMask|PointerMotionMask|EnterWindowMask|LeaveWindowMask);
+        fullscreenSeekWindow = XCreateSimpleWindow(d, video, 0, 0, 420, 40, 0,
+                                                   rgb8(24,18,15), rgb8(24,18,15));
+        XSelectInput(d, fullscreenSeekWindow, ExposureMask|ButtonPressMask|PointerMotionMask|EnterWindowMask|LeaveWindowMask);
         seekPreviewWindow = XCreateSimpleWindow(d, win, 0, 0, 260, 176, 0, rgb8(90,55,35), rgb8(35,25,22));
         XSelectInput(d, seekPreviewWindow, ExposureMask);
         xextHandle = dlopen("libXext.so.6", RTLD_NOW | RTLD_LOCAL);
@@ -3699,18 +3876,7 @@ public:
 
     std::string media_identity_for_node(const reddmedia::LibraryNode& node) const {
         if (node.kind == reddmedia::LibraryNodeKind::Episode) {
-            std::ostringstream identity;
-            if (!node.series_name.empty()) identity << node.series_name;
-            else identity << "TV";
-            if (node.season_number > 0 && node.episode_number > 0) {
-                identity << "  •  S" << std::setfill('0') << std::setw(2) << node.season_number
-                         << "E" << std::setw(2) << node.episode_number;
-            } else if (node.episode_number > 0) {
-                identity << "  •  Episode " << node.episode_number;
-            }
-            const std::string episode = !node.episode_title.empty() ? node.episode_title : node.name;
-            if (!episode.empty()) identity << "  •  " << episode;
-            return identity.str();
+            return nougat_v56_r8_identity_for_node(node);
         }
         std::string identity = node.name;
         if (identity.empty() && !node.path.empty()) identity = stem_only(node.path);
@@ -3740,6 +3906,15 @@ public:
         }
         if (currentMediaIsWorldTv && !liveTvPlayingLabel.empty()) {
             std::string identity=liveTvPlayingLabel; const std::string program=current_world_tv_program_title(); if(!program.empty()) identity += "  •  " + program; return identity;
+        }
+        if (activeLibraryItemValid && activeLibraryItem.kind == reddmedia::LibraryNodeKind::Episode) {
+            const std::string episodeIdentity = nougat_v56_r8_identity_for_node(activeLibraryItem);
+            if (!episodeIdentity.empty()) return episodeIdentity;
+        }
+        if (!currentPath.empty()) {
+            const std::string fallbackSeries = activeLibraryItemValid ? activeLibraryItem.series_name : std::string();
+            const std::string episodeIdentity = nougat_v56_r8_identity_from_path(currentPath,fallbackSeries);
+            if (!episodeIdentity.empty()) return episodeIdentity;
         }
         if (activeLibraryItemValid && !activeLibraryItem.path.empty() && activeLibraryItem.path == currentPath) {
             return media_identity_for_node(activeLibraryItem);
@@ -4585,6 +4760,7 @@ public:
     void hide_player_activity_overlay_window() {
         if (videoActivityOverlayWindow) XUnmapWindow(d, videoActivityOverlayWindow);
         if (fullscreenTransportWindow) XUnmapWindow(d, fullscreenTransportWindow);
+        if (fullscreenSeekWindow) XUnmapWindow(d, fullscreenSeekWindow);
         fullscreenTransportHover=-1;
     }
 
@@ -4597,6 +4773,141 @@ public:
         return -1;
     }
 
+    // NOUGAT_V56_R8_FULLSCREEN_SEEK
+    void draw_fullscreen_seek_overlay(bool refreshOnly=false) {
+        if (!fullscreenSeekWindow) return;
+        if (!fullscreen || !hasMedia || !playerActivityOverlayVisible || resumePromptVisible ||
+            stoppedPlaybackVisible || upNextVisible || needResumePrompt) {
+            if (!refreshOnly) XUnmapWindow(d, fullscreenSeekWindow);
+            return;
+        }
+
+        // Keep the approved seekbar itself at the existing size.
+        // The black fullscreen owner remains longer only on the left/right
+        // for the elapsed and total timestamps.
+        const int oldOwnerW = std::max(300, std::min(700, std::max(300, videoW - 48)));
+        const int desiredBarW = std::max(1, oldOwnerW - 24);
+        constexpr int sideSpace = 72;
+        constexpr int seekH = 48;
+        constexpr int transportH = 68;
+        constexpr int bottomGap = 24;
+        constexpr int betweenGap = 8;
+        const int maxOverlayW = std::max(1, videoW - 16);
+        const int barW = std::min(desiredBarW, std::max(1, maxOverlayW - sideSpace * 2));
+        const int overlayW = std::min(maxOverlayW, barW + sideSpace * 2);
+        const int actualSideSpace = std::max(0, (overlayW - barW) / 2);
+        const int seekX = std::max(0, (videoW - overlayW) / 2);
+        const int seekY = std::max(0, videoH - transportH - bottomGap - betweenGap - seekH);
+
+        // NOUGAT_V56_FULLSCREEN_SEEK_NO_FLASH_REFRESH
+        // A timer refresh is never allowed to map, unmap, resize, reshape, or
+        // raise this window. It may only replace already-visible pixels.
+        XWindowAttributes seekAttrs{};
+        const bool seekGeometryAlreadyMapped =
+            XGetWindowAttributes(d, fullscreenSeekWindow, &seekAttrs) != 0 &&
+            seekAttrs.map_state == IsViewable &&
+            seekAttrs.x == seekX && seekAttrs.y == seekY &&
+            seekAttrs.width == overlayW && seekAttrs.height == seekH;
+
+        if (refreshOnly) {
+            if (!seekGeometryAlreadyMapped) return;
+        } else if (!seekGeometryAlreadyMapped) {
+            XMoveResizeWindow(d, fullscreenSeekWindow, seekX, seekY,
+                              static_cast<unsigned>(overlayW), static_cast<unsigned>(seekH));
+            apply_transient_window_style(fullscreenSeekWindow, overlayW, seekH, 8);
+            XMapRaised(d, fullscreenSeekWindow);
+        }
+
+        // NOUGAT_V56_FULLSCREEN_SEEK_DOUBLE_BUFFER
+        // Draw the complete frame offscreen. One XCopyArea replaces the visible
+        // pixels, so the black fill, bar, thumb, chapter marks, and time labels
+        // are never exposed as separate repaint stages.
+        Pixmap seekFrame = XCreatePixmap(
+            d, fullscreenSeekWindow,
+            static_cast<unsigned>(overlayW), static_cast<unsigned>(seekH),
+            static_cast<unsigned>(DefaultDepth(d, screen)));
+        if (!seekFrame) return;
+
+        fill(seekFrame, {0,0,overlayW,seekH}, rgb8(24,18,15));
+
+        // NOUGAT_V56_APPROVED_SHEET_SEEK_SHARED
+        // NOUGAT_V56_FULLSCREEN_SEEK_TIME_SIDES
+        const Rect bar{actualSideSpace,14,barW,kSheetSeekH};
+
+        long long t = 0;
+        long long l = 0;
+        bool liveProgramTiming = false;
+        if (currentMediaIsLiveTv) {
+            const long long nowUnix = static_cast<long long>(std::time(nullptr));
+            if (const auto* program = current_live_tv_program(nowUnix)) {
+                l = static_cast<long long>(program->duration_seconds) * 1000LL;
+                t = std::max(0LL, std::min(l, (nowUnix - program->start_unix) * 1000LL));
+                liveProgramTiming = true;
+            }
+        }
+        if (!liveProgramTiming && mp) {
+            t = playback_time_ms();
+            l = playback_length_ms();
+        }
+
+        int pos = 0;
+        int seekPercent = 0;
+        if (l > 0) {
+            if (!currentMediaIsLiveTv) update_chapter_marks(false);
+            pos = std::max(0, std::min(bar.w,
+                static_cast<int>((static_cast<double>(t) / static_cast<double>(l)) * bar.w)));
+            seekPercent = std::max(0, std::min(100,
+                static_cast<int>((t * 100 + l / 2) / l)));
+        }
+
+        const Rect savedSeekRect = seekRect;
+        seekRect = bar;
+        if (sheetSeekLoaded) {
+            draw_sheet_seek_frame(seekFrame, seekPercent);
+        } else {
+            const unsigned long caramel = rgb8(170,91,24);
+            const unsigned long caramelLight = rgb8(218,156,82);
+            const unsigned long creamTrack = rgb8(247,236,217);
+            const unsigned long trackBorder = rgb8(153,91,35);
+            draw_sheet_track(seekFrame, bar, trackBorder, creamTrack, rgb8(255,246,227));
+            if (pos > 0) {
+                draw_sheet_track_fill(seekFrame, bar, pos, trackBorder, caramel, caramelLight);
+            }
+            const int knobD = 26;
+            const int knobCenterX = std::max(bar.x + knobD / 2,
+                std::min(bar.x + bar.w - knobD / 2, bar.x + pos));
+            draw_sheet_knob(seekFrame, knobCenterX, bar.y + bar.h / 2, knobD,
+                            trackBorder, rgb8(225,188,132), rgb8(249,222,177));
+        }
+        seekRect = savedSeekRect;
+
+        // Same chapter data and fallback marks as normal mode.
+        if (l > 0 && !currentMediaIsLiveTv) {
+            for (long long markMs : chapterMarksMs) {
+                if (markMs <= 0 || markMs >= l) continue;
+                const int mx = bar.x + static_cast<int>(
+                    (static_cast<double>(markMs) / static_cast<double>(l)) * bar.w);
+                line(seekFrame, mx, bar.y + 3, mx, bar.y + bar.h - 3, rgb8(0,0,0));
+            }
+        }
+
+        const std::string currentText = format_time(t);
+        const std::string totalText = format_time(l);
+        const int timeY = bar.y + bar.h / 2 + 5;
+        const unsigned long timeColor = rgb8(247,236,217);
+        const int leftX = std::max(6, bar.x - 8 - text_width(currentText));
+        const int rightX = std::min(
+            overlayW - 6 - text_width(totalText), bar.x + bar.w + 8);
+        text(seekFrame, leftX, timeY, currentText, timeColor);
+        text(seekFrame, rightX, timeY, totalText, timeColor);
+
+        XCopyArea(
+            d, seekFrame, fullscreenSeekWindow, gc,
+            0, 0, static_cast<unsigned>(overlayW), static_cast<unsigned>(seekH),
+            0, 0);
+        XFreePixmap(d, seekFrame);
+        XFlush(d);
+    }
     void draw_fullscreen_transport_overlay() {
         if(!fullscreenTransportWindow||!fullscreen||!hasMedia||!playerActivityOverlayVisible||
            resumePromptVisible||stoppedPlaybackVisible||upNextVisible||needResumePrompt){
@@ -4675,7 +4986,7 @@ public:
             hide_player_activity_overlay_window();
             return;
         }
-        if(fullscreen) draw_fullscreen_transport_overlay();
+        if(fullscreen) { draw_fullscreen_transport_overlay(); draw_fullscreen_seek_overlay(); }
         else if(fullscreenTransportWindow) XUnmapWindow(d,fullscreenTransportWindow);
 
         const std::string identity = current_media_identity();
@@ -4738,7 +5049,7 @@ public:
             outline_round(overlayTarget, inset, 9, rgb8(244,229,205));
 
             if (upNextHasEpisode) {
-                const std::string title = "Up Next: " + library_display_title(upNextEpisode);
+                const std::string title = "Up Next: " + nougat_v56_r8_identity_for_node(upNextEpisode);
                 text(overlayTarget, card.x + 20, card.y + 36, head_to_width(title, card.w - 40), rgb8(248,235,214));
                 text(overlayTarget, card.x + 20, card.y + 64,
                      upNextMessage.empty() ? "Playing automatically in 10 seconds." : upNextMessage,
@@ -4841,7 +5152,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.55";
+        const std::string versionLabel = "v0.0.56";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -5274,7 +5585,7 @@ public:
         const int targetW = seekRect.w;
         const int targetH = kSheetSeekSpriteH;
         const int cap = 14;
-        const int knobHalf = 14;
+        const int knobHalf = 17;
         const int srcTrackStart = cap;
         const int srcTrackEnd = kSheetSeekW - cap;
         const int dstTrackStart = cap;
@@ -11233,7 +11544,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.55";
+        input.app_version = "Nougat Media Suite v0.0.56";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -15523,6 +15834,17 @@ public:
     }
 
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
+        if(target==fullscreenSeekWindow){
+            if(button!=Button1) return;
+            lastPlayerActivityMotionMs=now_ms(); playerActivityOverlayVisible=true;
+            XWindowAttributes attr{}; int actualWidth=420;
+            if(XGetWindowAttributes(d,fullscreenSeekWindow,&attr)) actualWidth=std::max(1,attr.width);
+            const int margin=12, barWidth=std::max(1,actualWidth-margin*2);
+            const int relative=std::max(0,std::min(barWidth,x-margin));
+            const long long length=playback_length_ms();
+            if(length>0) seek_to_ms(static_cast<long long>((static_cast<double>(relative)/barWidth)*length));
+            draw_fullscreen_seek_overlay(); return;
+        }
         if(target==fullscreenTransportWindow){
             if(button!=Button1) return;
             const int hit=fullscreen_transport_hit(x,y);
@@ -16041,6 +16363,8 @@ public:
                         draw_player_activity_overlay_window();
                     } else if (fullscreenTransportWindow && e.xexpose.window == fullscreenTransportWindow) {
                         draw_fullscreen_transport_overlay();
+                    } else if (fullscreenSeekWindow && e.xexpose.window == fullscreenSeekWindow) {
+                        draw_fullscreen_seek_overlay();
                     } else if (seekPreviewWindow && e.xexpose.window == seekPreviewWindow) {
                         draw_seek_preview_window();
                     } else if (contextMenuOpen && e.xexpose.window == contextMenu) {
@@ -16058,6 +16382,9 @@ public:
                     if (e.xclient.window == win &&
                         e.xclient.message_type == wmProtocols &&
                         static_cast<Atom>(e.xclient.data.l[0]) == wmDelete) {
+                        // NOUGAT_V56_INSTANT_WM_CLOSE
+                        XUnmapWindow(d, win);
+                        XSync(d, False);
                         shuttingDown = true;
                         running = false;
                         break;
@@ -16466,6 +16793,15 @@ public:
                 }
             }
             static time_t lastRedraw=0; time_t now=time(nullptr); if (!fullscreen && currentView == ViewMode::VideoPlayer && now != lastRedraw) { draw_seek_time_only(); lastRedraw=now; }
+            // NOUGAT_V56_FULLSCREEN_SEEK_CLOCK_REFRESH
+            static long long lastFullscreenSeekClockRefreshMs=0;
+            const long long fullscreenSeekClockNow=now_ms();
+            if (fullscreen && currentView == ViewMode::VideoPlayer &&
+                playerActivityOverlayVisible && fullscreenSeekWindow &&
+                fullscreenSeekClockNow-lastFullscreenSeekClockRefreshMs>=1000LL) {
+                draw_fullscreen_seek_overlay(true);
+                lastFullscreenSeekClockRefreshMs=fullscreenSeekClockNow;
+            }
             fd_set fds; FD_ZERO(&fds); FD_SET(xfd, &fds); timeval tv; tv.tv_sec=0; tv.tv_usec=100000; select(xfd+1, &fds, nullptr, nullptr, &tv);
         }
     }
@@ -16571,6 +16907,7 @@ public:
         inst=nullptr;
         if (videoActivityOverlayWindow && d) { XDestroyWindow(d, videoActivityOverlayWindow); videoActivityOverlayWindow = 0; }
         if (fullscreenTransportWindow && d) { XDestroyWindow(d, fullscreenTransportWindow); fullscreenTransportWindow = 0; }
+        if (fullscreenSeekWindow && d) { XDestroyWindow(d, fullscreenSeekWindow); fullscreenSeekWindow = 0; }
         if (seekPreviewWindow && d) { XDestroyWindow(d, seekPreviewWindow); seekPreviewWindow = 0; }
         if (xextHandle) { dlclose(xextHandle); xextHandle = nullptr; xShapeCombineMask = nullptr; }
         free_quilt_tiles();
@@ -16586,7 +16923,7 @@ public:
 int main(int argc, char** argv) {
     prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.55\n");
+        printf("Nougat Media Suite v0.0.56\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {
