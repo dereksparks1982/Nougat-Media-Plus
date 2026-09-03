@@ -20,7 +20,7 @@ Nougat's local-network media architecture now includes a Nougat-branded backgrou
 
 The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.
 
-## v.0.0.55 - Background Web Player and Complete Runnable Project Checkpoint
+## v0.0.55 - Background Web Player and Complete Runnable Project Checkpoint
 
 Nougat Media Suite v0.0.55 advances the private-LAN Web Player and complete-project distribution work while v0.0.54 remains the current owner-accepted release.
 
@@ -962,7 +962,3 @@ See [`ROADMAP.md`](ROADMAP.md) for the next planned ReddMedia milestones.
 This replacement v0.0.19 candidate includes the recommendation/viewing-history source changes required by TV natural-end autoplay. Existing SQLite history databases are migrated in place by adding a `completed` column when needed.
 
 
-## v0.0.26 candidate
-
-This candidate adds internal mouse Back/Forward navigation, cleans the Library header and Nougat icon perimeter, upgrades Debug into an evidence-based Diagnostic Center with TXT/JSON/redacted support-bundle exports, cleans and centers the intentional 0-200% volume control, fixes top-header layering during horizontal tab scrolling, and adds a 10-second TV Up Next overlay with Play Next / Back to Series / Replay. P2P feature expansion was later moved to v0.0.32 after the owner split v0.0.28/v0.0.29 into UI/artwork and TV-reliability releases.
-- v0.0.33 server-stop repair: persistent Nougat-owned Jellyfin sessions carry a per-session ownership token; Stop Server terminates the complete owned process tree and verifies port 8096 is released without killing Jellyfin by name.
