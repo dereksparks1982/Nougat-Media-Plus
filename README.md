@@ -16,7 +16,30 @@ Games provides a unified game library and emulator front end with persistent ROM
 
 Studio provides Nougat media-production tools including the professional in-app File Splitter for source analysis, piece recommendations, splitting, verification, and reassembly. Nougat also includes a Jellyfin-backed media server foundation, network media access architecture for phones, tablets, laptops, televisions, browsers, and other clients, operation without mandatory cloud accounts or mandatory cloud relays, diagnostic and system-status tools, hardware reporting, security scanning foundations, expandable service integrations, and infrastructure designed so new media, tuner, receiver, emulator, networking, privacy, and hardware capabilities can be added without replacing the rest of the suite.
 
+Nougat's local-network media architecture now includes a Nougat-branded background Web Player for browsers and other LAN devices, with Jellyfin retained as hidden backend/catalog infrastructure. Local browser access is designed to keep working without a mandatory cloud account, cloud relay, or Internet connection. The GitHub repository also preserves the complete runnable Nougat project tree, including bundled emulator runtimes, Xenia, Jellyfin, AI, security components, source, assets, tools, and other required project dependencies, with oversized files stored through Git LFS rather than omitted.
+
 The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.
+
+## v.0.0.55 - Background Web Player and Complete Runnable Project Checkpoint
+
+Nougat Media Suite v0.0.55 advances the private-LAN Web Player and complete-project distribution work while v0.0.54 remains the current owner-accepted release.
+
+- Adds the Nougat-branded LAN Web Player for browser access from computers, phones, tablets, televisions, consoles, and other devices on the same private network.
+- Uses port **8096** for the public/LAN Nougat Web Player and **127.0.0.1:8098** for the hidden Jellyfin backend.
+- Keeps Jellyfin behind Nougat as backend/catalog infrastructure instead of exposing the stock Jellyfin web interface as Nougat's user-facing experience.
+- Runs the Web Player as a Nougat-owned background service so the desktop Nougat interface does not need to remain open for local-network browser access.
+- Keeps local media playback and local server access independent of mandatory cloud accounts, cloud relays, or an Internet connection.
+- Adds separate health handling for the Nougat Web Player and hidden Jellyfin backend.
+- Advances the browser layout for **1366x768 at 100% browser zoom**.
+- Uses the fullscreen transport layout **``<<  <  ^  >  >>``** for rewind 10 seconds, previous, play/pause, next, and forward 10 seconds.
+- Preserves the approved Nougat N identity and the accepted v0.0.54 Games behavior, including the owner-tested Xbox 360/Xenia embedded-video path.
+- Stores the complete runnable Nougat project tree on GitHub, including bundled emulator runtimes, Xenia, Jellyfin, AI, security components, source, assets, tools, and other required project dependencies.
+- Stores oversized project files through Git LFS instead of removing those runtime files from the project.
+- Keeps obsolete transfer/checkpoint package archives out of the runnable repository.
+
+During owner testing, the Nougat Web Player returned HTTP 200 from `127.0.0.1:8096/nougat/v1/health` and the hidden Jellyfin backend returned HTTP 200 / Healthy from `127.0.0.1:8098/health`.
+
+Known unresolved v0.0.55 issues are the desktop Server indicator remaining yellow / transitioning despite healthy Web Player and Jellyfin responses, and unresolved Safari/iPhone LAN access. v0.0.55 remains an in-progress checkpoint and is not yet an accepted release.
 
 ## v0.0.54 - Professional File Splitter and Silver Screen Studio
 
