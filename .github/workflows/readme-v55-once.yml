@@ -16,79 +16,33 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Update README exactly in place
         shell: bash
+        env:
+          V55_SECTION_B64: IyMgdi4wLjAuNTUgLSBCYWNrZ3JvdW5kIFdlYiBQbGF5ZXIgYW5kIENvbXBsZXRlIFJ1bm5hYmxlIFByb2plY3QgQ2hlY2twb2ludAoKTm91Z2F0IE1lZGlhIFN1aXRlIHYwLjAuNTUgYWR2YW5jZXMgdGhlIHByaXZhdGUtTEFOIFdlYiBQbGF5ZXIgYW5kIGNvbXBsZXRlLXByb2plY3QgZGlzdHJpYnV0aW9uIHdvcmsgd2hpbGUgdjAuMC41NCByZW1haW5zIHRoZSBjdXJyZW50IG93bmVyLWFjY2VwdGVkIHJlbGVhc2UuCgotIEFkZHMgdGhlIE5vdWdhdC1icmFuZGVkIExBTiBXZWIgUGxheWVyIGZvciBicm93c2VyIGFjY2VzcyBmcm9tIGNvbXB1dGVycywgcGhvbmVzLCB0YWJsZXRzLCB0ZWxldmlzaW9ucywgY29uc29sZXMsIGFuZCBvdGhlciBkZXZpY2VzIG9uIHRoZSBzYW1lIHByaXZhdGUgbmV0d29yay4KLSBVc2VzIHBvcnQgKio4MDk2KiogZm9yIHRoZSBwdWJsaWMvTEFOIE5vdWdhdCBXZWIgUGxheWVyIGFuZCAqKjEyNy4wLjAuMTo4MDk4KiogZm9yIHRoZSBoaWRkZW4gSmVsbHlmaW4gYmFja2VuZC4KLSBLZWVwcyBKZWxseWZpbiBiZWhpbmQgTm91Z2F0IGFzIGJhY2tlbmQvY2F0YWxvZyBpbmZyYXN0cnVjdHVyZSBpbnN0ZWFkIG9mIGV4cG9zaW5nIHRoZSBzdG9jayBKZWxseWZpbiB3ZWIgaW50ZXJmYWNlIGFzIE5vdWdhdCdzIHVzZXItZmFjaW5nIGV4cGVyaWVuY2UuCi0gUnVucyB0aGUgV2ViIFBsYXllciBhcyBhIE5vdWdhdC1vd25lZCBiYWNrZ3JvdW5kIHNlcnZpY2Ugc28gdGhlIGRlc2t0b3AgTm91Z2F0IGludGVyZmFjZSBkb2VzIG5vdCBuZWVkIHRvIHJlbWFpbiBvcGVuIGZvciBsb2NhbC1uZXR3b3JrIGJyb3dzZXIgYWNjZXNzLgotIEtlZXBzIGxvY2FsIG1lZGlhIHBsYXliYWNrIGFuZCBsb2NhbCBzZXJ2ZXIgYWNjZXNzIGluZGVwZW5kZW50IG9mIG1hbmRhdG9yeSBjbG91ZCBhY2NvdW50cywgY2xvdWQgcmVsYXlzLCBvciBhbiBJbnRlcm5ldCBjb25uZWN0aW9uLgotIEFkZHMgc2VwYXJhdGUgaGVhbHRoIGhhbmRsaW5nIGZvciB0aGUgTm91Z2F0IFdlYiBQbGF5ZXIgYW5kIGhpZGRlbiBKZWxseWZpbiBiYWNrZW5kLgotIEFkdmFuY2VzIHRoZSBicm93c2VyIGxheW91dCBmb3IgKioxMzY2eDc2OCBhdCAxMDAlIGJyb3dzZXIgem9vbSoqLgotIFVzZXMgdGhlIGZ1bGxzY3JlZW4gdHJhbnNwb3J0IGxheW91dCAqKmBgPDwgIDwgIF4gID4gID4+YGAqKiBmb3IgcmV3aW5kIDEwIHNlY29uZHMsIHByZXZpb3VzLCBwbGF5L3BhdXNlLCBuZXh0LCBhbmQgZm9yd2FyZCAxMCBzZWNvbmRzLgotIFByZXNlcnZlcyB0aGUgYXBwcm92ZWQgTm91Z2F0IE4gaWRlbnRpdHkgYW5kIHRoZSBhY2NlcHRlZCB2MC4wLjU0IEdhbWVzIGJlaGF2aW9yLCBpbmNsdWRpbmcgdGhlIG93bmVyLXRlc3RlZCBYYm94IDM2MC9YZW5pYSBlbWJlZGRlZC12aWRlbyBwYXRoLgotIFN0b3JlcyB0aGUgY29tcGxldGUgcnVubmFibGUgTm91Z2F0IHByb2plY3QgdHJlZSBvbiBHaXRIdWIsIGluY2x1ZGluZyBidW5kbGVkIGVtdWxhdG9yIHJ1bnRpbWVzLCBYZW5pYSwgSmVsbHlmaW4sIEFJLCBzZWN1cml0eSBjb21wb25lbnRzLCBzb3VyY2UsIGFzc2V0cywgdG9vbHMsIGFuZCBvdGhlciByZXF1aXJlZCBwcm9qZWN0IGRlcGVuZGVuY2llcy4KLSBTdG9yZXMgb3ZlcnNpemVkIHByb2plY3QgZmlsZXMgdGhyb3VnaCBHaXQgTEZTIGluc3RlYWQgb2YgcmVtb3ZpbmcgdGhvc2UgcnVudGltZSBmaWxlcyBmcm9tIHRoZSBwcm9qZWN0LgotIEtlZXBzIG9ic29sZXRlIHRyYW5zZmVyL2NoZWNrcG9pbnQgcGFja2FnZSBhcmNoaXZlcyBvdXQgb2YgdGhlIHJ1bm5hYmxlIHJlcG9zaXRvcnkuCgpEdXJpbmcgb3duZXIgdGVzdGluZywgdGhlIE5vdWdhdCBXZWIgUGxheWVyIHJldHVybmVkIEhUVFAgMjAwIGZyb20gYDEyNy4wLjAuMTo4MDk2L25vdWdhdC92MS9oZWFsdGhgIGFuZCB0aGUgaGlkZGVuIEplbGx5ZmluIGJhY2tlbmQgcmV0dXJuZWQgSFRUUCAyMDAgLyBIZWFsdGh5IGZyb20gYDEyNy4wLjAuMTo4MDk4L2hlYWx0aGAuCgpLbm93biB1bnJlc29sdmVkIHYwLjAuNTUgaXNzdWVzIGFyZSB0aGUgZGVza3RvcCBTZXJ2ZXIgaW5kaWNhdG9yIHJlbWFpbmluZyB5ZWxsb3cgLyB0cmFuc2l0aW9uaW5nIGRlc3BpdGUgaGVhbHRoeSBXZWIgUGxheWVyIGFuZCBKZWxseWZpbiByZXNwb25zZXMsIGFuZCB1bnJlc29sdmVkIFNhZmFyaS9pUGhvbmUgTEFOIGFjY2Vzcy4gdjAuMC41NSByZW1haW5zIGFuIGluLXByb2dyZXNzIGNoZWNrcG9pbnQgYW5kIGlzIG5vdCB5ZXQgYW4gYWNjZXB0ZWQgcmVsZWFzZS4KCg==
+          INTRO_ADD_B64: Tm91Z2F0J3MgbG9jYWwtbmV0d29yayBtZWRpYSBhcmNoaXRlY3R1cmUgbm93IGluY2x1ZGVzIGEgTm91Z2F0LWJyYW5kZWQgYmFja2dyb3VuZCBXZWIgUGxheWVyIGZvciBicm93c2VycyBhbmQgb3RoZXIgTEFOIGRldmljZXMsIHdpdGggSmVsbHlmaW4gcmV0YWluZWQgYXMgaGlkZGVuIGJhY2tlbmQvY2F0YWxvZyBpbmZyYXN0cnVjdHVyZS4gTG9jYWwgYnJvd3NlciBhY2Nlc3MgaXMgZGVzaWduZWQgdG8ga2VlcCB3b3JraW5nIHdpdGhvdXQgYSBtYW5kYXRvcnkgY2xvdWQgYWNjb3VudCwgY2xvdWQgcmVsYXksIG9yIEludGVybmV0IGNvbm5lY3Rpb24uIFRoZSBHaXRIdWIgcmVwb3NpdG9yeSBhbHNvIHByZXNlcnZlcyB0aGUgY29tcGxldGUgcnVubmFibGUgTm91Z2F0IHByb2plY3QgdHJlZSwgaW5jbHVkaW5nIGJ1bmRsZWQgZW11bGF0b3IgcnVudGltZXMsIFhlbmlhLCBKZWxseWZpbiwgQUksIHNlY3VyaXR5IGNvbXBvbmVudHMsIHNvdXJjZSwgYXNzZXRzLCB0b29scywgYW5kIG90aGVyIHJlcXVpcmVkIHByb2plY3QgZGVwZW5kZW5jaWVzLCB3aXRoIG92ZXJzaXplZCBmaWxlcyBzdG9yZWQgdGhyb3VnaCBHaXQgTEZTIHJhdGhlciB0aGFuIG9taXR0ZWQuCgo=
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
-
+          import base64, os, re
           p = Path('README.md')
           text = p.read_text()
-
-          # Remove only the bad temporary status block if it exists.
-          text = re.sub(
-              r'\n## Current Status\n.*?(?=\n## v0\.0\.55|\n## v0\.0\.54)',
-              '\n',
-              text,
-              flags=re.S,
-          )
-
-          # Remove an earlier v0.0.55 block if one exists so there is exactly one.
-          text = re.sub(
-              r'\n## v0\.0\.55\b.*?(?=\n## v0\.0\.54)',
-              '\n',
-              text,
-              flags=re.S,
-          )
-
-          intro_addition = (
-              "Nougat's local-network media architecture now includes a Nougat-branded background Web Player for browsers and other LAN devices, with Jellyfin retained as hidden backend/catalog infrastructure. Local browser access is designed to keep working without a mandatory cloud account, cloud relay, or Internet connection. The GitHub repository also preserves the complete runnable Nougat project tree, including bundled emulator runtimes, Xenia, Jellyfin, AI, security components, source, assets, tools, and other required project dependencies, with oversized files stored through Git LFS rather than omitted.\n\n"
-          )
-
-          branding = (
-              'The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.'
-          )
-
-          if intro_addition.strip() not in text:
+          text = re.sub(r'\n## Current Status\n.*?(?=\n## v0\.0\.55|\n## v0\.0\.54)', '\n', text, flags=re.S)
+          text = re.sub(r'\n## v0\.0\.55\b.*?(?=\n## v0\.0\.54)', '\n', text, flags=re.S)
+          intro = base64.b64decode(os.environ['INTRO_ADD_B64']).decode()
+          branding = 'The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.'
+          if intro.strip() not in text:
               if branding not in text:
                   raise SystemExit('README branding anchor not found')
-              text = text.replace(branding, intro_addition + branding, 1)
-
+              text = text.replace(branding, intro + branding, 1)
           anchor = '## v0.0.54 - Professional File Splitter and Silver Screen Studio'
           if anchor not in text:
               raise SystemExit('v0.0.54 README anchor not found')
-
-          v55 = '''## v0.0.55 - Background Web Player and Complete Runnable Project Checkpoint
-
-Nougat Media Suite v0.0.55 advances the private-LAN Web Player and complete-project distribution work while v0.0.54 remains the current owner-accepted release.
-
-- Adds the Nougat-branded LAN Web Player for browser access from computers, phones, tablets, televisions, consoles, and other devices on the same private network.
-- Uses port **8096** for the public/LAN Nougat Web Player and **127.0.0.1:8098** for the hidden Jellyfin backend.
-- Keeps Jellyfin behind Nougat as backend/catalog infrastructure instead of exposing the stock Jellyfin web interface as Nougat's user-facing experience.
-- Runs the Web Player as a Nougat-owned background service so the desktop Nougat interface does not need to remain open for local-network browser access.
-- Keeps local media playback and local server access independent of mandatory cloud accounts, cloud relays, or an Internet connection.
-- Adds separate health handling for the Nougat Web Player and hidden Jellyfin backend.
-- Advances the browser layout for **1366x768 at 100% browser zoom**.
-- Uses the fullscreen transport layout **`<<  <  ^  >  >>`** for rewind 10 seconds, previous, play/pause, next, and forward 10 seconds.
-- Preserves the approved Nougat N identity and the accepted v0.0.54 Games behavior, including the owner-tested Xbox 360/Xenia embedded-video path.
-- Stores the complete runnable Nougat project tree on GitHub, including bundled emulator runtimes, Xenia, Jellyfin, AI, security components, source, assets, tools, and other required project dependencies.
-- Stores oversized project files through Git LFS rather than removing those runtime files from the project.
-- Keeps obsolete transfer/checkpoint package archives out of the runnable repository.
-
-During owner testing, the Nougat Web Player returned HTTP 200 from `127.0.0.1:8096/nougat/v1/health` and the hidden Jellyfin backend returned HTTP 200 / Healthy from `127.0.0.1:8098/health`.
-
-Known unresolved v0.0.55 issues are the desktop Server indicator remaining yellow / transitioning despite healthy Web Player and Jellyfin responses, and unresolved Safari/iPhone LAN access. v0.0.55 remains an in-progress checkpoint and is not yet an accepted release.
-
-'''
-
+          v55 = base64.b64decode(os.environ['V55_SECTION_B64']).decode()
           text = text.replace(anchor, v55 + anchor, 1)
           p.write_text(text)
           PY
-
           rm -f .github/workflows/readme-v55-once.yml
-
           git config user.name "Derek Sparks"
           git config user.email "dereksparks1982@gmail.com"
           git add README.md .github/workflows/readme-v55-once.yml
