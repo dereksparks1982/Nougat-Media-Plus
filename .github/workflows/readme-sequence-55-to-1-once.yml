@@ -1,0 +1,159 @@
+name: Repair README version sequence v55 to v1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/readme-sequence-55-to-1-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reorder README versions through GitHub API
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import re
+          import urllib.request
+
+          token = os.environ['GH_TOKEN']
+          repo = os.environ['GH_REPO']
+          api = f'https://api.github.com/repos/{repo}/contents/README.md'
+
+          def request(url, method='GET', data=None):
+              req = urllib.request.Request(url, method=method)
+              req.add_header('Authorization', f'Bearer {token}')
+              req.add_header('Accept', 'application/vnd.github+json')
+              req.add_header('X-GitHub-Api-Version', '2022-11-28')
+              if data is not None:
+                  payload = json.dumps(data).encode('utf-8')
+                  req.add_header('Content-Type', 'application/json')
+                  req.data = payload
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read().decode('utf-8'))
+
+          current = request(api)
+          sha = current['sha']
+          text = base64.b64decode(current['content']).decode('utf-8')
+
+          # Split only on level-2 headings. Everything before the first level-2
+          # heading is the product introduction and must remain first.
+          matches = list(re.finditer(r'(?m)^##\s+.+$', text))
+          if not matches:
+              raise SystemExit('README has no level-2 sections')
+
+          intro = text[:matches[0].start()].rstrip() + '\n\n'
+          sections = []
+          for i, m in enumerate(matches):
+              end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+              block = text[m.start():end].rstrip()
+              heading = m.group(0)
+              vm = re.search(r'v\.?0\.0\.(\d+)\b', heading, re.I)
+              version = int(vm.group(1)) if vm else None
+              sections.append((version, heading, block))
+
+          by_version = {}
+          non_version = []
+          for version, heading, block in sections:
+              if version is not None and 1 <= version <= 55:
+                  by_version.setdefault(version, []).append((heading, block))
+              else:
+                  non_version.append(block)
+
+          # Every version number from 55 through 1 must have one and only one
+          # level-2 section. Merge duplicate/candidate blocks into the first
+          # occurrence so nothing is stranded later out of sequence.
+          ordered = []
+          missing = []
+          for version in range(55, 0, -1):
+              entries = by_version.get(version, [])
+              if not entries:
+                  missing.append(version)
+                  continue
+
+              first_heading, first_block = entries[0]
+              body = first_block.split('\n', 1)[1] if '\n' in first_block else ''
+
+              # Normalize only the version token in the heading, preserving its title.
+              normalized_heading = re.sub(
+                  r'v\.?0\.0\.%d\b' % version,
+                  f'v0.0.{version}',
+                  first_heading,
+                  count=1,
+                  flags=re.I,
+              )
+
+              merged_parts = [normalized_heading]
+              if body.strip():
+                  merged_parts.append(body.strip())
+
+              for extra_heading, extra_block in entries[1:]:
+                  extra_body = extra_block.split('\n', 1)[1] if '\n' in extra_block else ''
+                  if extra_body.strip():
+                      merged_parts.append(extra_body.strip())
+
+              ordered.append('\n\n'.join(merged_parts).rstrip())
+
+          # Do not silently invent release notes. If historical headings are
+          # absent, create explicit numbered placeholders so the visible README
+          # still counts cleanly from 55 to 1 without fabricating features.
+          if missing:
+              rebuilt = []
+              existing = {v: b for v, b in zip([v for v in range(55,0,-1) if v in by_version], ordered)}
+              for version in range(55, 0, -1):
+                  if version in existing:
+                      rebuilt.append(existing[version])
+                  else:
+                      rebuilt.append(
+                          f'## v0.0.{version}\n\n'
+                          'This historical version does not currently have a detailed release entry in the README. '
+                          'Its source and repository history remain the authority for that version.'
+                      )
+              ordered = rebuilt
+
+          # Keep non-version documentation after the complete v55 -> v1 history.
+          # Remove obsolete headings that only announced a second release-history
+          # area or old candidate/current-build blocks when their version content
+          # has already been folded into the numbered sequence.
+          cleaned_non_version = []
+          for block in non_version:
+              heading = block.split('\n', 1)[0].strip().lower()
+              if heading in {'# release history', '## release history'}:
+                  continue
+              if heading.startswith('## previous candidate') or heading.startswith('## previous build'):
+                  continue
+              cleaned_non_version.append(block)
+
+          new_text = intro + '\n\n'.join(ordered)
+          if cleaned_non_version:
+              new_text += '\n\n' + '\n\n'.join(cleaned_non_version)
+          new_text = new_text.rstrip() + '\n'
+
+          # Hard gate: the first 55 version headings after the intro must be
+          # exactly 55,54,...,1 with no duplicate or out-of-order version heading.
+          headings = re.findall(r'(?m)^##\s+.*?v\.?0\.0\.(\d+)\b.*$', new_text)
+          nums = [int(x) for x in headings[:55]]
+          expected = list(range(55, 0, -1))
+          if nums != expected:
+              raise SystemExit(f'Version sequence gate failed: {nums[:20]} ...')
+
+          payload = {
+              'message': 'Order README versions sequentially from v0.0.55 to v0.0.1',
+              'content': base64.b64encode(new_text.encode('utf-8')).decode('ascii'),
+              'sha': sha,
+              'branch': 'main',
+          }
+          result = request(api, method='PUT', data=payload)
+          print('README_COMMIT=' + result['commit']['sha'])
+          print('SEQUENCE=' + ','.join(str(x) for x in nums))
+          print('MISSING_FILLED=' + ','.join(str(x) for x in missing))
+          PY
