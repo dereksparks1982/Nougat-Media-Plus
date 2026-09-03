@@ -499,6 +499,10 @@ This historical version does not currently have a detailed release entry in the 
 
 This historical version does not currently have a detailed release entry in the README. Its source and repository history remain the authority for that version.
 
+### Viewing-history completion repair
+
+This replacement v0.0.19 candidate includes the recommendation/viewing-history source changes required by TV natural-end autoplay. Existing SQLite history databases are migrated in place by adding a `completed` column when needed.
+
 ## Previous candidate: v0.0.18 Intelligent Debug, Metadata, Watch Availability, and Responsive Library
 
 v0.0.18 makes the native Library and Discover screens explain more and guess less. Episode tiles show verified `SxxExx - title` identity with technical format on a secondary line. Artwork resolves through the item's Jellyfin image, parent/series artwork, and then exact TMDb movie/series/season artwork. Missing titles or posters remain explicitly unavailable when no verified match exists.
@@ -918,29 +922,7 @@ See [`DEPENDENCIES.md`](DEPENDENCIES.md) for the exact Ubuntu runtime and build 
 
 ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpeg, X11, Zenity, and libtorrent are currently supplied by the Linux system.
 
-## Running the current development build
 
-From the ReddMedia project folder:
-
-```bash
-./ReddMedia_v18
-```
-
-Version check:
-
-```bash
-./ReddMedia_v18 --version
-```
-
-Expected output:
-
-```text
-ReddMedia v0.0.18
-```
-
-# Release history
-
-The entries below describe why each numbered ReddMedia build existed and what changed for the user. They are reconstructed from the versioned build handshakes, validation records, changelog, and source history in this repository.
 
 ## Licensing and third-party software
 
@@ -954,5 +936,3 @@ Third-party components keep their upstream licenses and terms. See [`THIRD_PARTY
 
 See [`ROADMAP.md`](ROADMAP.md) for the next planned ReddMedia milestones.
 
-### Viewing-history completion repair
-This replacement v0.0.19 candidate includes the recommendation/viewing-history source changes required by TV natural-end autoplay. Existing SQLite history databases are migrated in place by adding a `completed` column when needed.
