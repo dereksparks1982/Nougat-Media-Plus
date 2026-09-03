@@ -217,7 +217,6 @@ v0.0.42 builds from the sealed v0.0.41 baseline and preserves the accepted nativ
 - Repairs the Video Player context-menu subtitle row so the full `Subtitles On / Off` row toggles and the active state word is bold.
 - Raises the volume and transport rows slightly while leaving the approved seek bar untouched.
 
-
 ## v0.0.41 - Housekeeping, Archives, IMDb, Live TV and Player Activity Repair
 
 v0.0.41 builds on accepted v0.0.40 without changing Nougat's native-player rule or accepted page identities.
@@ -230,7 +229,6 @@ v0.0.41 builds on accepted v0.0.40 without changing Nougat's native-player rule 
 - Live TV gains `Stop Live`; stopping live playback releases the tuner and lets a queued full guide sweep continue.
 - The video identity overlay and mouse pointer now share the same three-second activity window in fullscreen, maximized, and normal window sizes.
 - The Home LAN phone-browser media viewer/streaming foundation remains roadmap work after v0.0.42.
-
 
 ## v0.0.40 - System Loading, Live TV Tuner Navigation, Search Repair, and Crawler UI
 
@@ -265,7 +263,6 @@ v0.0.39 builds directly on accepted v0.0.38. It focuses on evidence-based diagno
 - Bundled real network-logo coverage is expanded and channel-logo cards are square.
 - The accepted player layout and VOLUME component remain untouched; only the explicitly rejected progress-bar bottom strip/stitch clarity and Live TV timing color are repaired.
 - Diagnostic JSON/TXT/support bundles are retained, with private diagnostic-history snapshots stored locally for comparison.
-
 
 ## v0.0.38 - Library, Live TV and Player Exact-Sheet Polish
 
@@ -352,7 +349,6 @@ v0.0.34 builds directly on accepted v0.0.33 commit `6763a42bf5c125974e5a2882234f
 - Page-frame corner repair applies to Home, Library, Discover, Live TV, Stream, and Debug. Search and Video Player retain their accepted frame behavior.
 - v0.0.33 persistent server, security runtime, P2P Plus, and tuner-detection foundations are retained unchanged.
 
-
 ## v0.0.33 - P2P Plus, Security Hardening, Persistent Server, Page Viewports, and Live TV Foundation
 
 v0.0.33 builds directly on accepted v0.0.32 commit `084ee7ccd82be3a578f738b3bcb6ac8570a573dd`. Normal pages now use a Nougat-owned bordered clipping viewport so scrolling content cannot bleed under fixed chrome; **Video Player is intentionally unchanged**. Home and Library gain hard containment, Library gains a dedicated vertical scrollbar and wrapping toolbar, and the top navigation is clipped between the fixed Nougat brand and fixed Server/version area.
@@ -364,8 +360,6 @@ P2P Plus adds Nougat-owned management interfaces for speed limits, seeding ratio
 Nougat Security Analysis now requires the pinned one-shot runtime (YARA-X 1.19.0, capa 9.4.0 + matching rules, Magika 1.0.3). Missing required/relevant engines produce **ANALYSIS INCOMPLETE**, never a false clean result. Free abuse.ch MalwareBazaar/ThreatFox/URLhaus reputation remains optional through the owner's free **Threat Intel Key**. ClamAV remains an optional external one-shot second opinion. No resident scanner, filesystem watcher, automatic quarantine, deletion, move, rename, or open action is installed.
 
 The integrated Jellyfin server is now persistent after **Start Server**: closing the Nougat UI leaves a Nougat-owned server running, reopening adopts it, and **Stop Server** is the explicit shutdown path. Independently started Jellyfin is never claimed or killed.
-
-
 
 ## v0.0.32 - Native P2P Media + Nougat Security Analysis
 
@@ -411,7 +405,6 @@ Home artwork is strengthened again: Continue Watching TV episodes prefer an exac
 
 The focused P2P streaming expansion is now v0.0.32.
 
-
 ## v0.0.28 - Candy Palette, Artwork, and UI State Polish
 
 v0.0.28 builds on the owner-accepted/published v0.0.27 baseline. The main quilted page background now carries each native area identity instead of every page reading as cream: Home is purple, Video Player uses cocoa/chocolate/caramel, Library is green, Discover is red, Search remains the only cream-background native page, Stream stays provider-reactive, and Debug is charcoal/licorice. Each area stays restrained to roughly two or three coordinated colors with cream used selectively for readable trim, text, tracks, and panels.
@@ -438,7 +431,6 @@ The seek bar now supports an actual-frame hover preview with timestamp and real 
 
 The page-background/artwork/state polish discussed during owner testing is implemented in v0.0.28. The TV Up Next reliability repair is split into v0.0.29 and the focused P2P expansion into v0.0.32.
 
-
 ## v0.0.26 - Systems, Navigation, Diagnostics, and TV Up Next
 
 v0.0.26 builds on the owner-accepted v0.0.25 release. Mouse side buttons now navigate Nougat's internal history (Button 8 Back, Button 9 Forward), the Library root header drops the redundant `MEDIA LIBRARY` label and places the List/Grid view controls at the far left, and the fixed header identity/status layer remains anchored beneath the horizontally scrolling top tabs.
@@ -451,7 +443,6 @@ At natural TV episode completion, Nougat resolves the real next episode before p
 
 v0.0.27 added seek-bar hover thumbnail previews while preserving aesthetic fallback chapter marks. During owner testing, v0.0.28 was reassigned to UI/artwork/state polish, v0.0.29 to TV playback/navigation reliability, and the larger P2P-management expansion to v0.0.32.
 
-
 ## v0.0.25 - Stream Provider Theme, Persistent Selection, and Discover Native Play
 
 v0.0.25 builds directly on the owner-accepted v0.0.24 release. The selected Stream provider now drives the entire Stream interior: provider-colored controls, accents, and the exact concept-sheet quilt tinted to YouTube red, Rumble green, RuTube purple, VK blue, or OK orange/caramel. The selected provider also receives the concept-sheet downward active notch.
@@ -460,11 +451,9 @@ Discover now exposes its persistent state visually. `Usual | Random` is one sele
 
 `Play in Nougat...` for local Discover results now resolves the selected Jellyfin catalog entry to a real playable local movie or episode before starting the native Nougat player. A series-level TV result resumes the most recently watched matching episode when local history identifies one; otherwise it starts the first real episode in season/episode order.
 
-
 ## v0.0.24 - Search Page UI Polish
 
 v0.0.24 is an owner-approved Search-page-only visual polish release on the accepted v0.0.23 base. It moves the approved N emblem and NOUGAT MEDIA SUITE identity to the far-left header position, removes the duplicate right-side N badge, finishes concept-sheet styling for Search/Crawler/P2P controls and panels, aligns Network... and SEARCH on the same right-side column, and strengthens GNOME launcher/window icon association so the approved N replaces the generic gear fallback. Search-engine behavior is intentionally unchanged in this release.
-
 
 ## v0.0.23 - Exact Concept UI and Stream Direct Watch Repair
 
@@ -502,6 +491,13 @@ Existing Stream services remain exactly **YouTube | Rumble | RuTube | VK | OK** 
 
 The existing Git repository directory and backward-compatible user-data/config paths remain unchanged so the product rename does not silently become a filesystem/data migration. User-visible application identity is Nougat Media Suite.
 
+## v0.0.20
+
+This historical version does not currently have a detailed release entry in the README. Its source and repository history remain the authority for that version.
+
+## v0.0.19
+
+This historical version does not currently have a detailed release entry in the README. Its source and repository history remain the authority for that version.
 
 ## Previous candidate: v0.0.18 Intelligent Debug, Metadata, Watch Availability, and Responsive Library
 
@@ -613,288 +609,6 @@ Owner testing proved P2P Stop/Resume but exposed two release defects before acce
 - The red-triangle executable icon is assigned after the final binary write and GNOME Files/Nautilus is refreshed when available; owner-side visual confirmation remains an acceptance gate.
 - The visible top-bar version surface is corrected to `ReddMedia v0.0.11`.
 
-## Main ReddMedia features
-
-- Native X11 desktop interface.
-- Native media Library with folder selection, local catalog scanning, title selection, and direct playback in the existing embedded player.
-- Native Movies/TV hierarchy with real poster metadata, movie box sets, series, seasons, and episodes.
-- Responsive multi-row Library tiles with verified episode numbers/titles and separate technical format.
-- Discover Usual/Random recommendations across Local Movie, Local TV, External Movie, and External TV.
-- United States JustWatch availability through TMDb, private My Services markings, and official watch-option links.
-- Evidence-based Debug and system-health checks with actionable green/yellow/red findings.
-- Local SQLite history and offline llama.cpp/Nomic metadata embeddings.
-- Hidden local Jellyfin 10.11.11 catalog service with no exposed Jellyfin setup/player web interface.
-- VLC/libVLC local video playback.
-- Open, Play/Pause, Stop, Rewind 10s, Fast Forward 10s, timeline seeking, volume, fullscreen, and resume support.
-- Keyboard and mouse playback controls.
-- Embedded audio-track selection.
-- External and embedded subtitle controls, automatic matching `.srt` loading, subtitle folder selection, and subtitle delay controls.
-- Embedded chapter discovery and chapter navigation when exposed by libVLC.
-- YouTube download/playback screen with URL entry and output-folder selection, powered by the bundled yt-dlp engine.
-- Built-in P2P magnet and local metadata-file downloading with stream-while-downloading playback.
-- Red ReddMedia branding, red controls, red seek/volume bars, and red-tree window/launcher/executable identity.
-
-## Dependencies
-
-See [`DEPENDENCIES.md`](DEPENDENCIES.md) for the exact Ubuntu runtime and build requirements and one-command installation lines.
-
-ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpeg, X11, Zenity, and libtorrent are currently supplied by the Linux system.
-
-## Running the current development build
-
-From the ReddMedia project folder:
-
-```bash
-./ReddMedia_v18
-```
-
-Version check:
-
-```bash
-./ReddMedia_v18 --version
-```
-
-Expected output:
-
-```text
-ReddMedia v0.0.18
-```
-
-# Release history
-
-The entries below describe why each numbered ReddMedia build existed and what changed for the user. They are reconstructed from the versioned build handshakes, validation records, changelog, and source history in this repository.
-
-## v0.0.1 — VLC-Style Base Video Player
-
-**Purpose:** establish the first accepted standalone ReddMedia player instead of the earlier rejected prototypes.
-
-What this build added:
-
-- A top-level native ReddMedia executable.
-- VLC/libVLC-backed local video playback.
-- Open-file support.
-- Play/Pause and Stop controls.
-- Timeline seeking and current playback time.
-- Volume control.
-- Fullscreen playback.
-- Cursor auto-hide during playback.
-- Clean close behavior.
-- Basic saved-session resume/load behavior.
-- Initial README, changelog, roadmap, license, third-party notices, build handshake, and validation record.
-
-Validation highlights:
-
-- Native C++ build/package checks passed.
-- Full graphical playback validation was reserved for the Ubuntu desktop because the build sandbox did not provide the live VLC/X11 environment.
-
-## v0.0.2 — VLC-Style Player Repair 1
-
-**Purpose:** make fullscreen, resume, and repaint behavior act like a real desktop media player.
-
-What changed:
-
-- Fullscreen became video-only, hiding the normal controls.
-- Double-clicking the video toggled fullscreen.
-- Escape exited fullscreen.
-- Resume became a clickable video-area action.
-- Resume reopened the saved media file and retried the saved seek after playback began.
-- **Load Different File** opened normal file selection.
-- Mouse wheel input changed volume only.
-- Normal playback refresh stopped clearing the live video surface, reducing flicker.
-- Close behavior continued to save session state and release VLC cleanly.
-
-Validation highlights:
-
-- C++17 `-Wall -Wextra -Werror` compile passed.
-- X11/dynamic-libVLC source contracts for fullscreen, resume, volume, and repaint behavior passed.
-
-## v0.0.3 — Mouse, Keyboard, Time Display, and Flicker Repair
-
-**Purpose:** make direct player interaction quicker and repair the bottom playback layout.
-
-What changed:
-
-- Single left-click on video toggled pause/resume.
-- Double left-click continued to toggle fullscreen without the single-click action firing first.
-- Right-click on video opened a basic player options menu.
-- Up/Down Arrow changed volume.
-- Left/Right Arrow sought backward/forward by 10 seconds.
-- Keyboard seek jumps were standardized to 10 seconds.
-- The bottom layout reserved visible space for the time display.
-- Playback repaint behavior continued avoiding full-window clearing to reduce flicker.
-
-Validation highlights:
-
-- C++17 warnings-as-errors compile passed.
-- Mouse, keyboard, fullscreen, seek, and redraw source contracts passed.
-
-## v0.0.4 — Time Layout, Skip Buttons, and Red Timeline Repair
-
-**Purpose:** turn the bottom controls into the player layout used by later ReddMedia builds.
-
-What changed:
-
-- Current time moved to the left of the seek bar.
-- Total duration moved to the right of the seek bar.
-- The time/seek row was lowered to create space below the video.
-- The seek/progress fill changed to ReddMedia red.
-- Chapter-style tick marks were added to the timeline.
-- The volume fill changed to ReddMedia red.
-- Visible **Rewind 10s** and **Fast Forward 10s** buttons were added.
-- The bottom button order became: Open, Rewind 10s, Play/Pause, Stop, Fast Forward 10s, Fullscreen.
-- The new skip buttons used the same 10-second seek behavior as the arrow keys.
-
-Validation highlights:
-
-- Build/package checks passed.
-- Owner-side playback testing was required for the final visual positioning and controls.
-
-## v0.0.5 — Branding and Polish Flicker/Icon Repair
-
-**Purpose:** establish ReddMedia's visual identity and move the parent UI to buffered drawing.
-
-What changed:
-
-- Added the red ReddMedia triangle icon assets in multiple sizes.
-- Set the X11 `_NET_WM_ICON` window icon.
-- Set the X11 window class to `ReddMedia` for launcher/dock matching.
-- Updated the desktop launcher to use `Icon=reddmedia` and `StartupWMClass=ReddMedia`.
-- Kept the native GNOME/window title bar under system control.
-- Kept the in-app header red.
-- Replaced direct/partial parent-window repainting with offscreen buffered drawing before onscreen copy.
-- Preserved the v0.0.4 red timeline, red volume bar, controls, playback, fullscreen, and resume behavior.
-- Removed a rejected custom MIME-icon approach that could interfere with double-click launching.
-- Used safe local icon registration/custom-icon metadata attempts for the raw executable.
-
-Validation highlights:
-
-- Native warnings-as-errors compile and link passed.
-- Buffered parent-window drawing, icon assets, window class, launcher identity, and safe icon path checks passed.
-
-## v0.0.6 — Menu, Audio, Subtitle, Chapter, and Close Behavior Repair
-
-**Purpose:** turn the top menus and media-track controls into functional player features.
-
-What changed:
-
-- File became a real menu with **Open File** and **Exit ReddMedia**.
-- Audio menu gained embedded audio-track discovery and selection through libVLC.
-- Subtitle menu gained subtitles on/off, subtitle-file loading, subtitle-folder loading, delay earlier/later, delay reset, and embedded subtitle-track selection.
-- Matching `.srt` files could be detected automatically beside the video or inside common subtitle folders.
-- A detected matching subtitle could be enabled automatically.
-- Right-click video options gained subtitle control.
-- Real embedded chapter information was used when libVLC exposed it.
-- Timeline chapter marks used real chapter timestamps when available.
-- Right-click chapter controls gained Previous Chapter, Next Chapter, and direct chapter jumps.
-- The buffered UI and red-triangle branding from v0.0.5 were preserved.
-
-Validation highlights:
-
-- C++17 warnings-as-errors compile passed.
-- Menu/audio/subtitle/chapter package contracts passed.
-- Media-specific audio/subtitle/chapter behavior required owner testing with files that actually contain those tracks or metadata.
-
-## v0.0.7 — Red Button Polish
-
-**Purpose:** finish the visible red control-button direction.
-
-What changed:
-
-- Bottom player control buttons changed to red.
-- Button lettering changed to white.
-- The established button order and player behavior were preserved.
-
-Validation highlights:
-
-- Warnings-as-errors compile passed.
-- Executable/package and version checks passed.
-- Desktop testing verified the visual behavior before acceptance.
-
-## v0.0.8 — Direct YouTube
-
-**Purpose:** put the downloader inside ReddMedia as a permanent application screen.
-
-What changed:
-
-- Added the direct YouTube screen inside ReddMedia, powered by the bundled yt-dlp engine.
-- Bundled the real Linux yt-dlp executable at `tools/yt-dlp/yt-dlp`.
-- Added direct URL typing.
-- Added Ctrl+V keyboard paste and right-click paste to the URL field.
-- Kept output-folder selection separate from URL entry.
-- Introduced the versioned executable name `ReddMedia_v8`.
-- Preserved the v0.0.7 video-player behavior.
-- The apply workflow attempted safe red-triangle custom-icon metadata for the raw executable and installed the matching desktop launcher identity.
-
-Validation highlights:
-
-- Bundled yt-dlp and build/package checks passed.
-- Real desktop/download behavior required owner-side testing.
-
-## v0.0.9 — URL Field Text Controls
-
-**Purpose:** make the YouTube URL box behave like a normal editable text field.
-
-What changed:
-
-- Ctrl+A selects the entire YouTube URL.
-- Full-field selection is visibly highlighted.
-- Right-click opens **Cut / Copy / Paste**.
-- Cut and Copy place the complete selected URL on the X11 clipboard.
-- Paste replaces a full-field selection before inserting clipboard text.
-- The versioned executable advanced to `ReddMedia_v9`.
-
-Validation highlights:
-
-- Warnings-as-errors native compile passed.
-- `ReddMedia_v9 --version` and native ELF checks passed.
-- An Xvfb-driven interaction test proved Ctrl+A, Copy, Cut, Paste, and clipboard round-trip behavior.
-- Installer and forced rollback rehearsals passed.
-- Owner-side live URL-field testing passed before acceptance.
-
-## v0.0.10 — P2P Streaming Core
-
-**Purpose:** add built-in P2P file transfer to ReddMedia and make watching while downloading the normal P2P behavior.
-
-What this build added:
-
-- Permanent **P2P** application screen.
-- libtorrent-rasterbar 2.x integration.
-- Magnet-link loading.
-- Local P2P metadata-file loading.
-- P2P transfer metadata retrieval and file listing.
-- Automatic selection of a single obvious video file.
-- Manual file selection for multi-file P2P transfers.
-- Download folder selection.
-- Live P2P transfer name, state, progress, downloaded amount, download/upload speed, peers, and seeds.
-- Complete P2P transfer downloading and seeding behind playback.
-- Persistent P2P resume data.
-- Ctrl+A and Cut / Copy / Paste in the P2P source field.
-- A localhost-only HTTP Range bridge between the P2P transfer engine and VLC.
-- Time-critical libtorrent piece deadlines driven by what VLC needs for playback.
-- Stream-while-downloading playback without exposing separate sequential-download controls.
-- `DEPENDENCIES.md` for runtime and developer requirements.
-- libtorrent BSD license/third-party notice records.
-- Roadmap work for a future self-contained Linux distribution.
-
-Owner-test results that established the milestone:
-
-- Magnet-link intake and P2P transfer downloading worked.
-- Local P2P metadata-file intake and transfer downloading worked.
-- P2P transfer metadata, file list, peer/seed status, and automatic video selection worked.
-- Playback began while a P2P transfer was still downloading.
-
-Stabilization repairs accepted in v0.0.10:
-
-- Restores buffered seek/time and volume partial repainting to remove the flashing regression.
-- Cancels obsolete P2P stream requests when VLC seeks to a new range.
-- Clears obsolete P2P transfer piece deadlines on a new stream range request.
-- Adds legal HTTP suffix-range support used by media probing/seeking.
-- Adds bounded stream-socket waits for abandoned requests.
-- Reapplies and validates the red-triangle custom icon on `ReddMedia_v10`.
-- Expands this README so every numbered ReddMedia release explains what it actually did.
-
-Seek behavior under slow or difficult P2P swarms can still take time because peer availability controls how quickly an undownloaded region arrives.
-
 ## v0.0.13 — YouTube Seek and Close Stability Repair
 
 **Purpose:** keep long-form YouTube playback alive and make rewind/fast-forward/seek replacement and application close stable under the growing-cache architecture.
@@ -946,6 +660,288 @@ Validation target:
 - YouTube Play starts embedded playback through the bundled yt-dlp/FFmpeg stream path.
 - `ReddMedia_v11` retains the red-triangle executable icon.
 
+## v0.0.10 — P2P Streaming Core
+
+**Purpose:** add built-in P2P file transfer to ReddMedia and make watching while downloading the normal P2P behavior.
+
+What this build added:
+
+- Permanent **P2P** application screen.
+- libtorrent-rasterbar 2.x integration.
+- Magnet-link loading.
+- Local P2P metadata-file loading.
+- P2P transfer metadata retrieval and file listing.
+- Automatic selection of a single obvious video file.
+- Manual file selection for multi-file P2P transfers.
+- Download folder selection.
+- Live P2P transfer name, state, progress, downloaded amount, download/upload speed, peers, and seeds.
+- Complete P2P transfer downloading and seeding behind playback.
+- Persistent P2P resume data.
+- Ctrl+A and Cut / Copy / Paste in the P2P source field.
+- A localhost-only HTTP Range bridge between the P2P transfer engine and VLC.
+- Time-critical libtorrent piece deadlines driven by what VLC needs for playback.
+- Stream-while-downloading playback without exposing separate sequential-download controls.
+- `DEPENDENCIES.md` for runtime and developer requirements.
+- libtorrent BSD license/third-party notice records.
+- Roadmap work for a future self-contained Linux distribution.
+
+Owner-test results that established the milestone:
+
+- Magnet-link intake and P2P transfer downloading worked.
+- Local P2P metadata-file intake and transfer downloading worked.
+- P2P transfer metadata, file list, peer/seed status, and automatic video selection worked.
+- Playback began while a P2P transfer was still downloading.
+
+Stabilization repairs accepted in v0.0.10:
+
+- Restores buffered seek/time and volume partial repainting to remove the flashing regression.
+- Cancels obsolete P2P stream requests when VLC seeks to a new range.
+- Clears obsolete P2P transfer piece deadlines on a new stream range request.
+- Adds legal HTTP suffix-range support used by media probing/seeking.
+- Adds bounded stream-socket waits for abandoned requests.
+- Reapplies and validates the red-triangle custom icon on `ReddMedia_v10`.
+- Expands this README so every numbered ReddMedia release explains what it actually did.
+
+Seek behavior under slow or difficult P2P swarms can still take time because peer availability controls how quickly an undownloaded region arrives.
+
+## v0.0.9 — URL Field Text Controls
+
+**Purpose:** make the YouTube URL box behave like a normal editable text field.
+
+What changed:
+
+- Ctrl+A selects the entire YouTube URL.
+- Full-field selection is visibly highlighted.
+- Right-click opens **Cut / Copy / Paste**.
+- Cut and Copy place the complete selected URL on the X11 clipboard.
+- Paste replaces a full-field selection before inserting clipboard text.
+- The versioned executable advanced to `ReddMedia_v9`.
+
+Validation highlights:
+
+- Warnings-as-errors native compile passed.
+- `ReddMedia_v9 --version` and native ELF checks passed.
+- An Xvfb-driven interaction test proved Ctrl+A, Copy, Cut, Paste, and clipboard round-trip behavior.
+- Installer and forced rollback rehearsals passed.
+- Owner-side live URL-field testing passed before acceptance.
+
+## v0.0.8 — Direct YouTube
+
+**Purpose:** put the downloader inside ReddMedia as a permanent application screen.
+
+What changed:
+
+- Added the direct YouTube screen inside ReddMedia, powered by the bundled yt-dlp engine.
+- Bundled the real Linux yt-dlp executable at `tools/yt-dlp/yt-dlp`.
+- Added direct URL typing.
+- Added Ctrl+V keyboard paste and right-click paste to the URL field.
+- Kept output-folder selection separate from URL entry.
+- Introduced the versioned executable name `ReddMedia_v8`.
+- Preserved the v0.0.7 video-player behavior.
+- The apply workflow attempted safe red-triangle custom-icon metadata for the raw executable and installed the matching desktop launcher identity.
+
+Validation highlights:
+
+- Bundled yt-dlp and build/package checks passed.
+- Real desktop/download behavior required owner-side testing.
+
+## v0.0.7 — Red Button Polish
+
+**Purpose:** finish the visible red control-button direction.
+
+What changed:
+
+- Bottom player control buttons changed to red.
+- Button lettering changed to white.
+- The established button order and player behavior were preserved.
+
+Validation highlights:
+
+- Warnings-as-errors compile passed.
+- Executable/package and version checks passed.
+- Desktop testing verified the visual behavior before acceptance.
+
+## v0.0.6 — Menu, Audio, Subtitle, Chapter, and Close Behavior Repair
+
+**Purpose:** turn the top menus and media-track controls into functional player features.
+
+What changed:
+
+- File became a real menu with **Open File** and **Exit ReddMedia**.
+- Audio menu gained embedded audio-track discovery and selection through libVLC.
+- Subtitle menu gained subtitles on/off, subtitle-file loading, subtitle-folder loading, delay earlier/later, delay reset, and embedded subtitle-track selection.
+- Matching `.srt` files could be detected automatically beside the video or inside common subtitle folders.
+- A detected matching subtitle could be enabled automatically.
+- Right-click video options gained subtitle control.
+- Real embedded chapter information was used when libVLC exposed it.
+- Timeline chapter marks used real chapter timestamps when available.
+- Right-click chapter controls gained Previous Chapter, Next Chapter, and direct chapter jumps.
+- The buffered UI and red-triangle branding from v0.0.5 were preserved.
+
+Validation highlights:
+
+- C++17 warnings-as-errors compile passed.
+- Menu/audio/subtitle/chapter package contracts passed.
+- Media-specific audio/subtitle/chapter behavior required owner testing with files that actually contain those tracks or metadata.
+
+## v0.0.5 — Branding and Polish Flicker/Icon Repair
+
+**Purpose:** establish ReddMedia's visual identity and move the parent UI to buffered drawing.
+
+What changed:
+
+- Added the red ReddMedia triangle icon assets in multiple sizes.
+- Set the X11 `_NET_WM_ICON` window icon.
+- Set the X11 window class to `ReddMedia` for launcher/dock matching.
+- Updated the desktop launcher to use `Icon=reddmedia` and `StartupWMClass=ReddMedia`.
+- Kept the native GNOME/window title bar under system control.
+- Kept the in-app header red.
+- Replaced direct/partial parent-window repainting with offscreen buffered drawing before onscreen copy.
+- Preserved the v0.0.4 red timeline, red volume bar, controls, playback, fullscreen, and resume behavior.
+- Removed a rejected custom MIME-icon approach that could interfere with double-click launching.
+- Used safe local icon registration/custom-icon metadata attempts for the raw executable.
+
+Validation highlights:
+
+- Native warnings-as-errors compile and link passed.
+- Buffered parent-window drawing, icon assets, window class, launcher identity, and safe icon path checks passed.
+
+## v0.0.4 — Time Layout, Skip Buttons, and Red Timeline Repair
+
+**Purpose:** turn the bottom controls into the player layout used by later ReddMedia builds.
+
+What changed:
+
+- Current time moved to the left of the seek bar.
+- Total duration moved to the right of the seek bar.
+- The time/seek row was lowered to create space below the video.
+- The seek/progress fill changed to ReddMedia red.
+- Chapter-style tick marks were added to the timeline.
+- The volume fill changed to ReddMedia red.
+- Visible **Rewind 10s** and **Fast Forward 10s** buttons were added.
+- The bottom button order became: Open, Rewind 10s, Play/Pause, Stop, Fast Forward 10s, Fullscreen.
+- The new skip buttons used the same 10-second seek behavior as the arrow keys.
+
+Validation highlights:
+
+- Build/package checks passed.
+- Owner-side playback testing was required for the final visual positioning and controls.
+
+## v0.0.3 — Mouse, Keyboard, Time Display, and Flicker Repair
+
+**Purpose:** make direct player interaction quicker and repair the bottom playback layout.
+
+What changed:
+
+- Single left-click on video toggled pause/resume.
+- Double left-click continued to toggle fullscreen without the single-click action firing first.
+- Right-click on video opened a basic player options menu.
+- Up/Down Arrow changed volume.
+- Left/Right Arrow sought backward/forward by 10 seconds.
+- Keyboard seek jumps were standardized to 10 seconds.
+- The bottom layout reserved visible space for the time display.
+- Playback repaint behavior continued avoiding full-window clearing to reduce flicker.
+
+Validation highlights:
+
+- C++17 warnings-as-errors compile passed.
+- Mouse, keyboard, fullscreen, seek, and redraw source contracts passed.
+
+## v0.0.2 — VLC-Style Player Repair 1
+
+**Purpose:** make fullscreen, resume, and repaint behavior act like a real desktop media player.
+
+What changed:
+
+- Fullscreen became video-only, hiding the normal controls.
+- Double-clicking the video toggled fullscreen.
+- Escape exited fullscreen.
+- Resume became a clickable video-area action.
+- Resume reopened the saved media file and retried the saved seek after playback began.
+- **Load Different File** opened normal file selection.
+- Mouse wheel input changed volume only.
+- Normal playback refresh stopped clearing the live video surface, reducing flicker.
+- Close behavior continued to save session state and release VLC cleanly.
+
+Validation highlights:
+
+- C++17 `-Wall -Wextra -Werror` compile passed.
+- X11/dynamic-libVLC source contracts for fullscreen, resume, volume, and repaint behavior passed.
+
+## v0.0.1 — VLC-Style Base Video Player
+
+**Purpose:** establish the first accepted standalone ReddMedia player instead of the earlier rejected prototypes.
+
+What this build added:
+
+- A top-level native ReddMedia executable.
+- VLC/libVLC-backed local video playback.
+- Open-file support.
+- Play/Pause and Stop controls.
+- Timeline seeking and current playback time.
+- Volume control.
+- Fullscreen playback.
+- Cursor auto-hide during playback.
+- Clean close behavior.
+- Basic saved-session resume/load behavior.
+- Initial README, changelog, roadmap, license, third-party notices, build handshake, and validation record.
+
+Validation highlights:
+
+- Native C++ build/package checks passed.
+- Full graphical playback validation was reserved for the Ubuntu desktop because the build sandbox did not provide the live VLC/X11 environment.
+
+## Main ReddMedia features
+
+- Native X11 desktop interface.
+- Native media Library with folder selection, local catalog scanning, title selection, and direct playback in the existing embedded player.
+- Native Movies/TV hierarchy with real poster metadata, movie box sets, series, seasons, and episodes.
+- Responsive multi-row Library tiles with verified episode numbers/titles and separate technical format.
+- Discover Usual/Random recommendations across Local Movie, Local TV, External Movie, and External TV.
+- United States JustWatch availability through TMDb, private My Services markings, and official watch-option links.
+- Evidence-based Debug and system-health checks with actionable green/yellow/red findings.
+- Local SQLite history and offline llama.cpp/Nomic metadata embeddings.
+- Hidden local Jellyfin 10.11.11 catalog service with no exposed Jellyfin setup/player web interface.
+- VLC/libVLC local video playback.
+- Open, Play/Pause, Stop, Rewind 10s, Fast Forward 10s, timeline seeking, volume, fullscreen, and resume support.
+- Keyboard and mouse playback controls.
+- Embedded audio-track selection.
+- External and embedded subtitle controls, automatic matching `.srt` loading, subtitle folder selection, and subtitle delay controls.
+- Embedded chapter discovery and chapter navigation when exposed by libVLC.
+- YouTube download/playback screen with URL entry and output-folder selection, powered by the bundled yt-dlp engine.
+- Built-in P2P magnet and local metadata-file downloading with stream-while-downloading playback.
+- Red ReddMedia branding, red controls, red seek/volume bars, and red-tree window/launcher/executable identity.
+
+## Dependencies
+
+See [`DEPENDENCIES.md`](DEPENDENCIES.md) for the exact Ubuntu runtime and build requirements and one-command installation lines.
+
+ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpeg, X11, Zenity, and libtorrent are currently supplied by the Linux system.
+
+## Running the current development build
+
+From the ReddMedia project folder:
+
+```bash
+./ReddMedia_v18
+```
+
+Version check:
+
+```bash
+./ReddMedia_v18 --version
+```
+
+Expected output:
+
+```text
+ReddMedia v0.0.18
+```
+
+# Release history
+
+The entries below describe why each numbered ReddMedia build existed and what changed for the user. They are reconstructed from the versioned build handshakes, validation records, changelog, and source history in this repository.
+
 ## Licensing and third-party software
 
 Nougat Media Suite Original Materials are made available to recipients under the **PolyForm Noncommercial License 1.0.0**. Elderred Softworks LLC retains all rights not granted to recipients, including commercial use and separate commercial licensing of its own Original Materials. See [`LICENSE`](LICENSE), [`COPYRIGHT.md`](COPYRIGHT.md), and [`docs/LICENSING_POLICY.md`](docs/LICENSING_POLICY.md).
@@ -960,5 +956,3 @@ See [`ROADMAP.md`](ROADMAP.md) for the next planned ReddMedia milestones.
 
 ### Viewing-history completion repair
 This replacement v0.0.19 candidate includes the recommendation/viewing-history source changes required by TV natural-end autoplay. Existing SQLite history databases are migrated in place by adding a `completed` column when needed.
-
-
