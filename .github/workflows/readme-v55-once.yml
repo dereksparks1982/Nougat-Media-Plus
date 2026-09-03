@@ -1,0 +1,96 @@
+name: Apply Nougat v0.0.55 README update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/readme-v55-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update README exactly in place
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('README.md')
+          text = p.read_text()
+
+          # Remove only the bad temporary status block if it exists.
+          text = re.sub(
+              r'\n## Current Status\n.*?(?=\n## v0\.0\.55|\n## v0\.0\.54)',
+              '\n',
+              text,
+              flags=re.S,
+          )
+
+          # Remove an earlier v0.0.55 block if one exists so there is exactly one.
+          text = re.sub(
+              r'\n## v0\.0\.55\b.*?(?=\n## v0\.0\.54)',
+              '\n',
+              text,
+              flags=re.S,
+          )
+
+          intro_addition = (
+              "Nougat's local-network media architecture now includes a Nougat-branded background Web Player for browsers and other LAN devices, with Jellyfin retained as hidden backend/catalog infrastructure. Local browser access is designed to keep working without a mandatory cloud account, cloud relay, or Internet connection. The GitHub repository also preserves the complete runnable Nougat project tree, including bundled emulator runtimes, Xenia, Jellyfin, AI, security components, source, assets, tools, and other required project dependencies, with oversized files stored through Git LFS rather than omitted.\n\n"
+          )
+
+          branding = (
+              'The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.'
+          )
+
+          if intro_addition.strip() not in text:
+              if branding not in text:
+                  raise SystemExit('README branding anchor not found')
+              text = text.replace(branding, intro_addition + branding, 1)
+
+          anchor = '## v0.0.54 - Professional File Splitter and Silver Screen Studio'
+          if anchor not in text:
+              raise SystemExit('v0.0.54 README anchor not found')
+
+          v55 = '''## v0.0.55 - Background Web Player and Complete Runnable Project Checkpoint
+
+Nougat Media Suite v0.0.55 advances the private-LAN Web Player and complete-project distribution work while v0.0.54 remains the current owner-accepted release.
+
+- Adds the Nougat-branded LAN Web Player for browser access from computers, phones, tablets, televisions, consoles, and other devices on the same private network.
+- Uses port **8096** for the public/LAN Nougat Web Player and **127.0.0.1:8098** for the hidden Jellyfin backend.
+- Keeps Jellyfin behind Nougat as backend/catalog infrastructure instead of exposing the stock Jellyfin web interface as Nougat's user-facing experience.
+- Runs the Web Player as a Nougat-owned background service so the desktop Nougat interface does not need to remain open for local-network browser access.
+- Keeps local media playback and local server access independent of mandatory cloud accounts, cloud relays, or an Internet connection.
+- Adds separate health handling for the Nougat Web Player and hidden Jellyfin backend.
+- Advances the browser layout for **1366x768 at 100% browser zoom**.
+- Uses the fullscreen transport layout **`<<  <  ^  >  >>`** for rewind 10 seconds, previous, play/pause, next, and forward 10 seconds.
+- Preserves the approved Nougat N identity and the accepted v0.0.54 Games behavior, including the owner-tested Xbox 360/Xenia embedded-video path.
+- Stores the complete runnable Nougat project tree on GitHub, including bundled emulator runtimes, Xenia, Jellyfin, AI, security components, source, assets, tools, and other required project dependencies.
+- Stores oversized project files through Git LFS rather than removing those runtime files from the project.
+- Keeps obsolete transfer/checkpoint package archives out of the runnable repository.
+
+During owner testing, the Nougat Web Player returned HTTP 200 from `127.0.0.1:8096/nougat/v1/health` and the hidden Jellyfin backend returned HTTP 200 / Healthy from `127.0.0.1:8098/health`.
+
+Known unresolved v0.0.55 issues are the desktop Server indicator remaining yellow / transitioning despite healthy Web Player and Jellyfin responses, and unresolved Safari/iPhone LAN access. v0.0.55 remains an in-progress checkpoint and is not yet an accepted release.
+
+'''
+
+          text = text.replace(anchor, v55 + anchor, 1)
+          p.write_text(text)
+          PY
+
+          rm -f .github/workflows/readme-v55-once.yml
+
+          git config user.name "Derek Sparks"
+          git config user.email "dereksparks1982@gmail.com"
+          git add README.md .github/workflows/readme-v55-once.yml
+          git commit -m "Update README for Nougat Media Suite v0.0.55"
+          git push origin HEAD:main
