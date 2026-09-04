@@ -1,18 +1,22 @@
-## v0.0.58 - Reliability, Tuner Preference, Native Fix Match, and File Splitter Repair
+# v0.0.58 - OWNER-ACCEPTED RELEASE
 
-- Whole-face stitched Server status light with unchanged header geometry.
-- Continue Watching and Home cache-first startup no longer depend on direct readability of server-internal catalog paths.
-- Artwork fallback chain adds Jellyfin key art and generated local frames before placeholders.
-- Fix Match is a Nougat-native multi-candidate TMDb chooser with poster previews, title/year/type search, and explicit Use Match.
-- Player seek knob remains fully round at 0% and 100%; empty-player left click opens media.
-- Live TV remembers the explicitly selected physical device, keeps HDHomeRun tuner resources together, and adds the supported SiliconDust XMLTV guide route while preserving cached data on failure.
-- Radio SIGNAL meter no longer overlaps professional controls.
-- Radio universal receiver matrix adds the full visible service-button set, extra lower-info spacing, and Cellular Lab tabs; 2G/1G implementation work is roadmapped, not activated.
-- Continue Watching can recover provider poster identity by exact title/year for older resume records such as titles missing stored TMDb IDs.
-- GNOME Resources integration launches the real Nougat executable directly so Resources can associate the process by executable identity.
-- File Splitter defaults to 450 MiB, exposes an editable target MiB field, and enforces the selected maximum.
-- Diagnostics distinguish server-internal catalog paths from true local-source failures.
-- Desktop launch enters systemd app.slice scope for GNOME Resources application grouping, with direct-launch fallback.
+- Cache-first Home/Library startup and Continue Watching persistence/path repair.
+- Older resume-record migration and artwork/provider identity recovery.
+- Expanded artwork fallback handling.
+- Nougat-native multi-candidate Fix Match workflow with persistent owner-controlled matches.
+- Player seek/thumb endpoint repair and unloaded-player click-to-open behavior.
+- Persistent preferred physical Live TV tuner handling.
+- HDHomeRun physical-device grouping and guide/cache recovery.
+- Universal Radio receiver/scanner service matrix expansion.
+- Additional Radio SIGNAL/status spacing.
+- Cellular Lab 2G GSM / future 1G interface and architecture foundation.
+- File Splitter 450 MiB target and maximum-size handling.
+- Server-aware diagnostics.
+- Canonical GNOME/Resources application identity.
+- Exact restoration of the accepted stitched Server status indicator.
+- Root executable advanced to Nougat_Media_Suite_v58.
+
+v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-open Splitter layout repair, and a separate File Assembler Studio tool.
 
 # v0.0.57 — CANDIDATE (owner testing required)
 

@@ -608,3 +608,9 @@ Planned components and views:
 
 ### 1G Analog Cellular Lab
 After the 2G stack is stable, investigate a historical 1G analog cellular lab using SDR/emulation. Keep it modular and isolated from the 2G implementation. This is a later research target, not an authorization to transmit or to interact with third-party carrier subscribers.
+
+## v0.0.59 Carry-Forward from Owner-Accepted v0.0.58
+
+- **File Splitter live recalculation:** editing Target MiB immediately recalculates Pieces, Recommended count, and estimated MiB per piece. A later manual Pieces edit becomes the owner override.
+- **File Splitter first-open layout:** reserve fixed columns and spacing for Pieces, Target MiB, and Recommended so the initial state cannot overlap or appear jumbled.
+- **Separate File Assembler tool:** add File Assembler beside File Splitter in Studio -> Tools. Move reassembly out of File Splitter. The Assembler accepts a manifest or split part, discovers the remaining pieces, validates completeness, ordering, and hashes, rebuilds the original file, and verifies the final SHA-256.
