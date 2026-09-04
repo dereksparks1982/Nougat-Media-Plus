@@ -14,6 +14,7 @@
 #include <sstream>
 #include <fstream>
 #include <filesystem>
+#include <functional>
 #include <iomanip>
 #include <algorithm>
 #include <atomic>
@@ -949,7 +950,7 @@ enum class GamesDisplayMode { Grid, List };
 enum class GamesPanel { Library, Systems, Controllers, Settings };
 enum class StudioPanel { Tools, FileSplitter };
 enum class StudioBrowserPurpose { Inactive, SourceFile, SourceFolder, SourceZipManifest, OutputFolder };
-enum class RadioPanel { Local, Emergency, Weather, Satellite, Shortwave, Internet, Favorites, Recordings };
+enum class RadioPanel { Local, Emergency, Weather, Satellite, Shortwave, Internet, Favorites, Recordings, Cellular }; // NOUGAT_V58_RADIO_ALL_SERVICES
 enum class CardContextKind { Unset, Home, Library, Discover, LiveTV, WorldTV, Games };
 enum class NougatInputFocus { NoFocus, Search, CrawlSeed, Peer };
 enum class YtDlpJob { Idle, Download };
@@ -2047,7 +2048,7 @@ public:
     Rect studioToolsTab, studioFileSplitterToolBtn, studioBackToToolsBtn;
     Rect studioAnalyzeBtn, studioUseSuggestionBtn, studioSplitFileBtn;
     Rect studioReassembleBtn, studioVerifyBtn, studioStopBtn;
-    Rect studioSourceRect, studioOutputRect, studioNameRect, studioPiecesRect;
+    Rect studioSourceRect, studioOutputRect, studioNameRect, studioPiecesRect, studioTargetSizeRect; // NOUGAT_V58_SPLITTER_TARGET
     Rect studioAddFileBtn, studioAddFolderBtn, studioAddZipManifestBtn, studioChooseLocationBtn;
     StudioBrowserPurpose studioBrowserPurpose = StudioBrowserPurpose::Inactive;
     std::string studioBrowserPath = home_dir();
@@ -2062,6 +2063,7 @@ public:
     std::string studioOutputPath = home_dir() + "/Downloads";
     std::string studioOutputName;
     std::string studioPiecesText = "2";
+    std::string studioTargetMiBText = "450";
     bool studioOutputNameUserEdited = false;
     bool studioPiecesUserEdited = false;
     std::string studioAnalyzedSourcePath;
@@ -2085,6 +2087,11 @@ public:
     Rect radioSimpleBtn, radioProBtn;
     Rect radioLocalBtn, radioEmergencyBtn, radioWeatherBtn, radioSatelliteBtn, radioShortwaveBtn, radioInternetBtn;
     Rect radioFavoritesBtn, radioRecordingsBtn, radioAntennaScanBtn;
+    // NOUGAT_V58_RADIO_ALL_SERVICES: deliberately broad. Dense is the feature.
+    std::vector<std::pair<Rect,std::string>> radioServiceTabs;
+    Rect radioCell2GBtn, radioCell1GBtn, radioCellSubscribersBtn, radioCellCallsBtn, radioCellRfLabBtn;
+    int radioCellularSubtab = 0;
+    std::string radioSelectedService = "Local";
     Rect radioFrequencyRect, radioTuneDownBtn, radioTuneUpBtn, radioListenBtn, radioStopBtn, radioScanBtn;
     Rect radioFavoriteBtn, radioRecordBtn, radioModeBtn, radioStepBtn, radioDeviceBtn;
     Rect radioGainDownBtn, radioGainUpBtn, radioSquelchDownBtn, radioSquelchUpBtn, radioTxTestBtn, radioListBox;
@@ -2269,6 +2276,20 @@ public:
     std::shared_ptr<HomeUiState> homeState = std::make_shared<HomeUiState>();
     std::thread homeWorker;
     std::atomic<bool> homeNeedsRefresh{false};
+    // NOUGAT_V58_NATIVE_FIX_MATCH: all metadata matching stays inside Nougat.
+    bool fixMatchVisible=false;
+    reddmedia::LibraryNode fixMatchNode;
+    std::string fixMatchQuery;
+    std::string fixMatchYearText;
+    bool fixMatchTelevision=false;
+    int fixMatchInputFocus=0;
+    int fixMatchSelected=-1;
+    int fixMatchScroll=0;
+    std::string fixMatchStatus;
+    std::vector<reddmedia::MediaDescriptor> fixMatchCandidates;
+    std::vector<reddmedia::LibraryPoster> fixMatchPosters;
+    Rect fixMatchPanel,fixMatchQueryRect,fixMatchYearRect,fixMatchTypeBtn,fixMatchSearchBtn,fixMatchUseBtn,fixMatchCancelBtn;
+    std::vector<Rect> fixMatchCandidateRects;
     int homePageScroll = 0;
     int homeContentHeight = 0;
     int homeContinueScrollX = 0;
@@ -2316,7 +2337,7 @@ public:
     std::vector<reddmedia::security::RuntimeComponentAdvisory> securityInventory;
     std::vector<reddmedia::alerts::PublicSafetyAlert> activePublicAlerts;
     std::string publicAlertArea;
-    std::string v53SystemStatus = "v0.0.57 episode identity repair candidate ready for owner testing.";
+    std::string v53SystemStatus = "v0.0.58 episode identity repair candidate ready for owner testing.";
     reddmedia::NougatTunerBackend tunerBackend;
     reddmedia::HdHomeRunProvider hdHomeRunProvider;
     std::shared_ptr<LiveTvScanUiState> liveTvScanState = std::make_shared<LiveTvScanUiState>();
@@ -2330,6 +2351,7 @@ public:
     std::vector<LiveTvHitbox> liveTvTunerHitboxes;
     std::vector<Rect> worldTvHitboxes;
     int liveTvSelectedTuner = -1;
+    std::string liveTvPreferredTunerIdentity; // NOUGAT_V58_TUNER_PREFERENCE
     int liveTvSelectedChannel = -1;
     std::map<std::string, reddmedia::LibraryPoster> liveTvLogoCache;
     std::set<std::string> liveTvLogoAttempted;
@@ -3517,7 +3539,7 @@ public:
             serverState->state = mediaServer.state();
             serverState->owned = mediaServer.owns_server();
         }
-        // v0.0.57 repair: seed Movies/Home without blocking the X11 event loop.
+        // v0.0.58 repair: seed Movies/Home without blocking the X11 event loop.
         // Cached Library nodes become visible immediately; workers finish off the UI thread.
         libraryMediaType = reddmedia::LibraryMediaType::Movies;
         libraryTypeChosen = true;
@@ -3683,26 +3705,48 @@ public:
         worldTvOfficialBtn = {worldTvPlayBtn.x + kCompactButtonW + 6, kPageControlY, kCompactButtonW, kCompactButtonH};
         worldTvListBox = {worldFrame.x + 16, 96, std::max(180, worldFrame.w - 32), std::max(100, worldFrame.y + worldFrame.h - 108)};
         const Rect radioFrame = page_content_frame(ViewMode::Radio);
-        const int radioGap = 6;
         const int left = radioFrame.x + 16;
         const int usable = std::max(260, radioFrame.w - 32);
         // NOUGAT_V57_RADIO_LAYOUT: no basic/pro toggle. Radio is always the full receiver.
         radioSimpleBtn = {};
         radioProBtn = {};
+        radioServiceTabs.clear();
+        static const char* kNougatRadioServices[] = {
+            "Local", "Internet", "AM", "FM", "HD Radio", "DAB / DAB+", "DRM",
+            "Longwave", "Mediumwave", "Shortwave", "Weather", "Emergency", "Public Safety", "Police",
+            "Fire", "EMS", "Government", "Military", "Airband", "Marine", "Railroad",
+            "CB", "FRS / GMRS", "MURS", "Amateur / Ham", "Business", "Utilities", "Trunked",
+            "P25", "DMR", "NXDN", "TETRA", "Paging", "Numbers", "Time / Beacon",
+            "ADS-B", "ACARS", "AIS", "Weather Sat", "Satellite", "Amateur Sat", "Cellular Lab",
+            "Favorites", "Recordings", "TV Antenna Scan", "ISS / Sat"
+        };
+        const int serviceCols = 7;
+        const int serviceGap = 6;
+        const int serviceW = std::max(92, (usable - serviceGap * (serviceCols - 1)) / serviceCols);
         const int presetY = kPageControlY;
-        const int presetW = std::max(82, (usable - radioGap * 5) / 6);
-        int rx = left;
-        radioLocalBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
-        radioInternetBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
-        radioEmergencyBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
-        radioWeatherBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
-        radioShortwaveBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
-        radioSatelliteBtn = {rx,presetY,presetW,kCompactButtonH};
-        const int secondaryY = presetY + kCompactButtonH + 7;
-        radioFavoritesBtn = {left,secondaryY,112,kCompactButtonH};
-        radioRecordingsBtn = {left + 118,secondaryY,112,kCompactButtonH};
-        radioAntennaScanBtn = {left + 236,secondaryY,150,kCompactButtonH};
-        const int radioPanelY = secondaryY + kCompactButtonH + 24;
+        const int serviceCount = static_cast<int>(sizeof(kNougatRadioServices) / sizeof(kNougatRadioServices[0]));
+        for (int i=0; i<serviceCount; ++i) {
+            const int row=i/serviceCols;
+            const int colIndex=i%serviceCols;
+            const Rect r{left + colIndex*(serviceW+serviceGap),
+                         presetY + row*(kCompactButtonH+7), serviceW, kCompactButtonH};
+            radioServiceTabs.push_back({r,kNougatRadioServices[i]});
+        }
+        const auto radioTabRect=[&](const std::string& label) {
+            for (const auto& entry : radioServiceTabs) if (entry.second==label) return entry.first;
+            return Rect{};
+        };
+        radioLocalBtn=radioTabRect("Local");
+        radioInternetBtn=radioTabRect("Internet");
+        radioEmergencyBtn=radioTabRect("Emergency");
+        radioWeatherBtn=radioTabRect("Weather");
+        radioShortwaveBtn=radioTabRect("Shortwave");
+        radioSatelliteBtn=radioTabRect("ISS / Sat");
+        radioFavoritesBtn=radioTabRect("Favorites");
+        radioRecordingsBtn=radioTabRect("Recordings");
+        radioAntennaScanBtn=radioTabRect("TV Antenna Scan");
+        const int serviceRows=(serviceCount + serviceCols - 1) / serviceCols;
+        const int radioPanelY = presetY + serviceRows*(kCompactButtonH+7) + 10; // NOUGAT_V58_RADIO_SERVICE_GRID
         radioListBox = {left, radioPanelY, usable,
                         std::max(170, radioFrame.y + radioFrame.h - (radioPanelY + 12))};
         const int consoleX = radioListBox.x + 16;
@@ -4113,7 +4157,7 @@ public:
     }
 
     bool resume_record_is_useful(const ResumeRecord& record) const {
-        if (record.completed || record.path.empty() || !exists_file(record.path)) return false;
+        if (record.completed || record.path.empty()) return false; // NOUGAT_V58_CONTINUE_CATALOG_PATH
         if (record.position_ms < 30000) return false;
         if (record.duration_ms > 0 && record.position_ms >= std::max<long long>(0, record.duration_ms - 30000)) return false;
         return true;
@@ -5287,7 +5331,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.57";
+        const std::string versionLabel = "v0.0.58";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -5737,9 +5781,10 @@ public:
         for (int y=0; y<targetH; ++y) {
             for (int x=0; x<targetW; ++x) {
                 double sx=0.0;
-                if (x < cap) sx = static_cast<double>(std::min(kSheetSeekW-1,x));
+                // NOUGAT_V58_SEEK_EDGE_KNOB: preserve the complete round knob at both ends.
+                if (x >= dstCenter-knobHalf && x <= dstCenter+knobHalf) sx = static_cast<double>(srcCenter + (x-dstCenter));
+                else if (x < cap) sx = static_cast<double>(std::min(kSheetSeekW-1,x));
                 else if (x >= targetW-cap) sx = static_cast<double>(std::max(0,kSheetSeekW-(targetW-x)));
-                else if (x >= dstCenter-knobHalf && x <= dstCenter+knobHalf) sx = static_cast<double>(srcCenter + (x-dstCenter));
                 else if (x < dstCenter-knobHalf) {
                     sx = map_segment(x,cap,std::max(cap+1,dstCenter-knobHalf),cap,std::max(cap+1,srcCenter-knobHalf));
                 } else {
@@ -7551,6 +7596,27 @@ public:
         if (!already_loaded) homeNeedsRefresh.store(false);
         if (homeWorker.joinable()) homeWorker.join();
         const std::vector<ResumeRecord> continue_records = resumeStore.unfinished();
+        // NOUGAT_V58_HOME_CACHE_FIRST: paint persistent Library metadata before
+        // the background Jellyfin refresh finishes, so startup never needs an empty Home.
+        if (!already_loaded) {
+            std::vector<reddmedia::LibraryNode> cachedMovies;
+            std::vector<reddmedia::LibraryNode> cachedTelevision;
+            std::string cacheError;
+            libraryMetadataCache->load("roots:movies", cachedMovies, cacheError);
+            cacheError.clear();
+            libraryMetadataCache->load("roots:television", cachedTelevision, cacheError);
+            if (!cachedMovies.empty() || !cachedTelevision.empty()) {
+                std::vector<HomeSection> cachedSections;
+                if (!cachedMovies.empty()) { HomeSection section; section.title="Movies"; section.items=std::move(cachedMovies); cachedSections.push_back(std::move(section)); }
+                if (!cachedTelevision.empty()) { HomeSection section; section.title="Television"; section.items=std::move(cachedTelevision); cachedSections.push_back(std::move(section)); }
+                std::lock_guard<std::mutex> cacheLock(homeState->mutex);
+                homeState->sections=std::move(cachedSections);
+                homeState->continue_watching=continue_records;
+                homeState->status="LOCAL cache ready; refreshing in background.";
+                homeState->loaded=true;
+                homeState->updated=true;
+            }
+        }
         {
             std::lock_guard<std::mutex> lock(homeState->mutex);
             homeState->busy = true;
@@ -7785,6 +7851,28 @@ public:
                         }
                     }
                 }
+                // NOUGAT_V58_CLOSEOUT_RESUME_POSTER_LOOKUP: older resume records can
+                // predate provider IDs. Resolve an exact movie identity by its real
+                // title/year so Continue Watching can still obtain proper box art.
+                if (art.tmdb_poster_path.empty() && record.series_name.empty()) {
+                    const std::string lookupTitle = nougat_v57_clean_media_title(
+                        record.title.empty() ? record.path : record.title);
+                    if (!lookupTitle.empty() && engine->external_credential_available()) {
+                        reddmedia::MediaDescriptor resolved;
+                        std::string imdbId;
+                        std::string resolveError;
+                        if (engine->resolve_metadata_identity(
+                                reddmedia::RecommendationMediaType::Movie,
+                                lookupTitle, record.production_year, 0,
+                                resolved, imdbId, resolveError) && !resolved.tmdb_id.empty()) {
+                            art.tmdb_id = resolved.tmdb_id;
+                            std::string posterError;
+                            engine->load_movie_poster_path(resolved.tmdb_id,
+                                                           art.tmdb_poster_path,
+                                                           posterError);
+                        }
+                    }
+                }
                 nougat_v57_apply_manual_match(art);
                 continue_artwork_nodes[record.path] = std::move(art);
             }
@@ -7892,12 +7980,23 @@ public:
                         good = true;
                     }
                 }
-                if (!good && !item_id.empty() && !tag.empty()) {
+                if (!good && !item_id.empty()) { // NOUGAT_V58_CLOSEOUT_PRIMARY_WITHOUT_TAG
                     bytes.clear(); image_error.clear(); poster = reddmedia::LibraryPoster{};
                     if (client->load_primary_image_bmp(item_id, tag, 480, 720, bytes, image_error) &&
                         reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && home_artwork_quality_ok(poster)) {
                         good = true;
                     }
+                }
+                // NOUGAT_V58_HOME_ARTWORK_FALLBACK: Primary -> backdrop/key art -> real frame.
+                if (!good && !item_id.empty() && !node.backdrop_image_tag.empty()) {
+                    bytes.clear(); image_error.clear(); poster = reddmedia::LibraryPoster{};
+                    if (client->load_backdrop_image_bmp(item_id, node.backdrop_image_tag, 640, 360, bytes, image_error) &&
+                        reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && home_artwork_quality_ok(poster)) good = true;
+                }
+                if (!good && !node.path.empty() && exists_file(node.path)) {
+                    bytes.clear(); image_error.clear(); poster = reddmedia::LibraryPoster{};
+                    if (extract_video_frame_bmp(node.path, 1000, 640, 360, bytes) &&
+                        reddmedia::decode_library_poster_bmp(bytes, poster, image_error) && home_artwork_quality_ok(poster)) good = true;
                 }
                 if (good) artwork[key] = std::move(poster);
                 else failed.insert(key);
@@ -8501,33 +8600,138 @@ public:
     }
 
 
-    void nougat_v57_fix_match(reddmedia::LibraryNode node) {
-        if (node.path.empty()) return;
-        const std::string initial = node.name.empty() ? nougat_v57_clean_media_title(node.path) : node.name;
-        std::string title = run_command_capture("zenity --entry --title='Nougat Fix Match' --text='Enter the correct title:' --entry-text=" + shell_quote(initial) + " 2>/dev/null");
-        title = nougat_v57_trim(title); if (title.empty()) return;
-        std::string type = run_command_capture("zenity --list --radiolist --title='Nougat Fix Match' --text='What is this item?' --column='' --column='Type' TRUE Movie FALSE TV 2>/dev/null");
-        type = nougat_v57_trim(type); if (type.empty()) return;
-        std::string year_text = run_command_capture("zenity --entry --title='Nougat Fix Match' --text='Release year (leave blank if unknown):' --entry-text=" + shell_quote(node.production_year>0?std::to_string(node.production_year):std::string()) + " 2>/dev/null");
-        year_text = nougat_v57_trim(year_text); int year=0; if (!year_text.empty()) year=std::max(0,std::atoi(year_text.c_str()));
-        const bool television = lower_copy(type).find("tv") != std::string::npos;
-        reddmedia::MediaDescriptor resolved; std::string imdb, error;
-        const bool matched = recommendationEngine->resolve_metadata_identity(
-            television ? reddmedia::RecommendationMediaType::Television : reddmedia::RecommendationMediaType::Movie,
-            title, year, television ? std::max(1,node.child_count) : 0, resolved, imdb, error);
-        if (!matched) {
-            { std::lock_guard<std::mutex> lock(libraryState->mutex); libraryState->status = "Fix Match failed: " + error; libraryState->updated=true; }
-            redraw(); return;
+
+    void nougat_v58_search_fix_match() {
+        fixMatchCandidates.clear(); fixMatchPosters.clear(); fixMatchSelected=-1; fixMatchScroll=0;
+        const std::string query=nougat_v57_trim(fixMatchQuery);
+        if (query.empty()) { fixMatchStatus="Enter a title to search."; redraw(); return; }
+        if (!recommendationEngine->external_credential_available()) {
+            fixMatchStatus="Fix Match needs the saved TMDb credential already used by Nougat metadata."; redraw(); return;
         }
-        NougatV57ManualMatch manual; manual.title=resolved.title.empty()?title:resolved.title; manual.year=resolved.year>0?resolved.year:year;
-        manual.television=television; manual.tmdb_id=resolved.tmdb_id; manual.poster_path=resolved.poster_path;
-        if (!nougat_v57_save_manual_match(node.path,manual)) {
-            { std::lock_guard<std::mutex> lock(libraryState->mutex); libraryState->status="Fix Match failed: could not save manual lock."; libraryState->updated=true; }
-            redraw(); return;
+        const int year=fixMatchYearText.empty()?0:std::max(0,std::atoi(fixMatchYearText.c_str()));
+        std::string error;
+        const auto type=fixMatchTelevision?reddmedia::RecommendationMediaType::Television:reddmedia::RecommendationMediaType::Movie;
+        if (!recommendationEngine->search_metadata_candidates(type,query,year,fixMatchCandidates,error)) {
+            fixMatchStatus=error.empty()?"No provider matches were returned.":error; redraw(); return;
         }
-        homeNeedsRefresh.store(true);
+        if (fixMatchCandidates.size()>18U) fixMatchCandidates.resize(18U);
+        fixMatchPosters.resize(fixMatchCandidates.size());
+        for (std::size_t i=0;i<fixMatchCandidates.size() && i<8U;++i) {
+            if (fixMatchCandidates[i].poster_path.empty()) continue;
+            std::string bytes,posterError;
+            reddmedia::LibraryPoster poster;
+            if (recommendationEngine->load_external_poster_bmp(fixMatchCandidates[i].poster_path,120,180,bytes,posterError) &&
+                reddmedia::decode_library_poster_bmp(bytes,poster,posterError)) fixMatchPosters[i]=std::move(poster);
+        }
+        if (!fixMatchCandidates.empty()) fixMatchSelected=0;
+        fixMatchStatus=std::to_string(fixMatchCandidates.size())+" candidate"+(fixMatchCandidates.size()==1U?std::string{}:std::string("s"))+" found. Select the correct one, then Use Match.";
+        redraw();
+    }
+
+    void nougat_v58_apply_fix_match() {
+        if (fixMatchSelected<0 || fixMatchSelected>=static_cast<int>(fixMatchCandidates.size())) { fixMatchStatus="Select a candidate first."; redraw(); return; }
+        const auto& candidate=fixMatchCandidates[static_cast<std::size_t>(fixMatchSelected)];
+        NougatV57ManualMatch manual;
+        manual.title=candidate.title; manual.year=candidate.year; manual.television=fixMatchTelevision;
+        manual.tmdb_id=candidate.tmdb_id; manual.poster_path=candidate.poster_path;
+        if (!nougat_v57_save_manual_match(fixMatchNode.path,manual)) { fixMatchStatus="Could not save the manual metadata lock."; redraw(); return; }
+        { std::lock_guard<std::mutex> lock(posterState->mutex); posterState->failed.clear(); }
+        fixMatchVisible=false; homeNeedsRefresh.store(true);
         if (currentView==ViewMode::Home) start_home_task();
         else if (currentView==ViewMode::Library) { if (libraryParents.empty()) start_library_task(4); else start_library_task(5,{},libraryParents.back()); }
+        else redraw();
+    }
+
+    void nougat_v58_begin_fix_match(reddmedia::LibraryNode node) {
+        if (node.path.empty()) return;
+        fixMatchNode=std::move(node);
+        fixMatchQuery=fixMatchNode.name.empty()?nougat_v57_clean_media_title(fixMatchNode.path):fixMatchNode.name;
+        fixMatchYearText=fixMatchNode.production_year>0?std::to_string(fixMatchNode.production_year):std::string();
+        fixMatchTelevision=fixMatchNode.kind==reddmedia::LibraryNodeKind::Series || fixMatchNode.kind==reddmedia::LibraryNodeKind::Season || fixMatchNode.kind==reddmedia::LibraryNodeKind::Episode;
+        fixMatchInputFocus=1; fixMatchVisible=true; fixMatchStatus="Searching metadata candidates...";
+        nougat_v58_search_fix_match();
+    }
+
+    void nougat_v57_fix_match(reddmedia::LibraryNode node) { nougat_v58_begin_fix_match(std::move(node)); }
+
+    void draw_fix_match_overlay(Drawable target) {
+        if (!fixMatchVisible) return;
+        const ViewPalette palette=palette_for(ViewMode::Library);
+        const int w=std::min(820,std::max(520,W-80));
+        const int h=std::min(620,std::max(420,H-80));
+        fixMatchPanel={(W-w)/2,(H-h)/2,w,h};
+        fill_round(target,{fixMatchPanel.x+4,fixMatchPanel.y+5,fixMatchPanel.w,fixMatchPanel.h},12,rgb8(92,61,39));
+        fill_round(target,fixMatchPanel,12,rgb8(246,236,218)); outline_round(target,fixMatchPanel,12,palette.border);
+        text(target,fixMatchPanel.x+18,fixMatchPanel.y+28,"FIX MATCH",palette.text);
+        text(target,fixMatchPanel.x+18,fixMatchPanel.y+48,head_to_width(fixMatchNode.name,fixMatchPanel.w-36),palette.muted);
+        const int y=fixMatchPanel.y+62;
+        fixMatchQueryRect={fixMatchPanel.x+18,y,std::max(180,fixMatchPanel.w-330),34};
+        fixMatchYearRect={fixMatchQueryRect.x+fixMatchQueryRect.w+8,y,76,34};
+        fixMatchTypeBtn={fixMatchYearRect.x+84,y,82,34};
+        fixMatchSearchBtn={fixMatchTypeBtn.x+90,y,std::max(86,fixMatchPanel.x+fixMatchPanel.w-(fixMatchTypeBtn.x+108)),34};
+        draw_concept_field(target,fixMatchQueryRect,palette.field,palette.border,fixMatchInputFocus==1);
+        text(target,fixMatchQueryRect.x+8,fixMatchQueryRect.y+22,tail_to_width(fixMatchQuery,fixMatchQueryRect.w-16),palette.text);
+        draw_concept_field(target,fixMatchYearRect,palette.field,palette.border,fixMatchInputFocus==2);
+        text(target,fixMatchYearRect.x+8,fixMatchYearRect.y+22,fixMatchYearText.empty()?"Year":fixMatchYearText,palette.text);
+        button_on(target,fixMatchTypeBtn,fixMatchTelevision?"TV":"Movie");
+        button_on(target,fixMatchSearchBtn,"Search");
+        fixMatchCandidateRects.clear();
+        const int listY=y+48;
+        const int footerY=fixMatchPanel.y+fixMatchPanel.h-52;
+        const int rowH=78;
+        const int visible=std::max(1,(footerY-listY-30)/rowH);
+        const int maxScroll=std::max(0,static_cast<int>(fixMatchCandidates.size())-visible);
+        fixMatchScroll=std::max(0,std::min(fixMatchScroll,maxScroll));
+        for (int row=0;row<visible;++row) {
+            const int index=fixMatchScroll+row; if(index>=static_cast<int>(fixMatchCandidates.size())) break;
+            const auto& candidate=fixMatchCandidates[static_cast<std::size_t>(index)];
+            Rect hit{fixMatchPanel.x+18,listY+row*rowH,fixMatchPanel.w-36,rowH-6};
+            fill_round(target,hit,8,index==fixMatchSelected?palette.selection:palette.field); outline_round(target,hit,8,palette.border);
+            Rect posterRect{hit.x+6,hit.y+4,42,63};
+            if (static_cast<std::size_t>(index)<fixMatchPosters.size() && !fixMatchPosters[static_cast<std::size_t>(index)].rgb.empty())
+                draw_contain_pixels_rounded(target,posterRect,fixMatchPosters[static_cast<std::size_t>(index)],5,rgb8(38,30,26));
+            else { fill_round(target,posterRect,5,rgb8(66,52,45)); text(target,posterRect.x+5,posterRect.y+35,"ART",rgb8(226,214,198)); }
+            std::string heading=candidate.title; if(candidate.year>0) heading+=" ("+std::to_string(candidate.year)+")";
+            text(target,hit.x+58,hit.y+23,head_to_width(heading,hit.w-70),palette.text);
+            text(target,hit.x+58,hit.y+44,head_to_width(candidate.overview,hit.w-70),palette.muted);
+            if(!candidate.tmdb_id.empty()) text(target,hit.x+58,hit.y+63,"TMDb "+candidate.tmdb_id,palette.muted);
+            fixMatchCandidateRects.push_back(hit);
+        }
+        text(target,fixMatchPanel.x+18,footerY-12,head_to_width(fixMatchStatus,fixMatchPanel.w-36),palette.muted);
+        fixMatchCancelBtn={fixMatchPanel.x+18,footerY,104,32};
+        fixMatchUseBtn={fixMatchPanel.x+fixMatchPanel.w-142,footerY,124,32};
+        button_on(target,fixMatchCancelBtn,"Cancel"); button_on(target,fixMatchUseBtn,"Use Match");
+    }
+
+    void handle_fix_match_click(int x,int y,unsigned int button) {
+        if (!fixMatchVisible) return;
+        if (button==Button4) { fixMatchScroll=std::max(0,fixMatchScroll-1); redraw(); return; }
+        if (button==Button5) { ++fixMatchScroll; redraw(); return; }
+        if (button!=Button1) return;
+        if (fixMatchCancelBtn.contains(x,y)) { fixMatchVisible=false; redraw(); return; }
+        if (fixMatchUseBtn.contains(x,y)) { nougat_v58_apply_fix_match(); return; }
+        if (fixMatchSearchBtn.contains(x,y)) { nougat_v58_search_fix_match(); return; }
+        if (fixMatchTypeBtn.contains(x,y)) { fixMatchTelevision=!fixMatchTelevision; nougat_v58_search_fix_match(); return; }
+        if (fixMatchQueryRect.contains(x,y)) { fixMatchInputFocus=1; redraw(); return; }
+        if (fixMatchYearRect.contains(x,y)) { fixMatchInputFocus=2; redraw(); return; }
+        for (std::size_t row=0;row<fixMatchCandidateRects.size();++row) if (fixMatchCandidateRects[row].contains(x,y)) {
+            fixMatchSelected=fixMatchScroll+static_cast<int>(row); redraw(); return;
+        }
+    }
+
+    void handle_fix_match_key(XKeyEvent& event) {
+        if (!fixMatchVisible) return;
+        KeySym ks=XLookupKeysym(&event,0);
+        if (ks==XK_Escape) { fixMatchVisible=false; redraw(); return; }
+        if (ks==XK_Return || ks==XK_KP_Enter) { nougat_v58_search_fix_match(); return; }
+        std::string* field=fixMatchInputFocus==2?&fixMatchYearText:&fixMatchQuery;
+        if (ks==XK_BackSpace) { if(!field->empty()) field->pop_back(); redraw(); return; }
+        char buf[64]; KeySym out=0; const int n=XLookupString(&event,buf,sizeof(buf)-1,&out,nullptr);
+        if (n <= 0) return;
+        buf[n] = 0;
+        std::string value(buf, static_cast<std::size_t>(n));
+        if(fixMatchInputFocus==2 && !std::all_of(value.begin(),value.end(),[](unsigned char c){return std::isdigit(c)!=0;})) return;
+        *field+=value; redraw();
     }
 
     void nougat_v57_clear_match(const reddmedia::LibraryNode& node) {
@@ -8650,6 +8854,18 @@ public:
                             poster_quality_ok(poster)) {
                             loaded = true;
                         }
+                    }
+                    // NOUGAT_V58_ARTWORK_FALLBACK: real key art beats a blank tile.
+                    if (!loaded && !node.poster_item_id.empty() && !node.backdrop_image_tag.empty()) {
+                        bytes.clear(); error.clear(); poster = reddmedia::LibraryPoster{};
+                        if (client->load_backdrop_image_bmp(node.poster_item_id, node.backdrop_image_tag,
+                                                           640, 360, bytes, error) &&
+                            reddmedia::decode_library_poster_bmp(bytes, poster, error)) loaded = true;
+                    }
+                    if (!loaded && !node.path.empty() && exists_file(node.path)) {
+                        bytes.clear(); error.clear(); poster = reddmedia::LibraryPoster{};
+                        if (extract_video_frame_bmp(node.path, 1000, 480, 720, bytes) &&
+                            reddmedia::decode_library_poster_bmp(bytes, poster, error)) loaded = true;
                     }
                     std::lock_guard<std::mutex> lock(posters->mutex);
                     if (loaded) posters->cache[key] = std::move(poster);
@@ -9170,6 +9386,38 @@ public:
         draw_library_info_popup(target,nodes);
     }
 
+
+    std::string live_tv_preferred_tuner_file() const { return config_dir()+"/live_tv_preferred_tuner.txt"; }
+    std::string live_tv_tuner_identity(const reddmedia::TunerDevice& tuner) const {
+        if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) {
+            std::string device; int index=-1;
+            if (reddmedia::HdHomeRunProvider::decode_tuner_id(tuner,device,index)) return "hdhomerun-device:"+device;
+        }
+        return "local:"+tuner.id;
+    }
+    void load_live_tv_tuner_preference() {
+        if (!liveTvPreferredTunerIdentity.empty()) return;
+        std::ifstream in(live_tv_preferred_tuner_file()); std::getline(in,liveTvPreferredTunerIdentity);
+        liveTvPreferredTunerIdentity=nougat_v57_trim(liveTvPreferredTunerIdentity);
+    }
+    void save_live_tv_tuner_preference(int index) {
+        if(index<0 || index>=static_cast<int>(liveTvTuners.size())) return;
+        ensure_config_dir(); liveTvPreferredTunerIdentity=live_tv_tuner_identity(liveTvTuners[static_cast<std::size_t>(index)]);
+        const std::string temp=live_tv_preferred_tuner_file()+".tmp"; std::ofstream out(temp,std::ios::trunc);
+        if (!out) return;
+        out << liveTvPreferredTunerIdentity << '\n';
+        out.close();
+        chmod(temp.c_str(), 0600);
+        rename(temp.c_str(), live_tv_preferred_tuner_file().c_str());
+    }
+    int preferred_live_tv_tuner_index() {
+        load_live_tv_tuner_preference();
+        if(liveTvPreferredTunerIdentity.empty()) return -1;
+        for(int i=0;i<static_cast<int>(liveTvTuners.size());++i)
+            if(liveTvTuners[static_cast<std::size_t>(i)].readable && live_tv_tuner_identity(liveTvTuners[static_cast<std::size_t>(i)])==liveTvPreferredTunerIdentity) return i;
+        return -1;
+    }
+
     std::string live_tv_last_channel_file() const {
         return config_dir() + "/live_tv_last_channel.txt";
     }
@@ -9447,6 +9695,7 @@ public:
         switch (studioInputFocus) {
         case 2: return studioOutputPath;
         case 3: return studioOutputName;
+        case 5: return studioTargetMiBText;
         case 4: return studioPiecesText;
         case 1:
         default: return studioSourcePath;
@@ -9484,6 +9733,8 @@ public:
             studioOutputNameUserEdited = true;
         } else if (studioInputFocus == 4) {
             studioPiecesUserEdited = true;
+        } else if (studioInputFocus == 5) {
+            studioAnalyzedSourcePath.clear(); studioSourceEditMs=now_ms();
         }
     }
 
@@ -9578,8 +9829,8 @@ public:
         if (n>0) {
             buf[n]=0;
             std::string value(buf,static_cast<std::size_t>(n));
-            if (studioInputFocus==4 &&
-                !std::all_of(value.begin(),value.end(),[](unsigned char c){ return std::isdigit(c)!=0; })) return;
+            if ((studioInputFocus==4 || studioInputFocus==5) &&
+                !std::all_of(value.begin(),value.end(),[](unsigned char c){ return std::isdigit(c)!=0; })) return; // NOUGAT_V58_SPLITTER_NUMERIC_TARGET
             std::string& target = focused_studio_text();
             if (studioInputSelectAll) target.clear();
             target += value;
@@ -9702,21 +9953,24 @@ public:
                 studioStatus = "That is a parts manifest. Use Verify or Reassemble.";
                 redraw(); return;
             }
-            args.insert(args.end(),{"analyze",studioSourcePath,"--target-piece-mib","1024"});
+            if (!studio_positive_integer(studioTargetMiBText)) { studioStatus="Target MiB must be a positive whole number."; redraw(); return; }
+            if (std::atoi(studioTargetMiBText.c_str())>476) { studioStatus="Target MiB must be 476 or less to remain below the 500 MB upload ceiling."; redraw(); return; }
+            args.insert(args.end(),{"analyze",studioSourcePath,"--target-piece-mib",studioTargetMiBText}); // NOUGAT_V58_SPLITTER_ANALYZE_TARGET
             studioStatus = "Analyzing source and calculating a professional piece recommendation...";
         } else if (action == "split") {
             if (studioSourcePath.empty() || studioOutputPath.empty() || studioOutputName.empty() ||
-                !studio_positive_integer(studioPiecesText)) {
-                studioStatus = "Split needs Source, Download Location, Output Name, and a positive Pieces value.";
+                !studio_positive_integer(studioPiecesText) || !studio_positive_integer(studioTargetMiBText)) {
+                studioStatus = "Split needs Source, Download Location, Output Name, Pieces, and a positive Target MiB.";
                 redraw(); return;
             }
+            if (std::atoi(studioTargetMiBText.c_str())>476) { studioStatus="Target MiB must be 476 or less to remain below the 500 MB upload ceiling."; redraw(); return; }
             if (studioAnalyzedSourcePath != studioSourcePath) {
                 studioStatus = "Analyzing this source first so Nougat can recommend the piece count.";
                 start_studio_splitter_action("analyze");
                 return;
             }
             args.insert(args.end(),{"split",studioSourcePath,studioOutputPath,"--name",studioOutputName,
-                                    "--pieces",studioPiecesText,"--max-piece-mib","0"});
+                                    "--pieces",studioPiecesText,"--max-piece-mib",studioTargetMiBText}); // NOUGAT_V58_SPLITTER_ENFORCE_MAX
             studioStatus = "Preparing split operation...";
         } else if (action == "verify") {
             if (studioSourcePath.empty() || !studio_manifest_path(studioSourcePath)) {
@@ -9998,6 +10252,7 @@ public:
         if (studioOutputRect.contains(x,y)) { studioInputFocus=2; studioInputSelectAll=true; redraw(); return; }
         if (studioNameRect.contains(x,y)) { studioInputFocus=3; studioInputSelectAll=true; redraw(); return; }
         if (studioPiecesRect.contains(x,y)) { studioInputFocus=4; studioInputSelectAll=true; redraw(); return; }
+        if (studioTargetSizeRect.contains(x,y)) { studioInputFocus=5; studioInputSelectAll=true; redraw(); return; }
         studioInputFocus=0;
         studioInputSelectAll=false;
         if (studioAnalyzeBtn.contains(x,y)) { start_studio_splitter_action("analyze"); return; }
@@ -10035,14 +10290,17 @@ public:
         }
 
         restore_live_tv_last_channel();
+        load_live_tv_tuner_preference();
+        const int storedPreferred=preferred_live_tv_tuner_index();
         if (liveTvTuners.empty()) liveTvSelectedTuner=-1;
+        else if (storedPreferred>=0) liveTvSelectedTuner=storedPreferred;
         else if (liveTvSelectedTuner<0 || liveTvSelectedTuner>=static_cast<int>(liveTvTuners.size()) ||
                  !liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)].readable) {
             liveTvSelectedTuner=-1;
             for (int i=0;i<static_cast<int>(liveTvTuners.size());++i) {
                 if (liveTvTuners[static_cast<std::size_t>(i)].readable) { liveTvSelectedTuner=i; break; }
             }
-        }
+        } // NOUGAT_V58_TUNER_RESTORE
 
         if (liveTvTuners.empty()) {
             liveTvStatus="No compatible TV tuner detected.";
@@ -10186,6 +10444,7 @@ public:
         }
 
         const reddmedia::TunerDevice tuner=liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)];
+        if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) { if(manual) liveTvStatus="HDHomeRun uses its XMLTV guide path; Linux DVB current-multiplex harvesting is not used."; return; } // NOUGAT_V58_HDHR_NO_DVB_HARVEST
         const reddmedia::LiveTvChannel current=liveTvChannels[static_cast<std::size_t>(liveTvPlayingChannel)];
         const reddmedia::NougatTunerBackend backend=tunerBackend;
         const auto state=liveTvGuideState;
@@ -10212,11 +10471,13 @@ public:
         });
     }
     void start_live_tv_guide_refresh() {
-        if (liveTvTunerUse != LiveTvTunerUse::Watching) {
+        const bool selectedHdhrGuide = liveTvSelectedTuner>=0 && liveTvSelectedTuner<static_cast<int>(liveTvTuners.size()) &&
+            reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)]);
+        if (liveTvTunerUse != LiveTvTunerUse::Watching || selectedHdhrGuide) { // NOUGAT_V58_HDHR_GUIDE_DURING_PLAYBACK
             liveTvGuideRefreshQueued = false;
             liveTvFullGuideRefreshQueued = false;
         }
-        if (liveTvTunerUse == LiveTvTunerUse::Watching) {
+        if (liveTvTunerUse == LiveTvTunerUse::Watching && !selectedHdhrGuide) {
             liveTvGuideRefreshQueued = true;
             liveTvFullGuideRefreshQueued = true;
             if (liveTvSelectedTuner < 0 || liveTvSelectedTuner >= static_cast<int>(liveTvTuners.size()) ||
@@ -10261,7 +10522,7 @@ public:
             });
             return;
         }
-        if (liveTvTunerUse != LiveTvTunerUse::Idle) {
+        if (liveTvTunerUse != LiveTvTunerUse::Idle && !(selectedHdhrGuide && liveTvTunerUse==LiveTvTunerUse::Watching)) {
             liveTvStatus = "The tuner is already busy; guide refresh remains available when it returns idle.";
             return;
         }
@@ -10282,6 +10543,30 @@ public:
         const reddmedia::TunerDevice tuner = liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)];
         const reddmedia::NougatTunerBackend backend = tunerBackend;
         const auto state = liveTvGuideState;
+        if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) { // NOUGAT_V58_HDHR_XMLTV_GUIDE
+            const std::string tool=exe_dir()+"/tools/nougat_hdhomerun_guide.py";
+            if (!exists_file(tool)) { liveTvStatus="HDHomeRun guide worker is missing; cached guide data was preserved."; return; }
+            const auto channels=liveTvChannels;
+            {
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->busy=true; state->updated=true; state->cancel=false; state->finished=false; state->success=false;
+                state->current_mux_only=false; state->completed=0; state->total=1; state->channels=channels; state->programs=liveTvPrograms;
+                state->status="Refreshing HDHomeRun XMLTV guide...";
+            }
+            liveTvStatus="Refreshing HDHomeRun guide through SiliconDust XMLTV...";
+            liveTvLastAutoGuideRefreshMs=now_ms();
+            liveTvGuideWorker=std::thread([state,tuner,backend,tool,channels]() mutable {
+                const std::string command="python3 "+shell_quote(tool)+" --device-address "+shell_quote(tuner.frontend_path)+
+                    " --channels "+shell_quote(backend.channels_path())+" --guide "+shell_quote(backend.guide_path());
+                const int rc=std::system(command.c_str());
+                const std::vector<reddmedia::LiveTvProgram> programs=backend.load_guide();
+                std::lock_guard<std::mutex> lock(state->mutex);
+                state->busy=false; state->finished=true; state->success=rc==0; state->completed=1; state->total=1;
+                state->channels=channels; state->programs=programs; state->programs_found=static_cast<int>(programs.size()); state->updated=true;
+                state->status=rc==0 ? "HDHomeRun XMLTV guide refreshed." : "HDHomeRun XMLTV unavailable; existing cached guide was preserved.";
+            });
+            return;
+        }
         std::vector<reddmedia::LiveTvChannel> channels = liveTvChannels;
         liveTvLastAutoGuideRefreshMs = now_ms();
         const std::vector<reddmedia::LiveTvProgram> cachedPrograms = liveTvPrograms;
@@ -10325,7 +10610,7 @@ public:
         if (!updated) return;
         liveTvStatus = status;
         if (!busy && finished) {
-            liveTvTunerUse = (currentMuxOnly && currentMediaIsLiveTv) ? LiveTvTunerUse::Watching : LiveTvTunerUse::Idle;
+            liveTvTunerUse = currentMediaIsLiveTv ? LiveTvTunerUse::Watching : LiveTvTunerUse::Idle; // NOUGAT_V58_GUIDE_PLAYBACK_STATE
             if (success || currentMuxOnly) { liveTvChannels = std::move(channels); liveTvPrograms = std::move(programs); }
             if (!currentMuxOnly) {
                 liveTvGuideRefreshQueued = false;
@@ -10355,10 +10640,15 @@ public:
         const long long nowUnix = static_cast<long long>(std::time(nullptr));
         // PSIP data is short-horizon and broadcaster supplied. Twelve hours is
         // frequent enough to stay useful without needlessly retuning all RFs.
-        constexpr long long kGuideStaleSeconds = 12LL * 3600LL;
+        long long guideStaleSeconds=12LL*3600LL;
+        if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)])) {
+            const std::string jitterKey=(liveTvPreferredTunerIdentity.empty()?live_tv_tuner_identity(liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)]):liveTvPreferredTunerIdentity)+":"+std::to_string(modified);
+            const std::size_t seed=std::hash<std::string>{}(jitterKey);
+            guideStaleSeconds=20LL*3600LL+static_cast<long long>(seed%(8U*3600U));
+        } // NOUGAT_V58_HDHR_GUIDE_INTERVAL
         constexpr long long kRetryFloorMs = 5LL * 60LL * 1000LL;
         constexpr long long kPlaybackHarvestFloorMs = 30LL * 60LL * 1000LL;
-        const bool stale = modified <= 0 || nowUnix - modified >= kGuideStaleSeconds;
+        const bool stale = modified <= 0 || nowUnix - modified >= guideStaleSeconds;
         if (!stale && !liveTvPrograms.empty()) return;
 
         bool guideBusy = false;
@@ -10368,6 +10658,11 @@ public:
         }
         if (guideBusy) return;
 
+        if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)]) &&
+            (liveTvTunerUse == LiveTvTunerUse::Watching || currentMediaIsLiveTv)) {
+            if (now_ms() - liveTvLastAutoGuideRefreshMs >= kRetryFloorMs) start_live_tv_guide_refresh();
+            return;
+        } // NOUGAT_V58_HDHR_AUTO_GUIDE
         if (liveTvTunerUse == LiveTvTunerUse::Watching || currentMediaIsLiveTv) {
             liveTvGuideRefreshQueued = true;
             liveTvFullGuideRefreshQueued = true;
@@ -10409,6 +10704,17 @@ public:
             if (live_tv_tuner_available(candidate,&channel)) candidates.push_back(candidate);
         };
         add_candidate(liveTvSelectedTuner);
+        // NOUGAT_V58_TUNER_SAME_DEVICE_FIRST: an HDHomeRun is one preferred device
+        // with multiple physical tuner resources. Stay on it before crossing devices.
+        if (liveTvSelectedTuner>=0 && liveTvSelectedTuner<static_cast<int>(liveTvTuners.size()) &&
+            reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)])) {
+            std::string preferredDevice; int preferredResource=-1;
+            if (reddmedia::HdHomeRunProvider::decode_tuner_id(liveTvTuners[static_cast<std::size_t>(liveTvSelectedTuner)],preferredDevice,preferredResource))
+                for(int candidate=0;candidate<static_cast<int>(liveTvTuners.size());++candidate) {
+                    std::string device; int resource=-1;
+                    if(reddmedia::HdHomeRunProvider::decode_tuner_id(liveTvTuners[static_cast<std::size_t>(candidate)],device,resource) && device==preferredDevice) add_candidate(candidate);
+                }
+        }
         for (int candidate=0; candidate<static_cast<int>(liveTvTuners.size()); ++candidate) add_candidate(candidate);
         if (candidates.empty()) {
             liveTvStatus="No free tuner can play this channel. A physical tuner may already be scanning, refreshing guide data, or in use.";
@@ -10693,6 +10999,7 @@ public:
             case RadioPanel::Internet: return "Internet Radio";
             case RadioPanel::Favorites: return "Favorites";
             case RadioPanel::Recordings: return "Recordings";
+            case RadioPanel::Cellular: return "Cellular Lab";
         }
         return "Radio";
     }
@@ -10736,6 +11043,7 @@ public:
             case RadioPanel::Internet:
             case RadioPanel::Favorites:
             case RadioPanel::Recordings:
+            case RadioPanel::Cellular:
                 break;
         }
         const auto state=radioBackend.snapshot();
@@ -10777,21 +11085,55 @@ public:
         const ViewPalette palette=palette_for(ViewMode::Radio);
         const Rect frame=page_content_frame(ViewMode::Radio);
         draw_quilted_background(target,frame,ViewMode::Radio);
-        const auto preset=[&](const Rect& r,const char* label,RadioPanel panel) {
-            button_on_state(target,r,label,radioPanel==panel?SheetControlState::Hover:SheetControlState::Normal);
-        };
-        preset(radioLocalBtn,"Local",RadioPanel::Local);
-        preset(radioInternetBtn,"Internet",RadioPanel::Internet);
-        preset(radioEmergencyBtn,"Emergency",RadioPanel::Emergency);
-        preset(radioWeatherBtn,"Weather",RadioPanel::Weather);
-        preset(radioShortwaveBtn,"Shortwave",RadioPanel::Shortwave);
-        preset(radioSatelliteBtn,"ISS / Sat",RadioPanel::Satellite);
-        button_on(target,radioFavoritesBtn,"Favorites");
-        button_on(target,radioRecordingsBtn,"Recordings");
-        button_on(target,radioAntennaScanBtn,"TV Antenna Scan");
+        // NOUGAT_V58_RADIO_ALL_SERVICES_DRAW: show every service button together.
+        for (const auto& entry : radioServiceTabs) {
+            bool active = entry.second == radioSelectedService;
+            if (entry.second=="Favorites") active = radioPanel==RadioPanel::Favorites;
+            else if (entry.second=="Recordings") active = radioPanel==RadioPanel::Recordings;
+            else if (entry.second=="Cellular Lab") active = radioPanel==RadioPanel::Cellular;
+            button_on_state(target,entry.first,entry.second,
+                            active?SheetControlState::Hover:SheetControlState::Normal);
+        }
 
         draw_primary_panel(target,radioListBox,palette);
-        section_text(target,radioListBox.x+14,radioListBox.y+26,std::string("RADIO • ")+radio_panel_name(radioPanel),palette.text);
+        const std::string radioHeader = (radioPanel==RadioPanel::Local && !radioSelectedService.empty())
+            ? radioSelectedService : std::string(radio_panel_name(radioPanel));
+        section_text(target,radioListBox.x+14,radioListBox.y+26,std::string("RADIO • ")+radioHeader,palette.text);
+        if (radioPanel==RadioPanel::Cellular) {
+            // NOUGAT_V58_CELLULAR_LAB_TABS: UI + roadmap only in v58.
+            const int tabY=radioListBox.y+42;
+            const int gap=7;
+            const int tabW=std::max(116,(radioListBox.w-32-gap*4)/5);
+            int tx=radioListBox.x+16;
+            radioCell2GBtn={tx,tabY,tabW,30}; tx+=tabW+gap;
+            radioCell1GBtn={tx,tabY,tabW,30}; tx+=tabW+gap;
+            radioCellSubscribersBtn={tx,tabY,tabW,30}; tx+=tabW+gap;
+            radioCellCallsBtn={tx,tabY,tabW,30}; tx+=tabW+gap;
+            radioCellRfLabBtn={tx,tabY,tabW,30};
+            const Rect cellTabs[]={radioCell2GBtn,radioCell1GBtn,radioCellSubscribersBtn,radioCellCallsBtn,radioCellRfLabBtn};
+            const char* cellLabels[]={"2G GSM","1G Analog","Subscribers / SIMs","Calls / SMS","Network / RF"};
+            for (int i=0;i<5;++i) button_on_state(target,cellTabs[i],cellLabels[i],
+                radioCellularSubtab==i?SheetControlState::Hover:SheetControlState::Normal);
+            const int textY=tabY+56;
+            if (radioCellularSubtab==0) {
+                text(target,radioListBox.x+18,textY,"PRIVATE 2G GSM LAB",palette.text);
+                text(target,radioListBox.x+18,textY+24,"Roadmapped: SDR/BTS + OsmoBSC + OsmoMSC + OsmoHLR, attached test phones, local calls and SMS.",palette.muted);
+            } else if (radioCellularSubtab==1) {
+                text(target,radioListBox.x+18,textY,"1G ANALOG CELLULAR LAB",palette.text);
+                text(target,radioListBox.x+18,textY+24,"Roadmapped historical analog cellular emulation after the 2G lab stack is stable.",palette.muted);
+            } else if (radioCellularSubtab==2) {
+                text(target,radioListBox.x+18,textY,"TEST SUBSCRIBERS / SIMS",palette.text);
+                text(target,radioListBox.x+18,textY+24,"Roadmapped private subscriber identities, test SIM inventory, attachment state and signal metrics.",palette.muted);
+            } else if (radioCellularSubtab==3) {
+                text(target,radioListBox.x+18,textY,"LOCAL LAB CALLS / SMS",palette.text);
+                text(target,radioListBox.x+18,textY+24,"Roadmapped phone-to-phone calling and SMS between test devices enrolled in the private lab network.",palette.muted);
+            } else {
+                text(target,radioListBox.x+18,textY,"CELLULAR NETWORK / RF LAB",palette.text);
+                text(target,radioListBox.x+18,textY+24,"Roadmapped spectrum view, BTS/BSC/MSC/HLR health, protocol logs and RF-isolated test controls.",palette.muted);
+            }
+            text(target,radioListBox.x+18,textY+62,"Lab operation is for owned/enrolled devices using authorized spectrum or RF isolation; encrypted traffic stays locked.",palette.muted);
+            return;
+        }
         const auto state=radioBackend.snapshot();
         std::string freq=radioFrequencyFocused?radioFrequencyText:radio_frequency_label(state.frequency_hz);
         draw_concept_field(target,radioFrequencyRect,palette.field,palette.border,radioFrequencyFocused);
@@ -10813,7 +11155,7 @@ public:
         button_on(target,radioDeviceBtn,head_to_width(deviceLabel,radioDeviceBtn.w-12));
 
         const int meterX=radioFrequencyRect.x;
-        const int meterY=radioFrequencyRect.y+94;
+        const int meterY=radioFrequencyRect.y+158; // NOUGAT_V58_RADIO_INFO_SPACING
         text(target,meterX,meterY,"SIGNAL",palette.text);
         const int bars=10;
         const int active=state.signal_percent<0?0:std::max(0,std::min(bars,(state.signal_percent+9)/10));
@@ -10857,12 +11199,48 @@ public:
     }
 
     void handle_radio_click(int x, int y) {
-        if (radioLocalBtn.contains(x,y)) { set_radio_preset(RadioPanel::Local); redraw(); return; }
-        if (radioEmergencyBtn.contains(x,y)) { set_radio_preset(RadioPanel::Emergency); redraw(); return; }
-        if (radioWeatherBtn.contains(x,y)) { set_radio_preset(RadioPanel::Weather); redraw(); return; }
-        if (radioSatelliteBtn.contains(x,y)) { set_radio_preset(RadioPanel::Satellite); redraw(); return; }
-        if (radioShortwaveBtn.contains(x,y)) { set_radio_preset(RadioPanel::Shortwave); redraw(); return; }
-        if (radioInternetBtn.contains(x,y)) { set_radio_preset(RadioPanel::Internet); redraw(); return; }
+        // NOUGAT_V58_RADIO_ALL_SERVICES_CLICK: additional services remain visible
+        // before hardware/decoder support exists and report that state clearly.
+        if (radioPanel==RadioPanel::Cellular) {
+            const Rect cellTabs[]={radioCell2GBtn,radioCell1GBtn,radioCellSubscribersBtn,radioCellCallsBtn,radioCellRfLabBtn};
+            for (int i=0;i<5;++i) if (cellTabs[i].contains(x,y)) { radioCellularSubtab=i; redraw(); return; }
+        }
+        for (const auto& entry : radioServiceTabs) {
+            if (!entry.first.contains(x,y)) continue;
+            const std::string& label=entry.second;
+            if (label=="Local" || label=="Internet" || label=="Emergency" || label=="Weather" ||
+                label=="Shortwave" || label=="ISS / Sat" || label=="Favorites" ||
+                label=="Recordings" || label=="TV Antenna Scan") break;
+            radioFrequencyFocused=false;
+            radioSelectedService=label;
+            if (label=="Cellular Lab") {
+                radioPanel=RadioPanel::Cellular;
+                radioCellularSubtab=0;
+                // Cellular Lab state is rendered directly in the native Nougat panel.
+                redraw(); return;
+            }
+            if (label=="Satellite" || label=="Weather Sat" || label=="Amateur Sat") {
+                set_radio_preset(RadioPanel::Satellite);
+            } else if (label=="Public Safety" || label=="Police" || label=="Fire" || label=="EMS" ||
+                       label=="Government" || label=="Military" || label=="Trunked" || label=="P25" ||
+                       label=="DMR" || label=="NXDN" || label=="TETRA" || label=="Paging") {
+                set_radio_preset(RadioPanel::Emergency);
+            } else if (label=="Longwave" || label=="Mediumwave" || label=="DRM" ||
+                       label=="Numbers" || label=="Time / Beacon") {
+                set_radio_preset(RadioPanel::Shortwave);
+            } else {
+                set_radio_preset(RadioPanel::Local);
+            }
+            radioSelectedService=label;
+            // The selected service is carried by radioSelectedService and rendered in the Radio header.
+            redraw(); return;
+        }
+        if (radioLocalBtn.contains(x,y)) { radioSelectedService="Local"; set_radio_preset(RadioPanel::Local); redraw(); return; }
+        if (radioEmergencyBtn.contains(x,y)) { radioSelectedService="Emergency"; set_radio_preset(RadioPanel::Emergency); redraw(); return; }
+        if (radioWeatherBtn.contains(x,y)) { radioSelectedService="Weather"; set_radio_preset(RadioPanel::Weather); redraw(); return; }
+        if (radioSatelliteBtn.contains(x,y)) { radioSelectedService="ISS / Sat"; set_radio_preset(RadioPanel::Satellite); redraw(); return; }
+        if (radioShortwaveBtn.contains(x,y)) { radioSelectedService="Shortwave"; set_radio_preset(RadioPanel::Shortwave); redraw(); return; }
+        if (radioInternetBtn.contains(x,y)) { radioSelectedService="Internet"; set_radio_preset(RadioPanel::Internet); redraw(); return; }
         if (radioFavoritesBtn.contains(x,y)) { radioPanel=RadioPanel::Favorites; radioFrequencyFocused=false; redraw(); return; }
         if (radioRecordingsBtn.contains(x,y)) { radioPanel=RadioPanel::Recordings; radioFrequencyFocused=false; redraw(); return; }
         if (radioAntennaScanBtn.contains(x,y)) {
@@ -11303,6 +11681,7 @@ public:
             const bool queued=liveTvGuideRefreshQueued || liveTvFullGuideRefreshQueued;
             if (hadLive) stop_media();
             liveTvTunerUse=LiveTvTunerUse::Idle;
+            { const int preferred=preferred_live_tv_tuner_index(); if(preferred>=0) liveTvSelectedTuner=preferred; } // NOUGAT_V58_TUNER_RETURN_TO_PREFERENCE
             liveTvStatus=hadLive ? "Live TV stopped. Tuner released." : "Live TV is not currently playing.";
             if (queued) {
                 liveTvGuideRefreshQueued=false;
@@ -11336,7 +11715,8 @@ public:
                 const int index=hit.channel_index;
                 if (index<0 || index>=static_cast<int>(liveTvTuners.size())) return;
                 liveTvSelectedTuner=index;
-                liveTvStatus="Selected tuner device: "+(liveTvTuners[static_cast<std::size_t>(index)].name.empty()?liveTvTuners[static_cast<std::size_t>(index)].id:liveTvTuners[static_cast<std::size_t>(index)].name)+".";
+                save_live_tv_tuner_preference(index);
+                liveTvStatus="Preferred Live TV device saved: "+(liveTvTuners[static_cast<std::size_t>(index)].name.empty()?liveTvTuners[static_cast<std::size_t>(index)].id:liveTvTuners[static_cast<std::size_t>(index)].name)+"."; // NOUGAT_V58_TUNER_SAVE
                 redraw();
                 return;
             }
@@ -11728,7 +12108,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.57";
+        input.app_version = "Nougat Media Suite v0.0.58";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -14474,16 +14854,23 @@ public:
         y+=38;
 
         text(target,panel.x+18,y+20,"Pieces",palette.text);
-        studioPiecesRect={fieldX,y,140,fieldH};
+        studioPiecesRect={fieldX,y,110,fieldH};
         fill(target,studioPiecesRect,palette.field);
         outline(target,studioPiecesRect,studioInputFocus==4?palette.accent:palette.border);
         text(target,studioPiecesRect.x+8,studioPiecesRect.y+20,studioPiecesText,palette.text);
         if (studioInputFocus==4 && studioInputSelectAll && !studioPiecesText.empty())
             outline(target,{studioPiecesRect.x+3,studioPiecesRect.y+3,studioPiecesRect.w-6,studioPiecesRect.h-6},palette.selection);
+        text(target,studioPiecesRect.x+124,y+20,"Target MiB",palette.text);
+        studioTargetSizeRect={studioPiecesRect.x+204,y,92,fieldH};
+        fill(target,studioTargetSizeRect,palette.field);
+        outline(target,studioTargetSizeRect,studioInputFocus==5?palette.accent:palette.border);
+        text(target,studioTargetSizeRect.x+8,studioTargetSizeRect.y+20,studioTargetMiBText,palette.text);
+        if (studioInputFocus==5 && studioInputSelectAll && !studioTargetMiBText.empty())
+            outline(target,{studioTargetSizeRect.x+3,studioTargetSizeRect.y+3,studioTargetSizeRect.w-6,studioTargetSizeRect.h-6},palette.selection);
         if (studioSuggestedPieces>0) {
             std::string suggestion="Recommended: "+std::to_string(studioSuggestedPieces)+" pieces";
             if (studioSuggestedApproxBytes>0) suggestion += "  |  about "+format_bytes(studioSuggestedApproxBytes)+" each";
-            text(target,studioPiecesRect.x+160,y+20,head_to_width(suggestion,std::max(80,panel.x+panel.w-studioPiecesRect.x-178)),palette.muted);
+            text(target,studioTargetSizeRect.x+108,y+20,head_to_width(suggestion,std::max(80,panel.x+panel.w-studioTargetSizeRect.x-126)),palette.muted); // NOUGAT_V58_SPLITTER_TARGET_UI
         } else {
             text(target,studioPiecesRect.x+160,y+20,"Recommendation appears automatically after source analysis.",palette.muted);
         }
@@ -15136,6 +15523,7 @@ public:
         // Final chrome overlay: page backgrounds and loading strips must never
         // erase the larger selected-tab pointer.
         draw_active_top_tab_pointer(buffer);
+        if (fixMatchVisible) draw_fix_match_overlay(buffer); // NOUGAT_V58_NATIVE_FIX_MATCH_DRAW
         XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
         XFreePixmap(d, buffer);
         if (currentView == ViewMode::VideoPlayer) draw_video_message();
@@ -16043,6 +16431,7 @@ public:
     }
 
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
+        if (fixMatchVisible) { if (target==win) handle_fix_match_click(x,y,button); return; } // NOUGAT_V58_NATIVE_FIX_MATCH_INPUT
         if(target==fullscreenSeekWindow){
             if(button!=Button1) return;
             lastPlayerActivityMotionMs=now_ms(); playerActivityOverlayVisible=true;
@@ -16094,6 +16483,7 @@ public:
         if (target == video) {
             if (button == Button3) { show_context_menu(target, x, y); return; }
             if (button != Button1 && !(currentView == ViewMode::Stream && ytdlpUrlRect.contains(x,y) && button == Button3)) return;
+            if (!hasMedia && !resumePromptVisible && !stoppedPlaybackVisible && !needResumePrompt) { do_open(); return; } // NOUGAT_V58_EMPTY_PLAYER_OPEN
             if (resumePromptVisible) {
                 pendingVideoSingleClick = false;
                 if (videoResumeBtn.contains(x,y)) { continue_pending_resume(); return; }
@@ -16718,7 +17108,8 @@ public:
                 else if (e.type == LeaveNotify && e.xcrossing.window == video && e.xcrossing.detail != NotifyInferior) { pointerInVideo=false; show_pointer(); }
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
-                    if (currentView == ViewMode::Radio && radioFrequencyFocused) {
+                    if (fixMatchVisible) { handle_fix_match_key(e.xkey); }
+                    else if (currentView == ViewMode::Radio && radioFrequencyFocused) { // NOUGAT_V58_NATIVE_FIX_MATCH_KEYS
                         if (ks == XK_Escape) { radioFrequencyFocused=false; redraw(); }
                         else if (ks == XK_Return || ks == XK_KP_Enter) {
                             try {
@@ -17122,7 +17513,7 @@ public:
 int main(int argc, char** argv) {
     prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.57\n");
+        printf("Nougat Media Suite v0.0.58\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

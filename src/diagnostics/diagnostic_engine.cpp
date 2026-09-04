@@ -505,9 +505,9 @@ DiagnosticReport DiagnosticEngine::evaluate(const DiagnosticInput& input) const 
                     "Catalog-wide diagnostic scan completes.", input.library_scan_error.empty() ? "Only the current UI sample was available." : input.library_scan_error,
                     "Library diagnostic input.", "Refresh Server/Library and rerun Deep Diagnostic for catalog-wide counts.");
     } else if (unreadable_paths > 0U) {
-        add_finding(report, "Library", DiagnosticSeverity::Problem, "MEDIA_PATH_UNREADABLE", "Local media source files are unreadable",
-                    "Every cataloged local media path is readable.", std::to_string(unreadable_paths) + " unreadable media path(s).",
-                    "Filesystem access(R_OK) against catalog paths.", "Reconnect/mount the source drive or correct permissions, then Refresh Library.");
+        add_finding(report, "Library", DiagnosticSeverity::NeedsAttention, "MEDIA_PATH_NOT_DIRECTLY_MOUNTED", "Catalog paths are not directly mounted in the Nougat process",
+                    "Direct filesystem paths are optional when the Nougat media server can still catalog and serve the item.", std::to_string(unreadable_paths) + " catalog path(s) are not directly readable by this process.",
+                    "Filesystem access(R_OK) compared with server catalog health.", "If playback also fails, reconnect/mount the source drive; otherwise server-internal paths are informational."); // NOUGAT_V58_DIAGNOSTIC_SERVER_PATHS
     } else {
         add_finding(report, "Library", DiagnosticSeverity::Passed, "LIBRARY_SOURCE_HEALTHY", "Cataloged media sources are readable",
                     "Every cataloged local media path is readable.", "No unreadable catalog paths found.",

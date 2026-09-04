@@ -578,3 +578,33 @@ No roadmap item becomes build scope solely because it appears in this document. 
 43. Strong server health model: API reachability, wrong-process detection, startup failure, authentication failure, Ready/Starting/Stopping/Failed truth states.
 44. Diagnostic history comparison and deeper exercised checks rather than merely reporting installed components.
 45. Continuous parity review of useful Plex-class features while preserving Nougat-native Radio, Search/Crawler/P2P, World TV, Studio, Games and privacy architecture.
+
+## v0.0.58 candidate scope
+- Reliability repair pass: Home/Continue Watching/artwork, native Fix Match, seek edges, Server light, Live TV persisted device preference + HDHomeRun XMLTV guide, Radio layout, File Splitter 450 MiB enforced target, server-aware diagnostics, GNOME app scope.
+- Drone and custom-flight-firmware work remains deferred and is not part of this build.
+
+
+## Radio Universal Receiver + Cellular Lab Program
+
+### Universal Radio service surface
+Nougat Radio intentionally exposes a broad service matrix instead of hiding modes for the sake of a small button count. The target is: if a compatible receiver can legally receive a clear signal or supported broadcast/data service, Nougat should have a place for it.
+
+Visible service families include Local, Internet, AM, FM, HD Radio, DAB/DAB+, DRM, Longwave, Mediumwave, Shortwave, Weather, Emergency, Public Safety, Police, Fire, EMS, Government, Military, Airband, Marine, Railroad, CB, FRS/GMRS, MURS, Amateur/Ham, Business, Utilities, Trunked, P25, DMR, NXDN, TETRA, Paging, Numbers, Time/Beacon, ADS-B, ACARS, AIS, Weather Satellite, Satellite, Amateur Satellite, Cellular Lab, Favorites, Recordings, TV Antenna Scan, and ISS/Satellite. ISS/Satellite remains last.
+
+The buttons remain visible even when the current hardware cannot support a mode. Unsupported modes must say which receiver/decoder is required instead of disappearing. Digital/data services may use decoded-data views rather than audio playback. Encrypted traffic is identified as encrypted/locked and is not decrypted or cracked.
+
+### Private 2G GSM Cellular Lab
+Roadmap a lab-oriented private GSM network controller inside Radio > Cellular Lab. The first implementation target is a closed network for owned/enrolled test devices using authorized spectrum or RF isolation.
+
+Planned components and views:
+- SDR/BTS hardware abstraction with simulation before RF activation.
+- Osmocom-compatible BTS/BSC/MSC/HLR integration layer with versioned interfaces.
+- 2G GSM tab with network identity, BTS state, channel allocation, attached test devices, signal metrics, and health.
+- Subscribers / SIMs tab for private test subscriber identities and SIM inventory.
+- Calls / SMS tab for local phone-to-phone calling and SMS between enrolled lab devices.
+- Network / RF tab for spectrum, protocol/debug logs, BTS/BSC/MSC/HLR status, alarms, and isolation checks.
+- Optional GPRS data after voice/SMS stability.
+- Explicit transmit interlock: no RF transmission until hardware, band plan, authorization/isolation, and failsafe checks are satisfied.
+
+### 1G Analog Cellular Lab
+After the 2G stack is stable, investigate a historical 1G analog cellular lab using SDR/emulation. Keep it modular and isolated from the 2G implementation. This is a later research target, not an authorization to transmit or to interact with third-party carrier subscribers.

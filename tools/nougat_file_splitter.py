@@ -16,7 +16,8 @@ import zipfile
 FORMAT = "nougat-split-zip-v3"
 LEGACY_FORMATS = {"nougat-split-zip-v2"}
 BLOCK = 4 * 1024 * 1024
-DEFAULT_TARGET_PIECE_BYTES = 1024 * 1024 * 1024
+DEFAULT_TARGET_PIECE_BYTES = 450 * 1024 * 1024  # NOUGAT_V58_SAFE_UPLOAD_TARGET
+MAX_UPLOAD_SAFE_PIECE_BYTES = 476 * 1024 * 1024  # below 500,000,000 bytes
 
 
 class SplitterError(RuntimeError):
@@ -162,6 +163,8 @@ def recommend_piece_count(size: int, target_piece_bytes: int = DEFAULT_TARGET_PI
 
 
 def analyze(source: Path, target_piece_bytes: int = DEFAULT_TARGET_PIECE_BYTES) -> dict:
+    if target_piece_bytes <= 0 or target_piece_bytes > MAX_UPLOAD_SAFE_PIECE_BYTES:
+        raise SplitterError("Target piece size must be between 1 and 476 MiB so every part stays below 500 MB.")
     source = source.expanduser().resolve()
     mode = source_mode(source)
     size = source_size(source)
@@ -317,7 +320,9 @@ def verify(manifest: Path, reporter: ProgressReporter | None = None,
 
 
 def split(source: Path, output_dir: Path, output_name: str, pieces: int,
-          max_piece_bytes: int = 0) -> Path:
+          max_piece_bytes: int = DEFAULT_TARGET_PIECE_BYTES) -> Path:
+    if max_piece_bytes <= 0 or max_piece_bytes > MAX_UPLOAD_SAFE_PIECE_BYTES:
+        raise SplitterError("Maximum piece size must be between 1 and 476 MiB so every part stays below 500 MB.")
     if pieces < 1:
         raise SplitterError("Piece count must be at least 1.")
     source = source.expanduser().resolve()
@@ -549,14 +554,14 @@ def main() -> int:
 
     a = sub.add_parser("analyze")
     a.add_argument("source", type=Path)
-    a.add_argument("--target-piece-mib", type=int, default=1024)
+    a.add_argument("--target-piece-mib", type=int, default=450)
 
     s = sub.add_parser("split")
     s.add_argument("source", type=Path)
     s.add_argument("output_dir", type=Path)
     s.add_argument("--name", required=True)
     s.add_argument("--pieces", type=int, required=True)
-    s.add_argument("--max-piece-mib", type=int, default=0)
+    s.add_argument("--max-piece-mib", type=int, default=450)
 
     v = sub.add_parser("verify")
     v.add_argument("manifest", type=Path)

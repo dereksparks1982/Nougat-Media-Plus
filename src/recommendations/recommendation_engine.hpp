@@ -53,6 +53,11 @@ public:
     bool load_movie_poster_path(const std::string& tmdb_id,
                                 std::string& poster_path,
                                 std::string& error) const;
+    bool search_metadata_candidates(RecommendationMediaType type,
+                                    const std::string& title,
+                                    int year,
+                                    std::vector<MediaDescriptor>& candidates,
+                                    std::string& error) const; // NOUGAT_V58_NATIVE_FIX_MATCH
     bool resolve_metadata_identity(RecommendationMediaType type,
                                    const std::string& title,
                                    int year,

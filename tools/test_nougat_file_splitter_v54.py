@@ -54,22 +54,25 @@ def main() -> int:
         sparse = root / "large-test.bin"
         with sparse.open("wb") as f:
             f.truncate((2 * 1024 + 600) * 1024 * 1024)
-        result = run("analyze", str(sparse), "--target-piece-mib", "1024")
+        result = run("analyze", str(sparse), "--target-piece-mib", "450")
         require(result.returncode == 0, f"large analyze failed: {result.stdout}")
-        require("SUGGESTED_PIECES 3" in result.stdout, f"expected 3-piece suggestion: {result.stdout}")
+        require("SUGGESTED_PIECES 6" in result.stdout, f"expected 6-piece suggestion under 450 MiB: {result.stdout}")
 
         tiny = root / "tiny.dat"
         tiny.write_bytes(b"nougat" * 100)
         result = run("analyze", str(tiny))
         require(result.returncode == 0, f"small analyze failed: {result.stdout}")
         require("SUGGESTED_PIECES 2" in result.stdout, f"small sources should default to 2 pieces: {result.stdout}")
+        too_large = run("analyze", str(tiny), "--target-piece-mib", "477")
+        require(too_large.returncode != 0 and "476 MiB" in too_large.stdout,
+                f"oversize target should be rejected: {too_large.stdout}")
 
         # Exact streaming file split, verify, and reassemble.
         original = root / "original.bin"
         original.write_bytes(os.urandom(7 * 1024 * 1024 + 12345))
         original_hash = sha(original)
         out = root / "downloads"
-        result = run("split", str(original), str(out), "--name", "professional-test", "--pieces", "4")
+        result = run("split", str(original), str(out), "--name", "professional-test", "--pieces", "4", "--max-piece-mib", "450")
         require(result.returncode == 0, f"split failed: {result.stdout}")
         require("VERIFY PASS" in result.stdout, "split must read-back verify every part")
         manifest = out / "professional-test.zip.parts.json"
@@ -78,6 +81,8 @@ def main() -> int:
         require(data.get("format") == "nougat-split-zip-v3", "wrong v54 manifest format")
         require(data.get("piece_count") == 4, "wrong piece count in manifest")
         require(len(data.get("parts", [])) == 4, "wrong number of parts")
+        require(all(int(part.get("size", 0)) <= 450 * 1024 * 1024 for part in data.get("parts", [])),
+                "every split part must stay at or below the selected 450 MiB maximum")
 
         result = run("verify", str(manifest))
         require(result.returncode == 0 and "VERIFY PASS" in result.stdout,
