@@ -1,13 +1,13 @@
 [Desktop Entry]
 Type=Application
-Name=Nougat Media Suite
-Comment=Nougat Media Suite Home, native player, library, Discover AI, Live TV guide, decentralized Search, Stream, Studio, Drone Production, P2P, security, and System controls
-Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Suite_v61"
-Icon=nougat-media-suite
-StartupWMClass=NougatMediaSuite
-X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaSuite
+Name=Nougat Media Plus
+Comment=Nougat Media Plus unified media, television, radio, games, Studio, Drone Lab, Search, security, server, and system workstation
+Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Plus_v62"
+Icon=nougat-media-plus
+StartupWMClass=NougatMediaPlus
+X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaPlus
 Terminal=false
 Categories=AudioVideo;Player;
 StartupNotify=true
-X-GNOME-WMClass=NougatMediaSuite
+X-GNOME-WMClass=NougatMediaPlus
 X-Nougat-Resources-DirectExec=true

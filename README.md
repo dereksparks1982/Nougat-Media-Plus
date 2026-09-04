@@ -1,4 +1,4 @@
-# Nougat Media Suite
+# Nougat Media Plus
 
 Nougat Media Suite is an all-in-one native Linux media center and experimental media platform built by Elderred Softworks LLC. It brings personal media libraries, local and network playback, internet video, television, radio, games, search, downloading, media tools, servers, diagnostics, hardware integration, privacy-focused services, and local-network media access together inside one unified Nougat interface.
 
@@ -33,6 +33,32 @@ Nougat Media Suite is provided for **educational, research, testing, and develop
 Users are responsible for ensuring that their use of Nougat Media Suite complies with all applicable laws, regulations, licensing requirements, spectrum and communications rules, privacy obligations, intellectual-property rights, contractual restrictions, and third-party terms. Features involving networks, radio, cellular systems, devices, accounts, media, signals, or data should be used only with resources the user owns or is explicitly authorized to access, operate, test, receive, modify, or analyze.
 
 Nothing in Nougat Media Suite, its source code, or its documentation grants permission to perform an act that would otherwise be unlawful, unauthorized, or harmful. Availability of a technical capability does not imply legal authorization to use it in a particular jurisdiction, environment, or circumstance.
+
+## v0.0.62 - Nougat Media Plus Tactical UI Conversion
+
+Nougat Media Plus v0.0.62 is the accepted tactical-interface and product-identity release built from the accepted v0.0.61 baseline.
+
+### Technical changes
+
+- Renamed the active product from Nougat Media Suite to Nougat Media Plus.
+- Advanced the active root executable to `Nougat_Media_Plus_v62`.
+- Advanced runtime and build version reporting to v0.0.62.
+- Updated `src/main.cpp`, `CMakeLists.txt`, launcher identity, and embedded X11 icon data for Nougat Media Plus.
+- Installed the approved metallic tactical green N as the active application identity.
+- Applied the approved N to the in-app identity, raw executable, launcher, GNOME dock/app switcher, and X11 window identity.
+- Removed the retired legacy-name subtitle from the active application lockup.
+- Added the black/deep-green tactical interface across navigation, tabs, buttons, panels, dialogs, fields, status surfaces, and controls.
+- Preserved the approved tactical Video Player appearance.
+- REPAIR5 fixes the blank-page regression by preventing the final tactical page-frame pass from painting over already-rendered page contents.
+- Preserved Home, Library, Discover, Live TV, World TV, Radio, Search, Stream, Studio, Games, Debug/System, and Video Player behavior.
+- Added the approved `UI Click Deep` one-shot hover/pointer-entry sound.
+- Added the approved `el_boss UI Button Click` one-shot activation sound.
+- Hover audio plays once on pointer entry and does not loop while the pointer remains inside a control.
+- Activation audio plays once per actual activation.
+- Disabled controls remain silent.
+- Added the approved tactical UI authority artwork, tactical green N branding assets, icon assets, and UI audio assets.
+- Retired `Nougat_Media_Suite_v61` as the active root executable.
+- Known NES/SNES and Xbox 360 emulator issues from v0.0.61 remain open and carry forward to the next Games/emulator overhaul.
 
 ## v0.0.61 - Drone Mission Control and Games Expansion
 

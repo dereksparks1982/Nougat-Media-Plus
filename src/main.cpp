@@ -162,7 +162,7 @@ struct VlcApi {
             handle = dlopen(names[i], RTLD_NOW);
             if (handle) break;
         }
-        if (!handle) { err = "VLC/libVLC was not found. Install VLC, then reopen Nougat Media Suite."; return false; }
+        if (!handle) { err = "VLC/libVLC was not found. Install VLC, then reopen Nougat Media Plus."; return false; }
 #define LOAD_SYM(field, name) do { field = (decltype(field))dlsym(handle, name); if (!field) { err = std::string("Missing libVLC symbol: ") + name; return false; } } while(0)
         LOAD_SYM(new_, "libvlc_new");
         LOAD_SYM(release, "libvlc_release");
@@ -848,13 +848,13 @@ static std::string choose_media_library_folder_dialog() {
 static std::string choose_tmdb_credential_dialog() {
     std::string credential = run_command_capture(
         "command -v zenity >/dev/null 2>&1 && "
-        "zenity --entry --hide-text --title='Nougat Media Suite External Recommendations' "
+        "zenity --entry --hide-text --title='Nougat Media Plus External Recommendations' "
         "--text='Enter a TMDb API key or read access token' 2>/dev/null");
     if (!credential.empty()) return credential;
     const std::string py =
         "python3 -c \"import tkinter as tk; from tkinter import simpledialog; "
         "root=tk.Tk(); root.withdraw(); "
-        "v=simpledialog.askstring('Nougat Media Suite External Recommendations',"
+        "v=simpledialog.askstring('Nougat Media Plus External Recommendations',"
         "'Enter a TMDb API key or read access token',show='*'); print(v if v else '')\" 2>/dev/null";
     return run_command_capture(py);
 }
@@ -1029,7 +1029,7 @@ struct DebugUiState {
     std::mutex mutex;
     reddmedia::DiagnosticInput input;
     reddmedia::DiagnosticReport report;
-    std::string status = "Run Checks to inspect Nougat Media Suite.";
+    std::string status = "Run Checks to inspect Nougat Media Plus.";
     bool busy = false;
     bool updated = false;
     bool hasReport = false;
@@ -2978,70 +2978,15 @@ public:
     }
 
     ViewPalette palette_for(ViewMode view) {
-        const unsigned long cream = rgb8(244, 232, 205);
-        const unsigned long darkText = rgb8(54, 36, 28);
-        if (view == ViewMode::Home) return {
-            rgb8(91,58,134), rgb8(112,74,151), rgb8(244,232,205),
-            rgb8(58,35,88), cream, rgb8(220,202,230),
-            rgb8(128,91,168), rgb8(108,72,148), rgb8(57,34,86),
-            rgb8(145,105,181), cream, rgb8(199,126,58)};
-        if (view == ViewMode::VideoPlayer) return {
-            rgb8(65,37,24), rgb8(91,52,31), rgb8(244,232,205),
-            rgb8(49,28,19), cream, rgb8(214,190,166),
-            rgb8(144,82,39), rgb8(111,62,32), rgb8(54,30,19),
-            rgb8(199,126,58), cream, rgb8(199,126,58)};
-        if (view == ViewMode::Library) return {
-            rgb8(61,94,49), rgb8(77,120,61), rgb8(244,232,205),
-            rgb8(42,67,35), cream, rgb8(215,228,204),
-            rgb8(107,142,83), rgb8(83,127,66), rgb8(44,70,37),
-            rgb8(132,160,101), cream, rgb8(198,151,58)};
-        if (view == ViewMode::Discover) return {
-            rgb8(126,38,53), rgb8(158,51,68), rgb8(244,232,205),
-            rgb8(91,28,39), cream, rgb8(235,205,211),
-            rgb8(184,69,86), rgb8(160,52,69), rgb8(91,28,39),
-            rgb8(203,92,108), cream, rgb8(211,144,55)};
-        if (view == ViewMode::LiveTV) return {
-            rgb8(35,91,105), rgb8(44,112,128), rgb8(244,232,205),
-            rgb8(24,68,80), cream, rgb8(207,229,232),
-            rgb8(57,135,151), rgb8(43,111,127), rgb8(23,66,77),
-            rgb8(91,159,172), cream, rgb8(211,144,55)};
-        if (view == ViewMode::WorldTV) return {
-            rgb8(139,72,24), rgb8(169,91,30), rgb8(244,232,205),
-            rgb8(96,48,16), cream, rgb8(239,211,183),
-            rgb8(202,116,38), rgb8(184,98,30), rgb8(100,49,15),
-            rgb8(232,154,78), cream, rgb8(218,127,43)};
-        if (view == ViewMode::Radio) return {
-            rgb8(112,38,88), rgb8(143,52,111), rgb8(244,232,205),
-            rgb8(78,25,61), cream, rgb8(232,199,222),
-            rgb8(170,72,137), rgb8(151,60,119), rgb8(78,25,61),
-            rgb8(199,111,167), cream, rgb8(222,151,70)};
-        if (view == ViewMode::Stream) return stream_palette_for(streamPlatform);
-        if (view == ViewMode::Studio) return {
-            rgb8(184,188,194), rgb8(207,211,216), rgb8(246,246,244),
-            rgb8(72,76,82), rgb8(31,33,37), rgb8(91,95,101),
-            rgb8(180,185,192), rgb8(194,199,206), rgb8(86,91,99),
-            rgb8(232,235,239), rgb8(28,30,34), rgb8(116,122,130)};
-        if (view == ViewMode::Games) return {
-            rgb8(35,55,88), rgb8(45,72,112), rgb8(244,232,205),
-            rgb8(24,38,62), cream, rgb8(205,217,232),
-            rgb8(67,96,141), rgb8(49,78,120), rgb8(24,39,64),
-            rgb8(93,122,164), cream, rgb8(211,144,55)};
-        if (view == ViewMode::P2P) return {
-            rgb8(225,233,240), rgb8(213,226,237), rgb8(248,250,252),
-            rgb8(85,122,150), rgb8(43,58,70), rgb8(101,122,138),
-            rgb8(91,133,157), rgb8(112,146,165), rgb8(77,100,117),
-            rgb8(176,194,203), rgb8(44,55,61), rgb8(91,133,157)};
-        if (view == ViewMode::Debug) return {
-            rgb8(41,40,48), rgb8(57,55,64), rgb8(78,75,83),
-            rgb8(22,21,26), rgb8(244,232,205), rgb8(194,187,177),
-            rgb8(86,82,91), rgb8(70,67,76), rgb8(27,26,32),
-            rgb8(102,97,108), rgb8(244,232,205), rgb8(199,126,58)};
-        // Search is the one native page whose main background remains Nougat cream.
+        (void)view;
+        // NOUGAT_V62_MEDIA_PLUS_TACTICAL_PALETTE
+        // One system-wide dark instrument-console family. Page identity survives
+        // through content, icons and state accents rather than unrelated skins.
         return {
-            rgb8(241,227,194), rgb8(236,216,179), rgb8(252,247,239),
-            rgb8(166,112,56), darkText, rgb8(124,95,71),
-            rgb8(202,158,62), rgb8(219,190,147), rgb8(144,91,37),
-            rgb8(238,210,168), rgb8(72,39,20), rgb8(191,122,46)};
+            rgb8(4,18,14), rgb8(6,28,20), rgb8(8,36,26),
+            rgb8(2,10,8), rgb8(225,239,232), rgb8(129,165,147),
+            rgb8(20,120,72), rgb8(10,72,44), rgb8(1,13,9),
+            rgb8(74,230,129), rgb8(231,245,236), rgb8(49,255,121)};
     }
 
 
@@ -3149,75 +3094,73 @@ public:
         return palette.buttonText;
     }
 
+    // NOUGAT_V62_TACTICAL_POLYGON
+    void draw_tactical_polygon(Drawable target, const Rect& r, unsigned long face,
+                               unsigned long border, int cut=8) {
+        if (r.w<=2 || r.h<=2) return;
+        cut=std::max(2,std::min(cut,std::min(r.w/3,r.h/2)));
+        XPoint pts[7]={{static_cast<short>(r.x+cut),static_cast<short>(r.y)},
+                       {static_cast<short>(r.x+r.w-1),static_cast<short>(r.y)},
+                       {static_cast<short>(r.x+r.w-1),static_cast<short>(r.y+r.h-cut-1)},
+                       {static_cast<short>(r.x+r.w-cut-1),static_cast<short>(r.y+r.h-1)},
+                       {static_cast<short>(r.x),static_cast<short>(r.y+r.h-1)},
+                       {static_cast<short>(r.x),static_cast<short>(r.y+cut)},
+                       {static_cast<short>(r.x+cut),static_cast<short>(r.y)}};
+        XSetForeground(d,gc,face); XFillPolygon(d,target,gc,pts,6,Convex,CoordModeOrigin);
+        XSetForeground(d,gc,border); XDrawLines(d,target,gc,pts,7,CoordModeOrigin);
+    }
+
+    // NOUGAT_V62_TACTICAL_OUTLINE
+    void outline_tactical_polygon(Drawable target, const Rect& r, unsigned long border, int cut=8) {
+        if (r.w<=2 || r.h<=2) return;
+        cut=std::max(2,std::min(cut,std::min(r.w/3,r.h/2)));
+        XPoint pts[7]={{static_cast<short>(r.x+cut),static_cast<short>(r.y)},
+                       {static_cast<short>(r.x+r.w-1),static_cast<short>(r.y)},
+                       {static_cast<short>(r.x+r.w-1),static_cast<short>(r.y+r.h-cut-1)},
+                       {static_cast<short>(r.x+r.w-cut-1),static_cast<short>(r.y+r.h-1)},
+                       {static_cast<short>(r.x),static_cast<short>(r.y+r.h-1)},
+                       {static_cast<short>(r.x),static_cast<short>(r.y+cut)},
+                       {static_cast<short>(r.x+cut),static_cast<short>(r.y)}};
+        XSetForeground(d,gc,border); XDrawLines(d,target,gc,pts,7,CoordModeOrigin);
+    }
+
     void draw_sheet_button_surface(Drawable target, const Rect& raw, const ViewPalette& palette,
                                    SheetControlState state) {
-        if (raw.w <= 3 || raw.h <= 5) return;
-        const Rect visual{raw.x + 2, raw.y + 1, std::max(1, raw.w - 4), std::max(1, raw.h - 4)};
-        const int radius = std::max(5, std::min(10, visual.h / 2));
-        Rect shadow1{visual.x, visual.y + 3, visual.w, visual.h};
-        fill_round(target, shadow1, radius, palette.buttonDark);
-        Rect shadow2{visual.x + 1, visual.y + 2, std::max(1, visual.w - 2), visual.h};
-        fill_round(target, shadow2, std::max(4, radius - 1), palette.border);
-
-        const unsigned long face = sheet_button_face(palette, state);
-        fill_round(target, visual, radius, face);
-        outline_round(target, visual, radius, palette.buttonDark);
-        // The surface lighting texture is sampled directly from the owner-approved
-        // UI sheet, with its hue replaced by the already-accepted page palette.
-        // This keeps the sheet's actual highlight/depth pattern instead of a flat approximation.
-        Rect textureArea{visual.x + 5, visual.y + 4, std::max(1, visual.w - 10), std::max(1, visual.h - 9)};
-        const unsigned long textureLight = state == SheetControlState::Pressed ? palette.button : palette.buttonLight;
-        draw_sheet_reference_texture(target, textureArea, palette.buttonDark, face, textureLight);
-
-        Rect bevel{visual.x + 1, visual.y + 1, std::max(1, visual.w - 2), std::max(1, visual.h - 2)};
-        outline_round(target, bevel, std::max(4, radius - 1),
-                      state == SheetControlState::Pressed ? palette.button : palette.buttonLight);
-        Rect seam{visual.x + 3, visual.y + 3, std::max(1, visual.w - 6), std::max(1, visual.h - 6)};
-        const bool searchCream = palette.background == rgb8(241, 227, 194);
-        const unsigned long seamInk = searchCream
-            ? (state == SheetControlState::Pressed ? rgb8(89, 48, 25) : rgb8(126, 72, 35))
-            : (state == SheetControlState::Pressed ? palette.button : palette.buttonLight);
-        outline_round_dashed(target, seam, std::max(3, radius - 3), seamInk, 2);
-
-        // Raised leather/nougat highlight and lower bevel from the sheet.
-        line(target, visual.x + radius, visual.y + 2,
-             visual.x + visual.w - radius - 1, visual.y + 2,
-             state == SheetControlState::Pressed ? palette.button : rgb8(255, 238, 205));
-        line(target, visual.x + radius, visual.y + visual.h - 2,
-             visual.x + visual.w - radius - 1, visual.y + visual.h - 2, palette.buttonDark);
+        // NOUGAT_V62_MEDIA_PLUS_LEAF_BUTTON
+        (void)palette;
+        if (raw.w<=4 || raw.h<=6) return;
+        const Rect visual{raw.x+2,raw.y+1,std::max(1,raw.w-4),std::max(1,raw.h-4)};
+        const unsigned long dark=rgb8(1,11,8);
+        const unsigned long face=state==SheetControlState::Pressed?rgb8(4,48,29):
+            state==SheetControlState::Disabled?rgb8(9,20,16):rgb8(4,28,20);
+        const unsigned long edge=state==SheetControlState::Disabled?rgb8(48,75,62):
+            state==SheetControlState::Hover?rgb8(112,255,159):
+            state==SheetControlState::Pressed?rgb8(62,226,117):rgb8(20,129,76);
+        draw_tactical_polygon(target,{visual.x+1,visual.y+3,visual.w,visual.h},dark,dark,8);
+        draw_tactical_polygon(target,visual,face,edge,8);
+        if (state==SheetControlState::Hover) {
+            Rect glow{visual.x-1,visual.y-1,visual.w+2,visual.h+2};
+            draw_tactical_polygon(target,glow,face,rgb8(55,210,107),9);
+            draw_tactical_polygon(target,visual,face,rgb8(132,255,173),8);
+        }
+        Rect inner{visual.x+4,visual.y+4,std::max(1,visual.w-8),std::max(1,visual.h-8)};
+        draw_tactical_polygon(target,inner,face,state==SheetControlState::Pressed?rgb8(36,147,82):rgb8(12,91,53),5);
+        line(target,visual.x+10,visual.y+2,visual.x+visual.w-7,visual.y+2,
+             state==SheetControlState::Disabled?rgb8(37,58,48):rgb8(84,225,132));
     }
 
     void draw_top_nav_tab_surface(Drawable target, const Rect& raw, const ViewPalette& palette,
                                   bool active, bool hover) {
-        if (raw.w <= 6 || raw.h <= 8) return;
-        const SheetControlState state = hover ? SheetControlState::Hover : SheetControlState::Normal;
-        const unsigned long face = sheet_button_face(palette, state);
-        const Rect body{raw.x + 1, raw.y + 1, std::max(1, raw.w - 2), std::max(1, raw.h - 3)};
-        const int radius = 5;
-
-        // Actual sheet tab construction: shallow square-rounded body, dark
-        // lower/right depth, bright inner bevel, and stitched/inset inner line.
-        Rect shadow{body.x + 1, body.y + 3, body.w, body.h};
-        fill_round(target, shadow, radius, palette.buttonDark);
-        fill_round(target, body, radius, face);
-        outline_round(target, body, radius, palette.buttonDark);
-
-        Rect textureArea{body.x + 4, body.y + 4, std::max(1, body.w - 8), std::max(1, body.h - 9)};
-        draw_sheet_reference_texture(target, textureArea, palette.buttonDark, face, palette.buttonLight);
-
-        Rect bevel{body.x + 2, body.y + 2, std::max(1, body.w - 4), std::max(1, body.h - 4)};
-        outline_round(target, bevel, 3, hover ? palette.button : palette.buttonLight);
-        Rect seam{body.x + 4, body.y + 4, std::max(1, body.w - 8), std::max(1, body.h - 8)};
-        const bool searchCream = palette.background == rgb8(241, 227, 194);
-        const unsigned long seamInk = searchCream ? rgb8(126, 72, 35) : palette.buttonLight;
-        outline_round_dashed(target, seam, 2, seamInk, 2);
-        line(target, body.x + 7, body.y + 2, body.x + body.w - 8, body.y + 2, rgb8(255, 241, 214));
-        line(target, body.x + 5, body.y + body.h - 2, body.x + body.w - 6, body.y + body.h - 2, palette.buttonDark);
-
-        // The active pointer is painted as a final overlay after the page body.
-        // That keeps the enlarged pointer visible below the taller global tabs
-        // instead of letting the page background/loading strip clip it away.
-        (void)active;
+        // NOUGAT_V62_MEDIA_PLUS_TOP_NAV
+        if (raw.w<=6 || raw.h<=8) return;
+        SheetControlState state=active?SheetControlState::Pressed:(hover?SheetControlState::Hover:SheetControlState::Normal);
+        draw_sheet_button_surface(target,raw,palette,state);
+        if (active) {
+            Rect hot{raw.x,raw.y,std::max(1,raw.w),std::max(1,raw.h-1)};
+            draw_tactical_polygon(target,hot,rgb8(5,39,24),rgb8(145,255,179),9);
+            Rect inner{hot.x+4,hot.y+4,std::max(1,hot.w-8),std::max(1,hot.h-8)};
+            draw_tactical_polygon(target,inner,rgb8(5,39,24),rgb8(45,179,94),5);
+        }
     }
 
     void draw_sheet_tab_surface(Drawable target, const Rect& raw, const ViewPalette& palette,
@@ -3252,18 +3195,13 @@ public:
     }
 
     void draw_sheet_panel_surface(Drawable target, const Rect& r, const ViewPalette& palette) {
-        if (r.w <= 2 || r.h <= 2) return;
-        Rect shadow{r.x, r.y + 4, r.w, r.h};
-        fill_round(target, shadow, 11, palette.buttonDark);
-        fill_round(target, r, 11, palette.panel);
-        outline_round(target, r, 11, palette.border);
-        Rect bevel{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
-        outline_round(target, bevel, 9, palette.buttonLight);
-        Rect seam{r.x + 5, r.y + 5, std::max(1, r.w - 10), std::max(1, r.h - 10)};
-        const unsigned long panelSeam = palette.background == rgb8(241, 227, 194)
-            ? rgb8(132, 78, 40) : palette.buttonLight;
-        outline_round_dashed(target, seam, 7, panelSeam, 3);
-        line(target, r.x + 12, r.y + 2, r.x + r.w - 13, r.y + 2, rgb8(255, 242, 217));
+        // NOUGAT_V62_MEDIA_PLUS_PANEL
+        (void)palette;
+        if (r.w<=3 || r.h<=3) return;
+        draw_tactical_polygon(target,{r.x+1,r.y+4,r.w,r.h},rgb8(1,9,7),rgb8(1,9,7),10);
+        draw_tactical_polygon(target,r,rgb8(3,20,15),rgb8(12,94,55),10);
+        Rect inner{r.x+4,r.y+4,std::max(1,r.w-8),std::max(1,r.h-8)};
+        draw_tactical_polygon(target,inner,rgb8(3,20,15),rgb8(8,54,35),6);
     }
 
     void draw_sheet_track(Drawable target, const Rect& track, unsigned long border,
@@ -3316,43 +3254,17 @@ public:
 
     void draw_sheet_status_circle(Drawable target, int x, int y, int diameter,
                                   unsigned long stateColor) {
-        // v0.0.39: all green/yellow/red states share one identical sheet-family
-        // indicator. Only the face color changes. Stitch spacing mirrors the
-        // fine 2-on/2-off seam rhythm used by the Search tab instead of the old
-        // chunky dashed XDrawArc ring.
-        diameter = std::max(16, diameter);
-        const unsigned long dark = rgb8(112, 70, 35);
-        const unsigned long shadow = rgb8(166, 125, 82);
-        const unsigned long light = rgb8(255, 239, 207);
-        const unsigned long stitch = rgb8(126, 72, 35);
-        fill_circle(target, x + 1, y + 3, diameter, shadow);
-        fill_circle(target, x, y, diameter, stateColor);
-        XSetForeground(d, gc, dark);
-        XSetLineAttributes(d,gc,1,LineSolid,CapRound,JoinRound);
-        XDrawArc(d, target, gc, x, y, diameter, diameter, 0, 360 * 64);
-        if (diameter > 8) {
-            XSetForeground(d, gc, light);
-            XDrawArc(d, target, gc, x + 2, y + 2, diameter - 4, diameter - 4, 35 * 64, 150 * 64);
-            const double cx=x+diameter/2.0;
-            const double cy=y+diameter/2.0;
-            const double radius=std::max(3.0,diameter/2.0-3.5);
-            const int stitches=std::max(10,static_cast<int>(2.0*3.14159265358979323846*radius/4.0));
-            XSetForeground(d,gc,stitch);
-            XSetLineAttributes(d,gc,1,LineSolid,CapRound,JoinRound);
-            for (int i=0;i<stitches;++i) {
-                const double angle=(2.0*3.14159265358979323846*i)/stitches;
-                const double tangent=angle+3.14159265358979323846/2.0;
-                const double px=cx+std::cos(angle)*radius;
-                const double py=cy+std::sin(angle)*radius;
-                const double half=0.75;
-                const int x1=static_cast<int>(std::lround(px-std::cos(tangent)*half));
-                const int y1=static_cast<int>(std::lround(py-std::sin(tangent)*half));
-                const int x2=static_cast<int>(std::lround(px+std::cos(tangent)*half));
-                const int y2=static_cast<int>(std::lround(py+std::sin(tangent)*half));
-                XDrawLine(d,target,gc,x1,y1,x2,y2);
-            }
+        // NOUGAT_V62_TACTICAL_STATUS_INDICATOR
+        diameter=std::max(14,diameter);
+        fill_circle(target,x+1,y+2,diameter,rgb8(0,7,5));
+        fill_circle(target,x,y,diameter,rgb8(3,24,17));
+        XSetForeground(d,gc,rgb8(19,113,67));
+        XDrawArc(d,target,gc,x,y,diameter,diameter,0,360*64);
+        if (diameter>6) {
+            fill_circle(target,x+3,y+3,diameter-6,stateColor);
+            XSetForeground(d,gc,rgb8(116,244,157));
+            XDrawArc(d,target,gc,x+3,y+3,diameter-6,diameter-6,35*64,140*64);
         }
-        XSetLineAttributes(d,gc,1,LineSolid,CapButt,JoinMiter);
     }
 
     void draw_sheet_checkbox(Drawable target, const Rect& box, bool checked, const ViewPalette& palette) {
@@ -3449,17 +3361,17 @@ public:
 
     void set_window_identity() {
         XClassHint classHint;
-        classHint.res_name = const_cast<char*>("nougat-media-suite");
-        classHint.res_class = const_cast<char*>("NougatMediaSuite");
+        classHint.res_name = const_cast<char*>("nougat-media-plus");
+        classHint.res_class = const_cast<char*>("NougatMediaPlus");
         XSetClassHint(d, win, &classHint);
 
         // GNOME Shell can associate a raw X11 window with the installed
-        // NougatMediaSuite.desktop entry through this stable application ID.
+        // NougatMediaPlus.desktop entry through this stable application ID.
         // This prevents the running application from falling back to the
         // generic gear icon when launched outside the desktop file.
         Atom gtkApplicationId = XInternAtom(d, "_GTK_APPLICATION_ID", False);
         Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
-        const char* appId = "com.elderredsoftworks.NougatMediaSuite";
+        const char* appId = "com.elderredsoftworks.NougatMediaPlus";
         XChangeProperty(d, win, gtkApplicationId, utf8, 8, PropModeReplace,
                         reinterpret_cast<const unsigned char*>(appId),
                         static_cast<int>(std::strlen(appId)));
@@ -3471,8 +3383,8 @@ public:
         Atom bamfDesktopFile = XInternAtom(d, "_BAMF_DESKTOP_FILE", False);
         const char* home = std::getenv("HOME");
         std::string desktopPath = home ? std::string(home) +
-            "/.local/share/applications/com.elderredsoftworks.NougatMediaSuite.desktop" :
-            "com.elderredsoftworks.NougatMediaSuite.desktop";
+            "/.local/share/applications/com.elderredsoftworks.NougatMediaPlus.desktop" :
+            "com.elderredsoftworks.NougatMediaPlus.desktop";
         XChangeProperty(d, win, bamfDesktopFile, utf8, 8, PropModeReplace,
                         reinterpret_cast<const unsigned char*>(desktopPath.c_str()),
                         static_cast<int>(desktopPath.size()));
@@ -3480,7 +3392,7 @@ public:
     }
 
     void set_window_title() {
-        const char* title = "Nougat Media Suite";
+        const char* title = "Nougat Media Plus";
         XStoreName(d, win, title);
         Atom netWmName = XInternAtom(d, "_NET_WM_NAME", False);
         Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
@@ -3560,7 +3472,7 @@ public:
         }
         if (mediaServer.persistent_enabled()) mediaServer.start();
         else mediaServer.refresh();
-        v53SystemStatus="Run Checks to inspect Nougat Media Suite."; // NOUGAT_V57_NO_CHILD_SAFE_SYSTEM
+        v53SystemStatus="Run Checks to inspect Nougat Media Plus."; // NOUGAT_V57_NO_CHILD_SAFE_SYSTEM
         if (const char* alertArea=std::getenv("NOUGAT_ALERT_AREA")) publicAlertArea=alertArea;
         liveTvChannels = tunerBackend.load_channels();
         liveTvPrograms = tunerBackend.load_guide();
@@ -3638,13 +3550,13 @@ public:
     }
 
     void draw_page_frame(Drawable target, ViewMode view) {
-        const Rect frame=page_content_frame(view);
-        const ViewPalette palette=palette_for(view);
-        const int outerRadius = page_uses_connected_square_frame(view) ? 0 : 10;
-        const int innerRadius = page_uses_connected_square_frame(view) ? 0 : 8;
-        outline_round(target,frame,outerRadius,palette.border);
-        Rect inner{frame.x+3,frame.y+3,std::max(1,frame.w-6),std::max(1,frame.h-6)};
-        outline_round_dashed(target,inner,innerRadius,palette.buttonLight,3);
+        // NOUGAT_V62_PAGE_FRAME_OUTLINE_ONLY
+        // This function is intentionally called after page content. It must NEVER
+        // fill the page rectangle or it erases every already-rendered tab/page.
+        const Rect frame=page_content_frame(view); (void)view;
+        outline_tactical_polygon(target,frame,rgb8(22,132,77),11);
+        Rect inner{frame.x+4,frame.y+4,std::max(1,frame.w-8),std::max(1,frame.h-8)};
+        outline_tactical_polygon(target,inner,rgb8(7,54,34),7);
     }
 
     int top_nav_left_bound() {
@@ -5354,11 +5266,11 @@ public:
     }
 
     void draw_top_bar(Drawable target) {
-        const unsigned long topText = rgb8(72, 39, 20);
-        const unsigned long divider = rgb8(174, 132, 87);
-        const unsigned long headerTan = rgb8(227, 204, 172);
+        const unsigned long topText = rgb8(218, 244, 228);
+        const unsigned long divider = rgb8(21, 135, 78);
+        const unsigned long headerTan = rgb8(2, 15, 11);
         fill(target, {0, 0, W, kTopBarH}, headerTan);
-        line(target, 0, 1, W, 1, rgb8(250, 235, 211));
+        line(target, 0, 1, W, 1, rgb8(66, 212, 118));
 
         const int brandY = (kTopBarH - nougat_media_suite_icon::kTopBarHeight) / 2;
         const int headerBaseline = kTopBarH / 2 + 5;
@@ -5367,7 +5279,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.61";
+        const std::string versionLabel = "v0.0.62";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -6371,7 +6283,7 @@ public:
         }
         sync_stream_platform_from_url();
         ytdlpStatus = std::string("Direct Watch: opening ") + stream_platform_name(streamPlatform) +
-                      " in Nougat Media Suite's native player...";
+                      " in Nougat Media Plus's native player...";
         redraw();
         start_ytdlp_play();
     }
@@ -12376,7 +12288,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.59";
+        input.app_version = "Nougat Media Plus v0.0.59";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -13135,13 +13047,13 @@ public:
     }
 
     std::string security_auth_key_path() const {
-        return home_dir() + "/.config/nougat-media-suite/security/abusech.key";
+        return home_dir() + "/.config/nougat-media-plus/security/abusech.key";
     }
     bool security_auth_key_configured() const {
         return exists_file(security_auth_key_path());
     }
     void save_security_auth_key(const std::string& key) {
-        const std::string configBase = home_dir() + "/.config/nougat-media-suite";
+        const std::string configBase = home_dir() + "/.config/nougat-media-plus";
         const std::string securityDir = configBase + "/security";
         mkdir((home_dir()+"/.config").c_str(),0755);
         mkdir(configBase.c_str(),0700);
@@ -16170,7 +16082,7 @@ public:
         draw_visible_vertical_scrollbar(target,discoverResultBox,discoverDetailsScroll,static_cast<int>(detail_lines.size()),visible_lines,palette);
         if (result.item.id.find("tmdb:") != 0U) {
             button_on(target, discoverOpenBtn,
-                      result.item.local_path.empty() ? "Open in Library" : "Play in Nougat Media Suite");
+                      result.item.local_path.empty() ? "Open in Library" : "Play in Nougat Media Plus");
         }
         if (result.item.local_path.empty() && has_availability &&
             availability.link.rfind("https://www.themoviedb.org/", 0U) == 0U) {
@@ -16198,7 +16110,7 @@ public:
         std::string error;
         p2p.prioritize_range(0,std::min<std::uint64_t>(16ULL*1024ULL*1024ULL,p2p.selected_file_size()));
         if (!p2pStream.start(error)) { p2pUiStatus=error; redraw(); return; }
-        p2pUiStatus="Streaming. Nougat Media Suite will prioritize pieces around playback and seeks.";
+        p2pUiStatus="Streaming. Nougat Media Plus will prioritize pieces around playback and seeks.";
         switch_view(ViewMode::VideoPlayer);
         if (!open_p2p_stream_location(p2pStream.url())) {
             p2pStream.stop();
@@ -16733,7 +16645,7 @@ public:
     void show_file_menu(int x, int y) {
         std::vector<MenuItem> items;
         items.push_back({"Open File", MenuAction::OpenFile, 0});
-        items.push_back({"Exit Nougat Media Suite", MenuAction::ExitApp, 0});
+        items.push_back({"Exit Nougat Media Plus", MenuAction::ExitApp, 0});
         show_menu(win, x, y, items);
     }
     void show_audio_menu(int x, int y) {
@@ -16990,6 +16902,25 @@ public:
         else close_context_menu();
     }
 
+
+    // NOUGAT_V62_ONE_SHOT_UI_AUDIO
+    void play_ui_one_shot(const std::string& filename) const {
+        const std::string path=exe_dir()+"/assets/sounds/"+filename;
+        if (!exists_file(path)) return;
+        std::thread([path](){
+            pid_t child=fork();
+            if (child==0) {
+                execlp("paplay","paplay",path.c_str(),static_cast<char*>(nullptr));
+                execlp("ffplay","ffplay","-nodisp","-autoexit","-loglevel","quiet",path.c_str(),static_cast<char*>(nullptr));
+                execlp("aplay","aplay","-q",path.c_str(),static_cast<char*>(nullptr));
+                _exit(127);
+            }
+            if (child>0) { int status=0; while (waitpid(child,&status,0)<0 && errno==EINTR) {} }
+        }).detach();
+    }
+    void play_ui_hover_sound() const { play_ui_one_shot("nougat-ui-hover.wav"); }
+    void play_ui_press_sound() const { play_ui_one_shot("nougat-ui-press.wav"); }
+
     bool pointer_crossed_hover_target(int old_x, int old_y, int new_x, int new_y) const {
         const Rect* targets[] = {
             &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&radioTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&debugTab,
@@ -17011,7 +16942,9 @@ public:
             &gamesGridBtn,&gamesListViewBtn // NOUGAT_V61_GAME_VIEW_HOVER_TARGETS
         };
         for (const Rect* target : targets) {
-            if (target->contains(old_x, old_y) != target->contains(new_x, new_y)) return true;
+            const bool was=target->contains(old_x,old_y);
+            const bool now=target->contains(new_x,new_y);
+            if (was!=now) { if (!was && now) play_ui_hover_sound(); return true; }
         }
         if (currentView == ViewMode::Library) {
             int oldRow = -1;
@@ -17171,7 +17104,35 @@ public:
         return true;
     }
 
+
+    bool point_on_ui_button(int x,int y) const {
+        const Rect* targets[] = {
+            &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&radioTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&debugTab,
+            &openBtn,&rewindBtn,&playBtn,&stopBtn,&forwardBtn,&fsBtn,
+            &libraryMoviesBtn,&libraryTvBtn,&libraryGridBtn,&libraryListViewBtn,&libraryAddFolderBtn,
+            &libraryUnlinkFolderBtn,&libraryRefreshBtn,&libraryBackBtn,
+            &discoverUsualTab,&discoverRandomTab,&discoverLocalMovieBtn,&discoverLocalTvBtn,&discoverLiveTvBtn,&discoverExternalMovieBtn,
+            &discoverExternalTvBtn,&discoverTmdbTestBtn,&discoverTmdbReplaceBtn,&discoverTmdbClearBtn,&discoverMyServicesBtn,
+            &serverStartBtn,&serverStopBtn,&serverRefreshBtn,
+            &debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugLogsBtn,&debugCopyBtn,
+            &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn,
+            &streamYoutubeTab,&streamVimeoTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab,
+            &ytdlpDownloadBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn,
+            &p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn,&p2pRemoveBtn,
+            &p2pSpeedBtn,&p2pSeedRulesBtn,&p2pQueueUpBtn,&p2pQueueDownBtn,&p2pReannounceBtn,&p2pRecheckBtn,&p2pPriorityBtn,
+            &liveTvGuideBtn,&liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvStopBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn,
+            &worldTvPlayBtn,&worldTvOfficialBtn,
+            &gamesLibraryBtn,&gamesSystemsBtn,&gamesAddBtn,&gamesControllersBtn,&gamesSettingsBtn,&gamesPlayBtn,&gamesRefreshBtn,
+            &gamesGridBtn,&gamesListViewBtn // NOUGAT_V61_GAME_VIEW_HOVER_TARGETS
+        };
+        for (const Rect* target : targets) if (target->contains(x,y)) return true;
+        for (const auto& entry : radioServiceTabs) if (entry.first.contains(x,y)) return true;
+        return false;
+    }
+
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
+        if (button==Button1 && target==win && point_on_ui_button(x,y)) play_ui_press_sound(); // NOUGAT_V62_PRESS_ON_ACTIVATION
+
         if (fixMatchVisible) { if (target==win) handle_fix_match_click(x,y,button); return; } // NOUGAT_V58_NATIVE_FIX_MATCH_INPUT
         if(target==fullscreenSeekWindow){
             if(button!=Button1) return;
@@ -17299,7 +17260,7 @@ public:
             items.push_back({"Delay -0.5s (earlier)", MenuAction::SubtitleDelayMinus, 0});
             items.push_back({"Delay +0.5s (later)", MenuAction::SubtitleDelayPlus, 0});
             items.push_back({"Reset Subtitle Delay", MenuAction::SubtitleDelayReset, 0});
-            items.push_back({"Exit Nougat Media Suite", MenuAction::ExitApp, 0});
+            items.push_back({"Exit Nougat Media Plus", MenuAction::ExitApp, 0});
             show_menu(win, 8, kTopBarH, items);
             return;
         }
@@ -18253,9 +18214,19 @@ public:
 };
 
 int main(int argc, char** argv) {
-    prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
+    if (argc > 1 && std::string(argv[1]) == "--v62-media-plus-ui-self-test") {
+        const bool brand=nougat_media_suite_icon::kTopBarWidth>180 && nougat_media_suite_icon::kTopBarHeight==40 && nougat_media_suite_icon::kIcon64Size==64;
+        const bool hoverSound=exists_file(exe_dir()+"/assets/sounds/nougat-ui-hover.wav");
+        const bool pressSound=exists_file(exe_dir()+"/assets/sounds/nougat-ui-press.wav");
+        const bool authority=exists_file(exe_dir()+"/assets/ui/NOUGAT_MEDIA_PLUS_UI_AUTHORITY.png");
+        if (!brand || !hoverSound || !pressSound || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.62 UI self-test FAIL.\n"); return 1; }
+        std::printf("Nougat Media Plus v0.0.62 UI self-test PASS: new lockup/icon data, UI authority, and one-shot sound assets are active.\n");
+        return 0;
+    }
+
+    prctl(PR_SET_NAME, "NougatMediaPlus", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.61\n");
+        printf("Nougat Media Plus v0.0.62\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {
@@ -18318,7 +18289,7 @@ int main(int argc, char** argv) {
                 sega_bin, sega_gen, sega_sms, sega_gg, zip_safe, dos_prince, dos_gta);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.49 Games PASS: USA/English/revision filtering, Sega ZIP recognition, and DOS ZIP package detection.\n");
+        std::printf("Nougat Media Plus v0.0.49 Games PASS: USA/English/revision filtering, Sega ZIP recognition, and DOS ZIP package detection.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v47-fullscreen-controls-self-test") {
@@ -18399,7 +18370,7 @@ int main(int argc, char** argv) {
         XSync(app.d,False);
         XClassHint hint{};
         const bool classOk=XGetClassHint(app.d,app.win,&hint)!=0 && hint.res_class &&
-                           std::string(hint.res_class)=="NougatMediaSuite";
+                           std::string(hint.res_class)=="NougatMediaPlus";
         if (hint.res_name) XFree(hint.res_name);
         if (hint.res_class) XFree(hint.res_class);
         auto prop=[&app](const char* name) {
@@ -18424,9 +18395,9 @@ int main(int argc, char** argv) {
                                              &actual,&fmt,&items,&after,&iconData)==Success &&
                           iconData && fmt==32 && items>=3;
         if (iconData) XFree(iconData);
-        const bool gtkOk=prop("_GTK_APPLICATION_ID")=="com.elderredsoftworks.NougatMediaSuite";
+        const bool gtkOk=prop("_GTK_APPLICATION_ID")=="com.elderredsoftworks.NougatMediaPlus";
         const std::string bamf=prop("_BAMF_DESKTOP_FILE");
-        const bool bamfOk=bamf.find("com.elderredsoftworks.NougatMediaSuite.desktop")!=std::string::npos;
+        const bool bamfOk=bamf.find("com.elderredsoftworks.NougatMediaPlus.desktop")!=std::string::npos;
         XDestroyWindow(app.d,app.win);
         XCloseDisplay(app.d);
         app.d=nullptr;
@@ -18469,10 +18440,10 @@ int main(int argc, char** argv) {
             !safe_zip_game_entry("/probe.nes") &&
             !safe_zip_game_entry("folder/readme.txt");
         if (grid_ok && games_layout_ok && world_tv_ok && formats_ok && zip_ok) {
-            printf("Nougat Media Suite v0.0.47 release self-test PASS\n");
+            printf("Nougat Media Plus v0.0.47 release self-test PASS\n");
             return 0;
         }
-        fprintf(stderr, "Nougat Media Suite v0.0.47 release self-test FAIL: grid=%d formats=%d zip=%d\n",
+        fprintf(stderr, "Nougat Media Plus v0.0.47 release self-test FAIL: grid=%d formats=%d zip=%d\n",
                 grid_ok ? 1 : 0, formats_ok ? 1 : 0, zip_ok ? 1 : 0);
         return 1;
     }
@@ -18508,7 +18479,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr,"Nougat v0.0.25 Discover dual-selection state FAIL.\n");
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.29 UI state PASS: provider quilts and dual Discover selectors.\n");
+        std::printf("Nougat Media Plus v0.0.29 UI state PASS: provider quilts and dual Discover selectors.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v28-ui-state-self-test") {
@@ -18552,7 +18523,7 @@ int main(int argc, char** argv) {
                 return 1;
             }
         }
-        std::printf("Nougat Media Suite v0.0.28 UI/artwork state PASS: palette, responsive grid, poster gate, metadata encoding.\n");
+        std::printf("Nougat Media Plus v0.0.28 UI/artwork state PASS: palette, responsive grid, poster gate, metadata encoding.\n");
         return 0;
     }
     if (argc > 3 && std::string(argv[1]) == "--discover-local-resolver-self-test") {
@@ -18570,7 +18541,7 @@ int main(int argc, char** argv) {
             watched.media_type = reddmedia::RecommendationMediaType::Television;
             std::string history_error;
             if (!app.recommendationEngine->record_started(watched,history_error)) {
-                std::fprintf(stderr,"Nougat Media Suite Discover resolver history setup FAIL: %s\n",history_error.c_str());
+                std::fprintf(stderr,"Nougat Media Plus Discover resolver history setup FAIL: %s\n",history_error.c_str());
                 return 1;
             }
         }
@@ -18578,10 +18549,10 @@ int main(int argc, char** argv) {
         std::string error;
         if (!app.resolve_discover_local_play_target(result,playable,error) ||
             playable.kind != reddmedia::LibraryNodeKind::Episode || playable.path != argv[3]) {
-            std::fprintf(stderr,"Nougat Media Suite Discover local-play resolver FAIL: %s\n",error.c_str());
+            std::fprintf(stderr,"Nougat Media Plus Discover local-play resolver FAIL: %s\n",error.c_str());
             return 1;
         }
-        std::printf("Nougat Media Suite Discover local-play resolver PASS: %s\n",playable.path.c_str());
+        std::printf("Nougat Media Plus Discover local-play resolver PASS: %s\n",playable.path.c_str());
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v29-tv-reliability-self-test") {
@@ -18654,7 +18625,7 @@ int main(int argc, char** argv) {
                          parse_ok, order_ok, series_ok, overlay_ok, natural_ok, vimeo_ok, art_ok);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.29 TV/UI reliability PASS: same-folder Up Next, 10-second overlay, natural fallback, Vimeo, and Home artwork.\n");
+        std::printf("Nougat Media Plus v0.0.29 TV/UI reliability PASS: same-folder Up Next, 10-second overlay, natural fallback, Vimeo, and Home artwork.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v30-ui-library-player-self-test") {
@@ -18735,7 +18706,7 @@ int main(int argc, char** argv) {
                 grid_ok, home_ratio_ok, nav_middle_ok, nav_first_ok, nav_last_ok, cache_ok);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.30 UI/Library/Player PASS: multi-row DVD grid, portrait Home posters, persistent cache, Previous/Next, and volume/panel polish contract.\n");
+        std::printf("Nougat Media Plus v0.0.30 UI/Library/Player PASS: multi-row DVD grid, portrait Home posters, persistent cache, Previous/Next, and volume/panel polish contract.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v31-ui-sheet-self-test") {
@@ -18759,7 +18730,7 @@ int main(int argc, char** argv) {
                 palette_ok, geometry_ok, state_ok, icon_ok);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.31 exact UI-sheet component PASS: page palettes retained; sheet buttons, tabs, fields, panels, tracks, knobs and checkboxes active.\n");
+        std::printf("Nougat Media Plus v0.0.31 exact UI-sheet component PASS: page palettes retained; sheet buttons, tabs, fields, panels, tracks, knobs and checkboxes active.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {
@@ -18767,12 +18738,12 @@ int main(int argc, char** argv) {
             exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf");
         std::vector<float> embedding;
         std::string error;
-        if (!engine.embed_document("Nougat Media Suite offline embedding validation", embedding, error) ||
+        if (!engine.embed_document("Nougat Media Plus offline embedding validation", embedding, error) ||
             embedding.empty()) {
-            std::fprintf(stderr, "Nougat Media Suite embedding model FAIL: %s\n", error.c_str());
+            std::fprintf(stderr, "Nougat Media Plus embedding model FAIL: %s\n", error.c_str());
             return 1;
         }
-        std::printf("Nougat Media Suite embedding model PASS: %zu dimensions%s.\n",
+        std::printf("Nougat Media Plus embedding model PASS: %zu dimensions%s.\n",
                     embedding.size(), engine.using_real_model() ? " (llama.cpp)" : " (test stub)");
         return 0;
     }
@@ -18795,7 +18766,7 @@ int main(int argc, char** argv) {
         std::string error;
         if (!engine.record_started(watched_movie, error) ||
             !engine.record_started(watched_tv, error)) {
-            std::fprintf(stderr, "Nougat Media Suite Discover AI FAIL: %s\n", error.c_str());
+            std::fprintf(stderr, "Nougat Media Plus Discover AI FAIL: %s\n", error.c_str());
             unlink(history_path.c_str());
             return 1;
         }
@@ -18821,14 +18792,14 @@ int main(int argc, char** argv) {
                 request.mode = mode;
                 reddmedia::RecommendationResult result;
                 if (!engine.recommend(request, local_items, result, error) || result.item.id.empty()) {
-                    std::fprintf(stderr, "Nougat Media Suite Discover AI FAIL: %s\n", error.c_str());
+                    std::fprintf(stderr, "Nougat Media Plus Discover AI FAIL: %s\n", error.c_str());
                     unlink(history_path.c_str());
                     return 1;
                 }
             }
         }
         unlink(history_path.c_str());
-        std::printf("Nougat Media Suite Discover AI PASS: Local Usual/Random Movie/TV.\n");
+        std::printf("Nougat Media Plus Discover AI PASS: Local Usual/Random Movie/TV.\n");
         return 0;
     }
     if (argc > 1 &&
@@ -18846,21 +18817,21 @@ int main(int argc, char** argv) {
             usleep(200000);
         }
         if (!ready) {
-            std::fprintf(stderr, "Nougat Media Suite integrated server lifecycle FAIL: startup timeout.\n");
+            std::fprintf(stderr, "Nougat Media Plus integrated server lifecycle FAIL: startup timeout.\n");
             server.stop();
             return 1;
         }
         if (std::string(argv[1]) == "--media-server-parent-death-hold") {
-            std::printf("Nougat Media Suite integrated server parent-death test READY.\n");
+            std::printf("Nougat Media Plus integrated server parent-death test READY.\n");
             std::fflush(stdout);
             while (true) pause();
         }
         server.stop();
         if (server.state() != reddmedia::MediaServerState::Stopped || server.probe_health() || server.owns_server()) {
-            std::fprintf(stderr, "Nougat Media Suite integrated server lifecycle FAIL: owned process tree or port 8096 survived explicit stop.\n");
+            std::fprintf(stderr, "Nougat Media Plus integrated server lifecycle FAIL: owned process tree or port 8096 survived explicit stop.\n");
             return 1;
         }
-        std::printf("Nougat Media Suite integrated server graceful shutdown PASS: owned process tree stopped and port 8096 released.\n");
+        std::printf("Nougat Media Plus integrated server graceful shutdown PASS: owned process tree stopped and port 8096 released.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v32-p2p-player-repair-self-test") {
@@ -18881,7 +18852,7 @@ int main(int argc, char** argv) {
                          search_palette?1:0, volume_geometry?1:0, p2p_controls?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.32 P2P/player repair PASS: Search seam contrast, seek-style volume geometry, Home fixed-header clipping/scrollbar contract, P2P controls and streaming scheduler contract active.\n");
+        std::printf("Nougat Media Plus v0.0.32 P2P/player repair PASS: Search seam contrast, seek-style volume geometry, Home fixed-header clipping/scrollbar contract, P2P controls and streaming scheduler contract active.\n");
         return 0;
     }
 
@@ -18918,7 +18889,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "Nougat v0.0.34 tuner discovery self-test FAIL.\n");
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.34 integration PASS: clipped page/nav viewports, Library containment, P2P Plus controls, persistent-server architecture and Live TV discovery scaffold active.\n");
+        std::printf("Nougat Media Plus v0.0.34 integration PASS: clipped page/nav viewports, Library containment, P2P Plus controls, persistent-server architecture and Live TV discovery scaffold active.\n");
         return 0;
     }
 
@@ -18954,7 +18925,7 @@ int main(int argc, char** argv) {
                 navLeft?1:0,navRightPreserved?1:0,topTabs?1:0,sheetPlayerControls?1:0,liveHeaderClear?1:0,discoverLive?1:0,homeGeometry?1:0,frames?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.34 UI polish PASS: actual-sheet top tabs/seek/volume, left-shifted nav, direct scroll dragging, connected affected-page corners, Live TV header spacing, Discover Live TV/TMDb labels, and fixed Home card geometry active.\n");
+        std::printf("Nougat Media Plus v0.0.34 UI polish PASS: actual-sheet top tabs/seek/volume, left-shifted nav, direct scroll dragging, connected affected-page corners, Live TV header spacing, Discover Live TV/TMDb labels, and fixed Home card geometry active.\n");
         return 0;
     }
 
@@ -19009,7 +18980,7 @@ int main(int argc, char** argv) {
                 studioPalette?1:0, playerControlsCentered?1:0, scanGuard?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.35 cleanup PASS: app-wide top-row alignment, centered full-width player controls, one-row Library scrolling, exact-sheet VOLUME sprite geometry, full Debug/player action scrolling, enlarged active-tab pointer, Gold Studio identity, and native ATSC scan guard active.\n");
+        std::printf("Nougat Media Plus v0.0.35 cleanup PASS: app-wide top-row alignment, centered full-width player controls, one-row Library scrolling, exact-sheet VOLUME sprite geometry, full Debug/player action scrolling, enlarged active-tab pointer, Gold Studio identity, and native ATSC scan guard active.\n");
         return 0;
     }
 
@@ -19048,7 +19019,7 @@ int main(int argc, char** argv) {
                 headerStatus?1:0, searchFilter?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.36 PASS: Library Search row/filter, collection-ready navigation geometry, exact-sheet seek sprite geometry with side times, stable player stack, and sheet-style server status geometry active.\n");
+        std::printf("Nougat Media Plus v0.0.36 PASS: Library Search row/filter, collection-ready navigation geometry, exact-sheet seek sprite geometry with side times, stable player stack, and sheet-style server status geometry active.\n");
         return 0;
     }
 
@@ -19103,7 +19074,7 @@ int main(int argc, char** argv) {
                 librarySearchButton?1:0,librarySearchWorks?1:0,guideCache?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.37 PASS: System controls, working Library Search+button, full-size Continue Watching, wide exact-sheet seek, stitched Server state, logical Live TV controls, native ATSC Watch Live input, and persisted guide model active.\n");
+        std::printf("Nougat Media Plus v0.0.37 PASS: System controls, working Library Search+button, full-size Continue Watching, wide exact-sheet seek, stitched Server state, logical Live TV controls, native ATSC Watch Live input, and persisted guide model active.\n");
         return 0;
     }
 
@@ -19176,13 +19147,13 @@ int main(int argc, char** argv) {
                 liveProgram?1:0,lastChannel?1:0,liveTvTransportNav?1:0,liveTvTransportBounds?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.38 PASS: exact-sheet player/progress geometry, Guide-default Live TV, Live TV tuner administration, real network-logo mapping, remembered channel, Live TV Previous/Next channel navigation, Library title wrapping, unified player activity state, and Live TV program identity active.\n");
+        std::printf("Nougat Media Plus v0.0.38 PASS: exact-sheet player/progress geometry, Guide-default Live TV, Live TV tuner administration, real network-logo mapping, remembered channel, Live TV Previous/Next channel navigation, Library title wrapping, unified player activity state, and Live TV program identity active.\n");
         return 0;
     }
 
     if (argc > 1 && std::string(argv[1]) == "--v39-diagnostics-live-tv-self-test") {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.41";
+        input.app_version = "Nougat Media Plus v0.0.41";
         input.executable_path = argv[0];
         input.project_root = "/tmp";
         input.current_view = "Debug";
@@ -19257,7 +19228,7 @@ int main(int argc, char** argv) {
                 metadataInfo?1:0, searchIdle?1:0, liveMux?1:0, queuedInfo?1:0, structured?1:0, saneOverall?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.41 PASS: subsystem diagnostics, sane severity, Search idle state, Live TV awareness, guide coverage, and current-multiplex harvesting active.\n");
+        std::printf("Nougat Media Plus v0.0.41 PASS: subsystem diagnostics, sane severity, Search idle state, Live TV awareness, guide coverage, and current-multiplex harvesting active.\n");
         return 0;
     }
 
@@ -19298,16 +19269,16 @@ int main(int argc, char** argv) {
             app.nougatArchivePanelTab.x+app.nougatArchivePanelTab.w<=app.W-28 &&
             app.nougatNetworkButtonsScrollX>0 && app.nougatPanelButtonsScrollX>0;
         if (!geometry || !hoverTransitions || !activityTimer || !imdb || !networkNarrow) {
-            std::printf("Nougat Media Suite v0.0.41 Library/IMDb repair FAIL\n");
+            std::printf("Nougat Media Plus v0.0.41 Library/IMDb repair FAIL\n");
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.41 Library/IMDb repair PASS: Movies+TV multi-row adaptive grid, card-hover clearing, three-second player activity, exact IMDb links, and narrow Network scrolling active\n");
+        std::printf("Nougat Media Plus v0.0.41 Library/IMDb repair PASS: Movies+TV multi-row adaptive grid, card-hover clearing, three-second player activity, exact IMDb links, and narrow Network scrolling active\n");
         return 0;
     }
 
     if (argc > 1 && std::string(argv[1]) == "--v39-diagnostic-self-test") {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.41";
+        input.app_version = "Nougat Media Plus v0.0.41";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = "System";
@@ -19328,7 +19299,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "Nougat v0.0.40 diagnostic self-test FAIL. search-idle=%d metadata-info=%d\n", search_idle?1:0, metadata_info?1:0);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.41 diagnostic self-test PASS: Search idle is Not Tested and optional metadata is Information.\n");
+        std::printf("Nougat Media Plus v0.0.41 diagnostic self-test PASS: Search idle is Not Tested and optional metadata is Information.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v39-channel-logo-audit") {
@@ -19350,7 +19321,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "Nougat v0.0.40 channel-logo audit FAIL: %d/%zu channel(s) do not resolve to real artwork.\n", unresolved, channels.size());
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.41 channel-logo audit PASS: %zu/%zu persisted channels resolve to real artwork.\n", channels.size(), channels.size());
+        std::printf("Nougat Media Plus v0.0.41 channel-logo audit PASS: %zu/%zu persisted channels resolve to real artwork.\n", channels.size(), channels.size());
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
@@ -19363,12 +19334,12 @@ int main(int argc, char** argv) {
         reddmedia::JellyfinApiClient client;
         std::string error;
         if (!client.initialize(error) || !client.add_media_folder(argv[2], error)) {
-            fprintf(stderr, "Nougat Media Suite native library API FAIL: %s\n", error.c_str());
+            fprintf(stderr, "Nougat Media Plus native library API FAIL: %s\n", error.c_str());
             return 1;
         }
         std::vector<reddmedia::LibraryVideo> videos;
         if (!client.wait_for_video_in_folder(argv[2], videos, error, 180)) {
-            fprintf(stderr, "Nougat Media Suite native library API FAIL: %s\n", error.c_str());
+            fprintf(stderr, "Nougat Media Plus native library API FAIL: %s\n", error.c_str());
             return 1;
         }
         bool found = false;
@@ -19379,10 +19350,10 @@ int main(int argc, char** argv) {
             }
         }
         if (!found) {
-            fprintf(stderr, "Nougat Media Suite native library API FAIL: indexed test video not found.\n");
+            fprintf(stderr, "Nougat Media Plus native library API FAIL: indexed test video not found.\n");
             return 1;
         }
-        printf("Nougat Media Suite native library API PASS: %zu video(s) cataloged for direct playback.\n", videos.size());
+        printf("Nougat Media Plus native library API PASS: %zu video(s) cataloged for direct playback.\n", videos.size());
         return 0;
     }
     App app;

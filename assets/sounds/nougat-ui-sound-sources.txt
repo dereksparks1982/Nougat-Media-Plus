@@ -1,0 +1,15 @@
+Nougat Media Plus v0.0.62 UI sound provenance
+
+Hover one-shot
+Source: https://pixabay.com/sound-effects/technology-ui-click-deep-512211/
+Original uploaded file: soundshelfstudio-ui-click-deep-512211.mp3
+Project asset: nougat-ui-hover.wav
+License/source terms: Pixabay Content License as supplied by Pixabay.
+Behavior: one playback when the pointer enters an enabled button; no loop.
+
+Press one-shot
+Source: https://freesound.org/people/el_boss/sounds/677861/
+Original uploaded file: 677861__el_boss__ui-button-click.wav
+Project asset: nougat-ui-press.wav
+License/source terms: CC0 as supplied by Freesound for sound 677861.
+Behavior: one playback when an enabled button activates; no loop.
