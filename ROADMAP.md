@@ -1,3 +1,11 @@
+## v0.0.59 accepted - Studio File Tools and Player Seek Repair
+
+- Completed live Target MiB / Pieces / Recommended recalculation in File Splitter.
+- Completed fixed first-open Splitter column layout.
+- Completed separate Studio File Assembler with manifest-or-part discovery, verification, reconstruction, and final integrity checking.
+- Completed stable shared seek-thumb rendering across the entire track in windowed and fullscreen playback.
+- v0.0.59 is owner accepted; subsequent work begins from this frozen baseline.
+
 ## v0.0.53 planned - Rejected v0.0.51 carry-forward and alerts
 
 The complete mandatory carry-forward list is recorded in `docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_CARRY_FORWARD.md`. v0.0.52 is Radio-only. v0.0.53 resumes the deferred File Splitter, HDHomeRun/full-scan, World TV, Games/emulator/artwork, navigation, identity, overlay/process, LAN and related repair work. AMBER Alerts and the broader official public-warning integration are also assigned to v0.0.53.

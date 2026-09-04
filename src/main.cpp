@@ -2045,7 +2045,8 @@ public:
     // File Splitter is a button inside Studio > Tools. Its complete workflow
     // stays inside Nougat with no external chooser/question/info dialogs.
     StudioPanel studioPanel = StudioPanel::Tools;
-    Rect studioToolsTab, studioFileSplitterToolBtn, studioBackToToolsBtn;
+    bool studioAssemblerMode = false; // NOUGAT_V59_SEPARATE_FILE_ASSEMBLER
+    Rect studioToolsTab, studioFileSplitterToolBtn, studioFileAssemblerToolBtn, studioBackToToolsBtn;
     Rect studioAnalyzeBtn, studioUseSuggestionBtn, studioSplitFileBtn;
     Rect studioReassembleBtn, studioVerifyBtn, studioStopBtn;
     Rect studioSourceRect, studioOutputRect, studioNameRect, studioPiecesRect, studioTargetSizeRect; // NOUGAT_V58_SPLITTER_TARGET
@@ -2337,7 +2338,7 @@ public:
     std::vector<reddmedia::security::RuntimeComponentAdvisory> securityInventory;
     std::vector<reddmedia::alerts::PublicSafetyAlert> activePublicAlerts;
     std::string publicAlertArea;
-    std::string v53SystemStatus = "v0.0.58 episode identity repair candidate ready for owner testing.";
+    std::string v53SystemStatus = "v0.0.59 episode identity repair candidate ready for owner testing.";
     reddmedia::NougatTunerBackend tunerBackend;
     reddmedia::HdHomeRunProvider hdHomeRunProvider;
     std::shared_ptr<LiveTvScanUiState> liveTvScanState = std::make_shared<LiveTvScanUiState>();
@@ -2395,7 +2396,7 @@ public:
     int liveTvGuideTuner = -1;
     bool liveTvScanBusy = false;
     bool liveTvGuideBusy = false;
-    std::string studioStatus = "File Splitter / Reassembler ready.";
+    std::string studioStatus = "Studio file tools ready.";
     std::shared_ptr<reddmedia::JellyfinApiClient> libraryClient =
         std::make_shared<reddmedia::JellyfinApiClient>();
     std::shared_ptr<reddmedia::LibraryMetadataCache> libraryMetadataCache =
@@ -3539,7 +3540,7 @@ public:
             serverState->state = mediaServer.state();
             serverState->owned = mediaServer.owns_server();
         }
-        // v0.0.58 repair: seed Movies/Home without blocking the X11 event loop.
+        // v0.0.59 repair: seed Movies/Home without blocking the X11 event loop.
         // Cached Library nodes become visible immediately; workers finish off the UI thread.
         libraryMediaType = reddmedia::LibraryMediaType::Movies;
         libraryTypeChosen = true;
@@ -5331,7 +5332,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.58";
+        const std::string versionLabel = "v0.0.59";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -5757,95 +5758,35 @@ public:
     }
 
     void draw_sheet_seek_frame(Drawable target, int percent) {
-        if (!sheetSeekLoaded || sheetSeekRgba.empty() || seekRect.w <= 0) return;
+        // NOUGAT_V59_STABLE_SEARCH_STYLE_SEEK_THUMB
+        // The old 101-frame seek sprite stretched its embedded moving knob.
+        // Depending on position it could bulge, flatten, crescent, or briefly
+        // become normal again. The track is now stable and the thumb is one
+        // independent complete round Nougat control for every playback position.
+        if (seekRect.w <= 0 || seekRect.h <= 0) return;
         percent = std::max(0, std::min(100, percent));
-        const std::size_t frameBytes = static_cast<std::size_t>(kSheetSeekW) * kSheetSeekSpriteH * 4U;
-        const unsigned char* source = sheetSeekRgba.data() + frameBytes * static_cast<std::size_t>(percent);
-        const int targetW = seekRect.w;
-        const int targetH = kSheetSeekSpriteH;
-        const int cap = 14;
-        const int knobHalf = 17;
-        const int srcTrackStart = cap;
-        const int srcTrackEnd = kSheetSeekW - cap;
-        const int dstTrackStart = cap;
-        const int dstTrackEnd = std::max(cap + 1, targetW - cap);
-        const int srcCenter = srcTrackStart + (srcTrackEnd - srcTrackStart) * percent / 100;
-        const int dstCenter = dstTrackStart + (dstTrackEnd - dstTrackStart) * percent / 100;
 
-        std::vector<unsigned char> scaled(static_cast<std::size_t>(targetW) * targetH * 4U, 0U);
-        const auto map_segment = [](int x, int dl, int dr, int sl, int sr) -> double {
-            if (dr <= dl || sr <= sl) return static_cast<double>(sl);
-            const double t=static_cast<double>(x-dl)/static_cast<double>(dr-dl);
-            return static_cast<double>(sl)+t*static_cast<double>(sr-sl);
-        };
-        for (int y=0; y<targetH; ++y) {
-            for (int x=0; x<targetW; ++x) {
-                double sx=0.0;
-                // NOUGAT_V58_SEEK_EDGE_KNOB: preserve the complete round knob at both ends.
-                if (x >= dstCenter-knobHalf && x <= dstCenter+knobHalf) sx = static_cast<double>(srcCenter + (x-dstCenter));
-                else if (x < cap) sx = static_cast<double>(std::min(kSheetSeekW-1,x));
-                else if (x >= targetW-cap) sx = static_cast<double>(std::max(0,kSheetSeekW-(targetW-x)));
-                else if (x < dstCenter-knobHalf) {
-                    sx = map_segment(x,cap,std::max(cap+1,dstCenter-knobHalf),cap,std::max(cap+1,srcCenter-knobHalf));
-                } else {
-                    sx = map_segment(x,std::min(targetW-cap-1,dstCenter+knobHalf),targetW-cap,
-                                     std::min(kSheetSeekW-cap-1,srcCenter+knobHalf),kSheetSeekW-cap);
-                }
-                sx=std::max(0.0,std::min(static_cast<double>(kSheetSeekW-1),sx));
-                const int sx0=static_cast<int>(std::floor(sx));
-                const int sx1=std::min(kSheetSeekW-1,sx0+1);
-                const double frac=sx-static_cast<double>(sx0);
-                const std::size_t si0=(static_cast<std::size_t>(y)*kSheetSeekW+static_cast<std::size_t>(sx0))*4U;
-                const std::size_t si1=(static_cast<std::size_t>(y)*kSheetSeekW+static_cast<std::size_t>(sx1))*4U;
-                const std::size_t di=(static_cast<std::size_t>(y)*targetW+static_cast<std::size_t>(x))*4U;
-                for (std::size_t channel=0;channel<4U;++channel) {
-                    const double value=static_cast<double>(source[si0+channel])*(1.0-frac)+static_cast<double>(source[si1+channel])*frac;
-                    scaled[di+channel]=static_cast<unsigned char>(std::lround(std::max(0.0,std::min(255.0,value))));
-                }
-            }
-        }
+        const unsigned long caramel = rgb8(170,91,24);
+        const unsigned long caramelLight = rgb8(218,156,82);
+        const unsigned long creamTrack = rgb8(247,236,217);
+        const unsigned long trackBorder = rgb8(153,91,35);
 
-        const int spriteY = seekRect.y - (targetH - kSheetSeekH) / 2;
-        XImage* image = XGetImage(d, target, seekRect.x, spriteY,
-                                  static_cast<unsigned>(targetW), static_cast<unsigned>(targetH),
-                                  AllPlanes, ZPixmap);
-        if (!image) return;
-        Visual* visual = DefaultVisual(d, screen);
-        // Preserve the literal RGBA sheet artwork, including the stitched edge
-        // and antialiasing, by compositing it onto the already-painted quilt.
-        // Rows 23-32 are the separate pale underside crop-shadow region, not
-        // the stitched progress-bar body. Leave those rows transparent so the
-        // quilt continues directly beneath the approved component without
-        // changing any of the retained sheet pixels in rows 0-22.
-        // NOUGAT_V39_FULL_SHEET_SEEK_SPRITE_VISIBILITY
-        // Render all 33 rows of the exact approved seek sprite.
-        // Transparent pixels remain transparent over the existing player background.
-        // No extra colour, strip, fill, shadow band, or texture is added below the seek bar.
-        const int compositeH = targetH;
-        for (int y=0; y<compositeH; ++y) {
-            for (int x=0; x<targetW; ++x) {
-                const std::size_t i=(static_cast<std::size_t>(y)*targetW+static_cast<std::size_t>(x))*4U;
-                const unsigned a=scaled[i+3U];
-                if (a==0U) continue;
-                // NOUGAT_V39_SEEK_ALPHA_SILHOUETTE_V7
-                // The seek asset now carries the exact visible sheet RGB with a cleaned
-                // alpha silhouette. Do not crop fixed rows here; the asset alpha alone
-                // decides which pixels belong to the control and which are background.
-                const unsigned long dst=XGetPixel(image,x,y);
-                const unsigned char dr=visual_mask_to_component(dst,visual->red_mask);
-                const unsigned char dg=visual_mask_to_component(dst,visual->green_mask);
-                const unsigned char db=visual_mask_to_component(dst,visual->blue_mask);
-                const auto blend=[a](unsigned char src,unsigned char bg) {
-                    return static_cast<unsigned char>((static_cast<unsigned>(src)*a + static_cast<unsigned>(bg)*(255U-a) + 127U)/255U);
-                };
-                XPutPixel(image,x,y,visual_pixel(blend(scaled[i],dr),blend(scaled[i+1U],dg),blend(scaled[i+2U],db)));
-            }
-        }
-        if (compositeH > 0) {
-            XPutImage(d,target,gc,image,0,0,seekRect.x,spriteY,
-                      static_cast<unsigned>(targetW),static_cast<unsigned>(compositeH));
-        }
-        XDestroyImage(image);
+        draw_sheet_track(target, seekRect, trackBorder, creamTrack, rgb8(255,246,227));
+
+        const int knobD = 26;
+        const int travelStart = seekRect.x + knobD / 2;
+        const int travelEnd = std::max(travelStart, seekRect.x + seekRect.w - knobD / 2);
+        const int centerX = travelStart +
+            static_cast<int>((static_cast<long long>(travelEnd - travelStart) * percent) / 100LL);
+
+        const int fillRight = std::max(seekRect.x, centerX);
+        const int filledW = std::max(0, std::min(seekRect.w, fillRight - seekRect.x));
+        if (filledW > 0)
+            draw_sheet_track_fill(target, seekRect, filledW, trackBorder, caramel, caramelLight);
+
+        const ViewPalette searchPalette = palette_for(ViewMode::Nougat);
+        draw_sheet_knob(target, centerX, seekRect.y + seekRect.h / 2, knobD,
+                        searchPalette.buttonDark, searchPalette.button, searchPalette.buttonLight);
     }
 
     bool load_sheet_progress_frames() {
@@ -9708,10 +9649,57 @@ public:
         return std::strtoll(value.c_str(), nullptr, 10) > 0;
     }
 
+    void studio_recalculate_target_live() {
+        // NOUGAT_V59_SPLITTER_LIVE_TARGET_RECALC
+        if (!studio_positive_integer(studioTargetMiBText)) {
+            studioSuggestedPieces = 0;
+            studioSuggestedApproxBytes = 0;
+            studioStatus = "Target MiB must be a positive whole number.";
+            return;
+        }
+        const long long targetMiB = std::strtoll(studioTargetMiBText.c_str(), nullptr, 10);
+        if (targetMiB <= 0 ||
+            targetMiB > std::numeric_limits<long long>::max() / (1024LL * 1024LL)) return;
+
+        const long long targetBytes = targetMiB * 1024LL * 1024LL;
+        const long long payload = studioEstimatedPayloadBytes > 0
+            ? studioEstimatedPayloadBytes : studioSourceBytes;
+
+        if (payload > 0) {
+            const long long count64 = std::max(1LL, (payload + targetBytes - 1LL) / targetBytes);
+            studioSuggestedPieces = static_cast<int>(
+                std::min<long long>(count64, std::numeric_limits<int>::max()));
+            studioSuggestedApproxBytes =
+                (payload + static_cast<long long>(studioSuggestedPieces) - 1LL) /
+                static_cast<long long>(studioSuggestedPieces);
+
+            // Editing Target MiB resets a previous manual Pieces override.
+            // A later Pieces edit becomes the new owner override.
+            studioPiecesText = std::to_string(studioSuggestedPieces);
+            studioPiecesUserEdited = false;
+        }
+
+        if (targetMiB > 476)
+            studioStatus = "Recalculated. Target exceeds 476 MiB, so Split is blocked until Target MiB is reduced.";
+        else if (payload > 0)
+            studioStatus = "Target updated. Pieces and recommendation recalculated immediately.";
+        else
+            studioStatus = "Target updated. Select or analyze a source to calculate Pieces.";
+    }
+
     static bool studio_manifest_path(const std::string& value) {
         const std::string lower = lower_copy(value);
         return lower.size() >= 15U &&
                lower.rfind(".zip.parts.json") == lower.size() - 15U;
+    }
+
+    static bool studio_split_part_path(const std::string& value) {
+        const std::string lower = lower_copy(basename_only(value));
+        const std::size_t marker = lower.rfind(".zip.");
+        if (marker == std::string::npos || marker + 5U >= lower.size()) return false;
+        for (std::size_t i = marker + 5U; i < lower.size(); ++i)
+            if (!std::isdigit(static_cast<unsigned char>(lower[i]))) return false;
+        return true;
     }
 
     void studio_source_edited() {
@@ -9734,7 +9722,7 @@ public:
         } else if (studioInputFocus == 4) {
             studioPiecesUserEdited = true;
         } else if (studioInputFocus == 5) {
-            studioAnalyzedSourcePath.clear(); studioSourceEditMs=now_ms();
+            studio_recalculate_target_live();
         }
     }
 
@@ -9747,7 +9735,7 @@ public:
             redraw();
             return;
         }
-        if (studioInputFocus == 4 &&
+        if ((studioInputFocus == 4 || studioInputFocus == 5) &&
             !std::all_of(clip.begin(), clip.end(), [](unsigned char c){ return std::isdigit(c) != 0; })) {
             studioStatus = "Pieces accepts whole numbers only.";
             redraw();
@@ -9778,7 +9766,7 @@ public:
         if (studioInputFocus <= 0) return;
         if (ks == XK_Escape) { studioInputFocus=0; studioInputSelectAll=false; redraw(); return; }
         if (ks == XK_Tab) {
-            studioInputFocus = studioInputFocus % 4 + 1;
+            studioInputFocus = studioAssemblerMode ? (studioInputFocus == 1 ? 2 : 1) : (studioInputFocus % 5 + 1);
             studioInputSelectAll = false;
             redraw();
             return;
@@ -9954,8 +9942,7 @@ public:
                 redraw(); return;
             }
             if (!studio_positive_integer(studioTargetMiBText)) { studioStatus="Target MiB must be a positive whole number."; redraw(); return; }
-            if (std::atoi(studioTargetMiBText.c_str())>476) { studioStatus="Target MiB must be 476 or less to remain below the 500 MB upload ceiling."; redraw(); return; }
-            args.insert(args.end(),{"analyze",studioSourcePath,"--target-piece-mib",studioTargetMiBText}); // NOUGAT_V58_SPLITTER_ANALYZE_TARGET
+            args.insert(args.end(),{"analyze",studioSourcePath,"--target-piece-mib",studioTargetMiBText}); // NOUGAT_V59_SPLITTER_ANALYZE_ANY_POSITIVE_TARGET
             studioStatus = "Analyzing source and calculating a professional piece recommendation...";
         } else if (action == "split") {
             if (studioSourcePath.empty() || studioOutputPath.empty() || studioOutputName.empty() ||
@@ -9973,20 +9960,22 @@ public:
                                     "--pieces",studioPiecesText,"--max-piece-mib",studioTargetMiBText}); // NOUGAT_V58_SPLITTER_ENFORCE_MAX
             studioStatus = "Preparing split operation...";
         } else if (action == "verify") {
-            if (studioSourcePath.empty() || !studio_manifest_path(studioSourcePath)) {
-                studioStatus = "Verify needs a .zip.parts.json manifest in Source / Manifest.";
+            if (studioSourcePath.empty() ||
+                (!studio_manifest_path(studioSourcePath) && !studio_split_part_path(studioSourcePath))) {
+                studioStatus = "Verify needs a Nougat parts manifest or one numbered split part.";
                 redraw(); return;
             }
             args.insert(args.end(),{"verify",studioSourcePath});
             studioStatus = "Verifying split pieces...";
         } else if (action == "reassemble") {
-            if (studioSourcePath.empty() || !studio_manifest_path(studioSourcePath)) {
-                studioStatus = "Reassemble needs a .zip.parts.json manifest in Source / Manifest.";
+            if (studioSourcePath.empty() ||
+                (!studio_manifest_path(studioSourcePath) && !studio_split_part_path(studioSourcePath))) {
+                studioStatus = "Assemble needs a Nougat parts manifest or one numbered split part.";
                 redraw(); return;
             }
             args.insert(args.end(),{"reassemble",studioSourcePath});
             if (!studioOutputPath.empty()) args.insert(args.end(),{"--output",studioOutputPath});
-            studioStatus = "Preparing verified reassembly...";
+            studioStatus = "Discovering parts and preparing verified assembly...";
         } else return;
         (void)spawn_studio_worker(args,action);
     }
@@ -10062,7 +10051,7 @@ public:
 
     void maybe_auto_analyze_studio_source() {
         if (fullscreen || currentView!=ViewMode::Studio || studioPanel!=StudioPanel::FileSplitter ||
-            studioJobRunning || studioSourcePath.empty() || studio_manifest_path(studioSourcePath) ||
+            studioAssemblerMode || studioJobRunning || studioSourcePath.empty() || studio_manifest_path(studioSourcePath) ||
             studioAnalyzedSourcePath==studioSourcePath || studioSourceEditMs<=0) return;
         if (now_ms()-studioSourceEditMs<650LL) return;
         start_studio_splitter_action("analyze");
@@ -10080,7 +10069,11 @@ public:
 
     bool studio_browser_file_allowed(const std::filesystem::path& path) const {
         if (studioBrowserPurpose == StudioBrowserPurpose::SourceFile) return true;
-        if (studioBrowserPurpose == StudioBrowserPurpose::SourceZipManifest) return studio_zip_or_manifest_path(path);
+        if (studioBrowserPurpose == StudioBrowserPurpose::SourceZipManifest) {
+            if (studioAssemblerMode)
+                return studio_manifest_path(path.string()) || studio_split_part_path(path.string());
+            return studio_zip_or_manifest_path(path);
+        }
         return false;
     }
 
@@ -10150,7 +10143,7 @@ public:
         switch (studioBrowserPurpose) {
             case StudioBrowserPurpose::SourceFile: return "ADD FILE";
             case StudioBrowserPurpose::SourceFolder: return "ADD FOLDER";
-            case StudioBrowserPurpose::SourceZipManifest: return "ADD ZIP / PARTS MANIFEST";
+            case StudioBrowserPurpose::SourceZipManifest: return studioAssemblerMode ? "ADD MANIFEST / SPLIT PART" : "ADD ZIP / PARTS MANIFEST";
             case StudioBrowserPurpose::OutputFolder: return "CHOOSE DOWNLOAD LOCATION";
             case StudioBrowserPurpose::Inactive: break;
         }
@@ -10189,9 +10182,11 @@ public:
         }
         studioSourcePath = studioBrowserSelectedPath;
         studio_source_edited();
-        studioStatus = studio_manifest_path(studioSourcePath)
-            ? "Parts manifest selected and ready to verify or reassemble."
-            : "Source selected. Nougat is analyzing it now.";
+        studioStatus = studioAssemblerMode
+            ? "Assembler input selected. Nougat will discover and verify the complete part set."
+            : (studio_manifest_path(studioSourcePath)
+                ? "Parts manifest selected."
+                : "Source selected. Nougat is analyzing it now.");
         close_studio_browser();
     }
 
@@ -10231,15 +10226,24 @@ public:
         if (studioPanel==StudioPanel::Tools) {
             if (studioFileSplitterToolBtn.contains(x,y)) {
                 studioPanel=StudioPanel::FileSplitter;
+                studioAssemblerMode=false;
                 studioInputFocus=0;
                 studioInputSelectAll=false;
-                studioStatus="Paste a source path. Nougat will automatically suggest the piece count.";
+                studioStatus="Paste a source path. Target MiB and Pieces stay linked until you manually override Pieces.";
+                redraw();
+            } else if (studioFileAssemblerToolBtn.contains(x,y)) {
+                studioPanel=StudioPanel::FileSplitter;
+                studioAssemblerMode=true;
+                studioInputFocus=0;
+                studioInputSelectAll=false;
+                studioStatus="Choose a parts manifest or any numbered split part. Nougat will discover the complete set.";
                 redraw();
             }
             return;
         }
         if (studioBackToToolsBtn.contains(x,y)) {
             studioPanel=StudioPanel::Tools;
+            studioAssemblerMode=false;
             studioInputFocus=0;
             studioInputSelectAll=false;
             redraw(); return;
@@ -10264,9 +10268,13 @@ public:
             } else studioStatus="Analyze a source first to get a recommendation.";
             redraw(); return;
         }
+        if (studioAssemblerMode) {
+            if (studioReassembleBtn.contains(x,y)) { start_studio_splitter_action("reassemble"); return; }
+            if (studioVerifyBtn.contains(x,y)) { start_studio_splitter_action("verify"); return; }
+            if (studioStopBtn.contains(x,y)) { stop_studio_job(); return; }
+            return;
+        }
         if (studioSplitFileBtn.contains(x,y)) { start_studio_splitter_action("split"); return; }
-        if (studioReassembleBtn.contains(x,y)) { start_studio_splitter_action("reassemble"); return; }
-        if (studioVerifyBtn.contains(x,y)) { start_studio_splitter_action("verify"); return; }
         if (studioStopBtn.contains(x,y)) { stop_studio_job(); return; }
     }
 
@@ -12108,7 +12116,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.58";
+        input.app_version = "Nougat Media Suite v0.0.59";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -14794,20 +14802,84 @@ public:
             text(target,panel.x+18,panel.y+28,"TOOLS",palette.text);
             text(target,panel.x+18,panel.y+52,
                  "Silver Screen tools live here. Open a tool with its button; tools are not separate tabs.",palette.muted);
-            studioFileSplitterToolBtn={panel.x+18,panel.y+78,std::min(220,std::max(150,panel.w-36)),38};
+            const int studioToolGap=12;
+            const int studioToolW=std::min(220,std::max(150,(panel.w-48)/2));
+            studioFileSplitterToolBtn={panel.x+18,panel.y+78,studioToolW,38};
+            studioFileAssemblerToolBtn={panel.x+18+studioToolW+studioToolGap,panel.y+78,studioToolW,38};
             button_on(target,studioFileSplitterToolBtn,"File Splitter");
+            button_on(target,studioFileAssemblerToolBtn,"File Assembler");
             text(target,panel.x+18,panel.y+140,
-                 "Split huge files, folders, and ZIPs into verified pieces, then verify or reassemble them later.",palette.text);
+                 "File Splitter creates verified parts. File Assembler restores a complete verified original.",palette.text);
             text(target,panel.x+18,panel.y+164,
-                 "No popups. Built-in browsing, download location, recommendations, progress, and results stay inside Nougat.",palette.muted);
+                 "Assembler accepts a manifest or any numbered part, discovers the rest, rebuilds, and SHA-256 verifies the result.",palette.muted);
             return;
         }
 
         studioBackToToolsBtn={panel.x+panel.w-150,panel.y+12,132,30};
         button_on(target,studioBackToToolsBtn,"Back to Tools");
-        text(target,panel.x+18,panel.y+28,"FILE SPLITTER",palette.text);
+        text(target,panel.x+18,panel.y+28,studioAssemblerMode?"FILE ASSEMBLER":"FILE SPLITTER",palette.text);
         text(target,panel.x+18,panel.y+52,
-             "Add a file, folder, ZIP/manifest, or paste a path. Nougat suggests a balanced piece count automatically.",palette.muted);
+             studioAssemblerMode
+                ? "Choose a manifest or any numbered part. Nougat discovers, verifies, rebuilds, and SHA-256 checks the original."
+                : "Add a file, folder, ZIP/manifest, or paste a path. Target MiB and Pieces recalculate together.",palette.muted);
+
+        if (studioAssemblerMode) {
+            // NOUGAT_V59_SEPARATE_FILE_ASSEMBLER_PANEL
+            studioAddFileBtn={}; studioAddFolderBtn={}; studioNameRect={};
+            studioPiecesRect={}; studioTargetSizeRect={};
+            studioAnalyzeBtn={}; studioUseSuggestionBtn={}; studioSplitFileBtn={};
+
+            int ay=panel.y+82;
+            const int fieldH=30;
+            const int labelW=146;
+            const int fieldX=panel.x+18+labelW;
+            const int right=panel.x+panel.w-18;
+
+            text(target,panel.x+18,ay+20,"Manifest / Part",palette.text);
+            studioSourceRect={fieldX,ay,std::max(150,right-fieldX-190),fieldH};
+            fill(target,studioSourceRect,palette.field);
+            outline(target,studioSourceRect,studioInputFocus==1?palette.accent:palette.border);
+            text(target,studioSourceRect.x+8,studioSourceRect.y+20,
+                 head_to_width(studioSourcePath,studioSourceRect.w-16),palette.text);
+            studioAddZipManifestBtn={right-178,ay,178,fieldH};
+            button_on(target,studioAddZipManifestBtn,"Choose Manifest / Part");
+
+            ay+=44;
+            text(target,panel.x+18,ay+20,"Output Folder",palette.text);
+            studioOutputRect={fieldX,ay,std::max(150,right-fieldX-170),fieldH};
+            fill(target,studioOutputRect,palette.field);
+            outline(target,studioOutputRect,studioInputFocus==2?palette.accent:palette.border);
+            text(target,studioOutputRect.x+8,studioOutputRect.y+20,
+                 head_to_width(studioOutputPath,studioOutputRect.w-16),palette.text);
+            studioChooseLocationBtn={right-158,ay,158,fieldH};
+            button_on(target,studioChooseLocationBtn,"Choose Location");
+
+            ay+=58;
+            const int gap=10;
+            const int buttonW=std::max(120,std::min(180,(panel.w-36-gap*2)/3));
+            int bx=panel.x+18;
+            studioReassembleBtn={bx,ay,buttonW,34}; bx+=buttonW+gap;
+            studioVerifyBtn={bx,ay,buttonW,34}; bx+=buttonW+gap;
+            studioStopBtn={bx,ay,buttonW,34};
+            button_on(target,studioReassembleBtn,"Assemble");
+            button_on(target,studioVerifyBtn,"Verify Parts");
+            button_on(target,studioStopBtn,"Stop");
+
+            ay+=52;
+            Rect progress{panel.x+18,ay,std::max(100,panel.w-36),22};
+            fill_round(target,progress,7,palette.field);
+            outline_round(target,progress,7,palette.border);
+            if (studioProgress>0) {
+                Rect done=progress;
+                done.w=std::max(1,progress.w*std::min(100,studioProgress)/100);
+                fill_round(target,done,7,palette.accent);
+            }
+            text(target,panel.x+18,ay+45,head_to_width(studioStatus,panel.w-36),palette.text);
+            if (!studioLastResult.empty())
+                text(target,panel.x+18,ay+68,
+                     head_to_width("Result: "+studioLastResult,panel.w-36),palette.muted);
+            return;
+        }
 
         const int labelW=138;
         const int fieldX=panel.x+18+labelW;
@@ -14853,26 +14925,40 @@ public:
         draw_field("Output Name",studioNameRect,studioOutputName,3,"Automatically filled from the source",fullFieldW);
         y+=38;
 
-        text(target,panel.x+18,y+20,"Pieces",palette.text);
-        studioPiecesRect={fieldX,y,110,fieldH};
+        // NOUGAT_V59_SPLITTER_FIXED_COLUMNS
+        const int piecesLabelX=panel.x+18;
+        const int piecesFieldX=panel.x+78;
+        const int targetLabelX=panel.x+176;
+        const int targetFieldX=panel.x+258;
+        const int recommendationX=panel.x+372;
+
+        text(target,piecesLabelX,y+20,"Pieces",palette.text);
+        studioPiecesRect={piecesFieldX,y,76,fieldH};
         fill(target,studioPiecesRect,palette.field);
         outline(target,studioPiecesRect,studioInputFocus==4?palette.accent:palette.border);
         text(target,studioPiecesRect.x+8,studioPiecesRect.y+20,studioPiecesText,palette.text);
         if (studioInputFocus==4 && studioInputSelectAll && !studioPiecesText.empty())
             outline(target,{studioPiecesRect.x+3,studioPiecesRect.y+3,studioPiecesRect.w-6,studioPiecesRect.h-6},palette.selection);
-        text(target,studioPiecesRect.x+124,y+20,"Target MiB",palette.text);
-        studioTargetSizeRect={studioPiecesRect.x+204,y,92,fieldH};
+
+        text(target,targetLabelX,y+20,"Target MiB",palette.text);
+        studioTargetSizeRect={targetFieldX,y,92,fieldH};
         fill(target,studioTargetSizeRect,palette.field);
         outline(target,studioTargetSizeRect,studioInputFocus==5?palette.accent:palette.border);
         text(target,studioTargetSizeRect.x+8,studioTargetSizeRect.y+20,studioTargetMiBText,palette.text);
         if (studioInputFocus==5 && studioInputSelectAll && !studioTargetMiBText.empty())
             outline(target,{studioTargetSizeRect.x+3,studioTargetSizeRect.y+3,studioTargetSizeRect.w-6,studioTargetSizeRect.h-6},palette.selection);
+
         if (studioSuggestedPieces>0) {
             std::string suggestion="Recommended: "+std::to_string(studioSuggestedPieces)+" pieces";
-            if (studioSuggestedApproxBytes>0) suggestion += "  |  about "+format_bytes(studioSuggestedApproxBytes)+" each";
-            text(target,studioTargetSizeRect.x+108,y+20,head_to_width(suggestion,std::max(80,panel.x+panel.w-studioTargetSizeRect.x-126)),palette.muted); // NOUGAT_V58_SPLITTER_TARGET_UI
+            if (studioSuggestedApproxBytes>0)
+                suggestion += "  |  about "+format_bytes(studioSuggestedApproxBytes)+" each";
+            if (studio_positive_integer(studioTargetMiBText) &&
+                std::strtoll(studioTargetMiBText.c_str(),nullptr,10)>476)
+                suggestion += "  |  Split blocked above 476 MiB";
+            text(target,recommendationX,y+20,
+                 head_to_width(suggestion,std::max(80,panel.x+panel.w-recommendationX-18)),palette.muted);
         } else {
-            text(target,studioPiecesRect.x+160,y+20,"Recommendation appears automatically after source analysis.",palette.muted);
+            text(target,recommendationX,y+20,"Recommended: waiting for source analysis",palette.muted);
         }
         y+=42;
 
@@ -14884,19 +14970,17 @@ public:
         }
 
         const int gap=8;
-        const int buttonW=std::max(100,std::min(138,(panel.w-36-gap*5)/6));
+        const int buttonW=std::max(100,std::min(150,(panel.w-36-gap*3)/4));
         int bx=panel.x+18;
         studioAnalyzeBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
         studioUseSuggestionBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
         studioSplitFileBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
-        studioReassembleBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
-        studioVerifyBtn={bx,y,buttonW,32}; bx+=buttonW+gap;
         studioStopBtn={bx,y,buttonW,32};
+        studioReassembleBtn={};
+        studioVerifyBtn={};
         button_on(target,studioAnalyzeBtn,"Analyze");
         button_on(target,studioUseSuggestionBtn,"Use Suggestion");
         button_on(target,studioSplitFileBtn,"Split");
-        button_on(target,studioReassembleBtn,"Reassemble");
-        button_on(target,studioVerifyBtn,"Verify");
         button_on(target,studioStopBtn,studioJobRunning?"Stop":"Stop");
         y+=46;
 
@@ -17513,7 +17597,7 @@ public:
 int main(int argc, char** argv) {
     prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.58\n");
+        printf("Nougat Media Suite v0.0.59\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

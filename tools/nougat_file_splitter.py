@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from pathlib import Path, PurePosixPath
 import shutil
 import signal
@@ -156,15 +157,17 @@ def source_size(source: Path) -> int:
 
 
 def recommend_piece_count(size: int, target_piece_bytes: int = DEFAULT_TARGET_PIECE_BYTES) -> int:
+    # NOUGAT_V59_EXACT_TARGET_FORMULA
     if size <= 0:
         return 1
-    target = max(64 * 1024 * 1024, target_piece_bytes)
-    return max(2, math.ceil(size / target))
+    target = max(1, target_piece_bytes)
+    return max(1, math.ceil(size / target))
 
 
 def analyze(source: Path, target_piece_bytes: int = DEFAULT_TARGET_PIECE_BYTES) -> dict:
-    if target_piece_bytes <= 0 or target_piece_bytes > MAX_UPLOAD_SAFE_PIECE_BYTES:
-        raise SplitterError("Target piece size must be between 1 and 476 MiB so every part stays below 500 MB.")
+    # Analysis follows any positive owner-entered target. Split still blocks >476 MiB.
+    if target_piece_bytes <= 0:
+        raise SplitterError("Target piece size must be a positive value.")
     source = source.expanduser().resolve()
     mode = source_mode(source)
     size = source_size(source)
@@ -278,6 +281,33 @@ def minimum_count(size: int, max_piece_bytes: int) -> int:
     return max(1, math.ceil(size / max_piece_bytes))
 
 
+def resolve_manifest_input(value: Path) -> Path:
+    # NOUGAT_V59_FILE_ASSEMBLER_DISCOVERY
+    candidate = value.expanduser().resolve()
+    if candidate.name.lower().endswith(".zip.parts.json"):
+        if not candidate.is_file():
+            raise SplitterError(f"Manifest does not exist: {candidate}")
+        return candidate
+
+    match = re.match(r"^(?P<base>.+\.zip)\.(?P<index>[0-9]+)$", candidate.name, re.IGNORECASE)
+    if not match:
+        raise SplitterError("Choose a Nougat .zip.parts.json manifest or one numbered .zip.### part.")
+
+    manifest = candidate.parent / f"{match.group('base')}.parts.json"
+    if not manifest.is_file():
+        raise SplitterError(
+            f"Could not discover the matching parts manifest beside {candidate.name}: {manifest.name}"
+        )
+
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    names = {str(part.get("name", "")) for part in data.get("parts", [])}
+    if candidate.name not in names:
+        raise SplitterError(f"The selected split part is not listed by {manifest.name}.")
+
+    status(f"Discovered manifest from split part: {manifest.name}")
+    return manifest
+
+
 def load_manifest(manifest: Path) -> dict:
     data = json.loads(manifest.read_text(encoding="utf-8"))
     fmt = data.get("format")
@@ -290,7 +320,7 @@ def load_manifest(manifest: Path) -> dict:
 
 def verify(manifest: Path, reporter: ProgressReporter | None = None,
            quiet_final: bool = False) -> dict:
-    manifest = manifest.expanduser().resolve()
+    manifest = resolve_manifest_input(manifest)
     data = load_manifest(manifest)
     total_expected = sum(max(0, int(part.get("size", 0))) for part in data["parts"])
     total = 0
@@ -507,7 +537,7 @@ def extract_packaged(zip_path: Path, destination: Path,
 
 
 def reassemble(manifest: Path, output: Path | None = None) -> Path:
-    manifest = manifest.expanduser().resolve()
+    manifest = resolve_manifest_input(manifest)
     data = load_manifest(manifest)
     status("Verifying split pieces before reassembly...")
     verify(manifest, ProgressReporter(0, 30), quiet_final=True)

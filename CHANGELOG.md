@@ -1,3 +1,15 @@
+# v0.0.59 - OWNER-ACCEPTED RELEASE
+
+- File Splitter live Target MiB recalculation with exact target-based piece recommendations.
+- Manual Pieces override behavior and no silent Target MiB clamping.
+- Split remains blocked above the 476 MiB safe ceiling while analysis/recommendation remains available.
+- Fixed first-open Pieces / Target MiB / Recommended layout.
+- Separate Studio File Assembler tool.
+- Manifest-or-numbered-part discovery, part verification, reconstruction, and final integrity verification.
+- Reassemble / Verify removed from File Splitter itself.
+- Stable independent round Player seek thumb across the full playback range in normal and fullscreen modes.
+- Root executable advanced to Nougat_Media_Suite_v59.
+
 # v0.0.58 - OWNER-ACCEPTED RELEASE
 
 - Cache-first Home/Library startup and Continue Watching persistence/path repair.

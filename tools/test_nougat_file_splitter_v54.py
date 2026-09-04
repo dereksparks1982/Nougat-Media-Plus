@@ -62,10 +62,11 @@ def main() -> int:
         tiny.write_bytes(b"nougat" * 100)
         result = run("analyze", str(tiny))
         require(result.returncode == 0, f"small analyze failed: {result.stdout}")
-        require("SUGGESTED_PIECES 2" in result.stdout, f"small sources should default to 2 pieces: {result.stdout}")
+        require("SUGGESTED_PIECES 1" in result.stdout,
+                f"small-source recommendation must use ceil(payload/target): {result.stdout}")
         too_large = run("analyze", str(tiny), "--target-piece-mib", "477")
-        require(too_large.returncode != 0 and "476 MiB" in too_large.stdout,
-                f"oversize target should be rejected: {too_large.stdout}")
+        require(too_large.returncode == 0 and "SUGGESTED_PIECES 1" in too_large.stdout,
+                f"oversize Target MiB must still recalculate during analysis: {too_large.stdout}")
 
         # Exact streaming file split, verify, and reassemble.
         original = root / "original.bin"
@@ -88,8 +89,13 @@ def main() -> int:
         require(result.returncode == 0 and "VERIFY PASS" in result.stdout,
                 f"standalone verify failed: {result.stdout}")
 
+        first_part = out / data["parts"][0]["name"]
+        result = run("verify", str(first_part))
+        require(result.returncode == 0 and "VERIFY PASS" in result.stdout and "Discovered manifest" in result.stdout,
+                f"numbered-part manifest discovery failed: {result.stdout}")
+
         restored_dir = root / "restored"
-        result = run("reassemble", str(manifest), "--output", str(restored_dir))
+        result = run("reassemble", str(first_part), "--output", str(restored_dir))
         require(result.returncode == 0 and "VERIFY PASS" in result.stdout,
                 f"reassemble failed: {result.stdout}")
         restored = restored_dir / original.name
@@ -140,7 +146,7 @@ def main() -> int:
             require(not list(cancel_out.glob("cancel-test.zip.[0-9][0-9][0-9]")),
                     "cancelled operation left split parts behind")
 
-    print("PASS: v0.0.54 professional File Splitter engine contracts")
+    print("PASS: v0.0.59 File Splitter + File Assembler engine contracts")
     return 0
 
 

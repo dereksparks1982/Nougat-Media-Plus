@@ -19,13 +19,30 @@ Nougat's **Cellular Lab** extends the receiver architecture into an isolated pri
 
 Games provides a unified game library and emulator front end with persistent ROM folders, ZIP-contained game discovery, system recognition, artwork, controller support, automatic emulator selection, emulator runtime management, and support for legally redistributable bundled test and homebrew content while users provide their own commercial game dumps and required firmware or BIOS. v0.0.57 groups the Games library into persistent collapsible console sections so each system remains independently manageable.
 
-Studio provides Nougat media-production tools including the professional in-app File Splitter for source analysis, piece recommendations, splitting, verification, and reassembly. Nougat also includes a Jellyfin-backed media server foundation, network media access architecture for phones, tablets, laptops, televisions, browsers, and other clients, operation without mandatory cloud accounts or mandatory cloud relays, diagnostic and system-status tools, hardware reporting, security scanning foundations, expandable service integrations, and infrastructure designed so new media, tuner, receiver, emulator, networking, privacy, and hardware capabilities can be added without replacing the rest of the suite. v0.0.57 also advances persistent Fix Match metadata correction, World TV source recovery, the unified professional Radio interface, collapsible Games system organization, and system reliability while preserving the existing Nougat architecture.
+Studio provides Nougat media-production tools including the professional in-app File Splitter for source analysis, live Target MiB and piece recommendations, and verified splitting, plus the separate File Assembler for discovering split sets from a manifest or numbered part, verifying completeness/order/hashes, rebuilding the original, and validating the final SHA-256. Nougat also includes a Jellyfin-backed media server foundation, network media access architecture for phones, tablets, laptops, televisions, browsers, and other clients, operation without mandatory cloud accounts or mandatory cloud relays, diagnostic and system-status tools, hardware reporting, security scanning foundations, expandable service integrations, and infrastructure designed so new media, tuner, receiver, emulator, networking, privacy, and hardware capabilities can be added without replacing the rest of the suite. v0.0.57 also advances persistent Fix Match metadata correction, World TV source recovery, the unified professional Radio interface, collapsible Games system organization, and system reliability while preserving the existing Nougat architecture.
 
 Nougat's local-network media architecture now includes a Nougat-branded background Web Player for browsers and other LAN devices, with Jellyfin retained as hidden backend/catalog infrastructure. Local browser access is designed to keep working without a mandatory cloud account, cloud relay, or Internet connection. The GitHub repository also preserves the complete runnable Nougat project tree, including bundled emulator runtimes, Xenia, Jellyfin, AI, security components, source, assets, tools, and other required project dependencies, with oversized files stored through Git LFS rather than omitted.
 
 The interface uses Nougat Media Suite branding throughout the application, desktop launchers, executable identity, window identity, and system integration, with the approved Nougat N artwork and the suite-wide cream, caramel, chocolate, and feature-specific visual design.
 
 v0.0.58 advances Nougat's cache-first Home and Continue Watching behavior, artwork and metadata recovery, preferred Live TV tuner handling, guide reliability, universal Radio receiver architecture, Cellular Lab foundation, Studio File Splitter sizing, GNOME application identity, diagnostics, and shared interface reliability while preserving the established Player, Library, World TV, Search, Crawler, P2P, Games, media-server, Web Player, privacy, security, and network-media architecture.
+
+## v0.0.59 - File Assembler, Live Splitter Recalculation, and Stable Player Seek Control
+
+Nougat Media Suite v0.0.59 is the **owner-accepted release** and frozen baseline for the next build.
+
+- Makes **Target MiB** live in File Splitter: valid numeric edits immediately recalculate Pieces, Recommended count, and estimated size per piece.
+- Uses `ceil(payload_bytes / target_bytes)` for the target recommendation.
+- A later manual **Pieces** edit becomes the owner override; editing Target MiB again makes the target authoritative.
+- Allows targets above the safe upload ceiling to recalculate without silently changing the owner's typed value, while blocking Split above **476 MiB**.
+- Repairs the first-open Splitter layout with reserved **Pieces | Target MiB | Recommended** columns so text cannot overlap.
+- Adds **File Assembler** as its own **Studio -> Tools** entry beside File Splitter.
+- Removes Reassemble and Verify from the File Splitter workflow itself.
+- File Assembler accepts either the `.zip.parts.json` manifest or any numbered `.zip.###` split part and automatically discovers the matching set.
+- Verifies part completeness, ordering, and recorded hashes before reconstruction and verifies the final reconstructed payload/original afterward.
+- Replaces the deforming moving seek sprite with one stable independent round Nougat/Search-style seek thumb.
+- Keeps the seek thumb fully formed throughout playback, including **0%, intermediate positions, 100%, windowed playback, and fullscreen**.
+- Advances the active root executable to **Nougat_Media_Suite_v59**.
 
 ## v0.0.58 - Reliability, Tuner Preference, Native Fix Match, Radio Expansion, and Studio Repair
 
