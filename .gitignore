@@ -10,7 +10,6 @@
 /*.tgz
 /*.7z
 /*.rar
-
 # Old component transfer/package archives
 /components/*.zip
 /components/*.tar
@@ -18,16 +17,44 @@
 /components/*.tgz
 /components/*.7z
 /components/*.rar
-
 # Changed-files packaging artifacts anywhere
 **/*CHANGED_FILES*.zip
 **/*CHANGED_FILES*.tar
 **/*CHANGED_FILES*.tar.gz
-
 # Local Nougat repair/rejection backup directories must never be committed
 /.nougat-v*-backup-*/
 /.nougat-v*-rejected-backup-*/
 /.nougat-v*-full-repair-backup-*/
-
 # Reproducible third-party Drone source checkouts (see components/drone/DRONE_STACK_LOCK.json)
 components/drone/vendor/
+# NOUGAT_PROJECT_ROOT_HYGIENE
+# Build output belongs outside the project tree.
+/build/
+/build-*/
+/build_*/
+/cmake-build-*/
+# Historical build/repair debris does not belong in the active project.
+/.nougat-v*-backup-*
+/.nougat-v*-build-backup-*
+/.nougat-v*-prebuild-backup-*
+/.nougat-v*-rejected-backup-*
+/.nougat-v*-full-repair-backup-*
+# README.md is the one canonical root README.
+/README_V*.txt
+/README.md.before-*
+# Patch-package records belong in archives/build records, not project root.
+/NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_*.json
+# Accidental root scratch files.
+/tmp.txt
+/main
+# Generated Python bytecode.
+__pycache__/
+*.py[cod]
+# Accidental wxWidgets table generated in project root.
+/unictabl.inc
+# Nougat repository hygiene
+/build*/
+/repair_payload/
+**/__pycache__/
+**/*.pyc
+**/*.pyo

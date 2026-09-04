@@ -40,6 +40,10 @@ Optional external recommendations and watch-provider information use The Movie D
 
 Search may use the system Python standard library, SQLite FTS5, curl, and a separately installed local Tor service. These system components are not relicensed by Nougat Media Suite.
 
+## Mesen Community Edition
+
+Nougat Media Suite bundles the pinned Mesen Community Edition 2.2.1 Linux x64 runtime for NES, SNES, Game Boy, Game Boy Color, and Game Boy Advance emulation inside Nougat's native emulator host. MesenCE is GPL-3.0 licensed. The preserved license is `licenses/games/MESENCE_GPL-3.0.txt`. MesenCE remains separately licensed upstream software and is not relicensed under Nougat's PolyForm license.
+
 ## Distribution rule
 
 When a release bundles a third-party binary, source tree, model, or artwork asset, the release package must carry the corresponding notices/license material required by that exact artifact. If a component is merely a system dependency, its installed package continues under the terms supplied by its distributor/upstream project.

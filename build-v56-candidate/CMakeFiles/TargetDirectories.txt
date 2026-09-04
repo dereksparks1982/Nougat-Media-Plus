@@ -1,4 +1,0 @@
-/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/build-v56-candidate/CMakeFiles/Nougat_Media_Suite_v56.dir
-/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/build-v56-candidate/CMakeFiles/nougat_web_service_v55.dir
-/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/build-v56-candidate/CMakeFiles/edit_cache.dir
-/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/build-v56-candidate/CMakeFiles/rebuild_cache.dir

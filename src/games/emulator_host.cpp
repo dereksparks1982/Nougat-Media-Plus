@@ -607,6 +607,10 @@ bool EmulatorHost::start(Display* display,
             if (!entry.first.empty()) setenv(entry.first.c_str(), entry.second.c_str(), 1);
         }
 
+        // NOUGAT_V61_EMBED_WORKDIR_REMOVED
+        // Preserve the accepted emulator cwd behavior used by the owner-tested
+        // Mesen and Xenia player-embedding paths.
+
         if (!request.log_path.empty()) {
             const int fd = open(request.log_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
             if (fd >= 0) {

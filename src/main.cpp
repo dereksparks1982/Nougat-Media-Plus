@@ -2047,12 +2047,40 @@ public:
     StudioPanel studioPanel = StudioPanel::Tools;
     bool studioAssemblerMode = false; // NOUGAT_V59_SEPARATE_FILE_ASSEMBLER
     Rect studioToolsTab, studioDroneTab, studioFileSplitterToolBtn, studioFileAssemblerToolBtn, studioBackToToolsBtn;
-    // NOUGAT_V60_DRONE_PRODUCTION_FOUNDATION
+    // NOUGAT_V61_DRONE_MISSION_CONTROL_STATE
     Rect studioDroneRefreshBtn, studioDroneNewShotBtn, studioDroneSimulateBtn, studioDroneRecordPathBtn;
+    Rect studioDroneSaveShotBtn, studioDroneClearPathBtn, studioDroneMapRect, studioDroneLiveVideoRect;
+    Rect studioDronePhotoBtn, studioDroneVideoRecordBtn, studioDroneVideoStopBtn;
+    Rect studioDroneGimbalUpBtn, studioDroneGimbalDownBtn, studioDroneGimbalLeftBtn, studioDroneGimbalRightBtn, studioDroneGimbalCenterBtn;
+    Rect studioDronePayloadArmBtn, studioDronePayloadReleaseBtn;
     Rect studioDronePromptRect;
-    std::string studioDroneStatus = "Simulation-only Drone foundation ready. Refresh Stack to inspect installed integrations.";
-    std::string studioDroneShotName = "Untitled Shot";
-    int studioDroneShotRevision = 0;
+    std::string studioDroneStatus = "Drone Lab v61 ready in simulation mode. Click the mission map to edit a Director Shot path.";
+    std::string studioDroneShotName = "Lake Survey 01";
+    int studioDroneShotRevision = 1;
+    std::vector<std::pair<double,double>> studioDroneWaypoints = {
+        {0.16,0.74},{0.30,0.46},{0.48,0.30},{0.66,0.50},{0.78,0.72}
+    };
+    bool studioDroneSimulationRunning = false;
+    bool studioDroneRecordingPath = false;
+    bool studioDroneVideoRecording = false;
+    bool studioDronePayloadArmed = false;
+    bool studioDroneGimbalFollow = true;
+    bool studioDronePx4SourceReady = false;
+    bool studioDroneArduPilotSourceReady = false;
+    bool studioDroneVideoToolsReady = false;
+    long long studioDroneSimulationStartedMs = 0;
+    long long studioDroneLastSimulationRedrawMs = 0;
+    double studioDroneSimulationProgress = 0.0;
+    double studioDroneCurrentX = 0.16;
+    double studioDroneCurrentY = 0.74;
+    double studioDroneAltitudeM = 12.0;
+    double studioDroneHorizontalSpeedMps = 0.0;
+    double studioDroneVerticalSpeedMps = 0.0;
+    double studioDroneHeadingDeg = 0.0;
+    double studioDroneBatteryPercent = 82.0;
+    double studioDroneGimbalPitchDeg = -22.5;
+    double studioDroneGimbalYawDeg = 247.0;
+    double studioDroneGimbalRollDeg = 0.1;
     Rect studioAnalyzeBtn, studioUseSuggestionBtn, studioSplitFileBtn;
     Rect studioReassembleBtn, studioVerifyBtn, studioStopBtn;
     Rect studioSourceRect, studioOutputRect, studioNameRect, studioPiecesRect, studioTargetSizeRect; // NOUGAT_V58_SPLITTER_TARGET
@@ -2467,6 +2495,7 @@ public:
     GamesDisplayMode gamesDisplayMode = GamesDisplayMode::Grid;
     int gamesSelected = -1;
     int gamesScroll = 0;
+    int gamesSystemsScroll = 0; // NOUGAT_V61_GAMES_SYSTEMS_SCROLL
     Time gamesLastClickTime = 0;
     int gamesLastClickIndex = -1;
     std::vector<std::pair<Rect,int>> gameRows;
@@ -5338,7 +5367,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.60";
+        const std::string versionLabel = "v0.0.61";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -10221,6 +10250,111 @@ public:
         }
     }
 
+    // NOUGAT_V61_DRONE_SIMULATION_ENGINE
+    void refresh_drone_stack_state() {
+        const std::string droneRoot=exe_dir()+"/components/drone/vendor";
+        studioDronePx4SourceReady=std::filesystem::exists(droneRoot+"/PX4-Autopilot");
+        studioDroneArduPilotSourceReady=std::filesystem::exists(droneRoot+"/ardupilot");
+        const bool ffmpeg=!run_command_capture("command -v ffmpeg 2>/dev/null").empty();
+        const bool gstreamer=!run_command_capture("command -v gst-launch-1.0 2>/dev/null").empty();
+        studioDroneVideoToolsReady=ffmpeg||gstreamer;
+    }
+
+    static double drone_clamp01(double value) {
+        return std::max(0.0, std::min(1.0, value));
+    }
+
+    std::pair<double,double> drone_position_at(double progress) const {
+        if (studioDroneWaypoints.empty()) return {0.5,0.5};
+        if (studioDroneWaypoints.size()==1U) return studioDroneWaypoints.front();
+        progress=drone_clamp01(progress);
+        const double scaled=progress*static_cast<double>(studioDroneWaypoints.size()-1U);
+        const std::size_t segment=std::min<std::size_t>(static_cast<std::size_t>(scaled),studioDroneWaypoints.size()-2U);
+        const double local=scaled-static_cast<double>(segment);
+        const auto& a=studioDroneWaypoints[segment];
+        const auto& b=studioDroneWaypoints[segment+1U];
+        return {a.first+(b.first-a.first)*local,a.second+(b.second-a.second)*local};
+    }
+
+    void update_drone_simulation_state(double progress) {
+        const auto pos=drone_position_at(progress);
+        studioDroneCurrentX=pos.first;
+        studioDroneCurrentY=pos.second;
+        const double before=std::max(0.0,progress-0.002);
+        const double after=std::min(1.0,progress+0.002);
+        const auto p0=drone_position_at(before);
+        const auto p1=drone_position_at(after);
+        const double dx=p1.first-p0.first;
+        const double dy=p1.second-p0.second;
+        if (std::abs(dx)+std::abs(dy)>0.000001) {
+            double heading=std::atan2(dx,-dy)*180.0/3.14159265358979323846;
+            if (heading<0.0) heading+=360.0;
+            studioDroneHeadingDeg=heading;
+        }
+        studioDroneAltitudeM=12.0+23.0*std::sin(3.14159265358979323846*progress);
+        studioDroneHorizontalSpeedMps=(progress<=0.0 || progress>=1.0)?0.0:8.2;
+        studioDroneVerticalSpeedMps=23.0*3.14159265358979323846*std::cos(3.14159265358979323846*progress)/18.0;
+        studioDroneBatteryPercent=82.0-6.0*progress;
+        if (studioDroneGimbalFollow) studioDroneGimbalYawDeg=studioDroneHeadingDeg;
+    }
+
+    void poll_drone_simulation() {
+        if (!studioDroneSimulationRunning) return;
+        const long long now=now_ms();
+        constexpr double kSimulationDurationMs=18000.0;
+        studioDroneSimulationProgress=drone_clamp01(
+            static_cast<double>(now-studioDroneSimulationStartedMs)/kSimulationDurationMs);
+        update_drone_simulation_state(studioDroneSimulationProgress);
+        if (studioDroneSimulationProgress>=1.0) {
+            studioDroneSimulationRunning=false;
+            studioDroneHorizontalSpeedMps=0.0;
+            studioDroneVerticalSpeedMps=0.0;
+            studioDroneStatus="Director Shot simulation completed. No real-aircraft commands were transmitted.";
+        }
+        if (!fullscreen && currentView==ViewMode::Studio && studioPanel==StudioPanel::Drone &&
+            now-studioDroneLastSimulationRedrawMs>=50LL) {
+            studioDroneLastSimulationRedrawMs=now;
+            redraw();
+        }
+    }
+
+    std::string drone_director_shot_file() const {
+        return config_dir()+"/director_shot_v61.txt";
+    }
+
+    bool save_drone_director_shot() {
+        ensure_config_dir();
+        std::ofstream out(drone_director_shot_file(),std::ios::trunc);
+        if (!out) return false;
+        out << "NOUGAT_DIRECTOR_SHOT_V61\n";
+        out << "name=" << studioDroneShotName << "\n";
+        out << "simulation_only=1\n";
+        out << "gimbal_pitch_deg=" << studioDroneGimbalPitchDeg << "\n";
+        out << "gimbal_yaw_deg=" << studioDroneGimbalYawDeg << "\n";
+        out << "gimbal_roll_deg=" << studioDroneGimbalRollDeg << "\n";
+        out << "gimbal_follow=" << (studioDroneGimbalFollow?1:0) << "\n";
+        for (std::size_t i=0;i<studioDroneWaypoints.size();++i)
+            out << "waypoint=" << i+1U << "," << std::fixed << std::setprecision(6)
+                << studioDroneWaypoints[i].first << "," << studioDroneWaypoints[i].second << "\n";
+        return static_cast<bool>(out);
+    }
+
+    void drone_add_waypoint_from_map(int x,int y) {
+        if (studioDroneMapRect.w<=0 || studioDroneMapRect.h<=0) return;
+        if (studioDroneWaypoints.size()>=12U) {
+            studioDroneStatus="Director Shot path is limited to 12 waypoints in v61.";
+            return;
+        }
+        const double nx=drone_clamp01(static_cast<double>(x-studioDroneMapRect.x)/static_cast<double>(studioDroneMapRect.w));
+        const double ny=drone_clamp01(static_cast<double>(y-studioDroneMapRect.y)/static_cast<double>(studioDroneMapRect.h));
+        studioDroneWaypoints.emplace_back(nx,ny);
+        if (studioDroneWaypoints.size()==1U) {
+            studioDroneCurrentX=nx;
+            studioDroneCurrentY=ny;
+        }
+        studioDroneStatus="Waypoint "+std::to_string(studioDroneWaypoints.size())+" added to "+studioDroneShotName+".";
+    }
+
     void handle_studio_click(int x, int y) {
         if (studio_browser_active()) { handle_studio_browser_click(x,y); return; }
         if (studioToolsTab.contains(x,y)) {
@@ -10235,32 +10369,116 @@ public:
             studioAssemblerMode=false;
             studioInputFocus=0;
             studioInputSelectAll=false;
-            studioDroneStatus="Drone Production opened in simulation-only foundation mode. No aircraft commands are transmitted.";
+            refresh_drone_stack_state();
+            studioDroneStatus="Drone Lab Mission Control opened in simulation mode. Real-aircraft command transmission is disabled.";
             redraw(); return;
         }
         if (studioPanel==StudioPanel::Drone) {
-            const std::string droneRoot=exe_dir()+"/components/drone/vendor";
-            const bool px4=std::filesystem::exists(droneRoot+"/PX4-Autopilot");
-            const bool ardupilot=std::filesystem::exists(droneRoot+"/ardupilot");
             if (studioDroneRefreshBtn.contains(x,y)) {
-                studioDroneStatus="Integration stack refreshed. Vendor sources and host video tools are re-detected live.";
+                refresh_drone_stack_state();
+                studioDroneStatus="Stack refreshed: PX4 source "+std::string(studioDronePx4SourceReady?"detected":"not installed")+
+                    ", ArduPilot source "+std::string(studioDroneArduPilotSourceReady?"detected":"not installed")+
+                    ", video ingest "+std::string(studioDroneVideoToolsReady?"ready":"tools unavailable")+".";
                 redraw(); return;
             }
             if (studioDroneNewShotBtn.contains(x,y)) {
                 ++studioDroneShotRevision;
                 studioDroneShotName="Director Shot "+std::to_string(studioDroneShotRevision);
-                studioDroneStatus="New Director Shot draft created. Flight path, camera path, subject lock, timing, and safety constraints share one shot model.";
+                studioDroneWaypoints.clear();
+                studioDroneSimulationRunning=false;
+                studioDroneSimulationProgress=0.0;
+                studioDroneRecordingPath=true;
+                studioDroneStatus="New Director Shot created. Click the mission map to add waypoints.";
                 redraw(); return;
             }
             if (studioDroneSimulateBtn.contains(x,y)) {
-                if (px4 || ardupilot)
-                    studioDroneStatus="Simulator source is installed. The v60 execution lane is deliberately simulation-only; live aircraft arming and transmission remain disabled.";
-                else
-                    studioDroneStatus="No PX4/ArduPilot source detected yet. Re-run tools/drone/fetch_drone_stack.sh, then Refresh Stack.";
+                if (studioDroneWaypoints.size()<2U) {
+                    studioDroneStatus="Add at least two mission waypoints before simulation.";
+                } else {
+                    studioDroneSimulationRunning=true;
+                    studioDroneSimulationStartedMs=now_ms();
+                    studioDroneSimulationProgress=0.0;
+                    update_drone_simulation_state(0.0);
+                    studioDroneStatus="Running Nougat trajectory simulation. Real-aircraft command transmission remains disabled.";
+                }
                 redraw(); return;
             }
             if (studioDroneRecordPathBtn.contains(x,y)) {
-                studioDroneStatus="Manual-path capture scaffold is ready for simulator/controller telemetry. No real aircraft control is enabled in v60.";
+                studioDroneRecordingPath=!studioDroneRecordingPath;
+                studioDroneStatus=studioDroneRecordingPath
+                    ? "Path recording/editor armed. Click the mission map to append waypoints."
+                    : "Path recording/editor paused. Existing waypoints are preserved.";
+                redraw(); return;
+            }
+            if (studioDroneSaveShotBtn.contains(x,y)) {
+                studioDroneStatus=save_drone_director_shot()
+                    ? "Director Shot saved locally: "+drone_director_shot_file()
+                    : "Director Shot save failed.";
+                redraw(); return;
+            }
+            if (studioDroneClearPathBtn.contains(x,y)) {
+                studioDroneWaypoints.clear();
+                studioDroneSimulationRunning=false;
+                studioDroneSimulationProgress=0.0;
+                studioDroneStatus="Mission path cleared. Click the map to start a new path.";
+                redraw(); return;
+            }
+            if (studioDronePhotoBtn.contains(x,y)) {
+                studioDroneStatus="Simulation photo trigger registered. No camera file is created without an active camera ingest backend.";
+                redraw(); return;
+            }
+            if (studioDroneVideoRecordBtn.contains(x,y)) {
+                studioDroneVideoRecording=true;
+                studioDroneStatus="Simulation recording indicator started. No camera file is created without an active camera ingest backend.";
+                redraw(); return;
+            }
+            if (studioDroneVideoStopBtn.contains(x,y)) {
+                studioDroneVideoRecording=false;
+                studioDroneStatus="Simulation recording indicator stopped.";
+                redraw(); return;
+            }
+            if (studioDroneGimbalUpBtn.contains(x,y)) {
+                studioDroneGimbalPitchDeg=std::min(30.0,studioDroneGimbalPitchDeg+5.0);
+                studioDroneStatus="Gimbal pitch adjusted in simulation."; redraw(); return;
+            }
+            if (studioDroneGimbalDownBtn.contains(x,y)) {
+                studioDroneGimbalPitchDeg=std::max(-90.0,studioDroneGimbalPitchDeg-5.0);
+                studioDroneStatus="Gimbal pitch adjusted in simulation."; redraw(); return;
+            }
+            if (studioDroneGimbalLeftBtn.contains(x,y)) {
+                studioDroneGimbalFollow=false;
+                studioDroneGimbalYawDeg-=5.0; if (studioDroneGimbalYawDeg<0.0) studioDroneGimbalYawDeg+=360.0;
+                studioDroneStatus="Gimbal yaw adjusted manually in simulation."; redraw(); return;
+            }
+            if (studioDroneGimbalRightBtn.contains(x,y)) {
+                studioDroneGimbalFollow=false;
+                studioDroneGimbalYawDeg+=5.0; if (studioDroneGimbalYawDeg>=360.0) studioDroneGimbalYawDeg-=360.0;
+                studioDroneStatus="Gimbal yaw adjusted manually in simulation."; redraw(); return;
+            }
+            if (studioDroneGimbalCenterBtn.contains(x,y)) {
+                studioDroneGimbalFollow=!studioDroneGimbalFollow;
+                studioDroneStatus=studioDroneGimbalFollow
+                    ? "Gimbal Follow enabled. Yaw tracks simulated aircraft heading."
+                    : "Gimbal Follow disabled. Manual yaw control enabled.";
+                redraw(); return;
+            }
+            if (studioDronePayloadArmBtn.contains(x,y)) {
+                studioDronePayloadArmed=!studioDronePayloadArmed;
+                studioDroneStatus=studioDronePayloadArmed
+                    ? "SIMULATION payload control armed. No hardware output is transmitted."
+                    : "Simulation payload control returned to SAFE.";
+                redraw(); return;
+            }
+            if (studioDronePayloadReleaseBtn.contains(x,y)) {
+                if (!studioDronePayloadArmed) studioDroneStatus="Payload simulation is SAFE. Arm the simulation control first.";
+                else {
+                    studioDronePayloadArmed=false;
+                    studioDroneStatus="Simulated payload release event recorded. No hardware output was transmitted.";
+                }
+                redraw(); return;
+            }
+            if (studioDroneMapRect.contains(x,y)) {
+                drone_add_waypoint_from_map(x,y);
                 redraw(); return;
             }
             return;
@@ -14195,6 +14413,9 @@ public:
             if (native_override && *native_override)
                 native_candidates.emplace_back(native_override);
 
+            // NOUGAT_V61_XBOX_PROVEN_PLAYER_EMBED_RESTORE
+            // Restore the owner-tested v0.0.53 Nougat Xenia wrapper.
+            // The wrapper owns the XWayland proxy and Vulkan render-surface hook.
             native_candidates.push_back(
                 exe_dir() + "/components/games/runtime/xenia/xenia_canary");
             native_candidates.push_back(
@@ -14277,7 +14498,9 @@ public:
         const std::string backend_lower =
             lower_copy(basename_only(emulator));
 
-        // Mesen documents ROM path first, then --fullscreen.
+        // NOUGAT_V61_MESEN_PROVEN_PLAYER_EMBED_RESTORE
+        // Restore the owner-tested v0.0.48 Mesen presentation path.
+        // NES and SNES share this exact backend inside Nougat's Video Player.
         if (backend_lower == "mesen" ||
             backend_lower == "mesen2") {
             request.argv =
@@ -14536,18 +14759,49 @@ public:
         return rows;
     }
 
+    // NOUGAT_V61_GROUPED_GAME_GRID_METRICS
+    int games_grouped_grid_content_height() const {
+        const LibraryGridMetrics grid=games_grid_metrics();
+        std::map<std::string,int> counts;
+        {
+            std::lock_guard<std::mutex> lock(gameState->mutex);
+            for (const auto& game:gameState->games) ++counts[game.system.empty()?"Other":game.system];
+        }
+        int height=6;
+        for (const auto& group:counts) {
+            height+=40;
+            if (collapsedGameSystems.count(group.first)!=0U) continue;
+            const int rows=(group.second+std::max(1,grid.columns)-1)/std::max(1,grid.columns);
+            height+=rows*(grid.tileHeight+grid.gap);
+        }
+        return height+6;
+    }
+
+    int games_systems_content_height() const {
+        constexpr int systemCount=23;
+        return 30+systemCount*22+36;
+    }
+
     int games_max_scroll() const {
+        if (gamesPanel==GamesPanel::Systems) {
+            return std::max(0,games_systems_content_height()-std::max(1,gamesListBox.h-12));
+        }
+        if (gamesPanel==GamesPanel::Library && gamesDisplayMode==GamesDisplayMode::Grid) {
+            return std::max(0,games_grouped_grid_content_height()-std::max(1,gamesListBox.h-12));
+        }
         const int visible=std::max(1,(gamesListBox.h-12)/40);
         return std::max(0,games_grouped_row_count()-visible);
     }
 
+    // NOUGAT_V61_ACTIVE_GAMES_SCROLL
     void update_games_vertical_scroll_from_pointer(int pointerY,bool centerThumb) {
+        int& activeScroll=(gamesPanel==GamesPanel::Systems)?gamesSystemsScroll:gamesScroll;
         const int maxScroll=games_max_scroll();
-        if (maxScroll<=0 || gamesVerticalScrollTrack.h<=0) { gamesScroll=0; return; }
+        if (maxScroll<=0 || gamesVerticalScrollTrack.h<=0) { activeScroll=0; return; }
         const int span=std::max(1,gamesVerticalScrollTrack.h-gamesVerticalScrollThumb.h);
         int thumbTop=pointerY-(centerThumb ? gamesVerticalScrollThumb.h/2 : gamesVerticalScrollDragOffset);
         thumbTop=std::max(gamesVerticalScrollTrack.y,std::min(gamesVerticalScrollTrack.y+span,thumbTop));
-        gamesScroll=static_cast<int>((static_cast<long long>(thumbTop-gamesVerticalScrollTrack.y)*maxScroll+span/2)/span);
+        activeScroll=static_cast<int>((static_cast<long long>(thumbTop-gamesVerticalScrollTrack.y)*maxScroll+span/2)/span);
     }
 
     void request_games_interactive_redraw(bool immediate=false) {
@@ -14570,11 +14824,16 @@ public:
         redraw();
     }
 
+    // NOUGAT_V61_GAMES_WHEEL_GRID_SYSTEMS
     bool handle_games_wheel_steps(Window target, int x, int y, int steps) {
         if (steps == 0 || currentView != ViewMode::Games || target != win ||
-            gamesPanel != GamesPanel::Library || !gamesListBox.contains(x, y)) return false;
-        const int max_scroll = games_max_scroll();
-        gamesScroll = std::max(0, std::min(max_scroll, gamesScroll + steps));
+            (gamesPanel != GamesPanel::Library && gamesPanel != GamesPanel::Systems) ||
+            !gamesListBox.contains(x, y)) return false;
+        int& activeScroll=(gamesPanel==GamesPanel::Systems)?gamesSystemsScroll:gamesScroll;
+        const int maxScroll=games_max_scroll();
+        const int amount=(gamesPanel==GamesPanel::Systems)?66:
+            (gamesDisplayMode==GamesDisplayMode::Grid?120:1);
+        activeScroll=std::max(0,std::min(maxScroll,activeScroll+steps*amount));
         request_games_interactive_redraw();
         return true;
     }
@@ -14587,10 +14846,13 @@ public:
         return true;
     }
 
+    // NOUGAT_V61_GAMES_DRAG_ACTIVE_SCROLL
     bool handle_games_scrollbar_motion(int y) {
         if (!gamesVerticalScrollDragging) return false;
-        const int before=gamesScroll; update_games_vertical_scroll_from_pointer(y,false);
-        if (before!=gamesScroll) request_games_interactive_redraw();
+        int& activeScroll=(gamesPanel==GamesPanel::Systems)?gamesSystemsScroll:gamesScroll;
+        const int before=activeScroll;
+        update_games_vertical_scroll_from_pointer(y,false);
+        if (before!=activeScroll) request_games_interactive_redraw();
         return true;
     }
 
@@ -14607,6 +14869,11 @@ public:
         tab(gamesSettingsBtn,"Settings",GamesPanel::Settings);
         button_on(target,gamesPlayBtn,"Play");
         button_on(target,gamesRefreshBtn,"Refresh");
+        // NOUGAT_V61_GAME_VIEW_BUTTONS
+        if (gamesPanel==GamesPanel::Library) {
+            button_on_state(target,gamesGridBtn,"Grid",gamesDisplayMode==GamesDisplayMode::Grid?SheetControlState::Pressed:SheetControlState::Normal);
+            button_on_state(target,gamesListViewBtn,"List",gamesDisplayMode==GamesDisplayMode::List?SheetControlState::Pressed:SheetControlState::Normal);
+        }
         std::string status; bool busy=false; std::vector<GameEntry> games;
         { std::lock_guard<std::mutex> lock(gameState->mutex); status=gameState->status; busy=gameState->busy; games=gameState->games; }
         text(target,28+kCompactButtonW*2+14,112,
@@ -14623,6 +14890,74 @@ public:
                 groups[system].push_back(i);
             }
             gameSystemHeaders.clear();
+
+            // NOUGAT_V61_GROUPED_LARGE_GAME_CARDS
+            if (gamesDisplayMode==GamesDisplayMode::Grid) {
+                const LibraryGridMetrics grid=games_grid_metrics();
+                const int viewportTop=gamesListBox.y+6;
+                const int viewportBottom=gamesListBox.y+gamesListBox.h-6;
+                const int viewportHeight=std::max(1,viewportBottom-viewportTop);
+                const int totalHeight=games_grouped_grid_content_height();
+                const int maxScroll=std::max(0,totalHeight-viewportHeight);
+                gamesScroll=std::max(0,std::min(gamesScroll,maxScroll));
+                const int headerH=40;
+                const int cardRowH=grid.tileHeight+grid.gap;
+                const int gridUsedWidth=grid.columns*grid.tileWidth+(grid.columns-1)*grid.gap;
+                const int gridStartX=gamesListBox.x+6+std::max(0,(std::max(1,gamesListBox.w-12)-gridUsedWidth)/2);
+                int cursorY=viewportTop-gamesScroll;
+
+                for (const auto& group:groups) {
+                    Rect header{gamesListBox.x+6,cursorY,gamesListBox.w-12,headerH-2};
+                    if (header.y>=viewportTop && header.y+header.h<=viewportBottom) {
+                        fill(target,header,palette.button); outline(target,header,palette.border);
+                        const bool collapsed=collapsedGameSystems.count(group.first)!=0U;
+                        text(target,header.x+10,header.y+25,(collapsed?"[+] ":"[-] ")+group.first+" ("+std::to_string(group.second.size())+")",palette.buttonText);
+                        gameSystemHeaders.push_back({header,group.first});
+                    }
+                    cursorY+=headerH;
+                    if (collapsedGameSystems.count(group.first)!=0U) continue;
+
+                    for (std::size_t first=0; first<group.second.size(); first+=static_cast<std::size_t>(std::max(1,grid.columns))) {
+                        const int rowY=cursorY;
+                        for (int column=0; column<grid.columns; ++column) {
+                            const std::size_t offset=first+static_cast<std::size_t>(column);
+                            if (offset>=group.second.size()) break;
+                            const int index=group.second[offset];
+                            if (rowY<viewportTop || rowY+grid.tileHeight>viewportBottom) continue;
+                            Rect card{gridStartX+column*(grid.tileWidth+grid.gap),rowY,grid.tileWidth,grid.tileHeight};
+                            const GameEntry& game=games[static_cast<std::size_t>(index)];
+                            fill(target,card,index==gamesSelected?palette.selection:palette.panel);
+                            outline(target,card,palette.border);
+                            Rect art{card.x+4,card.y+4,card.w-8,grid.posterHeight};
+                            fill(target,art,rgb8(30,29,24));
+                            reddmedia::LibraryPoster poster;
+                            if (cached_game_artwork(game,poster)) draw_poster_pixels(target,art,poster);
+                            else text(target,art.x+std::max(6,(art.w-text_width("NO ART"))/2),art.y+art.h/2,"NO ART",palette.muted);
+                            const int titleY=card.y+grid.posterHeight+18;
+                            const auto titleLines=library_title_lines(game.title,card.w-12);
+                            text(target,card.x+6,titleY,titleLines.first,palette.text);
+                            if (!titleLines.second.empty()) text(target,card.x+6,titleY+14,titleLines.second,palette.text);
+                            const std::string source=game.system+" | "+(game.bundled?"Bundled":"Linked")+(game.archived?" | ZIP":"");
+                            text(target,card.x+6,card.y+card.h-5,head_to_width(source,card.w-12),palette.muted);
+                            gameRows.push_back({card,index});
+                        }
+                        cursorY+=cardRowH;
+                    }
+                }
+
+                if (games.empty() && !busy) text(target,gamesListBox.x+12,gamesListBox.y+28,
+                    "No games indexed. Add a ROM folder; bundled legal starter ROMs appear automatically.",palette.muted);
+                if (maxScroll>0) {
+                    const int thumbH=std::max(38,std::min(gamesVerticalScrollTrack.h,
+                        gamesVerticalScrollTrack.h*viewportHeight/std::max(1,totalHeight)));
+                    const int travel=std::max(0,gamesVerticalScrollTrack.h-thumbH);
+                    const int thumbY=gamesVerticalScrollTrack.y+travel*gamesScroll/maxScroll;
+                    gamesVerticalScrollThumb={gamesVerticalScrollTrack.x,thumbY,gamesVerticalScrollTrack.w,thumbH};
+                } else gamesVerticalScrollThumb=gamesVerticalScrollTrack;
+                draw_home_scrollbar_component(target,gamesVerticalScrollTrack,gamesVerticalScrollThumb,palette);
+                return;
+            }
+
             const int rowH=40;
             const int visibleRows=std::max(1,(gamesListBox.h-12)/rowH);
             const int totalRows=games_grouped_row_count();
@@ -14672,14 +15007,39 @@ public:
 
         int y=gamesListBox.y+32;
         if (gamesPanel==GamesPanel::Systems) {
-            section_text(target,gamesListBox.x+14,y,"EMULATION BACKENDS",palette.text); y+=30;
+            // NOUGAT_V61_GAMES_SYSTEMS_PANEL_SCROLL
             const std::vector<std::string> systems={"NES","SNES","Game Boy","Game Boy Color","Game Boy Advance","Nintendo 64","Sega Genesis","Sega Master System","Sega Game Gear","Atari 2600","Atari 5200","Atari 7800","Atari 8-bit","Atari Lynx","PlayStation","PlayStation 2","PlayStation Portable","PlayStation 3","GameCube","Wii","Wii U","Arcade","Nintendo Switch"};
+            const int viewportTop=gamesListBox.y+6;
+            const int viewportBottom=gamesListBox.y+gamesListBox.h-6;
+            const int viewportHeight=std::max(1,viewportBottom-viewportTop);
+            const int headerH=30;
+            const int rowH=22;
+            const int footerH=36;
+            const int totalHeight=headerH+static_cast<int>(systems.size())*rowH+footerH;
+            const int maxScroll=std::max(0,totalHeight-viewportHeight);
+            gamesSystemsScroll=std::max(0,std::min(gamesSystemsScroll,maxScroll));
+            int sy=viewportTop-gamesSystemsScroll;
+            if (sy>=viewportTop && sy+headerH<=viewportBottom)
+                section_text(target,gamesListBox.x+14,sy+20,"EMULATION BACKENDS",palette.text);
+            sy+=headerH;
             for (const std::string& system:systems) {
-                const std::string emulator=installed_game_emulator(system);
-                text(target,gamesListBox.x+14,y,system+": "+(emulator.empty()?"No supported backend installed":basename_only(emulator)+" (automatic)"),emulator.empty()?palette.muted:palette.text);
-                y+=22;
+                if (sy>=viewportTop && sy+rowH<=viewportBottom) {
+                    const std::string emulator=installed_game_emulator(system);
+                    text(target,gamesListBox.x+14,sy+16,system+": "+(emulator.empty()?"No supported backend installed":basename_only(emulator)+" (automatic)"),emulator.empty()?palette.muted:palette.text);
+                }
+                sy+=rowH;
             }
-            text(target,gamesListBox.x+14,y+8,"MesenCE: Nintendo | RMG: N64 | BlastEm: Sega | Stella 7.0: Atari 2600 | Atari800: 5200/8-bit. 7800/Lynx use compatible installed backends.",palette.muted);
+            if (sy>=viewportTop && sy+footerH<=viewportBottom)
+                text(target,gamesListBox.x+14,sy+18,"MesenCE: NES/SNES/GB/GBA | RMG: N64 | BlastEm: Sega | Stella: Atari 2600 | Atari800: 5200/8-bit.",palette.muted);
+
+            if (maxScroll>0) {
+                const int thumbH=std::max(38,std::min(gamesVerticalScrollTrack.h,
+                    gamesVerticalScrollTrack.h*viewportHeight/std::max(1,totalHeight)));
+                const int travel=std::max(0,gamesVerticalScrollTrack.h-thumbH);
+                const int thumbY=gamesVerticalScrollTrack.y+travel*gamesSystemsScroll/maxScroll;
+                gamesVerticalScrollThumb={gamesVerticalScrollTrack.x,thumbY,gamesVerticalScrollTrack.w,thumbH};
+            } else gamesVerticalScrollThumb=gamesVerticalScrollTrack;
+            draw_home_scrollbar_component(target,gamesVerticalScrollTrack,gamesVerticalScrollThumb,palette);
         } else if (gamesPanel==GamesPanel::Controllers) {
             section_text(target,gamesListBox.x+14,y,"CONTROLLERS",palette.text); y+=30;
             const std::filesystem::path byId("/dev/input/by-id/usb-081f_USB_gamepad-joystick"); std::error_code ec;
@@ -14708,7 +15068,14 @@ public:
         if (gamesAddBtn.contains(x,y)) { add_game_rom_folder(); redraw(); return; }
         if (gamesRefreshBtn.contains(x,y)) { start_game_scan(); redraw(); return; }
         if (gamesPlayBtn.contains(x,y)) { launch_selected_game(); redraw(); return; }
-        if (gamesPanel == GamesPanel::Library && handle_games_scrollbar_press(x,y)) return;
+        // NOUGAT_V61_GAME_VIEW_BUTTON_CLICKS
+        if (gamesPanel==GamesPanel::Library && gamesGridBtn.contains(x,y)) {
+            gamesDisplayMode=GamesDisplayMode::Grid; gamesScroll=0; gamesLastClickIndex=-1; gamesLastClickTime=0; redraw(); return;
+        }
+        if (gamesPanel==GamesPanel::Library && gamesListViewBtn.contains(x,y)) {
+            gamesDisplayMode=GamesDisplayMode::List; gamesScroll=0; gamesLastClickIndex=-1; gamesLastClickTime=0; redraw(); return;
+        }
+        if ((gamesPanel==GamesPanel::Library || gamesPanel==GamesPanel::Systems) && handle_games_scrollbar_press(x,y)) return;
         if (gamesPanel == GamesPanel::Library) {
             for (const auto& header : gameSystemHeaders) {
                 if (!header.first.contains(x,y)) continue;
@@ -14843,100 +15210,245 @@ public:
         }
 
         if (studioPanel==StudioPanel::Drone) {
-            // NOUGAT_V60_DRONE_PRODUCTION_UI
-            text(target,panel.x+18,panel.y+28,"DRONE PRODUCTION",palette.text);
-            text(target,panel.x+18,panel.y+52,
-                 "Director-oriented aerial cinematography, simulator integration, telemetry, camera/gimbal, and repeatable shot planning.",palette.muted);
+            // NOUGAT_V61_DRONE_MISSION_CONTROL_UI
+            const unsigned long hudBg=rgb8(7,15,12);
+            const unsigned long hudPanel=rgb8(10,24,18);
+            const unsigned long hudPanel2=rgb8(13,31,23);
+            const unsigned long hudGreen=rgb8(80,224,132);
+            const unsigned long hudGreenDim=rgb8(54,142,90);
+            const unsigned long hudText=rgb8(194,242,207);
+            const unsigned long hudMuted=rgb8(121,174,139);
+            const unsigned long hudRed=rgb8(232,72,72);
+            const unsigned long hudYellow=rgb8(224,190,72);
+            fill(target,panel,hudBg);
+            outline(target,panel,hudGreenDim);
 
-            Rect safety{panel.x+18,panel.y+66,panel.w-36,34};
-            fill_round(target,safety,8,palette.field);
-            outline_round(target,safety,8,palette.border);
-            text(target,safety.x+10,safety.y+22,
-                 "SIMULATION-ONLY FOUNDATION  |  real-aircraft arming and command transmission are disabled in this build.",
-                 palette.text);
-
-            const std::string droneRoot=exe_dir()+"/components/drone/vendor";
-            const auto drone_exists=[&](const std::string& name) {
-                std::error_code ec;
-                return std::filesystem::exists(droneRoot+"/"+name,ec);
+            const auto hud_panel=[&](const Rect& r,const std::string& title) {
+                fill(target,r,hudPanel);
+                outline(target,r,hudGreenDim);
+                text(target,r.x+8,r.y+17,title,hudGreen);
+                line(target,r.x+6,r.y+23,r.x+r.w-6,r.y+23,hudGreenDim);
             };
-            const bool mavsdkReady=drone_exists("MAVSDK");
-            const bool mavlinkReady=drone_exists("mavlink");
-            const bool px4Ready=drone_exists("PX4-Autopilot");
-            const bool ardupilotReady=drone_exists("ardupilot");
-            const bool ffmpegReady=access("/usr/bin/ffmpeg",X_OK)==0 || access("/usr/local/bin/ffmpeg",X_OK)==0;
-            const bool gstReady=access("/usr/bin/gst-launch-1.0",X_OK)==0 || access("/usr/local/bin/gst-launch-1.0",X_OK)==0;
-
-            const int colGap=14;
-            const int colW=std::max(180,(panel.w-36-colGap)/2);
-            Rect stackPanel{panel.x+18,panel.y+112,colW,208};
-            Rect shotPanel{stackPanel.x+stackPanel.w+colGap,panel.y+112,
-                           std::max(180,panel.x+panel.w-18-(stackPanel.x+stackPanel.w+colGap)),208};
-            fill_round(target,stackPanel,10,palette.panel);
-            outline_round(target,stackPanel,10,palette.border);
-            fill_round(target,shotPanel,10,palette.panel);
-            outline_round(target,shotPanel,10,palette.border);
-
-            text(target,stackPanel.x+12,stackPanel.y+24,"INTEGRATION STACK",palette.text);
-            const auto stack_row=[&](int rowY,const std::string& name,bool ready,const std::string& detail) {
-                Rect row{stackPanel.x+10,rowY,stackPanel.w-20,24};
-                fill_round(target,row,6,ready?palette.button:palette.field);
-                outline_round(target,row,6,ready?palette.accent:palette.border);
-                text(target,row.x+8,row.y+17,
-                     head_to_width(name+"  |  "+(ready?"READY":"NOT FETCHED")+"  |  "+detail,row.w-16),
-                     ready?palette.buttonText:palette.muted);
+            const auto hud_button=[&](const Rect& r,const std::string& label,bool active=false,bool danger=false) {
+                const bool hover=r.contains(pointerWindowX,pointerWindowY);
+                unsigned long face=active?rgb8(25,78,48):(hover?rgb8(19,55,36):hudPanel2);
+                if (danger) face=hover?rgb8(99,32,32):rgb8(70,25,25);
+                fill_round(target,r,3,face);
+                outline_round(target,r,3,danger?hudRed:(active?hudGreen:hudGreenDim));
+                text(target,r.x+7,r.y+r.h/2+5,head_to_width(label,r.w-14),danger?rgb8(255,188,188):hudText);
             };
-            int sy=stackPanel.y+34;
-            stack_row(sy,"MAVLink",mavlinkReady,"message definitions"); sy+=28;
-            stack_row(sy,"MAVSDK",mavsdkReady,"native C++ control API"); sy+=28;
-            stack_row(sy,"PX4",px4Ready,"SITL / open autopilot"); sy+=28;
-            stack_row(sy,"ArduPilot",ardupilotReady,"Copter SITL / open autopilot"); sy+=28;
-            stack_row(sy,"Video",ffmpegReady||gstReady,
-                      std::string(ffmpegReady?"FFmpeg ":"")+(gstReady?"GStreamer":"host tools"));
-            studioDroneRefreshBtn={stackPanel.x+10,stackPanel.y+174,std::min(150,stackPanel.w-20),26};
-            button_on(target,studioDroneRefreshBtn,"Refresh Stack");
+            const auto status_dot=[&](int x,int y,unsigned long color) {
+                fill_circle(target,x,y,8,color);
+            };
+            const auto value_row=[&](const Rect& r,int row,const std::string& label,const std::string& value) {
+                const int y=r.y+43+row*18;
+                text(target,r.x+9,y,label,hudMuted);
+                text(target,r.x+std::max(82,r.w/2),y,head_to_width(value,std::max(40,r.w/2-12)),hudText);
+            };
 
-            text(target,shotPanel.x+12,shotPanel.y+24,"DIRECTOR SHOT",palette.text);
-            text(target,shotPanel.x+12,shotPanel.y+47,
-                 head_to_width("Draft: "+studioDroneShotName,shotPanel.w-24),palette.text);
-            studioDronePromptRect={shotPanel.x+12,shotPanel.y+57,shotPanel.w-24,48};
-            fill_round(target,studioDronePromptRect,7,palette.field);
-            outline_round(target,studioDronePromptRect,7,palette.border);
-            text(target,studioDronePromptRect.x+8,studioDronePromptRect.y+18,
-                 head_to_width("Prompt scaffold: Track actor, rise 12 -> 35 ft,",studioDronePromptRect.w-16),palette.muted);
-            text(target,studioDronePromptRect.x+8,studioDronePromptRect.y+36,
-                 head_to_width("orbit 120 degrees clockwise, then pull back.",studioDronePromptRect.w-16),palette.muted);
+            const int pad=8;
+            Rect labHeader{panel.x+pad,panel.y+pad,panel.w-pad*2,48};
+            fill(target,labHeader,rgb8(8,28,19));
+            outline(target,labHeader,hudGreenDim);
+            text(target,labHeader.x+10,labHeader.y+19,"NOUGAT DRONE LAB",hudGreen);
+            text(target,labHeader.x+10,labHeader.y+38,"MISSION CONTROL  |  DIRECTOR SHOT  |  SIMULATION-ONLY",hudMuted);
 
-            const int shotGap=6;
-            const int shotButtonW=std::max(86,(shotPanel.w-24-shotGap*2)/3);
-            int sbx=shotPanel.x+12;
-            studioDroneNewShotBtn={sbx,shotPanel.y+114,shotButtonW,28}; sbx+=shotButtonW+shotGap;
-            studioDroneSimulateBtn={sbx,shotPanel.y+114,shotButtonW,28}; sbx+=shotButtonW+shotGap;
-            studioDroneRecordPathBtn={sbx,shotPanel.y+114,shotButtonW,28};
-            button_on(target,studioDroneNewShotBtn,"New Shot");
-            button_on(target,studioDroneSimulateBtn,"Simulate Shot");
-            button_on(target,studioDroneRecordPathBtn,"Record Path");
-            text(target,shotPanel.x+12,shotPanel.y+160,
-                 head_to_width("Describe -> Path -> Preview -> Simulate -> Save -> Authorized Flight (later)",
-                               shotPanel.w-24),palette.muted);
-            text(target,shotPanel.x+12,shotPanel.y+180,
-                 head_to_width("Shot model keeps aircraft motion, gimbal motion, camera state, timing, and subject lock together.",
-                               shotPanel.w-24),palette.muted);
+            const int statusX=labHeader.x+std::max(250,labHeader.w/2);
+            text(target,statusX,labHeader.y+18,"AIRCRAFT: SIMULATOR",hudText);
+            text(target,statusX,labHeader.y+37,
+                 "PX4 "+std::string(studioDronePx4SourceReady?"SRC":"--")+"  AP "+std::string(studioDroneArduPilotSourceReady?"SRC":"--")+
+                 "  VIDEO "+std::string(studioDroneVideoToolsReady?"READY":"--"),hudMuted);
+            status_dot(labHeader.x+labHeader.w-156,labHeader.y+12,hudGreen);
+            text(target,labHeader.x+labHeader.w-142,labHeader.y+20,"SIM NOMINAL",hudGreen);
+            text(target,labHeader.x+labHeader.w-142,labHeader.y+39,
+                 std::to_string(static_cast<int>(studioDroneBatteryPercent))+"% BAT",hudText);
 
-            Rect telemetry{panel.x+18,panel.y+332,panel.w-36,std::max(78,panel.h-346)};
-            fill_round(target,telemetry,10,palette.panel);
-            outline_round(target,telemetry,10,palette.border);
-            text(target,telemetry.x+12,telemetry.y+24,"TELEMETRY / CAMERA / GIMBAL PIPELINE",palette.text);
-            text(target,telemetry.x+12,telemetry.y+48,
-                 head_to_width("GPS: waiting  |  Altitude: waiting  |  Speed: waiting  |  Heading: waiting  |  Battery: waiting  |  Link: simulator",
-                               telemetry.w-24),palette.muted);
-            text(target,telemetry.x+12,telemetry.y+70,
-                 head_to_width("Camera: "+std::string(ffmpegReady||gstReady?"host ingest tools detected":"ingest tools not detected")+
-                               "  |  Gimbal: waiting  |  synchronized take metadata foundation ready",
-                               telemetry.w-24),palette.muted);
-            if (telemetry.h>=102)
-                text(target,telemetry.x+12,telemetry.y+94,
-                     head_to_width("Status: "+studioDroneStatus,telemetry.w-24),palette.text);
+            const int contentY=labHeader.y+labHeader.h+pad;
+            const int contentH=panel.y+panel.h-pad-contentY;
+            const int sidebarW=std::min(180,std::max(132,panel.w/7));
+            Rect sidebar{panel.x+pad,contentY,sidebarW,contentH};
+            hud_panel(sidebar,"MISSION");
+            const char* navItems[] = {
+                "FLIGHT PLAN","WAYPOINTS","ROUTES","GEO-FENCE","RTH SETTINGS",
+                "AIRCRAFT / TELEMETRY","SENSORS","DIAGNOSTICS",
+                "LIVE VIEW","RECORDING","CAMERA SETTINGS","GIMBAL CONTROL",
+                "PAYLOAD","MAP TOOLS","FLIGHT LOG","PREFERENCES"
+            };
+            int navY=sidebar.y+35;
+            for (std::size_t i=0;i<sizeof(navItems)/sizeof(navItems[0]);++i) {
+                Rect row{sidebar.x+6,navY,sidebar.w-12,20};
+                if (i==0U) fill(target,row,rgb8(18,64,39));
+                if (i==0U) line(target,row.x,row.y,row.x,row.y+row.h,hudGreen);
+                text(target,row.x+6,row.y+14,head_to_width(navItems[i],row.w-12),i==0U?hudGreen:hudMuted);
+                navY+=22;
+                if (navY>sidebar.y+sidebar.h-50) break;
+            }
+            studioDroneRefreshBtn={sidebar.x+8,sidebar.y+sidebar.h-34,sidebar.w-16,26};
+            hud_button(studioDroneRefreshBtn,"REFRESH STACK");
+
+            const int mainX=sidebar.x+sidebar.w+pad;
+            const int mainW=panel.x+panel.w-pad-mainX;
+            const int topH=std::max(166,std::min(contentH-126,contentH*52/100));
+            const int mapW=std::max(250,mainW*55/100);
+            Rect mapPanel{mainX,contentY,mapW,topH};
+            Rect videoPanel{mapPanel.x+mapPanel.w+pad,contentY,std::max(160,mainW-mapPanel.w-pad),topH};
+            hud_panel(mapPanel,"MAP / MISSION PLANNER");
+            hud_panel(videoPanel,"LIVE VIDEO");
+
+            const int mapButtonY=mapPanel.y+mapPanel.h-31;
+            const int btnGap=4;
+            const int btnW=std::max(58,(mapPanel.w-16-btnGap*4)/5);
+            int bx=mapPanel.x+8;
+            studioDroneNewShotBtn={bx,mapButtonY,btnW,23}; bx+=btnW+btnGap;
+            studioDroneSimulateBtn={bx,mapButtonY,btnW,23}; bx+=btnW+btnGap;
+            studioDroneRecordPathBtn={bx,mapButtonY,btnW,23}; bx+=btnW+btnGap;
+            studioDroneSaveShotBtn={bx,mapButtonY,btnW,23}; bx+=btnW+btnGap;
+            studioDroneClearPathBtn={bx,mapButtonY,btnW,23};
+            hud_button(studioDroneNewShotBtn,"NEW SHOT");
+            hud_button(studioDroneSimulateBtn,studioDroneSimulationRunning?"SIMULATING":"SIMULATE",studioDroneSimulationRunning);
+            hud_button(studioDroneRecordPathBtn,studioDroneRecordingPath?"PATH ARMED":"RECORD PATH",studioDroneRecordingPath);
+            hud_button(studioDroneSaveShotBtn,"SAVE SHOT");
+            hud_button(studioDroneClearPathBtn,"CLEAR PATH");
+
+            studioDroneMapRect={mapPanel.x+8,mapPanel.y+29,mapPanel.w-16,std::max(70,mapPanel.h-66)};
+            fill(target,studioDroneMapRect,rgb8(11,35,27));
+            for (int gx=studioDroneMapRect.x+20;gx<studioDroneMapRect.x+studioDroneMapRect.w;gx+=40)
+                line(target,gx,studioDroneMapRect.y,gx,studioDroneMapRect.y+studioDroneMapRect.h,rgb8(19,57,42));
+            for (int gy=studioDroneMapRect.y+20;gy<studioDroneMapRect.y+studioDroneMapRect.h;gy+=40)
+                line(target,studioDroneMapRect.x,gy,studioDroneMapRect.x+studioDroneMapRect.w,gy,rgb8(19,57,42));
+            text(target,studioDroneMapRect.x+8,studioDroneMapRect.y+16,"N ^",hudGreen);
+            const int nfzX=studioDroneMapRect.x+studioDroneMapRect.w*82/100;
+            const int nfzY=studioDroneMapRect.y+studioDroneMapRect.h*32/100;
+            XSetForeground(d,gc,hudRed);
+            XDrawArc(d,target,gc,nfzX-20,nfzY-20,40,40,0,360*64);
+            text(target,nfzX-12,nfzY+4,"NFZ",hudRed);
+
+            auto map_point=[&](const std::pair<double,double>& pnt) {
+                return std::pair<int,int>{
+                    studioDroneMapRect.x+static_cast<int>(pnt.first*studioDroneMapRect.w),
+                    studioDroneMapRect.y+static_cast<int>(pnt.second*studioDroneMapRect.h)};
+            };
+            for (std::size_t i=1;i<studioDroneWaypoints.size();++i) {
+                const auto a=map_point(studioDroneWaypoints[i-1U]);
+                const auto b=map_point(studioDroneWaypoints[i]);
+                line(target,a.first,a.second,b.first,b.second,hudGreen);
+            }
+            for (std::size_t i=0;i<studioDroneWaypoints.size();++i) {
+                const auto wp=map_point(studioDroneWaypoints[i]);
+                fill_circle(target,wp.first-7,wp.second-7,14,rgb8(20,70,43));
+                XSetForeground(d,gc,hudGreen);
+                XDrawArc(d,target,gc,wp.first-7,wp.second-7,14,14,0,360*64);
+                const std::string n=std::to_string(i+1U);
+                text(target,wp.first-3,wp.second+4,n,hudText);
+            }
+            const auto aircraft=map_point({studioDroneCurrentX,studioDroneCurrentY});
+            line(target,aircraft.first-8,aircraft.second+6,aircraft.first,aircraft.second-8,hudText);
+            line(target,aircraft.first,aircraft.second-8,aircraft.first+8,aircraft.second+6,hudText);
+            line(target,aircraft.first-8,aircraft.second+6,aircraft.first+8,aircraft.second+6,hudText);
+            text(target,studioDroneMapRect.x+8,studioDroneMapRect.y+studioDroneMapRect.h-8,
+                 "Click map: add waypoint  |  Shot: "+studioDroneShotName,hudMuted);
+
+            studioDroneLiveVideoRect={videoPanel.x+8,videoPanel.y+29,videoPanel.w-16,std::max(64,videoPanel.h-67)};
+            fill(target,studioDroneLiveVideoRect,rgb8(9,27,31));
+            const int horizon=studioDroneLiveVideoRect.y+studioDroneLiveVideoRect.h*53/100;
+            fill(target,{studioDroneLiveVideoRect.x,horizon,studioDroneLiveVideoRect.w,studioDroneLiveVideoRect.y+studioDroneLiveVideoRect.h-horizon},rgb8(20,42,29));
+            line(target,studioDroneLiveVideoRect.x,horizon,studioDroneLiveVideoRect.x+studioDroneLiveVideoRect.w,horizon,hudGreenDim);
+            for (int i=1;i<5;++i) {
+                const int yy=horizon+i*studioDroneLiveVideoRect.h/12;
+                line(target,studioDroneLiveVideoRect.x,yy,studioDroneLiveVideoRect.x+studioDroneLiveVideoRect.w,yy,rgb8(18,49,34));
+            }
+            text(target,studioDroneLiveVideoRect.x+10,studioDroneLiveVideoRect.y+18,"SIMULATOR PREVIEW",hudGreen);
+            text(target,studioDroneLiveVideoRect.x+10,studioDroneLiveVideoRect.y+37,
+                 "No live camera feed attached",hudMuted);
+            if (studioDroneVideoRecording) {
+                status_dot(studioDroneLiveVideoRect.x+studioDroneLiveVideoRect.w-62,studioDroneLiveVideoRect.y+10,hudRed);
+                text(target,studioDroneLiveVideoRect.x+studioDroneLiveVideoRect.w-49,studioDroneLiveVideoRect.y+18,"REC",hudRed);
+            }
+            const int videoBtnY=videoPanel.y+videoPanel.h-31;
+            const int videoBtnW=std::max(48,(videoPanel.w-24)/3);
+            studioDronePhotoBtn={videoPanel.x+8,videoBtnY,videoBtnW,23};
+            studioDroneVideoRecordBtn={studioDronePhotoBtn.x+videoBtnW+4,videoBtnY,videoBtnW,23};
+            studioDroneVideoStopBtn={studioDroneVideoRecordBtn.x+videoBtnW+4,videoBtnY,std::max(42,videoPanel.x+videoPanel.w-8-(studioDroneVideoRecordBtn.x+videoBtnW+4)),23};
+            hud_button(studioDronePhotoBtn,"PHOTO");
+            hud_button(studioDroneVideoRecordBtn,"RECORD",studioDroneVideoRecording,true);
+            hud_button(studioDroneVideoStopBtn,"STOP");
+
+            const int lowerY=contentY+topH+pad;
+            const int lowerH=panel.y+panel.h-pad-lowerY;
+            if (lowerH>70) {
+                const int teleW=std::max(150,mainW*27/100);
+                const int instW=std::max(150,mainW*27/100);
+                const int gimW=std::max(150,mainW*25/100);
+                Rect telemetry{mainX,lowerY,teleW,lowerH};
+                Rect instruments{telemetry.x+telemetry.w+pad,lowerY,instW,lowerH};
+                Rect gimbal{instruments.x+instruments.w+pad,lowerY,gimW,lowerH};
+                Rect payload{gimbal.x+gimbal.w+pad,lowerY,std::max(100,panel.x+panel.w-pad-(gimbal.x+gimbal.w+pad)),lowerH};
+                hud_panel(telemetry,"TELEMETRY");
+                hud_panel(instruments,"FLIGHT INSTRUMENTS");
+                hud_panel(gimbal,"CAMERA / GIMBAL");
+                hud_panel(payload,"PAYLOAD CONTROL");
+
+                std::ostringstream val;
+                val<<std::fixed<<std::setprecision(1)<<studioDroneAltitudeM<<" m"; value_row(telemetry,0,"Altitude",val.str()); val.str(""); val.clear();
+                val<<std::fixed<<std::setprecision(1)<<studioDroneHorizontalSpeedMps<<" m/s"; value_row(telemetry,1,"H Speed",val.str()); val.str(""); val.clear();
+                val<<std::fixed<<std::setprecision(1)<<studioDroneVerticalSpeedMps<<" m/s"; value_row(telemetry,2,"V Speed",val.str()); val.str(""); val.clear();
+                val<<std::fixed<<std::setprecision(0)<<studioDroneHeadingDeg<<" deg"; value_row(telemetry,3,"Heading",val.str()); val.str(""); val.clear();
+                val<<std::fixed<<std::setprecision(0)<<studioDroneBatteryPercent<<"%"; value_row(telemetry,4,"Battery",val.str());
+                value_row(telemetry,5,"GPS","SIM 18");
+                if (telemetry.h>165) value_row(telemetry,6,"RC Signal","SIMULATED");
+
+                Rect horizonBox{instruments.x+10,instruments.y+31,instruments.w-20,std::max(54,instruments.h-70)};
+                fill(target,horizonBox,rgb8(15,35,47));
+                const int hy=horizonBox.y+horizonBox.h/2;
+                fill(target,{horizonBox.x,hy,horizonBox.w,horizonBox.y+horizonBox.h-hy},rgb8(49,39,24));
+                line(target,horizonBox.x,hy,horizonBox.x+horizonBox.w,hy,hudText);
+                line(target,horizonBox.x+horizonBox.w/2-12,hy,horizonBox.x+horizonBox.w/2+12,hy,hudGreen);
+                line(target,horizonBox.x+horizonBox.w/2,hy-8,horizonBox.x+horizonBox.w/2,hy+8,hudGreen);
+                text(target,instruments.x+10,instruments.y+instruments.h-24,
+                     "HDG "+std::to_string(static_cast<int>(studioDroneHeadingDeg))+"  ALT "+std::to_string(static_cast<int>(studioDroneAltitudeM))+"m",hudText);
+                text(target,instruments.x+10,instruments.y+instruments.h-8,
+                     "GS "+std::to_string(static_cast<int>(studioDroneHorizontalSpeedMps))+" m/s  SIM",hudMuted);
+
+                std::ostringstream gp;
+                gp<<std::fixed<<std::setprecision(1)<<studioDroneGimbalPitchDeg<<" deg"; value_row(gimbal,0,"Pitch",gp.str()); gp.str(""); gp.clear();
+                gp<<std::fixed<<std::setprecision(1)<<studioDroneGimbalYawDeg<<" deg"; value_row(gimbal,1,"Yaw",gp.str());
+                value_row(gimbal,2,"Mode",studioDroneGimbalFollow?"FOLLOW":"MANUAL");
+                const int cX=gimbal.x+gimbal.w/2;
+                const int cY=gimbal.y+std::min(gimbal.h-43,112);
+                studioDroneGimbalUpBtn={cX-18,cY-34,36,22};
+                studioDroneGimbalDownBtn={cX-18,cY+12,36,22};
+                studioDroneGimbalLeftBtn={cX-58,cY-11,36,22};
+                studioDroneGimbalRightBtn={cX+22,cY-11,36,22};
+                studioDroneGimbalCenterBtn={cX-18,cY-11,36,22};
+                hud_button(studioDroneGimbalUpBtn,"UP");
+                hud_button(studioDroneGimbalDownBtn,"DN");
+                hud_button(studioDroneGimbalLeftBtn,"L");
+                hud_button(studioDroneGimbalRightBtn,"R");
+                hud_button(studioDroneGimbalCenterBtn,studioDroneGimbalFollow?"F":"M",studioDroneGimbalFollow);
+
+                status_dot(payload.x+10,payload.y+38,hudGreen);
+                text(target,payload.x+24,payload.y+46,"SIM DEVICE",hudText);
+                text(target,payload.x+9,payload.y+67,studioDronePayloadArmed?"STATE: ARMED (SIM)":"STATE: SAFE",studioDronePayloadArmed?hudYellow:hudGreen);
+                studioDronePayloadArmBtn={payload.x+8,payload.y+78,payload.w-16,25};
+                studioDronePayloadReleaseBtn={payload.x+8,payload.y+108,payload.w-16,27};
+                hud_button(studioDronePayloadArmBtn,studioDronePayloadArmed?"DISARM":"ARM SIM",studioDronePayloadArmed);
+                hud_button(studioDronePayloadReleaseBtn,"RELEASE SIM",false,true);
+                if (payload.h>157) text(target,payload.x+8,payload.y+154,"No hardware output",hudMuted);
+            }
+
+            if (panel.h>510) {
+                Rect footerInfo{mainX,panel.y+panel.h-52,mainW,44};
+                fill(target,footerInfo,rgb8(8,26,18));
+                outline(target,footerInfo,hudGreenDim);
+                text(target,footerInfo.x+8,footerInfo.y+16,
+                     "MISSION: "+studioDroneShotName+"  |  WAYPOINTS: "+std::to_string(studioDroneWaypoints.size())+
+                     "  |  SYSTEM: SIMULATOR  |  WARNINGS: NONE",hudText);
+                text(target,footerInfo.x+8,footerInfo.y+34,
+                     head_to_width("Status: "+studioDroneStatus,footerInfo.w-16),hudMuted);
+            } else {
+                text(target,panel.x+pad,panel.y+panel.h-5,
+                     head_to_width("Status: "+studioDroneStatus,panel.w-pad*2),hudMuted);
+            }
             return;
         }
 
@@ -16495,7 +17007,8 @@ public:
             &p2pSpeedBtn,&p2pSeedRulesBtn,&p2pQueueUpBtn,&p2pQueueDownBtn,&p2pReannounceBtn,&p2pRecheckBtn,&p2pPriorityBtn,
             &liveTvGuideBtn,&liveTvDetectBtn,&liveTvRefreshBtn,&liveTvScanBtn,&liveTvWatchBtn,&liveTvStopBtn,&liveTvGuideRefreshBtn,&liveTvRecordBtn,
             &worldTvPlayBtn,&worldTvOfficialBtn,
-            &gamesLibraryBtn,&gamesSystemsBtn,&gamesAddBtn,&gamesControllersBtn,&gamesSettingsBtn,&gamesPlayBtn,&gamesRefreshBtn
+            &gamesLibraryBtn,&gamesSystemsBtn,&gamesAddBtn,&gamesControllersBtn,&gamesSettingsBtn,&gamesPlayBtn,&gamesRefreshBtn,
+            &gamesGridBtn,&gamesListViewBtn // NOUGAT_V61_GAME_VIEW_HOVER_TARGETS
         };
         for (const Rect* target : targets) {
             if (target->contains(old_x, old_y) != target->contains(new_x, new_y)) return true;
@@ -16572,7 +17085,9 @@ public:
             worldTvScroll=std::max(0,std::min(maxScroll,worldTvScroll+(button==Button4?-1:1)));
             redraw(); return true;
         }
-        if (currentView == ViewMode::Games && target == win && gamesListBox.contains(x,y) && gamesPanel == GamesPanel::Library) {
+        // NOUGAT_V61_GAMES_WHEEL_SYSTEMS_DISPATCH
+        if (currentView == ViewMode::Games && target == win && gamesListBox.contains(x,y) &&
+            (gamesPanel == GamesPanel::Library || gamesPanel == GamesPanel::Systems)) {
             handle_games_wheel_steps(target, x, y, button == Button4 ? -1 : 1);
             return true;
         }
@@ -17516,6 +18031,7 @@ public:
             poll_ytdlp_process();
             poll_nougat_workers();
             poll_studio_worker();
+            poll_drone_simulation();
             maybe_auto_analyze_studio_source();
             poll_home_worker();
             poll_home_preview();
@@ -17739,7 +18255,7 @@ public:
 int main(int argc, char** argv) {
     prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.60\n");
+        printf("Nougat Media Suite v0.0.61\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

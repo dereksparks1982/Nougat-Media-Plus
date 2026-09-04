@@ -1,3 +1,35 @@
+## v0.0.61 - Drone Mission Control and Games Library Expansion
+
+## v0.0.61 - Drone Mission Control and Games Expansion
+
+- Advances the Drone Mission Control workspace.
+- Adds editable Director Shot paths, simulation telemetry, trajectory visualization, and camera/gimbal controls.
+- Expands Games with collapsible console groups, large artwork cards, Grid/List views, and Systems scrolling.
+- Adds the MesenCE NES/SNES runtime foundation.
+- Carries known NES, SNES, and Xbox 360 emulator regressions into v0.0.62.
+- Advances the root executable to Nougat_Media_Suite_v61.
+
+
+- Advances Drone Production into the native Mission Control workspace with editable paths, trajectory visualization, simulation telemetry, gimbal/camera controls and simulated production actions.
+- Keeps real-aircraft command transmission disabled.
+- Expands Games with collapsible console groups, large artwork cards, Grid/List views and bounded Systems scrolling.
+- Adds the MesenCE NES/SNES runtime foundation.
+- Closes v0.0.61 with known emulator regressions: NES/SNES currently present through external MesenCE fullscreen windows, while the restored Xbox 360 contained-window path does not currently run GTA IV.
+- Assigns v0.0.62 to a complete Games/emulator overhaul and validation pass.
+- Advances the active executable to Nougat_Media_Suite_v61.
+
+# v0.0.61 - OWNER-TEST CANDIDATE
+
+- Salvaged the interrupted v61 Drone integration build from the accepted v0.0.60 baseline.
+- Added the dark-green Nougat Drone Lab Mission Control UI.
+- Added editable Director Shot waypoint paths and local shot saving.
+- Added animated trajectory simulation with live telemetry and flight instruments.
+- Added interactive simulation camera/gimbal controls.
+- Added simulation-only payload controls with no hardware transmission.
+- Preserved truthful integration/source detection and kept real-aircraft command transmission disabled.
+- Preserved Nougat Media Suite branding and the approved N icon.
+- Advanced the candidate root executable to Nougat_Media_Suite_v61.
+
 # v0.0.60 - OWNER-ACCEPTED RELEASE
 
 - Added Studio Drone Production foundation.

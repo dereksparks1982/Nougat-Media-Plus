@@ -1,3 +1,27 @@
+## v0.0.62 - Complete Games and Emulator Overhaul
+
+v0.0.62 is the dedicated complete Games overhaul.
+
+- Audit every system currently exposed by Nougat Games.
+- Build a complete supported-system emulator matrix with an explicit primary backend and fallback policy for each system.
+- Add every emulator runtime required by the supported system matrix rather than leaving placeholder system entries.
+- Require every configured emulator backend to pass executable discovery, dependency validation, launch validation, input validation, audio validation, video validation, stop/cleanup validation, and relaunch validation.
+- NES and SNES must render inside Nougat's native Video Player instead of opening an unintended detached MesenCE desktop window.
+- Xbox 360 must both render inside Nougat and successfully launch GTA IV again.
+- Preserve Nougat-owned player containment wherever the system architecture requires embedded gameplay.
+- Keep Grid and List views, collapsible console groups, large artwork cards, scrolling Systems navigation, metadata/artwork support, ZIP-aware libraries, persistent ROM folders, controller architecture, and per-system diagnostics.
+- Do not treat emulator discovery alone as working support. A system is complete only after real launch and gameplay-path validation.
+- Carry emulator failures truthfully in diagnostics instead of silently opening the wrong window or falling back to an unvalidated backend.
+
+
+## v0.0.61 candidate - Drone Lab Mission Control
+
+- Owner-test the recovered Mission Control UI against the approved Drone Lab reference.
+- Owner-test waypoint editing, New Shot, Record Path, Clear Path, Save Shot, and animated Simulate Shot behavior.
+- Owner-test telemetry, flight instruments, camera/gimbal simulation controls, and simulation-only payload controls.
+- Real-aircraft arming/command transmission remains intentionally disabled.
+- After owner acceptance, close v0.0.61 through the normal snapshot, commit, tag, GitHub push, and verification gate.
+
 ## v0.0.60 accepted - Drone Production Foundation
 
 - Studio Drone workspace foundation completed.

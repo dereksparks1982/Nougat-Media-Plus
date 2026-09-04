@@ -34,9 +34,65 @@ Users are responsible for ensuring that their use of Nougat Media Suite complies
 
 Nothing in Nougat Media Suite, its source code, or its documentation grants permission to perform an act that would otherwise be unlawful, unauthorized, or harmful. Availability of a technical capability does not imply legal authorization to use it in a particular jurisdiction, environment, or circumstance.
 
+## v0.0.61 candidate - Drone Lab Mission Control and Director Shot Simulation
+
+Nougat Media Suite v0.0.61 is an **owner-test candidate** built strictly from the accepted v0.0.60 baseline. It is not accepted or release-tagged until owner testing passes.
+
+- Replaces the small v0.0.60 Drone foundation panel with the native dark-green **Nougat Drone Lab Mission Control** workspace.
+- Adds a real editable Mission Planner path: click the map to append Director Shot waypoints, clear the route, start a new shot, and save the shot locally.
+- Adds a functional Nougat trajectory simulator that animates the aircraft along the Director Shot path and updates altitude, horizontal/vertical speed, heading, battery, and flight-instrument state.
+- Adds interactive simulation camera/gimbal controls with pitch, yaw, Follow/Manual behavior, and simulation-only photo/record indicators.
+- Adds simulation-only payload ARM/RELEASE controls that never transmit hardware output.
+- Keeps PX4, ArduPilot, FFmpeg, and GStreamer source/tool detection visible without falsely claiming an aircraft or camera is connected.
+- Keeps **real-aircraft arming and command transmission disabled**.
+- Preserves the accepted Nougat N identity and the **Nougat Media Suite** product name.
+- Documents **Nougat Media Plus** only as a deferred future identity proposal; no rename or icon change is made in v0.0.61.
+- Advances the candidate executable to **Nougat_Media_Suite_v61**.
+
+## v0.0.61 - Drone Mission Control and Games Library Expansion
+
+Nougat Media Suite v0.0.61 is the owner-accepted closeout release built on v0.0.60. It is being closed with known Games emulator regressions intentionally carried forward into the complete v0.0.62 Games overhaul.
+
+- Advances Studio Drone Production from the v0.0.60 foundation into the native Mission Control workspace.
+- Adds editable Director Shot waypoints, path controls, trajectory visualization, simulation telemetry, camera and gimbal controls, simulated photo/video/payload actions, and deeper dependency discovery.
+- Keeps real-aircraft command transmission disabled.
+- Expands Games with persistent collapsible console groups while retaining both Grid and List presentation.
+- Restores large game-artwork cards inside expanded console groups.
+- Adds bounded Systems-panel scrolling so later systems remain inside the Nougat Games interface.
+- Adds the MesenCE NES/SNES runtime foundation.
+- Preserves the existing Xbox/Xenia runtime and Nougat emulator-host architecture for further v0.0.62 repair.
+- Advances the active executable to **Nougat_Media_Suite_v61**.
+
+### Known Games issues carried directly into v0.0.62
+
+- NES currently launches MesenCE in an external fullscreen emulator surface rather than rendering correctly inside Nougat's native Video Player viewport.
+- SNES currently has the same external MesenCE fullscreen-window regression.
+- Xbox 360 currently restores the Nougat-contained Xenia window path, but GTA IV does not successfully run through that restored path.
+- v0.0.62 is therefore assigned a complete Games overhaul rather than another narrow emulator patch.
+- v0.0.62 must build and validate the complete supported emulator matrix, with every supported backend launching correctly through the Nougat Games architecture and every system that requires embedded presentation rendering inside Nougat rather than as an unintended detached desktop window.
+
+## v0.0.61 - Drone Mission Control and Games Expansion
+
+Nougat Media Suite v0.0.61 is the owner-approved closeout checkpoint for the v0.0.62 Games overhaul.
+
+- Advances Drone Production into the native Mission Control workspace.
+- Adds editable Director Shot paths, trajectory visualization, simulation telemetry, camera and gimbal controls, and simulated production actions.
+- Keeps real-aircraft command transmission disabled.
+- Expands Games with collapsible console groups, large artwork cards, Grid and List views, and bounded Systems scrolling.
+- Adds the MesenCE NES/SNES runtime foundation.
+- Advances the active root executable to **Nougat_Media_Suite_v61**.
+
+### Known Games issues carried into v0.0.62
+
+- NES currently opens MesenCE externally instead of rendering inside Nougat's native Video Player.
+- SNES currently opens MesenCE externally instead of rendering inside Nougat's native Video Player.
+- Xbox 360 containment was restored, but GTA IV currently fails to run through that path.
+- These issues are intentionally carried into v0.0.62 instead of being falsely marked fixed.
+- v0.0.62 is assigned a complete Games and emulator overhaul.
+
 ## v0.0.60 - Drone Production Foundation
 
-Nougat Media Suite v0.0.60 is the **owner-accepted release** and frozen baseline for v0.0.61.
+Nougat Media Suite v0.0.60 is the **owner-accepted release** and frozen baseline from which v0.0.61 was developed.
 
 - Adds a dedicated **Drone** interior tab beside Tools inside Studio.
 - Establishes the native **Drone Production** workspace for aerial cinematography and production planning.
@@ -190,6 +246,64 @@ Nougat Media Suite v0.0.53 is the accepted release immediately preceding v0.0.54
 - Adds Child Safe Controls configuration/password protection, runtime component advisory/CVE inventory using OSV as the configured public advisory source, and NOAA/NWS public-safety alert support with protected local history.
 - Repairs Linux process identity, preserves the approved translucent/rounded overlay path, and updates v0.0.53 launcher/executable icon identity from the approved Nougat N artwork.
 - Completes the owner-tested Xbox 360 embedded-video path through the native Linux Xenia Edge runtime. GTA IV launches through Nougat with game audio and rendered video inside Nougat's existing native player viewport without opening a separate emulator window.
+
+<!-- NOUGAT_V53_XBOX360_README_CONSOLIDATED_START -->
+### Xbox 360 / GTA IV integration notes
+
+The following v0.0.53 integration notes were previously stored as separate root README files and are consolidated here so `README.md` remains Nougat's single canonical README.
+
+#### GTA IV runtime bridge
+
+DIRECT OVERLAY - NO INSTALLER
+
+This package is rooted exactly like the Nougat Media Suite project.
+It does not contain or touch a build directory.
+It does not replace Nougat_Media_Suite_v53.
+
+Included:
+- Corrected COMPANY_BIBLE.md with NO INSTALLERS law.
+- Xenia Canary runtime bridge at components/games/runtime/xenia/xenia_canary.
+- GTA IV Title ID 545407F2 Vulkan/windowed profile.
+- Xenia upstream license/source record.
+- Validation/build record and SHA-256 manifest.
+
+The first time Nougat starts an Xbox 360 title through this bridge, it retrieves
+the exact pinned official Xenia Canary Linux AppImage and verifies the pinned
+SHA-256 before running it. The verified binary is then reused.
+
+No game files or console system files are included.
+No commit, tag, push, or release is performed by this package.
+
+#### Xenia Edge direct-surface repair
+
+Changed-files-only package. No installer.
+
+This package replaces the Xbox 360 launcher glue only and adds two precompiled
+Linux x86-64 helper binaries plus their source. It does not rebuild Nougat and
+does not rebuild Xenia Edge on the owner's computer.
+
+Required existing runtime:
+  components/games/runtime/xenia/xenia_edge_linux.AppImage
+  pinned upstream SHA-256:
+  dce3d41f2d5126d5bdbd91e87f7d2ccded89d87e349306804688a3cb4e477591
+
+Failure behavior is fail-closed: if Nougat's native Games/video X11 viewport
+cannot be identified, Xenia Edge is not launched as a detached window.
+
+#### Xenia Edge direct-child repair
+
+Scope:
+- Runtime-only Xbox 360 embedding repair.
+- Does not rebuild or replace Nougat_Media_Suite_v53.
+- Uses the NOUGAT_EMBED_XID already supplied by local v53 EmulatorHost.
+- Creates one real X11 InputOutput child directly inside Nougat's Games/video viewport.
+- Xenia Edge's XCB/Vulkan surface is redirected to that child before swapchain creation.
+- Edge's GTK top-level window is realized but not mapped as a desktop window.
+
+This replaces the rejected parent-surface/proxy/reparent experiments.
+The existing xenia_edge_linux.AppImage remains required in the same runtime directory.
+
+<!-- NOUGAT_V53_XBOX360_README_CONSOLIDATED_END -->
 
 ## v0.0.52 - Radio Receiver Expansion and Hardware Foundation
 
@@ -567,6 +681,11 @@ Debug becomes the **Nougat Media Suite Diagnostic Center**. It gathers evidence 
 At natural TV episode completion, Nougat resolves the real next episode before presenting an **Up Next** overlay. The overlay shows a visible 10-second countdown and `Play Next`, `Back to Series`, and `Replay`; manual choices cancel the countdown, and an unresolved next episode produces an explicit message instead of silently dead-ending.
 
 v0.0.27 added seek-bar hover thumbnail previews while preserving aesthetic fallback chapter marks. During owner testing, v0.0.28 was reassigned to UI/artwork/state polish, v0.0.29 to TV playback/navigation reliability, and the larger P2P-management expansion to v0.0.32.
+
+## v0.0.26 candidate
+
+This candidate adds internal mouse Back/Forward navigation, cleans the Library header and Nougat icon perimeter, upgrades Debug into an evidence-based Diagnostic Center with TXT/JSON/redacted support-bundle exports, cleans and centers the intentional 0-200% volume control, fixes top-header layering during horizontal tab scrolling, and adds a 10-second TV Up Next overlay with Play Next / Back to Series / Replay. P2P feature expansion was later moved to v0.0.32 after the owner split v0.0.28/v0.0.29 into UI/artwork and TV-reliability releases.
+- v0.0.33 server-stop repair: persistent Nougat-owned Jellyfin sessions carry a per-session ownership token; Stop Server terminates the complete owned process tree and verifies port 8096 is released without killing Jellyfin by name.
 
 ## v0.0.25 - Stream Provider Theme, Persistent Selection, and Discover Native Play
 

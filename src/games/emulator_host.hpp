@@ -23,6 +23,7 @@ struct LaunchRequest {
     std::string backend;
     std::string title;
     std::string log_path;
+    // NOUGAT_V61_EMBED_WORKDIR_REMOVED: preserve accepted emulator cwd behavior.
     int window_timeout_ms = 45000;
 };
 
