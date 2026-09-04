@@ -1,3 +1,16 @@
+# v0.0.60 - OWNER-ACCEPTED RELEASE
+
+- Added Studio Drone Production foundation.
+- Added Director Shot planning architecture.
+- Added MAVLink, MAVSDK, PX4, and ArduPilot integration foundations.
+- Added telemetry, camera, gimbal, simulation, and recorded-path scaffolding.
+- Added reproducible Drone dependency pins and source-fetch tooling.
+- Added FFmpeg/GStreamer camera-ingest detection.
+- Added Director Shot schema.
+- Kept real-aircraft control disabled in the simulation-only foundation.
+- Added permanent approved Nougat N identity installation support.
+- Advanced the root executable to Nougat_Media_Suite_v60.
+
 # v0.0.59 - OWNER-ACCEPTED RELEASE
 
 - File Splitter live Target MiB recalculation with exact target-based piece recommendations.

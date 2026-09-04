@@ -948,7 +948,7 @@ enum class StreamPlatform { YouTube, Vimeo, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
 enum class GamesDisplayMode { Grid, List };
 enum class GamesPanel { Library, Systems, Controllers, Settings };
-enum class StudioPanel { Tools, FileSplitter };
+enum class StudioPanel { Tools, Drone, FileSplitter }; // NOUGAT_V60_DRONE_STUDIO_TAB
 enum class StudioBrowserPurpose { Inactive, SourceFile, SourceFolder, SourceZipManifest, OutputFolder };
 enum class RadioPanel { Local, Emergency, Weather, Satellite, Shortwave, Internet, Favorites, Recordings, Cellular }; // NOUGAT_V58_RADIO_ALL_SERVICES
 enum class CardContextKind { Unset, Home, Library, Discover, LiveTV, WorldTV, Games };
@@ -2046,7 +2046,13 @@ public:
     // stays inside Nougat with no external chooser/question/info dialogs.
     StudioPanel studioPanel = StudioPanel::Tools;
     bool studioAssemblerMode = false; // NOUGAT_V59_SEPARATE_FILE_ASSEMBLER
-    Rect studioToolsTab, studioFileSplitterToolBtn, studioFileAssemblerToolBtn, studioBackToToolsBtn;
+    Rect studioToolsTab, studioDroneTab, studioFileSplitterToolBtn, studioFileAssemblerToolBtn, studioBackToToolsBtn;
+    // NOUGAT_V60_DRONE_PRODUCTION_FOUNDATION
+    Rect studioDroneRefreshBtn, studioDroneNewShotBtn, studioDroneSimulateBtn, studioDroneRecordPathBtn;
+    Rect studioDronePromptRect;
+    std::string studioDroneStatus = "Simulation-only Drone foundation ready. Refresh Stack to inspect installed integrations.";
+    std::string studioDroneShotName = "Untitled Shot";
+    int studioDroneShotRevision = 0;
     Rect studioAnalyzeBtn, studioUseSuggestionBtn, studioSplitFileBtn;
     Rect studioReassembleBtn, studioVerifyBtn, studioStopBtn;
     Rect studioSourceRect, studioOutputRect, studioNameRect, studioPiecesRect, studioTargetSizeRect; // NOUGAT_V58_SPLITTER_TARGET
@@ -5332,7 +5338,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.59";
+        const std::string versionLabel = "v0.0.60";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -10219,9 +10225,45 @@ public:
         if (studio_browser_active()) { handle_studio_browser_click(x,y); return; }
         if (studioToolsTab.contains(x,y)) {
             studioPanel=StudioPanel::Tools;
+            studioAssemblerMode=false;
             studioInputFocus=0;
             studioInputSelectAll=false;
             redraw(); return;
+        }
+        if (studioDroneTab.contains(x,y)) {
+            studioPanel=StudioPanel::Drone;
+            studioAssemblerMode=false;
+            studioInputFocus=0;
+            studioInputSelectAll=false;
+            studioDroneStatus="Drone Production opened in simulation-only foundation mode. No aircraft commands are transmitted.";
+            redraw(); return;
+        }
+        if (studioPanel==StudioPanel::Drone) {
+            const std::string droneRoot=exe_dir()+"/components/drone/vendor";
+            const bool px4=std::filesystem::exists(droneRoot+"/PX4-Autopilot");
+            const bool ardupilot=std::filesystem::exists(droneRoot+"/ardupilot");
+            if (studioDroneRefreshBtn.contains(x,y)) {
+                studioDroneStatus="Integration stack refreshed. Vendor sources and host video tools are re-detected live.";
+                redraw(); return;
+            }
+            if (studioDroneNewShotBtn.contains(x,y)) {
+                ++studioDroneShotRevision;
+                studioDroneShotName="Director Shot "+std::to_string(studioDroneShotRevision);
+                studioDroneStatus="New Director Shot draft created. Flight path, camera path, subject lock, timing, and safety constraints share one shot model.";
+                redraw(); return;
+            }
+            if (studioDroneSimulateBtn.contains(x,y)) {
+                if (px4 || ardupilot)
+                    studioDroneStatus="Simulator source is installed. The v60 execution lane is deliberately simulation-only; live aircraft arming and transmission remain disabled.";
+                else
+                    studioDroneStatus="No PX4/ArduPilot source detected yet. Re-run tools/drone/fetch_drone_stack.sh, then Refresh Stack.";
+                redraw(); return;
+            }
+            if (studioDroneRecordPathBtn.contains(x,y)) {
+                studioDroneStatus="Manual-path capture scaffold is ready for simulator/controller telemetry. No real aircraft control is enabled in v60.";
+                redraw(); return;
+            }
+            return;
         }
         if (studioPanel==StudioPanel::Tools) {
             if (studioFileSplitterToolBtn.contains(x,y)) {
@@ -14788,13 +14830,113 @@ public:
         text(target, 28, kTopBarH*2+44, "Nougat creation, production, and media-processing workspace.", palette.muted);
 
         studioToolsTab={28,kTopBarH*2+56,126,34};
+        studioDroneTab={164,kTopBarH*2+56,126,34};
         button_on(target,studioToolsTab,"Tools");
+        button_on(target,studioDroneTab,"Drone"); // NOUGAT_V60_STUDIO_DRONE_TAB_BUTTON
 
         Rect panel{28,kTopBarH*2+98,std::max(240,W-56),std::max(300,H-(kTopBarH*2+128))};
         draw_primary_panel(target,panel,palette);
 
         if (studio_browser_active()) {
             draw_studio_browser(target,panel,palette);
+            return;
+        }
+
+        if (studioPanel==StudioPanel::Drone) {
+            // NOUGAT_V60_DRONE_PRODUCTION_UI
+            text(target,panel.x+18,panel.y+28,"DRONE PRODUCTION",palette.text);
+            text(target,panel.x+18,panel.y+52,
+                 "Director-oriented aerial cinematography, simulator integration, telemetry, camera/gimbal, and repeatable shot planning.",palette.muted);
+
+            Rect safety{panel.x+18,panel.y+66,panel.w-36,34};
+            fill_round(target,safety,8,palette.field);
+            outline_round(target,safety,8,palette.border);
+            text(target,safety.x+10,safety.y+22,
+                 "SIMULATION-ONLY FOUNDATION  |  real-aircraft arming and command transmission are disabled in this build.",
+                 palette.text);
+
+            const std::string droneRoot=exe_dir()+"/components/drone/vendor";
+            const auto drone_exists=[&](const std::string& name) {
+                std::error_code ec;
+                return std::filesystem::exists(droneRoot+"/"+name,ec);
+            };
+            const bool mavsdkReady=drone_exists("MAVSDK");
+            const bool mavlinkReady=drone_exists("mavlink");
+            const bool px4Ready=drone_exists("PX4-Autopilot");
+            const bool ardupilotReady=drone_exists("ardupilot");
+            const bool ffmpegReady=access("/usr/bin/ffmpeg",X_OK)==0 || access("/usr/local/bin/ffmpeg",X_OK)==0;
+            const bool gstReady=access("/usr/bin/gst-launch-1.0",X_OK)==0 || access("/usr/local/bin/gst-launch-1.0",X_OK)==0;
+
+            const int colGap=14;
+            const int colW=std::max(180,(panel.w-36-colGap)/2);
+            Rect stackPanel{panel.x+18,panel.y+112,colW,208};
+            Rect shotPanel{stackPanel.x+stackPanel.w+colGap,panel.y+112,
+                           std::max(180,panel.x+panel.w-18-(stackPanel.x+stackPanel.w+colGap)),208};
+            fill_round(target,stackPanel,10,palette.panel);
+            outline_round(target,stackPanel,10,palette.border);
+            fill_round(target,shotPanel,10,palette.panel);
+            outline_round(target,shotPanel,10,palette.border);
+
+            text(target,stackPanel.x+12,stackPanel.y+24,"INTEGRATION STACK",palette.text);
+            const auto stack_row=[&](int rowY,const std::string& name,bool ready,const std::string& detail) {
+                Rect row{stackPanel.x+10,rowY,stackPanel.w-20,24};
+                fill_round(target,row,6,ready?palette.button:palette.field);
+                outline_round(target,row,6,ready?palette.accent:palette.border);
+                text(target,row.x+8,row.y+17,
+                     head_to_width(name+"  |  "+(ready?"READY":"NOT FETCHED")+"  |  "+detail,row.w-16),
+                     ready?palette.buttonText:palette.muted);
+            };
+            int sy=stackPanel.y+34;
+            stack_row(sy,"MAVLink",mavlinkReady,"message definitions"); sy+=28;
+            stack_row(sy,"MAVSDK",mavsdkReady,"native C++ control API"); sy+=28;
+            stack_row(sy,"PX4",px4Ready,"SITL / open autopilot"); sy+=28;
+            stack_row(sy,"ArduPilot",ardupilotReady,"Copter SITL / open autopilot"); sy+=28;
+            stack_row(sy,"Video",ffmpegReady||gstReady,
+                      std::string(ffmpegReady?"FFmpeg ":"")+(gstReady?"GStreamer":"host tools"));
+            studioDroneRefreshBtn={stackPanel.x+10,stackPanel.y+174,std::min(150,stackPanel.w-20),26};
+            button_on(target,studioDroneRefreshBtn,"Refresh Stack");
+
+            text(target,shotPanel.x+12,shotPanel.y+24,"DIRECTOR SHOT",palette.text);
+            text(target,shotPanel.x+12,shotPanel.y+47,
+                 head_to_width("Draft: "+studioDroneShotName,shotPanel.w-24),palette.text);
+            studioDronePromptRect={shotPanel.x+12,shotPanel.y+57,shotPanel.w-24,48};
+            fill_round(target,studioDronePromptRect,7,palette.field);
+            outline_round(target,studioDronePromptRect,7,palette.border);
+            text(target,studioDronePromptRect.x+8,studioDronePromptRect.y+18,
+                 head_to_width("Prompt scaffold: Track actor, rise 12 -> 35 ft,",studioDronePromptRect.w-16),palette.muted);
+            text(target,studioDronePromptRect.x+8,studioDronePromptRect.y+36,
+                 head_to_width("orbit 120 degrees clockwise, then pull back.",studioDronePromptRect.w-16),palette.muted);
+
+            const int shotGap=6;
+            const int shotButtonW=std::max(86,(shotPanel.w-24-shotGap*2)/3);
+            int sbx=shotPanel.x+12;
+            studioDroneNewShotBtn={sbx,shotPanel.y+114,shotButtonW,28}; sbx+=shotButtonW+shotGap;
+            studioDroneSimulateBtn={sbx,shotPanel.y+114,shotButtonW,28}; sbx+=shotButtonW+shotGap;
+            studioDroneRecordPathBtn={sbx,shotPanel.y+114,shotButtonW,28};
+            button_on(target,studioDroneNewShotBtn,"New Shot");
+            button_on(target,studioDroneSimulateBtn,"Simulate Shot");
+            button_on(target,studioDroneRecordPathBtn,"Record Path");
+            text(target,shotPanel.x+12,shotPanel.y+160,
+                 head_to_width("Describe -> Path -> Preview -> Simulate -> Save -> Authorized Flight (later)",
+                               shotPanel.w-24),palette.muted);
+            text(target,shotPanel.x+12,shotPanel.y+180,
+                 head_to_width("Shot model keeps aircraft motion, gimbal motion, camera state, timing, and subject lock together.",
+                               shotPanel.w-24),palette.muted);
+
+            Rect telemetry{panel.x+18,panel.y+332,panel.w-36,std::max(78,panel.h-346)};
+            fill_round(target,telemetry,10,palette.panel);
+            outline_round(target,telemetry,10,palette.border);
+            text(target,telemetry.x+12,telemetry.y+24,"TELEMETRY / CAMERA / GIMBAL PIPELINE",palette.text);
+            text(target,telemetry.x+12,telemetry.y+48,
+                 head_to_width("GPS: waiting  |  Altitude: waiting  |  Speed: waiting  |  Heading: waiting  |  Battery: waiting  |  Link: simulator",
+                               telemetry.w-24),palette.muted);
+            text(target,telemetry.x+12,telemetry.y+70,
+                 head_to_width("Camera: "+std::string(ffmpegReady||gstReady?"host ingest tools detected":"ingest tools not detected")+
+                               "  |  Gimbal: waiting  |  synchronized take metadata foundation ready",
+                               telemetry.w-24),palette.muted);
+            if (telemetry.h>=102)
+                text(target,telemetry.x+12,telemetry.y+94,
+                     head_to_width("Status: "+studioDroneStatus,telemetry.w-24),palette.text);
             return;
         }
 
@@ -17597,7 +17739,7 @@ public:
 int main(int argc, char** argv) {
     prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.59\n");
+        printf("Nougat Media Suite v0.0.60\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

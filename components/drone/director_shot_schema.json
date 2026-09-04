@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nougat Director Shot",
+  "type": "object",
+  "required": ["name", "simulation_only", "segments"],
+  "properties": {
+    "name": {"type": "string"},
+    "description": {"type": "string"},
+    "subject": {"type": "string"},
+    "simulation_only": {"const": true},
+    "segments": {"type": "array", "items": {"type": "object", "properties": {
+      "start_s": {"type": "number", "minimum": 0},
+      "duration_s": {"type": "number", "minimum": 0},
+      "flight_action": {"type": "string"},
+      "altitude_ft": {"type": ["number", "null"]},
+      "speed_mph": {"type": ["number", "null"]},
+      "orbit_degrees": {"type": ["number", "null"]},
+      "camera_action": {"type": "string"},
+      "gimbal_action": {"type": "string"},
+      "subject_lock": {"type": "boolean"}
+    }}},
+    "safety": {"type": "object", "properties": {"real_aircraft_authorized": {"const": false}, "notes": {"type": "string"}}}
+  }
+}

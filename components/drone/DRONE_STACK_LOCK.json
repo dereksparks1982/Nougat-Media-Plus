@@ -1,0 +1,10 @@
+{
+  "format": "nougat-drone-stack-lock-v1",
+  "purpose": "Reproducible simulation/control source foundations for Studio Drone Production.",
+  "mavsdk": {"url": "https://github.com/mavlink/MAVSDK.git", "ref": "v3.17.4", "role": "Native C++ MAVLink control/telemetry API foundation"},
+  "mavlink": {"url": "https://github.com/mavlink/mavlink.git", "commit": "aae24cc6e7b2a1a6d5ad3a58ef0799f90703a59e", "role": "MAVLink message/protocol definitions"},
+  "px4": {"url": "https://github.com/PX4/PX4-Autopilot.git", "ref": "v1.17.0", "role": "PX4 SITL and future supported PX4 aircraft"},
+  "ardupilot": {"url": "https://github.com/ArduPilot/ardupilot.git", "ref": "Copter-4.7.0", "role": "ArduPilot Copter SITL and future supported ArduPilot aircraft"},
+  "host_tools": ["ffmpeg", "gst-launch-1.0", "cmake", "ninja", "python3"],
+  "live_aircraft_commands_enabled": false
+}

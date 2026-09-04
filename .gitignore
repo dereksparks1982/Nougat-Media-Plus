@@ -28,3 +28,6 @@
 /.nougat-v*-backup-*/
 /.nougat-v*-rejected-backup-*/
 /.nougat-v*-full-repair-backup-*/
+
+# Reproducible third-party Drone source checkouts (see components/drone/DRONE_STACK_LOCK.json)
+components/drone/vendor/

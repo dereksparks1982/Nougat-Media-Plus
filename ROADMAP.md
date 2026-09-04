@@ -1,3 +1,12 @@
+## v0.0.60 accepted - Drone Production Foundation
+
+- Studio Drone workspace foundation completed.
+- MAVLink / MAVSDK / PX4 / ArduPilot integration foundation completed.
+- Director Shot model foundation completed.
+- Simulation-only telemetry, camera, gimbal, and recorded-path scaffolding completed.
+- Approved Nougat N identity repair carried forward permanently.
+- v0.0.61 begins from this frozen baseline with deeper Drone simulation and Director Shot development.
+
 ## v0.0.59 accepted - Studio File Tools and Player Seek Repair
 
 - Completed live Target MiB / Pieces / Recommended recalculation in File Splitter.

@@ -16,7 +16,7 @@ Nougat also includes a **Cellular Lab** foundation for private, controlled cellu
 
 **Games** provides a unified game library and emulator front end with persistent ROM folders, ZIP-contained game discovery, system recognition, artwork, controller support, automatic emulator selection, managed emulator runtimes, embedded gameplay where supported, and support for legally redistributable test and homebrew content while users provide their own legally obtained commercial game dumps and any required firmware or BIOS.
 
-**Studio** provides integrated media and file-production tools. Its File Splitter analyzes sources, calculates target-based piece recommendations, supports live Target MiB and Pieces interaction, and creates verified split sets. The separate File Assembler can begin from a manifest or numbered split part, discover the remaining pieces, validate completeness, ordering, sizes, and hashes, reconstruct the original payload, and verify final integrity.
+**Studio** provides integrated media, file-production, and production-planning tools. Its File Splitter analyzes sources, calculates target-based piece recommendations, supports live Target MiB and Pieces interaction, and creates verified split sets. The separate File Assembler can begin from a manifest or numbered split part, discover the remaining pieces, validate completeness, ordering, sizes, and hashes, reconstruct the original payload, and verify final integrity. Studio also includes **Drone Production**, a director-oriented aerial-production environment for simulation, telemetry, camera and gimbal coordination, repeatable flight paths, and Director Shot planning that keeps aircraft movement, camera movement, timing, subject tracking, and shot metadata together.
 
 Nougat includes a **Jellyfin-backed media-server foundation** and a Nougat-branded background **Web Player** for browsers and other devices on the local network. Local media access is designed to work without a mandatory cloud account, cloud relay, or Internet connection. The network-media architecture supports phones, tablets, laptops, televisions, browsers, and other LAN clients while keeping Nougat as the visible user-facing experience and Jellyfin as backend catalog infrastructure.
 
@@ -33,6 +33,27 @@ Nougat Media Suite is provided for **educational, research, testing, and develop
 Users are responsible for ensuring that their use of Nougat Media Suite complies with all applicable laws, regulations, licensing requirements, spectrum and communications rules, privacy obligations, intellectual-property rights, contractual restrictions, and third-party terms. Features involving networks, radio, cellular systems, devices, accounts, media, signals, or data should be used only with resources the user owns or is explicitly authorized to access, operate, test, receive, modify, or analyze.
 
 Nothing in Nougat Media Suite, its source code, or its documentation grants permission to perform an act that would otherwise be unlawful, unauthorized, or harmful. Availability of a technical capability does not imply legal authorization to use it in a particular jurisdiction, environment, or circumstance.
+
+## v0.0.60 - Drone Production Foundation
+
+Nougat Media Suite v0.0.60 is the **owner-accepted release** and frozen baseline for v0.0.61.
+
+- Adds a dedicated **Drone** interior tab beside Tools inside Studio.
+- Establishes the native **Drone Production** workspace for aerial cinematography and production planning.
+- Adds the **Director Shot** foundation for repeatable aircraft and camera movement.
+- Establishes the production workflow foundation for **Describe -> Path -> Preview -> Simulate -> Save -> Authorized Flight**.
+- Adds New Shot, Simulate Shot, and Record Path scaffolding.
+- Adds telemetry foundations for GPS, altitude, speed, heading, battery, and vehicle-link state.
+- Adds camera and gimbal pipeline foundations.
+- Detects FFmpeg and GStreamer for future live drone-camera ingest.
+- Adds integration discovery for **MAVLink, MAVSDK, PX4, and ArduPilot**.
+- Adds pinned, reproducible third-party Drone source metadata and automatic source-fetch tooling.
+- Preserves upstream project repositories and licenses separately from Nougat-owned source.
+- Stores downloaded third-party working trees under the ignored `components/drone/vendor/` area.
+- Adds a machine-readable Director Shot schema for future cinematic automation.
+- Keeps this foundation release **simulation-only**. Real-aircraft arming and command transmission remain disabled.
+- Preserves the approved **Nougat N** identity and includes reusable icon-identity installation support.
+- Advances the active executable to **Nougat_Media_Suite_v60**.
 
 ## v0.0.59 - File Assembler, Live Splitter Recalculation, and Stable Player Seek Control
 
