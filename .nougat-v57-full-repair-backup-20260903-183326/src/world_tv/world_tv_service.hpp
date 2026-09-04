@@ -46,8 +46,7 @@ public:
                                  const std::string& preferred_url,
                                  const std::string& resolver,
                                  int max_height,
-                                 const std::string& homepage,
-                                 const std::string& exclude_url = {}) const; // NOUGAT_V57_WORLD_TV_HOMEPAGE
+                                 const std::string& exclude_url = {}) const;
 
     bool refresh_artwork(const std::string& channel_id,
                          const std::string& feed_id,

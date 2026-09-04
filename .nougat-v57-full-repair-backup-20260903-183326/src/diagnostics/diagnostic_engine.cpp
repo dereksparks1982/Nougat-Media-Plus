@@ -440,12 +440,9 @@ DiagnosticReport DiagnosticEngine::evaluate(const DiagnosticInput& input) const 
     add_fact(report, "Server", "Ownership", input.server_owned ? "Nougat-owned" : "Not Nougat-owned", "MediaServerManager ownership state.");
     add_fact(report, "Server", "Health API", input.server_api_ready ? "Ready" : "Not ready", "MediaServerManager API health state.");
     if (input.server_busy || input.server_state == MediaServerState::Starting) {
-        const std::string transition_evidence = input.active_operation.empty()
-            ? "MediaServerManager reports Starting/busy while the integrated health API has not reached Ready."
-            : input.active_operation;
         add_finding(report, "Server", DiagnosticSeverity::NeedsAttention, "SERVER_TRANSITION", "Integrated server is transitioning",
-                    "Server reaches a stable Ready or Stopped state.", "Server operation is still in progress.", transition_evidence,
-                    "Allow the operation to finish, then rerun the check if it remains stuck."); // NOUGAT_V57_SERVER_EVIDENCE
+                    "Server reaches a stable Ready or Stopped state.", "Server operation is still in progress.", input.active_operation,
+                    "Allow the operation to finish, then rerun the check if it remains stuck.");
     } else if (input.server_state == MediaServerState::RuntimeMissing || !path_exists(input.runtime_path)) {
         add_finding(report, "Server", DiagnosticSeverity::Problem, "SERVER_RUNTIME_MISSING", "Jellyfin runtime is missing",
                     "Bundled Jellyfin runtime exists and is readable.", input.runtime_path, "Runtime path filesystem probe.",

@@ -9,7 +9,7 @@
 - Server diagnostics use the real integrated health probe and can clear a stale transition/busy state after the server is actually healthy.
 - Removed Child Safe status/gating from the System page.
 - Added the owner-approved Plex-class capability program to the long-term roadmap.
-- Repaired Live TV playback allocation/retry, World TV source recovery, Pro-only Radio layout, collapsible console-grouped Games, server health/startup state, and GNOME application identity.
+- Games/Xenia, Web Player behavior, Radio layout, Live TV playback and unrelated UI are intentionally untouched.
 
 # Nougat Media Suite Change Log
 

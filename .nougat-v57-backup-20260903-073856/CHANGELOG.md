@@ -1,16 +1,3 @@
-# v0.0.57 — CANDIDATE (owner testing required)
-
-- Movies is the default Library root and Library/Home are pre-warmed so ordinary navigation does not visibly rebuild cards.
-- Cached Home/Library refreshes stay in the background while finished content remains visible.
-- Added tolerant real-world movie filename cleanup for periods, underscores, release tags, years, codec/resolution noise and long catalog/DVD prefixes while preserving legitimate numeric titles.
-- Added persistent owner Fix Match / Clear Manual Match controls for Home and Library cards.
-- Manual matches lock title/year/media type/TMDb identity/poster path and override automatic identity on later refreshes.
-- Deep Diagnostic now writes private history snapshots to the Nougat config tree and no longer calls a failed history save a complete success.
-- Server diagnostics use the real integrated health probe and can clear a stale transition/busy state after the server is actually healthy.
-- Removed Child Safe status/gating from the System page.
-- Added the owner-approved Plex-class capability program to the long-term roadmap.
-- Repaired Live TV playback allocation/retry, World TV source recovery, Pro-only Radio layout, collapsible console-grouped Games, server health/startup state, and GNOME application identity.
-
 # Nougat Media Suite Change Log
 
 ## v0.0.55 candidate — First-Party LAN Web Player

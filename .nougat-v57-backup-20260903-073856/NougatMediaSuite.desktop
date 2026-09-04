@@ -2,7 +2,7 @@
 Type=Application
 Name=Nougat Media Suite
 Comment=Nougat Media Suite Home, native player, library, Discover AI, Live TV guide, decentralized Search, Stream, Studio, P2P, security, and System controls
-Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Suite_v57"
+Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Suite_v55"
 Icon=nougat-media-suite
 StartupWMClass=NougatMediaSuite
 X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaSuite

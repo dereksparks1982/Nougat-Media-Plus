@@ -516,11 +516,6 @@ No roadmap item becomes build scope solely because it appears in this document. 
 **Rule:** Capability parity means implementing useful media-server/library functions in Nougat's own architecture and visual language, not copying Plex code, branding, assets, or proprietary implementation.
 
 ## v0.0.57 foundation — IN PROGRESS / CANDIDATE
-- Live TV multi-tuner Watch recovery without destructive rescans
-- World TV official-page/direct-candidate recovery with bounded alternate retries
-- Radio consolidated into one professional receiver interface
-- Games Library grouped into persistent collapsible console sections
-- one-executable GNOME/Resources identity and accepted-icon gate
 - persistent pre-rendered Home and Library surfaces; no owner-visible card-by-card rebuild on ordinary tab changes
 - Movies as the default Library root
 - shared tolerant media identity cleanup for periods, underscores, release tags, years, codecs, resolution tags, and nonstandard catalog/disc prefixes

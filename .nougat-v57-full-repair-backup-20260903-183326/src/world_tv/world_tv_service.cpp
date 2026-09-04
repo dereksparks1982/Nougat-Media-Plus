@@ -181,8 +181,7 @@ WorldTvResolveResult WorldTvService::resolve(const std::string& channel_id,
                                              const std::string& preferred_url,
                                              const std::string& resolver,
                                              int max_height,
-                                             const std::string& homepage,
-                                             const std::string& exclude_url) const { // NOUGAT_V57_WORLD_TV_HOMEPAGE
+                                             const std::string& exclude_url) const {
     WorldTvResolveResult result;
     int exit_code = -1;
     const std::string output = run_worker({
@@ -192,7 +191,6 @@ WorldTvResolveResult WorldTvService::resolve(const std::string& channel_id,
         preferred_url,
         resolver,
         std::to_string(max_height),
-        homepage,
         exclude_url,
     }, exit_code);
 

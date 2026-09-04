@@ -5,7 +5,6 @@ import datetime as dt
 import gzip
 import io
 import json
-import re
 import os
 from pathlib import Path
 import shutil
@@ -250,48 +249,8 @@ def ffprobe_candidate(url: str, referrer: str, user_agent: str,
     LAST_PROBE_REASON = "stream opened but sampled frames remained black/blank"
     return False
 
-
-
-# NOUGAT_V57_WORLD_TV_CANDIDATES: official-page direct source discovery plus
-# owner-observed fallback candidates. This stays bounded and excludes YouTube.
-def official_stream_candidates(homepage: str) -> list[str]:
-    homepage = clean(homepage)
-    if not homepage.startswith(("https://", "http://")):
-        return []
-    try:
-        raw = request_bytes(homepage, timeout=6.0, limit=4 * 1024 * 1024)
-    except Exception:
-        return []
-    text = raw.decode("utf-8", errors="ignore")
-    text = text.replace("\\/", "/").replace("\\u002F", "/").replace("\\u002f", "/")
-    found: list[str] = []
-    patterns = [
-        r"https?://[^\s\"'<>]+?\.(?:m3u8|mpd)(?:\?[^\s\"'<>]*)?",
-        r"[\"']([^\"']+?\.(?:m3u8|mpd)(?:\?[^\"']*)?)[\"']",
-    ]
-    for pattern in patterns:
-        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
-            value = match.group(1) if match.lastindex else match.group(0)
-            value = urllib.parse.urljoin(homepage, value)
-            if value.startswith(("https://", "http://")) and not youtube_url(value) and value not in found:
-                found.append(value)
-            if len(found) >= 12:
-                return found
-    return found
-
-
-def known_direct_candidates(channel_id: str) -> list[str]:
-    # AlMamlaka's master URL has changed over time. Keep independently published
-    # direct variants so one stale path does not collapse the channel to 1/1.
-    if channel_id == "AlMamlakaTV.jo":
-        return [
-            "https://almamlka-live.ercdn.net/almamlka/almamlka_1080p.m3u8",
-            "https://bcovlive-a.akamaihd.net/4109c7ba30fd4a44ad9afe917c67a8c8/eu-central-1/6415809151001/playlist.m3u8",
-        ]
-    return []
-
 def resolve_mode(channel_id: str, feed_id: str, preferred_url: str,
-                 resolver: str, max_height: int, homepage: str, exclude_url: str) -> int:
+                 resolver: str, max_height: int, exclude_url: str) -> int:
     candidates: list[dict[str, str]] = []
 
     def add(url: str, referrer: str = "", user_agent: str = "",
@@ -318,11 +277,6 @@ def resolve_mode(channel_id: str, feed_id: str, preferred_url: str,
 
     if preferred_url:
         add(preferred_url, preferred=True)
-
-    for url in known_direct_candidates(channel_id):
-        add(url, referrer=homepage, label="known direct alternate")
-    for url in official_stream_candidates(homepage):
-        add(url, referrer=homepage, label="official broadcaster page")
 
     try:
         streams = cached_json(STREAMS_API, "streams.json", ttl=1800)
@@ -602,13 +556,13 @@ def main() -> int:
         return 64
 
     mode = sys.argv[1]
-    if mode == "resolve" and len(sys.argv) == 9:
+    if mode == "resolve" and len(sys.argv) == 8:
         try:
             max_height = max(1, min(1080, int(sys.argv[6])))
         except ValueError:
             max_height = 1080
         return resolve_mode(sys.argv[2], sys.argv[3], sys.argv[4],
-                            sys.argv[5], max_height, sys.argv[7], sys.argv[8])
+                            sys.argv[5], max_height, sys.argv[7])
 
     if mode == "artwork" and len(sys.argv) == 5:
         return artwork_mode(sys.argv[2], sys.argv[3], sys.argv[4])

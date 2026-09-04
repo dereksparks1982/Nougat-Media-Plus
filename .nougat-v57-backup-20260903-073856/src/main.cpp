@@ -242,132 +242,6 @@ static std::string lower_copy(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return (char)std::tolower(c); });
     return s;
 }
-
-
-// NOUGAT_V57_MEDIA_IDENTITY: tolerant real-world filename normalization plus owner locks.
-struct NougatV57ManualMatch {
-    std::string title;
-    std::string tmdb_id;
-    std::string poster_path;
-    int year = 0;
-    bool television = false;
-};
-
-static std::string nougat_v57_trim(std::string value) {
-    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) value.erase(value.begin());
-    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) value.pop_back();
-    return value;
-}
-
-static std::string nougat_v57_clean_media_title(std::string value) {
-    if (value.find('/') != std::string::npos) value = stem_only(value);
-    else {
-        const std::size_t slash = value.find_last_of("/\\");
-        if (slash != std::string::npos) value = value.substr(slash + 1U);
-        const std::size_t dot = value.find_last_of('.');
-        if (dot != std::string::npos && value.size() - dot <= 6U) value.resize(dot);
-    }
-    for (char& c : value) if (c == '.' || c == '_' || c == '-') c = ' ';
-    while (value.find("  ") != std::string::npos) value.replace(value.find("  "), 2, " ");
-    value = nougat_v57_trim(value);
-
-    // Strip catalog/disc prefixes such as 010144DVD without damaging legitimate titles such as "8 Million Ways to Die".
-    const std::size_t first_space = value.find(' ');
-    if (first_space != std::string::npos) {
-        const std::string first = value.substr(0, first_space);
-        std::size_t digits = 0;
-        while (digits < first.size() && std::isdigit(static_cast<unsigned char>(first[digits]))) ++digits;
-        if (digits >= 5U && (digits == first.size() || first.size() - digits <= 8U)) value = nougat_v57_trim(value.substr(first_space + 1U));
-    }
-
-    const auto token_is_release_noise = [](std::string token) {
-        token = lower_copy(token);
-        while (!token.empty() && (token.front()=='(' || token.front()=='[' || token.front()=='{')) token.erase(token.begin());
-        while (!token.empty() && (token.back()==')' || token.back()==']' || token.back()=='}' || token.back()==',')) token.pop_back();
-        if (token.size()==4U && std::all_of(token.begin(), token.end(), [](unsigned char c){return std::isdigit(c)!=0;})) {
-            const int y=std::atoi(token.c_str()); if (y>=1880 && y<=2100) return true;
-        }
-        static const char* noise[] = {"480p","576p","720p","1080p","1080i","1440p","2160p","4k","uhd","hdr","hdr10","dv",
-            "bluray","blu","bdrip","brrip","webrip","webdl","web","web-dl","hdtv","dvdrip","dvd","remux",
-            "x264","x265","h264","h265","hevc","av1","xvid","aac","ac3","eac3","dts","truehd","atmos","10bit","8bit",
-            "proper","repack","extended","limited","internal","multi","dual","yify","rarbg"};
-        for (const char* n : noise) if (token == n) return true;
-        return false;
-    };
-
-    std::istringstream words(value);
-    std::vector<std::string> kept;
-    std::string word;
-    while (words >> word) {
-        if (!kept.empty() && token_is_release_noise(word)) break;
-        kept.push_back(word);
-    }
-    if (!kept.empty()) {
-        std::ostringstream out;
-        for (std::size_t i=0;i<kept.size();++i) { if (i) out << ' '; out << kept[i]; }
-        value = nougat_v57_trim(out.str());
-    }
-    return value;
-}
-
-static std::string nougat_v57_manual_match_file() { return config_dir() + "/manual_media_matches.tsv"; }
-
-static bool nougat_v57_load_manual_match(const std::string& media_path, NougatV57ManualMatch& match) {
-    std::ifstream in(nougat_v57_manual_match_file());
-    std::string path, title, tmdb, poster; int year=0, tv=0;
-    while (in >> std::quoted(path) >> std::quoted(title) >> year >> tv >> std::quoted(tmdb) >> std::quoted(poster)) {
-        if (path != media_path) continue;
-        match.title=title; match.year=year; match.television=tv!=0; match.tmdb_id=tmdb; match.poster_path=poster; return true;
-    }
-    return false;
-}
-
-static bool nougat_v57_save_manual_match(const std::string& media_path, const NougatV57ManualMatch& match) {
-    ensure_config_dir();
-    std::vector<std::pair<std::string,NougatV57ManualMatch>> all;
-    {
-        std::ifstream in(nougat_v57_manual_match_file());
-        std::string path, title, tmdb, poster; int year=0, tv=0;
-        while (in >> std::quoted(path) >> std::quoted(title) >> year >> tv >> std::quoted(tmdb) >> std::quoted(poster)) {
-            if (path == media_path) continue;
-            NougatV57ManualMatch m; m.title=title; m.year=year; m.television=tv!=0; m.tmdb_id=tmdb; m.poster_path=poster;
-            all.push_back({path,m});
-        }
-    }
-    all.push_back({media_path,match});
-    const std::string temp = nougat_v57_manual_match_file()+".tmp";
-    std::ofstream out(temp,std::ios::trunc); if (!out) return false;
-    for (const auto& entry:all) out << std::quoted(entry.first) << '\t' << std::quoted(entry.second.title) << '\t' << entry.second.year << '\t'
-        << (entry.second.television?1:0) << '\t' << std::quoted(entry.second.tmdb_id) << '\t' << std::quoted(entry.second.poster_path) << '\n';
-    out.close(); chmod(temp.c_str(),0600); return rename(temp.c_str(),nougat_v57_manual_match_file().c_str())==0;
-}
-
-static bool nougat_v57_clear_manual_match(const std::string& media_path) {
-    NougatV57ManualMatch ignored;
-    if (!nougat_v57_load_manual_match(media_path,ignored)) return true;
-    ensure_config_dir();
-    std::vector<std::pair<std::string,NougatV57ManualMatch>> all;
-    std::ifstream in(nougat_v57_manual_match_file());
-    std::string path,title,tmdb,poster; int year=0,tv=0;
-    while (in >> std::quoted(path) >> std::quoted(title) >> year >> tv >> std::quoted(tmdb) >> std::quoted(poster)) {
-        if (path==media_path) continue;
-        NougatV57ManualMatch m; m.title=title; m.year=year; m.television=tv!=0; m.tmdb_id=tmdb; m.poster_path=poster; all.push_back({path,m});
-    }
-    const std::string temp=nougat_v57_manual_match_file()+".tmp"; std::ofstream out(temp,std::ios::trunc); if(!out) return false;
-    for(const auto& entry:all) out<<std::quoted(entry.first)<<'\t'<<std::quoted(entry.second.title)<<'\t'<<entry.second.year<<'\t'<<(entry.second.television?1:0)<<'\t'<<std::quoted(entry.second.tmdb_id)<<'\t'<<std::quoted(entry.second.poster_path)<<'\n';
-    out.close(); chmod(temp.c_str(),0600); return rename(temp.c_str(),nougat_v57_manual_match_file().c_str())==0;
-}
-
-static void nougat_v57_apply_manual_match(reddmedia::LibraryNode& node) {
-    if (node.path.empty()) return;
-    NougatV57ManualMatch match; if (!nougat_v57_load_manual_match(node.path,match)) return;
-    if (!match.title.empty()) node.name=match.title;
-    if (match.year>0) node.production_year=match.year;
-    if (!match.tmdb_id.empty()) node.tmdb_id=match.tmdb_id;
-    if (!match.poster_path.empty()) node.tmdb_poster_path=match.poster_path;
-    if (match.television && node.kind==reddmedia::LibraryNodeKind::Movie) node.kind=reddmedia::LibraryNodeKind::Series;
-    if (!match.television && node.kind==reddmedia::LibraryNodeKind::Series) node.kind=reddmedia::LibraryNodeKind::Movie;
-}
 static bool ends_with_lower(const std::string& s, const std::string& ending) {
     std::string a = lower_copy(s);
     return a.size() >= ending.size() && a.substr(a.size()-ending.size()) == ending;
@@ -939,7 +813,7 @@ enum class MenuAction {
     NougatCopySelection, NougatSelectAll,
     SecuritySystemFull, SecuritySystemCritical, SecuritySystemStartup, SecuritySystemDownloads,
     SecuritySystemRemovable, SecuritySystemChanged,
-    CardPlay, CardOpenSource, CardInfo, CardRefresh, CardFixMatch, CardClearMatch, CardOpenOfficial, CardRefreshArtwork, CardOpenArtwork
+    CardPlay, CardOpenSource, CardInfo, CardRefresh, CardOpenOfficial, CardRefreshArtwork, CardOpenArtwork
 };
 enum class ViewMode { Home, VideoPlayer, Library, Discover, LiveTV, WorldTV, Radio, Nougat, Stream, Studio, Games, P2P, Debug };
 enum class NougatPanel { Search, Crawler, P2P, VirusScan, Archive };
@@ -980,7 +854,7 @@ struct LibraryUiState {
     std::mutex mutex;
     std::vector<reddmedia::MediaFolder> folders;
     std::vector<reddmedia::LibraryNode> nodes;
-    std::string status = "Movies ready.";
+    std::string status = "Choose Movies or TV.";
     bool busy = false;
     bool updated = false;
     double progress = 0.0;
@@ -2090,7 +1964,7 @@ public:
     Rect radioGainDownBtn, radioGainUpBtn, radioSquelchDownBtn, radioSquelchUpBtn, radioTxTestBtn, radioListBox;
     RadioPanel radioPanel = RadioPanel::Local;
     reddmedia::RadioBackend radioBackend;
-    bool radioProMode = true; // NOUGAT_V57_RADIO_PRO_ONLY
+    bool radioProMode = false;
     bool radioFrequencyFocused = false;
     std::string radioFrequencyText = "100.100000";
     std::string radioInternetLabel;
@@ -2316,7 +2190,8 @@ public:
     std::vector<reddmedia::security::RuntimeComponentAdvisory> securityInventory;
     std::vector<reddmedia::alerts::PublicSafetyAlert> activePublicAlerts;
     std::string publicAlertArea;
-    std::string v53SystemStatus = "v0.0.57 episode identity repair candidate ready for owner testing.";
+    std::string v53SystemStatus = "v0.0.56 episode identity repair candidate ready for owner testing.";
+    bool parentSystemUnlocked = false;
     reddmedia::NougatTunerBackend tunerBackend;
     reddmedia::HdHomeRunProvider hdHomeRunProvider;
     std::shared_ptr<LiveTvScanUiState> liveTvScanState = std::make_shared<LiveTvScanUiState>();
@@ -2385,7 +2260,7 @@ public:
     std::vector<std::pair<Rect,int>> libraryImdbHitboxes;
     int librarySelected = -1;
     int libraryScroll = 0;
-    bool libraryTypeChosen = true;
+    bool libraryTypeChosen = false;
     reddmedia::LibraryMediaType libraryMediaType = reddmedia::LibraryMediaType::Movies;
     std::vector<reddmedia::LibraryNode> libraryParents;
     std::shared_ptr<PosterUiState> posterState = std::make_shared<PosterUiState>();
@@ -2441,9 +2316,6 @@ public:
     Time gamesLastClickTime = 0;
     int gamesLastClickIndex = -1;
     std::vector<std::pair<Rect,int>> gameRows;
-    std::vector<std::pair<Rect,std::string>> gameSystemHeaders;
-    std::set<std::string> collapsedGameSystems;
-    bool gameGroupStateLoaded = false; // NOUGAT_V57_GAME_GROUPS
     std::map<std::string, reddmedia::LibraryPoster> gameArtworkCache;
     std::set<std::string> gameArtworkFailed;
     pid_t gameArtworkPrefetchPid = -1;
@@ -3502,7 +3374,7 @@ public:
         }
         if (mediaServer.persistent_enabled()) mediaServer.start();
         else mediaServer.refresh();
-        v53SystemStatus="Run Checks to inspect Nougat Media Suite."; // NOUGAT_V57_NO_CHILD_SAFE_SYSTEM
+        { std::string childStatus; childSafeControls.load(childStatus); v53SystemStatus=childStatus; }
         if (const char* alertArea=std::getenv("NOUGAT_ALERT_AREA")) publicAlertArea=alertArea;
         liveTvChannels = tunerBackend.load_channels();
         liveTvPrograms = tunerBackend.load_guide();
@@ -3517,12 +3389,6 @@ public:
             serverState->state = mediaServer.state();
             serverState->owned = mediaServer.owns_server();
         }
-        // v0.0.57 repair: seed Movies/Home without blocking the X11 event loop.
-        // Cached Library nodes become visible immediately; workers finish off the UI thread.
-        libraryMediaType = reddmedia::LibraryMediaType::Movies;
-        libraryTypeChosen = true;
-        libraryParents.clear();
-        start_library_task(4);
         start_home_task();
         return true;
     }
@@ -3686,25 +3552,24 @@ public:
         const int radioGap = 6;
         const int left = radioFrame.x + 16;
         const int usable = std::max(260, radioFrame.w - 32);
-        // NOUGAT_V57_RADIO_LAYOUT: no basic/pro toggle. Radio is always the full receiver.
-        radioSimpleBtn = {};
-        radioProBtn = {};
-        const int presetY = kPageControlY;
+        const int modeW = 92;
+        radioSimpleBtn = {left, kPageControlY, modeW, kCompactButtonH};
+        radioProBtn = {left + modeW + radioGap, kPageControlY, modeW, kCompactButtonH};
+        const int presetY = kPageControlY + kCompactButtonH + 7;
         const int presetW = std::max(82, (usable - radioGap * 5) / 6);
         int rx = left;
         radioLocalBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
-        radioInternetBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
         radioEmergencyBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
         radioWeatherBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
+        radioSatelliteBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
         radioShortwaveBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
-        radioSatelliteBtn = {rx,presetY,presetW,kCompactButtonH};
+        radioInternetBtn = {rx,presetY,presetW,kCompactButtonH};
         const int secondaryY = presetY + kCompactButtonH + 7;
         radioFavoritesBtn = {left,secondaryY,112,kCompactButtonH};
         radioRecordingsBtn = {left + 118,secondaryY,112,kCompactButtonH};
         radioAntennaScanBtn = {left + 236,secondaryY,150,kCompactButtonH};
-        const int radioPanelY = secondaryY + kCompactButtonH + 24;
-        radioListBox = {left, radioPanelY, usable,
-                        std::max(170, radioFrame.y + radioFrame.h - (radioPanelY + 12))};
+        radioListBox = {left, secondaryY + kCompactButtonH + 10,
+                        usable, std::max(170, radioFrame.y + radioFrame.h - (secondaryY + kCompactButtonH + 22))};
         const int consoleX = radioListBox.x + 16;
         const int consoleY = radioListBox.y + 42;
         radioFrequencyRect = {consoleX,consoleY,std::min(260,std::max(180,radioListBox.w/3)),38};
@@ -3989,7 +3854,7 @@ public:
     reddmedia::LibraryNode node_from_resume_record(const ResumeRecord& record) const {
         reddmedia::LibraryNode node;
         node.id = record.item_id;
-        node.name = nougat_v57_clean_media_title(record.title.empty() ? record.path : record.title);
+        node.name = record.title;
         node.path = record.path;
         node.series_name = record.series_name;
         node.episode_title = record.episode_title;
@@ -4014,7 +3879,7 @@ public:
             return nougat_v56_r8_identity_for_node(node);
         }
         std::string identity = node.name;
-        if (identity.empty() && !node.path.empty()) identity = nougat_v57_clean_media_title(node.path);
+        if (identity.empty() && !node.path.empty()) identity = stem_only(node.path);
         if (node.production_year > 0) identity += " (" + std::to_string(node.production_year) + ")";
         return identity;
     }
@@ -4065,10 +3930,10 @@ public:
         if (currentPath.empty()) return record;
         record.path = currentPath;
         record.item_id = currentPath;
-        record.title = nougat_v57_clean_media_title(currentPath);
+        record.title = stem_only(currentPath);
         if (activeLibraryItemValid && activeLibraryItem.path == currentPath) {
             record.item_id = activeLibraryItem.id.empty() ? currentPath : activeLibraryItem.id;
-            record.title = activeLibraryItem.name.empty() ? nougat_v57_clean_media_title(currentPath) : activeLibraryItem.name;
+            record.title = activeLibraryItem.name.empty() ? stem_only(currentPath) : activeLibraryItem.name;
             record.series_name = activeLibraryItem.series_name;
             record.episode_title = activeLibraryItem.episode_title;
             record.tmdb_id = activeLibraryItem.tmdb_id;
@@ -4139,7 +4004,7 @@ public:
             if (activeLibraryItem.path.empty()) {
                 activeLibraryItem = reddmedia::LibraryNode{};
                 activeLibraryItem.path = path;
-                activeLibraryItem.name = nougat_v57_clean_media_title(path);
+                activeLibraryItem.name = stem_only(path);
                 activeLibraryItem.kind = reddmedia::LibraryNodeKind::Movie;
             }
             activeLibraryItemValid = true;
@@ -5287,7 +5152,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.57";
+        const std::string versionLabel = "v0.0.56";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -6664,16 +6529,15 @@ public:
             if (!cached_nodes.empty() && (operation == 4 || operation == 5)) {
                 libraryState->nodes = cached_nodes;
             }
-            const bool cached_background_refresh = !cached_nodes.empty() && (operation == 4 || operation == 5);
-            libraryState->busy = !cached_background_refresh;
+            libraryState->busy = true;
             libraryState->updated = false;
-            libraryState->progress = cached_background_refresh ? 1.0 : 0.02;
+            libraryState->progress = 0.02;
             libraryState->progress_determinate = true;
             libraryState->progress_label = "Starting...";
             if (operation == 1) libraryState->status = "Linking folder and scanning Jellyfin library...";
             else if (operation == 2) libraryState->status = "Scanning Jellyfin library for changes...";
             else if (operation == 3) libraryState->status = "Unlinking folder and refreshing Jellyfin library...";
-            else if (!cached_nodes.empty()) libraryState->status = "Movies ready.";
+            else if (!cached_nodes.empty()) libraryState->status = "Cached metadata ready. Checking for library changes...";
             else libraryState->status = "Loading real library metadata...";
         }
         if (operation == 2) {
@@ -6748,7 +6612,6 @@ public:
             }
 
             if (ok) {
-                for (auto& node : nodes) nougat_v57_apply_manual_match(node);
                 const std::size_t total = nodes.size();
                 for (std::size_t index = 0; index < nodes.size(); ++index) {
                     reddmedia::LibraryNode& node = nodes[index];
@@ -7558,7 +7421,7 @@ public:
             homeState->progress = 0.02;
             homeState->continue_watching = continue_records;
             if (!homeState->loaded) {
-                homeState->status = "Local library readying in background."; // NOUGAT_V57_HOME_BACKGROUND
+                homeState->status = "Loading your local Home feed...";
                 homeState->sections.clear();
                 homeState->artwork.clear();
                 homeState->continue_artwork_nodes.clear();
@@ -7662,7 +7525,7 @@ public:
                 reddmedia::LibraryNode art;
                 art.id = record.item_id;
                 art.path = record.path;
-                art.name = nougat_v57_clean_media_title(record.title.empty() ? record.path : record.title);
+                art.name = record.title;
                 art.series_name = record.series_name;
                 art.episode_title = record.episode_title;
                 art.tmdb_id = record.tmdb_id;
@@ -7785,7 +7648,6 @@ public:
                         }
                     }
                 }
-                nougat_v57_apply_manual_match(art);
                 continue_artwork_nodes[record.path] = std::move(art);
             }
 
@@ -8380,7 +8242,7 @@ public:
         y += 38;
         if (sections.empty()) {
             metadata_text(target, viewport_left + 8, y + 22,
-                          busy ? "" : status, palette.text);
+                          busy ? "Loading your movies and TV..." : status, palette.text);
             y += 48;
         }
         for (const auto& section : sections) {
@@ -8498,43 +8360,6 @@ public:
             if (updated) homePreviewState->updated = false;
         }
         if (updated && !fullscreen && currentView == ViewMode::Home) redraw();
-    }
-
-
-    void nougat_v57_fix_match(reddmedia::LibraryNode node) {
-        if (node.path.empty()) return;
-        const std::string initial = node.name.empty() ? nougat_v57_clean_media_title(node.path) : node.name;
-        std::string title = run_command_capture("zenity --entry --title='Nougat Fix Match' --text='Enter the correct title:' --entry-text=" + shell_quote(initial) + " 2>/dev/null");
-        title = nougat_v57_trim(title); if (title.empty()) return;
-        std::string type = run_command_capture("zenity --list --radiolist --title='Nougat Fix Match' --text='What is this item?' --column='' --column='Type' TRUE Movie FALSE TV 2>/dev/null");
-        type = nougat_v57_trim(type); if (type.empty()) return;
-        std::string year_text = run_command_capture("zenity --entry --title='Nougat Fix Match' --text='Release year (leave blank if unknown):' --entry-text=" + shell_quote(node.production_year>0?std::to_string(node.production_year):std::string()) + " 2>/dev/null");
-        year_text = nougat_v57_trim(year_text); int year=0; if (!year_text.empty()) year=std::max(0,std::atoi(year_text.c_str()));
-        const bool television = lower_copy(type).find("tv") != std::string::npos;
-        reddmedia::MediaDescriptor resolved; std::string imdb, error;
-        const bool matched = recommendationEngine->resolve_metadata_identity(
-            television ? reddmedia::RecommendationMediaType::Television : reddmedia::RecommendationMediaType::Movie,
-            title, year, television ? std::max(1,node.child_count) : 0, resolved, imdb, error);
-        if (!matched) {
-            { std::lock_guard<std::mutex> lock(libraryState->mutex); libraryState->status = "Fix Match failed: " + error; libraryState->updated=true; }
-            redraw(); return;
-        }
-        NougatV57ManualMatch manual; manual.title=resolved.title.empty()?title:resolved.title; manual.year=resolved.year>0?resolved.year:year;
-        manual.television=television; manual.tmdb_id=resolved.tmdb_id; manual.poster_path=resolved.poster_path;
-        if (!nougat_v57_save_manual_match(node.path,manual)) {
-            { std::lock_guard<std::mutex> lock(libraryState->mutex); libraryState->status="Fix Match failed: could not save manual lock."; libraryState->updated=true; }
-            redraw(); return;
-        }
-        homeNeedsRefresh.store(true);
-        if (currentView==ViewMode::Home) start_home_task();
-        else if (currentView==ViewMode::Library) { if (libraryParents.empty()) start_library_task(4); else start_library_task(5,{},libraryParents.back()); }
-    }
-
-    void nougat_v57_clear_match(const reddmedia::LibraryNode& node) {
-        if (node.path.empty()) return;
-        nougat_v57_clear_manual_match(node.path); homeNeedsRefresh.store(true);
-        if (currentView==ViewMode::Home) start_home_task();
-        else if (currentView==ViewMode::Library) { if (libraryParents.empty()) start_library_task(4); else start_library_task(5,{},libraryParents.back()); }
     }
 
     void open_home_card(const HomeCardHitbox& hitbox) {
@@ -9350,10 +9175,10 @@ public:
                                          const reddmedia::LiveTvChannel* channel) const {
         if (!channel) return true;
         if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) {
-            // NOUGAT_V57_LIVE_TV_HDHR_CHANNEL: /auto/v<virtual> uses the device lineup.
-            // Do not reject a valid OTA virtual channel merely because its cached
-            // service label originally came from the WinTV/local scan.
-            return !channel->id.empty();
+            std::string deviceId;
+            int tunerIndex = -1;
+            if (!reddmedia::HdHomeRunProvider::decode_tuner_id(tuner, deviceId, tunerIndex)) return false;
+            return !channel->id.empty() && channel->service.find("HDHomeRun " + deviceId) != std::string::npos;
         }
         return channel->physical_channel > 0 && channel->program_number > 0;
     }
@@ -10399,48 +10224,32 @@ public:
         liveTvSelectedChannel=index;
         save_live_tv_last_channel();
         const auto& channel=liveTvChannels[static_cast<std::size_t>(index)];
-
-        // NOUGAT_V57_LIVE_TV_RETRY: preserve the channel database and walk the
-        // independently usable tuner resources. One stale/busy path cannot kill Watch Live.
-        std::vector<int> candidates;
-        const auto add_candidate=[&](int candidate) {
-            if (candidate < 0 || candidate >= static_cast<int>(liveTvTuners.size())) return;
-            if (std::find(candidates.begin(),candidates.end(),candidate)!=candidates.end()) return;
-            if (live_tv_tuner_available(candidate,&channel)) candidates.push_back(candidate);
-        };
-        add_candidate(liveTvSelectedTuner);
-        for (int candidate=0; candidate<static_cast<int>(liveTvTuners.size()); ++candidate) add_candidate(candidate);
-        if (candidates.empty()) {
+        const int tunerIndex = find_free_live_tv_tuner(liveTvSelectedTuner, &channel);
+        if (tunerIndex < 0) {
             liveTvStatus="No free tuner can play this channel. A physical tuner may already be scanning, refreshing guide data, or in use.";
             redraw(); return;
         }
-
-        std::string failures;
+        liveTvSelectedTuner=tunerIndex;
+        const auto& tuner=liveTvTuners[static_cast<std::size_t>(tunerIndex)];
+        std::string mrl,status; std::vector<std::string> options;
+        const bool network=reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner);
+        const bool prepared = network ? hdHomeRunProvider.live_playback_input(tuner,channel,mrl,options,status)
+                                      : tunerBackend.live_playback_input(tuner,channel,mrl,options,status);
+        if (!prepared) { liveTvStatus=status; redraw(); return; }
+        // SiliconDust's documented HTTP /auto path chooses one free physical tuner.
+        // Keep the Linux-DVB lease explicit; HDHomeRun availability is re-probed per tuner
+        // before any concurrent scan/guide allocation.
+        liveTvPlayingTuner=network ? -1 : tunerIndex;
+        liveTvStatus=status;
         const std::string label=channel.id+" "+channel.name;
-        for (int tunerIndex : candidates) {
-            const auto& tuner=liveTvTuners[static_cast<std::size_t>(tunerIndex)];
-            std::string mrl,status; std::vector<std::string> options;
-            const bool network=reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner);
-            const bool prepared = network ? hdHomeRunProvider.live_playback_input(tuner,channel,mrl,options,status)
-                                          : tunerBackend.live_playback_input(tuner,channel,mrl,options,status);
-            if (!prepared) {
-                if (!failures.empty()) failures += " | ";
-                failures += status.empty()?"tuner preparation failed":status;
-                continue;
-            }
-            liveTvSelectedTuner=tunerIndex;
-            liveTvPlayingTuner=network ? -1 : tunerIndex;
-            liveTvStatus=status;
-            if (open_live_tv_location(mrl,options,index,label)) return;
+        if (!open_live_tv_location(mrl,options,index,label)) {
             liveTvPlayingTuner=-1;
-            if (!failures.empty()) failures += " | ";
-            failures += "VLC could not open " + tuner.name;
+            if (liveTvScanBusy) liveTvTunerUse=LiveTvTunerUse::Scanning;
+            else if (liveTvGuideBusy) liveTvTunerUse=LiveTvTunerUse::GuideRefreshing;
+            else liveTvTunerUse=LiveTvTunerUse::Idle;
+            liveTvStatus="VLC could not open the tuner stream for "+label+".";
+            switch_view(ViewMode::LiveTV); redraw(); return;
         }
-        if (liveTvScanBusy) liveTvTunerUse=LiveTvTunerUse::Scanning;
-        else if (liveTvGuideBusy) liveTvTunerUse=LiveTvTunerUse::GuideRefreshing;
-        else liveTvTunerUse=LiveTvTunerUse::Idle;
-        liveTvStatus="Live TV could not open "+label+(failures.empty()?std::string("."):std::string(". ")+failures);
-        switch_view(ViewMode::LiveTV); redraw();
     }
 
     static const std::vector<reddmedia::WorldTvStation>& world_tv_catalog() {
@@ -10618,7 +10427,7 @@ public:
         const auto station=stations[static_cast<std::size_t>(index)]; const auto service=worldTvService; const auto state=worldTvResolveState; const std::string exclude=reconnect?worldTvResolvedUrl:std::string();
         worldTvSelected=index; worldTvStatus=(reconnect?"Checking an alternate live source for ":"Verifying live video for ")+station.name+"...";
         { std::lock_guard<std::mutex> lock(state->mutex); state->busy=true; state->updated=false; state->station_index=index; state->reconnect=reconnect; state->result=reddmedia::WorldTvResolveResult{}; }
-        worldTvResolveWorker=std::thread([state,station,service,exclude]() mutable { const auto result=service.resolve(station.channel_id,station.feed_id,station.preferred_url,station.resolver,station.max_height,station.homepage,exclude); std::lock_guard<std::mutex> lock(state->mutex); state->result=result; state->busy=false; state->updated=true; });
+        worldTvResolveWorker=std::thread([state,station,service,exclude]() mutable { const auto result=service.resolve(station.channel_id,station.feed_id,station.preferred_url,station.resolver,station.max_height,exclude); std::lock_guard<std::mutex> lock(state->mutex); state->result=result; state->busy=false; state->updated=true; });
         start_world_tv_guide_refresh(index); redraw();
     }
 
@@ -10777,15 +10586,17 @@ public:
         const ViewPalette palette=palette_for(ViewMode::Radio);
         const Rect frame=page_content_frame(ViewMode::Radio);
         draw_quilted_background(target,frame,ViewMode::Radio);
+        button_on_state(target,radioSimpleBtn,"RADIO",radioProMode?SheetControlState::Normal:SheetControlState::Hover);
+        button_on_state(target,radioProBtn,"PRO",radioProMode?SheetControlState::Hover:SheetControlState::Normal);
         const auto preset=[&](const Rect& r,const char* label,RadioPanel panel) {
             button_on_state(target,r,label,radioPanel==panel?SheetControlState::Hover:SheetControlState::Normal);
         };
         preset(radioLocalBtn,"Local",RadioPanel::Local);
-        preset(radioInternetBtn,"Internet",RadioPanel::Internet);
         preset(radioEmergencyBtn,"Emergency",RadioPanel::Emergency);
         preset(radioWeatherBtn,"Weather",RadioPanel::Weather);
-        preset(radioShortwaveBtn,"Shortwave",RadioPanel::Shortwave);
         preset(radioSatelliteBtn,"ISS / Sat",RadioPanel::Satellite);
+        preset(radioShortwaveBtn,"Shortwave",RadioPanel::Shortwave);
+        preset(radioInternetBtn,"Internet",RadioPanel::Internet);
         button_on(target,radioFavoritesBtn,"Favorites");
         button_on(target,radioRecordingsBtn,"Recordings");
         button_on(target,radioAntennaScanBtn,"TV Antenna Scan");
@@ -10841,7 +10652,7 @@ public:
             text(target,meterX,infoY,recs.empty()?"No radio recordings yet.":("Radio recordings: "+std::to_string(recs.size())),palette.text); infoY+=18;
         }
 
-        { // NOUGAT_V57_RADIO_PRO_CONTROLS
+        if(radioProMode) {
             button_on(target,radioGainDownBtn,"GAIN -");
             button_on(target,radioGainUpBtn,"GAIN +");
             button_on(target,radioSquelchDownBtn,"SQL -");
@@ -10853,10 +10664,15 @@ public:
                      state.op25_available?"ready":"no",state.dab_decoder_available?"ready":"no",state.drm_decoder_available?"ready":"no",
                      state.satellite_decoder_available?"ready":"no",state.tx_hardware_available?"detected":"none");
             text(target,meterX,std::min(radioListBox.y+radioListBox.h-14,infoY+20),head_to_width(pro,radioListBox.w-32),palette.muted);
+        } else {
+            text(target,meterX,std::min(radioListBox.y+radioListBox.h-14,infoY+20),
+                 "RADIO mode chooses sane defaults. Switch to PRO only when you want the full receiver controls.",palette.muted);
         }
     }
 
     void handle_radio_click(int x, int y) {
+        if (radioSimpleBtn.contains(x,y)) { radioProMode=false; radioFrequencyFocused=false; redraw(); return; }
+        if (radioProBtn.contains(x,y)) { radioProMode=true; radioFrequencyFocused=false; redraw(); return; }
         if (radioLocalBtn.contains(x,y)) { set_radio_preset(RadioPanel::Local); redraw(); return; }
         if (radioEmergencyBtn.contains(x,y)) { set_radio_preset(RadioPanel::Emergency); redraw(); return; }
         if (radioWeatherBtn.contains(x,y)) { set_radio_preset(RadioPanel::Weather); redraw(); return; }
@@ -10908,11 +10724,11 @@ public:
         if (radioModeBtn.contains(x,y)) { radioBackend.cycle_modulation(1); redraw(); return; }
         if (radioStepBtn.contains(x,y)) { radioBackend.cycle_tuning_step(1); redraw(); return; }
         if (radioDeviceBtn.contains(x,y)) { radioBackend.cycle_device(1); redraw(); return; }
-        if (radioGainDownBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_gain_percent(s.gain_percent-5); redraw(); return; }
-        if (radioGainUpBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_gain_percent(s.gain_percent+5); redraw(); return; }
-        if (radioSquelchDownBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_squelch(s.squelch-5); redraw(); return; }
-        if (radioSquelchUpBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_squelch(s.squelch+5); redraw(); return; }
-        if (radioTxTestBtn.contains(x,y)) { std::string status; radioBackend.tx_chain_self_test(status); redraw(); return; }
+        if (radioProMode && radioGainDownBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_gain_percent(s.gain_percent-5); redraw(); return; }
+        if (radioProMode && radioGainUpBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_gain_percent(s.gain_percent+5); redraw(); return; }
+        if (radioProMode && radioSquelchDownBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_squelch(s.squelch-5); redraw(); return; }
+        if (radioProMode && radioSquelchUpBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_squelch(s.squelch+5); redraw(); return; }
+        if (radioProMode && radioTxTestBtn.contains(x,y)) { std::string status; radioBackend.tx_chain_self_test(status); redraw(); return; }
     }
 
     void draw_world_tv_screen(Drawable target) {
@@ -11728,7 +11544,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Suite v0.0.57";
+        input.app_version = "Nougat Media Suite v0.0.56";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -11741,10 +11557,9 @@ public:
             std::lock_guard<std::mutex> lock(serverState->mutex);
             input.server_state = serverState->state;
             input.server_owned = serverState->owned;
-            input.server_api_ready = mediaServer.probe_health();
-            if (input.server_api_ready) input.server_state = reddmedia::MediaServerState::Ready;
-            input.server_busy = serverState->busy && !input.server_api_ready;
-            if (input.server_busy) input.active_operation = serverState->status;
+            input.server_api_ready = input.server_state == reddmedia::MediaServerState::Ready;
+            input.server_busy = serverState->busy;
+            if (serverState->busy) input.active_operation = serverState->status;
         }
         {
             std::lock_guard<std::mutex> lock(libraryState->mutex);
@@ -12013,7 +11828,7 @@ public:
                 state->progress = 0.70;
             }
             reddmedia::DiagnosticReport report = engine.evaluate(input);
-            const std::string historyPath = config_dir() + "/diagnostics/history";
+            std::string historyPath;
             std::string historyError;
             const bool historySaved=reddmedia::DiagnosticEngine::write_history_snapshot(report,input,historyPath,historyError);
             std::lock_guard<std::mutex> lock(state->mutex);
@@ -12025,7 +11840,7 @@ public:
             state->progress = 1.0;
             state->status = historySaved
                 ? "Deep diagnostic complete. Evidence and a private history snapshot were saved."
-                : "Deep diagnostic checks completed, but history save FAILED: " + historyError;
+                : "Deep diagnostic complete. History snapshot could not be saved: " + historyError;
         });
     }
 
@@ -14079,36 +13894,9 @@ public:
         return metrics;
     }
 
-    std::string game_group_state_path() const { return config_dir() + "/games_collapsed_systems.txt"; }
-
-    void load_game_group_state() {
-        if (gameGroupStateLoaded) return;
-        gameGroupStateLoaded=true;
-        std::ifstream in(game_group_state_path());
-        std::string line;
-        while (std::getline(in,line)) if (!line.empty()) collapsedGameSystems.insert(line);
-    }
-
-    void save_game_group_state() const {
-        ensure_config_dir();
-        const std::string target=game_group_state_path();
-        const std::string temp=target+".tmp";
-        std::ofstream out(temp,std::ios::trunc); if (!out) return;
-        for (const auto& system:collapsedGameSystems) out << system << '\n';
-        out.close(); chmod(temp.c_str(),0600); rename(temp.c_str(),target.c_str());
-    }
-
-    int games_grouped_row_count() const {
-        std::map<std::string,int> counts;
-        { std::lock_guard<std::mutex> lock(gameState->mutex); for (const auto& game:gameState->games) ++counts[game.system.empty()?"Other":game.system]; }
-        int rows=0;
-        for (const auto& group:counts) rows += 1 + (collapsedGameSystems.count(group.first)?0:group.second);
-        return rows;
-    }
-
     int games_max_scroll() const {
-        const int visible=std::max(1,(gamesListBox.h-12)/40);
-        return std::max(0,games_grouped_row_count()-visible);
+        std::size_t count=0; { std::lock_guard<std::mutex> lock(gameState->mutex); count=gameState->games.size(); }
+        return std::max(0,static_cast<int>(count)-games_grid_metrics().visibleItems);
     }
 
     void update_games_vertical_scroll_from_pointer(int pointerY,bool centerThumb) {
@@ -14143,8 +13931,12 @@ public:
     bool handle_games_wheel_steps(Window target, int x, int y, int steps) {
         if (steps == 0 || currentView != ViewMode::Games || target != win ||
             gamesPanel != GamesPanel::Library || !gamesListBox.contains(x, y)) return false;
-        const int max_scroll = games_max_scroll();
-        gamesScroll = std::max(0, std::min(max_scroll, gamesScroll + steps));
+        std::size_t count = 0;
+        { std::lock_guard<std::mutex> lock(gameState->mutex); count = gameState->games.size(); }
+        const LibraryGridMetrics grid = games_grid_metrics();
+        const int max_scroll = std::max(0, static_cast<int>(count) - grid.visibleItems);
+        const int amount = gamesDisplayMode == GamesDisplayMode::Grid ? grid.columns : 1;
+        gamesScroll = std::max(0, std::min(max_scroll, gamesScroll + steps * amount));
         request_games_interactive_redraw();
         return true;
     }
@@ -14177,6 +13969,10 @@ public:
         tab(gamesSettingsBtn,"Settings",GamesPanel::Settings);
         button_on(target,gamesPlayBtn,"Play");
         button_on(target,gamesRefreshBtn,"Refresh");
+        if (gamesPanel==GamesPanel::Library) {
+            button_on_state(target,gamesGridBtn,"Grid",gamesDisplayMode==GamesDisplayMode::Grid?SheetControlState::Pressed:SheetControlState::Normal);
+            button_on_state(target,gamesListViewBtn,"List",gamesDisplayMode==GamesDisplayMode::List?SheetControlState::Pressed:SheetControlState::Normal);
+        }
         std::string status; bool busy=false; std::vector<GameEntry> games;
         { std::lock_guard<std::mutex> lock(gameState->mutex); status=gameState->status; busy=gameState->busy; games=gameState->games; }
         text(target,28+kCompactButtonW*2+14,112,
@@ -14185,55 +13981,53 @@ public:
         gameRows.clear();
 
         if (gamesPanel==GamesPanel::Library) {
-            // NOUGAT_V57_GAMES_COLLAPSIBLE_DRAW
-            load_game_group_state();
-            std::map<std::string,std::vector<int>> groups;
-            for (int i=0;i<static_cast<int>(games.size());++i) {
-                const std::string system=games[static_cast<std::size_t>(i)].system.empty()?"Other":games[static_cast<std::size_t>(i)].system;
-                groups[system].push_back(i);
-            }
-            gameSystemHeaders.clear();
-            const int rowH=40;
-            const int visibleRows=std::max(1,(gamesListBox.h-12)/rowH);
-            const int totalRows=games_grouped_row_count();
-            const int maxScroll=std::max(0,totalRows-visibleRows);
+            const LibraryGridMetrics grid=games_grid_metrics();
+            const int maxScroll=std::max(0,static_cast<int>(games.size())-grid.visibleItems);
             gamesScroll=std::max(0,std::min(gamesScroll,maxScroll));
-            int logicalRow=0;
-            int painted=0;
-            for (const auto& group:groups) {
-                if (logicalRow>=gamesScroll && painted<visibleRows) {
-                    Rect header{gamesListBox.x+6,gamesListBox.y+6+painted*rowH,gamesListBox.w-12,rowH-2};
-                    fill(target,header,palette.button); outline(target,header,palette.border);
-                    const bool collapsed=collapsedGameSystems.count(group.first)!=0U;
-                    text(target,header.x+10,header.y+25,(collapsed?"[+] ":"[-] ")+group.first+" ("+std::to_string(group.second.size())+")",palette.buttonText);
-                    gameSystemHeaders.push_back({header,group.first}); ++painted;
+            if (gamesDisplayMode==GamesDisplayMode::List) {
+                for (int visibleIndex=0; visibleIndex<grid.visibleItems; ++visibleIndex) {
+                    const int index=gamesScroll+visibleIndex; if (index>=static_cast<int>(games.size())) break;
+                    const GameEntry& game=games[static_cast<std::size_t>(index)];
+                    Rect row{gamesListBox.x+6,gamesListBox.y+6+visibleIndex*34,gamesListBox.w-12,32};
+                    if (index==gamesSelected) fill(target,row,palette.selection);
+                    outline(target,row,palette.border);
+                    const std::string source=std::string(game.bundled?"BUNDLED":"LINKED")+(game.archived?" | ZIP":"");
+                    text(target,row.x+8,row.y+20,head_to_width(game.title,row.w-300),palette.text);
+                    text(target,row.x+std::max(140,row.w-285),row.y+20,head_to_width(game.system+" | "+source,277),palette.muted);
+                    gameRows.push_back({row,index});
                 }
-                ++logicalRow;
-                if (collapsedGameSystems.count(group.first)!=0U) continue;
-                for (int index:group.second) {
-                    if (logicalRow>=gamesScroll && painted<visibleRows) {
-                        const GameEntry& game=games[static_cast<std::size_t>(index)];
-                        Rect row{gamesListBox.x+18,gamesListBox.y+6+painted*rowH,gamesListBox.w-24,rowH-2};
-                        if (index==gamesSelected) fill(target,row,palette.selection);
-                        outline(target,row,palette.border);
-                        Rect art{row.x+4,row.y+4,30,30}; fill(target,art,rgb8(30,29,24));
-                        reddmedia::LibraryPoster poster;
-                        if (cached_game_artwork(game,poster)) draw_poster_pixels(target,art,poster);
-                        const std::string source=std::string(game.bundled?"BUNDLED":"LINKED")+(game.archived?" | ZIP":"");
-                        text(target,row.x+42,row.y+17,head_to_width(game.title,row.w-220),palette.text);
-                        text(target,row.x+42,row.y+32,head_to_width(source,row.w-220),palette.muted);
-                        gameRows.push_back({row,index}); ++painted;
-                    }
-                    ++logicalRow;
+            } else {
+                const int gridUsedWidth=grid.columns*grid.tileWidth+(grid.columns-1)*grid.gap;
+                const int gridStartX=gamesListBox.x+6+std::max(0,(std::max(1,gamesListBox.w-12)-gridUsedWidth)/2);
+                for (int visibleIndex=0; visibleIndex<grid.visibleItems; ++visibleIndex) {
+                    const int index=gamesScroll+visibleIndex; if (index>=static_cast<int>(games.size())) break;
+                    const int column=visibleIndex%grid.columns; const int rowNumber=visibleIndex/grid.columns;
+                    Rect card{gridStartX+column*(grid.tileWidth+grid.gap),
+                              gamesListBox.y+6+rowNumber*(grid.tileHeight+grid.gap),grid.tileWidth,grid.tileHeight};
+                    const GameEntry& game=games[static_cast<std::size_t>(index)];
+                    if (index==gamesSelected) fill(target,card,palette.selection);
+                    outline(target,card,palette.border);
+                    Rect art{card.x+4,card.y+4,card.w-8,grid.posterHeight};
+                    fill(target,art,rgb8(30,29,24));
+                    reddmedia::LibraryPoster poster;
+                    if (cached_game_artwork(game,poster)) draw_poster_pixels(target,art,poster);
+                    else text(target,art.x+std::max(6,(art.w-text_width("NO ART"))/2),art.y+art.h/2,"NO ART",palette.muted);
+                    const int titleY=card.y+grid.posterHeight+18;
+                    const auto titleLines=library_title_lines(game.title,card.w-12);
+                    text(target,card.x+6,titleY,titleLines.first,palette.text);
+                    if (!titleLines.second.empty()) text(target,card.x+6,titleY+14,titleLines.second,palette.text);
+                    const std::string source=game.system+" | "+(game.bundled?"Bundled":"Linked")+(game.archived?" | ZIP":"");
+                    text(target,card.x+6,card.y+card.h-5,head_to_width(source,card.w-12),palette.muted);
+                    gameRows.push_back({card,index});
                 }
             }
             if (games.empty() && !busy) text(target,gamesListBox.x+12,gamesListBox.y+28,
                 "No games indexed. Add a ROM folder; bundled legal starter ROMs appear automatically.",palette.muted);
             if (maxScroll>0) {
                 const int thumbH=std::max(38,std::min(gamesVerticalScrollTrack.h,
-                    gamesVerticalScrollTrack.h*visibleRows/std::max(1,totalRows)));
+                    gamesVerticalScrollTrack.h*grid.visibleItems/std::max(1,static_cast<int>(games.size()))));
                 const int travel=std::max(0,gamesVerticalScrollTrack.h-thumbH);
-                const int thumbY=gamesVerticalScrollTrack.y+travel*gamesScroll/maxScroll;
+                const int thumbY=gamesVerticalScrollTrack.y+(maxScroll>0?travel*gamesScroll/maxScroll:0);
                 gamesVerticalScrollThumb={gamesVerticalScrollTrack.x,thumbY,gamesVerticalScrollTrack.w,thumbH};
             } else gamesVerticalScrollThumb=gamesVerticalScrollTrack;
             draw_home_scrollbar_component(target,gamesVerticalScrollTrack,gamesVerticalScrollThumb,palette);
@@ -14279,14 +14073,13 @@ public:
         if (gamesRefreshBtn.contains(x,y)) { start_game_scan(); redraw(); return; }
         if (gamesPlayBtn.contains(x,y)) { launch_selected_game(); redraw(); return; }
         if (gamesPanel == GamesPanel::Library && handle_games_scrollbar_press(x,y)) return;
+        if (gamesPanel == GamesPanel::Library && gamesGridBtn.contains(x,y)) {
+            gamesDisplayMode = GamesDisplayMode::Grid; gamesScroll = 0; redraw(); return;
+        }
+        if (gamesPanel == GamesPanel::Library && gamesListViewBtn.contains(x,y)) {
+            gamesDisplayMode = GamesDisplayMode::List; gamesScroll = 0; redraw(); return;
+        }
         if (gamesPanel == GamesPanel::Library) {
-            for (const auto& header : gameSystemHeaders) {
-                if (!header.first.contains(x,y)) continue;
-                if (collapsedGameSystems.count(header.second)) collapsedGameSystems.erase(header.second);
-                else collapsedGameSystems.insert(header.second);
-                save_game_group_state(); gamesScroll=std::min(gamesScroll,games_max_scroll());
-                gamesLastClickIndex=-1; gamesLastClickTime=0; redraw(); return;
-            }
             for (const auto& row : gameRows) {
                 if (!row.first.contains(x,y)) continue;
                 const bool doubleClick = row.second == gamesLastClickIndex && gamesLastClickTime != 0 &&
@@ -14573,6 +14366,9 @@ public:
             text(target, debugListBox.x + 14, debugListBox.y + 54,
                  "LAN Viewer: private-LAN read-only catalog + Verified Clean gate | Alerts: NOAA/NWS | Security advisories: OSV inventory mapping.",
                  palette.muted);
+            text(target, debugListBox.x + 14, debugListBox.y + 78,
+                 std::string("Child Safe: ")+(childSafeControls.enabled()?"ON - System password protected":"OFF"),
+                 childSafeControls.enabled()?palette.text:palette.muted);
             return;
         }
         unsigned long health_color = col(0x7777,0x7777,0x7777);
@@ -15490,6 +15286,7 @@ public:
         if (v == ViewMode::LiveTV) liveTvWorldMode = false;
 
         if (currentView == v) return;
+        if (currentView == ViewMode::Debug && v != ViewMode::Debug && childSafeControls.enabled()) parentSystemUnlocked=false;
         if (currentView == ViewMode::VideoPlayer) { persist_current_resume(true); clear_seek_preview_hover(); }
         if (currentView == ViewMode::Home) set_home_hover({}, 0);
         push_navigation_history();
@@ -15707,12 +15504,12 @@ public:
         if (currentView==ViewMode::Home) {
             for (std::size_t i=0;i<homeCardHitboxes.size();++i) if (homeCardHitboxes[i].card.contains(x,y)) {
                 cardContextKind=CardContextKind::Home; cardContextIndex=static_cast<int>(i);
-                items={{"Play / Open",MenuAction::CardPlay,0},{"Open Source",MenuAction::CardOpenSource,0},{"Media Information",MenuAction::CardInfo,0},{"Fix Match...",MenuAction::CardFixMatch,0},{"Clear Manual Match",MenuAction::CardClearMatch,0},{"Refresh Home",MenuAction::CardRefresh,0}}; break;
+                items={{"Play / Open",MenuAction::CardPlay,0},{"Open Source",MenuAction::CardOpenSource,0},{"Media Information",MenuAction::CardInfo,0},{"Refresh Home",MenuAction::CardRefresh,0}}; break;
             }
         } else if (currentView==ViewMode::Library) {
             for (std::size_t i=0;i<libraryRows.size()&&i<libraryRowNodeIndices.size();++i) if (libraryRows[i].contains(x,y)) {
                 cardContextKind=CardContextKind::Library; cardContextIndex=libraryRowNodeIndices[i];
-                items={{"Play / Open",MenuAction::CardPlay,0},{"Open Source",MenuAction::CardOpenSource,0},{"Media Information",MenuAction::CardInfo,0},{"Fix Match...",MenuAction::CardFixMatch,0},{"Clear Manual Match",MenuAction::CardClearMatch,0},{"Refresh Metadata & Artwork",MenuAction::CardRefresh,0}}; break;
+                items={{"Play / Open",MenuAction::CardPlay,0},{"Open Source",MenuAction::CardOpenSource,0},{"Media Information",MenuAction::CardInfo,0},{"Refresh Metadata & Artwork",MenuAction::CardRefresh,0}}; break;
             }
         } else if (currentView==ViewMode::Discover && discoverResultBox.contains(x,y)) {
             cardContextKind=CardContextKind::Discover; cardContextIndex=0;
@@ -15743,8 +15540,6 @@ public:
             if (action==MenuAction::CardPlay) open_home_card(hit);
             else if (action==MenuAction::CardOpenSource) open_source_path_in_files(hit.node.path);
             else if (action==MenuAction::CardInfo) { { std::lock_guard<std::mutex> lock(homeState->mutex); homeState->status="Selected: "+library_display_title(hit.node)+(hit.node.path.empty()?"":" | "+hit.node.path); homeState->updated=true; } redraw(); }
-            else if (action==MenuAction::CardFixMatch) nougat_v57_fix_match(hit.node);
-            else if (action==MenuAction::CardClearMatch) nougat_v57_clear_match(hit.node);
             else if (action==MenuAction::CardRefresh) start_home_task();
             return;
         }
@@ -15755,8 +15550,6 @@ public:
             if (action==MenuAction::CardPlay) { librarySelected=cardContextIndex; open_selected_library_item(); }
             else if (action==MenuAction::CardOpenSource) open_source_path_in_files(node.path);
             else if (action==MenuAction::CardInfo) { { std::lock_guard<std::mutex> lock(libraryState->mutex); libraryState->status="Selected: "+library_display_title(node)+(node.path.empty()?"":" | "+node.path); libraryState->updated=true; } redraw(); }
-            else if (action==MenuAction::CardFixMatch) nougat_v57_fix_match(node);
-            else if (action==MenuAction::CardClearMatch) nougat_v57_clear_match(node);
             else if (action==MenuAction::CardRefresh) { if (!libraryTypeChosen) start_library_task(0); else if (libraryParents.empty()) start_library_task(4); else start_library_task(5,{},libraryParents.back()); }
             return;
         }
@@ -15817,8 +15610,6 @@ public:
             case MenuAction::CardOpenSource:
             case MenuAction::CardInfo:
             case MenuAction::CardRefresh:
-            case MenuAction::CardFixMatch:
-            case MenuAction::CardClearMatch:
             case MenuAction::CardOpenOfficial:
             case MenuAction::CardRefreshArtwork:
             case MenuAction::CardOpenArtwork:
@@ -16218,6 +16009,16 @@ public:
             return;
         }
         if (topNavHit && debugTab.contains(x,y)) {
+            if (childSafeControls.enabled() && !parentSystemUnlocked) {
+                v53SystemStatus="Child Safe: System/settings are locked. Set NOUGAT_PARENT_PASSWORD for this candidate session and click System again.";
+                const char* supplied=std::getenv("NOUGAT_PARENT_PASSWORD");
+                if (supplied && childSafeControls.verify_password(supplied)) {
+                    parentSystemUnlocked=true;
+                    v53SystemStatus="Parent password accepted. System/settings unlocked for this visit.";
+                    if (currentView != ViewMode::Debug) switch_view(ViewMode::Debug);
+                } else redraw();
+                return;
+            }
             if (currentView != ViewMode::Debug) switch_view(ViewMode::Debug);
             return;
         }
@@ -17122,7 +16923,7 @@ public:
 int main(int argc, char** argv) {
     prctl(PR_SET_NAME, "NougatMediaSuite", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Suite v0.0.57\n");
+        printf("Nougat Media Suite v0.0.56\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

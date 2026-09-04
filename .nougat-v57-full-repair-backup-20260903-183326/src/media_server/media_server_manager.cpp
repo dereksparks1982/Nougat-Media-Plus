@@ -202,15 +202,7 @@ bool probe_http(std::uint16_t port, const char* path, const char* expected) {
     close(socket_fd);
     if (received <= 0) return false;
     const std::string text(response, static_cast<std::size_t>(received));
-    // NOUGAT_V57_SERVER_2XX: health is an actual HTTP response, not merely an open TCP port.
-    const std::size_t line_end = text.find("\r\n");
-    const std::string status_line = text.substr(0, line_end == std::string::npos ? text.size() : line_end);
-    const std::size_t first_space = status_line.find(' ');
-    int status_code = 0;
-    if (first_space != std::string::npos && first_space + 4U <= status_line.size())
-        status_code = std::atoi(status_line.substr(first_space + 1U, 3U).c_str());
-    const bool http_ok = status_code >= 200 && status_code < 300;
-    return http_ok && (!expected || text.find(expected) != std::string::npos);
+    return text.find("HTTP/1.1 200") != std::string::npos && (!expected || text.find(expected) != std::string::npos);
 }
 
 } // namespace
@@ -381,7 +373,7 @@ bool MediaServerManager::backend_health_ready() const {
 }
 
 bool MediaServerManager::web_player_health_ready() const {
-    return probe_http(kNougatWebPort, "/nougat/v1/health", nullptr); // NOUGAT_V57_WEB_HEALTH_RESPONSE
+    return probe_http(kNougatWebPort, "/nougat/v1/health", "Nougat Media Suite");
 }
 
 bool MediaServerManager::health_ready() const {

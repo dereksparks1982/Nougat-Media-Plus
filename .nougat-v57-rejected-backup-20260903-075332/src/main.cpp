@@ -2090,7 +2090,7 @@ public:
     Rect radioGainDownBtn, radioGainUpBtn, radioSquelchDownBtn, radioSquelchUpBtn, radioTxTestBtn, radioListBox;
     RadioPanel radioPanel = RadioPanel::Local;
     reddmedia::RadioBackend radioBackend;
-    bool radioProMode = true; // NOUGAT_V57_RADIO_PRO_ONLY
+    bool radioProMode = false;
     bool radioFrequencyFocused = false;
     std::string radioFrequencyText = "100.100000";
     std::string radioInternetLabel;
@@ -2441,9 +2441,6 @@ public:
     Time gamesLastClickTime = 0;
     int gamesLastClickIndex = -1;
     std::vector<std::pair<Rect,int>> gameRows;
-    std::vector<std::pair<Rect,std::string>> gameSystemHeaders;
-    std::set<std::string> collapsedGameSystems;
-    bool gameGroupStateLoaded = false; // NOUGAT_V57_GAME_GROUPS
     std::map<std::string, reddmedia::LibraryPoster> gameArtworkCache;
     std::set<std::string> gameArtworkFailed;
     pid_t gameArtworkPrefetchPid = -1;
@@ -3502,7 +3499,7 @@ public:
         }
         if (mediaServer.persistent_enabled()) mediaServer.start();
         else mediaServer.refresh();
-        v53SystemStatus="Run Checks to inspect Nougat Media Suite."; // NOUGAT_V57_NO_CHILD_SAFE_SYSTEM
+        { std::string childStatus; childSafeControls.load(childStatus); v53SystemStatus=childStatus; }
         if (const char* alertArea=std::getenv("NOUGAT_ALERT_AREA")) publicAlertArea=alertArea;
         liveTvChannels = tunerBackend.load_channels();
         liveTvPrograms = tunerBackend.load_guide();
@@ -3517,13 +3514,14 @@ public:
             serverState->state = mediaServer.state();
             serverState->owned = mediaServer.owns_server();
         }
-        // v0.0.57 repair: seed Movies/Home without blocking the X11 event loop.
-        // Cached Library nodes become visible immediately; workers finish off the UI thread.
+        // v0.0.57: prepare persistent root views before the first owner-visible interaction.
         libraryMediaType = reddmedia::LibraryMediaType::Movies;
         libraryTypeChosen = true;
         libraryParents.clear();
         start_library_task(4);
+        if (libraryWorker.joinable()) libraryWorker.join();
         start_home_task();
+        if (homeWorker.joinable()) homeWorker.join();
         return true;
     }
     static constexpr int kCompactButtonW = 116;
@@ -3686,25 +3684,24 @@ public:
         const int radioGap = 6;
         const int left = radioFrame.x + 16;
         const int usable = std::max(260, radioFrame.w - 32);
-        // NOUGAT_V57_RADIO_LAYOUT: no basic/pro toggle. Radio is always the full receiver.
-        radioSimpleBtn = {};
-        radioProBtn = {};
-        const int presetY = kPageControlY;
+        const int modeW = 92;
+        radioSimpleBtn = {left, kPageControlY, modeW, kCompactButtonH};
+        radioProBtn = {left + modeW + radioGap, kPageControlY, modeW, kCompactButtonH};
+        const int presetY = kPageControlY + kCompactButtonH + 7;
         const int presetW = std::max(82, (usable - radioGap * 5) / 6);
         int rx = left;
         radioLocalBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
-        radioInternetBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
         radioEmergencyBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
         radioWeatherBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
+        radioSatelliteBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
         radioShortwaveBtn = {rx,presetY,presetW,kCompactButtonH}; rx += presetW + radioGap;
-        radioSatelliteBtn = {rx,presetY,presetW,kCompactButtonH};
+        radioInternetBtn = {rx,presetY,presetW,kCompactButtonH};
         const int secondaryY = presetY + kCompactButtonH + 7;
         radioFavoritesBtn = {left,secondaryY,112,kCompactButtonH};
         radioRecordingsBtn = {left + 118,secondaryY,112,kCompactButtonH};
         radioAntennaScanBtn = {left + 236,secondaryY,150,kCompactButtonH};
-        const int radioPanelY = secondaryY + kCompactButtonH + 24;
-        radioListBox = {left, radioPanelY, usable,
-                        std::max(170, radioFrame.y + radioFrame.h - (radioPanelY + 12))};
+        radioListBox = {left, secondaryY + kCompactButtonH + 10,
+                        usable, std::max(170, radioFrame.y + radioFrame.h - (secondaryY + kCompactButtonH + 22))};
         const int consoleX = radioListBox.x + 16;
         const int consoleY = radioListBox.y + 42;
         radioFrequencyRect = {consoleX,consoleY,std::min(260,std::max(180,radioListBox.w/3)),38};
@@ -7553,12 +7550,12 @@ public:
         const std::vector<ResumeRecord> continue_records = resumeStore.unfinished();
         {
             std::lock_guard<std::mutex> lock(homeState->mutex);
-            homeState->busy = true;
+            homeState->busy = !already_loaded;
             homeState->updated = false;
             homeState->progress = 0.02;
             homeState->continue_watching = continue_records;
             if (!homeState->loaded) {
-                homeState->status = "Local library readying in background."; // NOUGAT_V57_HOME_BACKGROUND
+                homeState->status = "Loading your local Home feed...";
                 homeState->sections.clear();
                 homeState->artwork.clear();
                 homeState->continue_artwork_nodes.clear();
@@ -8380,7 +8377,7 @@ public:
         y += 38;
         if (sections.empty()) {
             metadata_text(target, viewport_left + 8, y + 22,
-                          busy ? "" : status, palette.text);
+                          busy ? "Loading your movies and TV..." : status, palette.text);
             y += 48;
         }
         for (const auto& section : sections) {
@@ -8516,14 +8513,13 @@ public:
             television ? reddmedia::RecommendationMediaType::Television : reddmedia::RecommendationMediaType::Movie,
             title, year, television ? std::max(1,node.child_count) : 0, resolved, imdb, error);
         if (!matched) {
-            { std::lock_guard<std::mutex> lock(libraryState->mutex); libraryState->status = "Fix Match failed: " + error; libraryState->updated=true; }
-            redraw(); return;
+            std::lock_guard<std::mutex> lock(libraryState->mutex);
+            libraryState->status = "Fix Match failed: " + error; libraryState->updated=true; redraw(); return;
         }
         NougatV57ManualMatch manual; manual.title=resolved.title.empty()?title:resolved.title; manual.year=resolved.year>0?resolved.year:year;
         manual.television=television; manual.tmdb_id=resolved.tmdb_id; manual.poster_path=resolved.poster_path;
         if (!nougat_v57_save_manual_match(node.path,manual)) {
-            { std::lock_guard<std::mutex> lock(libraryState->mutex); libraryState->status="Fix Match failed: could not save manual lock."; libraryState->updated=true; }
-            redraw(); return;
+            std::lock_guard<std::mutex> lock(libraryState->mutex); libraryState->status="Fix Match failed: could not save manual lock."; libraryState->updated=true; redraw(); return;
         }
         homeNeedsRefresh.store(true);
         if (currentView==ViewMode::Home) start_home_task();
@@ -9350,10 +9346,10 @@ public:
                                          const reddmedia::LiveTvChannel* channel) const {
         if (!channel) return true;
         if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) {
-            // NOUGAT_V57_LIVE_TV_HDHR_CHANNEL: /auto/v<virtual> uses the device lineup.
-            // Do not reject a valid OTA virtual channel merely because its cached
-            // service label originally came from the WinTV/local scan.
-            return !channel->id.empty();
+            std::string deviceId;
+            int tunerIndex = -1;
+            if (!reddmedia::HdHomeRunProvider::decode_tuner_id(tuner, deviceId, tunerIndex)) return false;
+            return !channel->id.empty() && channel->service.find("HDHomeRun " + deviceId) != std::string::npos;
         }
         return channel->physical_channel > 0 && channel->program_number > 0;
     }
@@ -10399,48 +10395,32 @@ public:
         liveTvSelectedChannel=index;
         save_live_tv_last_channel();
         const auto& channel=liveTvChannels[static_cast<std::size_t>(index)];
-
-        // NOUGAT_V57_LIVE_TV_RETRY: preserve the channel database and walk the
-        // independently usable tuner resources. One stale/busy path cannot kill Watch Live.
-        std::vector<int> candidates;
-        const auto add_candidate=[&](int candidate) {
-            if (candidate < 0 || candidate >= static_cast<int>(liveTvTuners.size())) return;
-            if (std::find(candidates.begin(),candidates.end(),candidate)!=candidates.end()) return;
-            if (live_tv_tuner_available(candidate,&channel)) candidates.push_back(candidate);
-        };
-        add_candidate(liveTvSelectedTuner);
-        for (int candidate=0; candidate<static_cast<int>(liveTvTuners.size()); ++candidate) add_candidate(candidate);
-        if (candidates.empty()) {
+        const int tunerIndex = find_free_live_tv_tuner(liveTvSelectedTuner, &channel);
+        if (tunerIndex < 0) {
             liveTvStatus="No free tuner can play this channel. A physical tuner may already be scanning, refreshing guide data, or in use.";
             redraw(); return;
         }
-
-        std::string failures;
+        liveTvSelectedTuner=tunerIndex;
+        const auto& tuner=liveTvTuners[static_cast<std::size_t>(tunerIndex)];
+        std::string mrl,status; std::vector<std::string> options;
+        const bool network=reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner);
+        const bool prepared = network ? hdHomeRunProvider.live_playback_input(tuner,channel,mrl,options,status)
+                                      : tunerBackend.live_playback_input(tuner,channel,mrl,options,status);
+        if (!prepared) { liveTvStatus=status; redraw(); return; }
+        // SiliconDust's documented HTTP /auto path chooses one free physical tuner.
+        // Keep the Linux-DVB lease explicit; HDHomeRun availability is re-probed per tuner
+        // before any concurrent scan/guide allocation.
+        liveTvPlayingTuner=network ? -1 : tunerIndex;
+        liveTvStatus=status;
         const std::string label=channel.id+" "+channel.name;
-        for (int tunerIndex : candidates) {
-            const auto& tuner=liveTvTuners[static_cast<std::size_t>(tunerIndex)];
-            std::string mrl,status; std::vector<std::string> options;
-            const bool network=reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner);
-            const bool prepared = network ? hdHomeRunProvider.live_playback_input(tuner,channel,mrl,options,status)
-                                          : tunerBackend.live_playback_input(tuner,channel,mrl,options,status);
-            if (!prepared) {
-                if (!failures.empty()) failures += " | ";
-                failures += status.empty()?"tuner preparation failed":status;
-                continue;
-            }
-            liveTvSelectedTuner=tunerIndex;
-            liveTvPlayingTuner=network ? -1 : tunerIndex;
-            liveTvStatus=status;
-            if (open_live_tv_location(mrl,options,index,label)) return;
+        if (!open_live_tv_location(mrl,options,index,label)) {
             liveTvPlayingTuner=-1;
-            if (!failures.empty()) failures += " | ";
-            failures += "VLC could not open " + tuner.name;
+            if (liveTvScanBusy) liveTvTunerUse=LiveTvTunerUse::Scanning;
+            else if (liveTvGuideBusy) liveTvTunerUse=LiveTvTunerUse::GuideRefreshing;
+            else liveTvTunerUse=LiveTvTunerUse::Idle;
+            liveTvStatus="VLC could not open the tuner stream for "+label+".";
+            switch_view(ViewMode::LiveTV); redraw(); return;
         }
-        if (liveTvScanBusy) liveTvTunerUse=LiveTvTunerUse::Scanning;
-        else if (liveTvGuideBusy) liveTvTunerUse=LiveTvTunerUse::GuideRefreshing;
-        else liveTvTunerUse=LiveTvTunerUse::Idle;
-        liveTvStatus="Live TV could not open "+label+(failures.empty()?std::string("."):std::string(". ")+failures);
-        switch_view(ViewMode::LiveTV); redraw();
     }
 
     static const std::vector<reddmedia::WorldTvStation>& world_tv_catalog() {
@@ -10618,7 +10598,7 @@ public:
         const auto station=stations[static_cast<std::size_t>(index)]; const auto service=worldTvService; const auto state=worldTvResolveState; const std::string exclude=reconnect?worldTvResolvedUrl:std::string();
         worldTvSelected=index; worldTvStatus=(reconnect?"Checking an alternate live source for ":"Verifying live video for ")+station.name+"...";
         { std::lock_guard<std::mutex> lock(state->mutex); state->busy=true; state->updated=false; state->station_index=index; state->reconnect=reconnect; state->result=reddmedia::WorldTvResolveResult{}; }
-        worldTvResolveWorker=std::thread([state,station,service,exclude]() mutable { const auto result=service.resolve(station.channel_id,station.feed_id,station.preferred_url,station.resolver,station.max_height,station.homepage,exclude); std::lock_guard<std::mutex> lock(state->mutex); state->result=result; state->busy=false; state->updated=true; });
+        worldTvResolveWorker=std::thread([state,station,service,exclude]() mutable { const auto result=service.resolve(station.channel_id,station.feed_id,station.preferred_url,station.resolver,station.max_height,exclude); std::lock_guard<std::mutex> lock(state->mutex); state->result=result; state->busy=false; state->updated=true; });
         start_world_tv_guide_refresh(index); redraw();
     }
 
@@ -10777,15 +10757,17 @@ public:
         const ViewPalette palette=palette_for(ViewMode::Radio);
         const Rect frame=page_content_frame(ViewMode::Radio);
         draw_quilted_background(target,frame,ViewMode::Radio);
+        button_on_state(target,radioSimpleBtn,"RADIO",radioProMode?SheetControlState::Normal:SheetControlState::Hover);
+        button_on_state(target,radioProBtn,"PRO",radioProMode?SheetControlState::Hover:SheetControlState::Normal);
         const auto preset=[&](const Rect& r,const char* label,RadioPanel panel) {
             button_on_state(target,r,label,radioPanel==panel?SheetControlState::Hover:SheetControlState::Normal);
         };
         preset(radioLocalBtn,"Local",RadioPanel::Local);
-        preset(radioInternetBtn,"Internet",RadioPanel::Internet);
         preset(radioEmergencyBtn,"Emergency",RadioPanel::Emergency);
         preset(radioWeatherBtn,"Weather",RadioPanel::Weather);
-        preset(radioShortwaveBtn,"Shortwave",RadioPanel::Shortwave);
         preset(radioSatelliteBtn,"ISS / Sat",RadioPanel::Satellite);
+        preset(radioShortwaveBtn,"Shortwave",RadioPanel::Shortwave);
+        preset(radioInternetBtn,"Internet",RadioPanel::Internet);
         button_on(target,radioFavoritesBtn,"Favorites");
         button_on(target,radioRecordingsBtn,"Recordings");
         button_on(target,radioAntennaScanBtn,"TV Antenna Scan");
@@ -10841,7 +10823,7 @@ public:
             text(target,meterX,infoY,recs.empty()?"No radio recordings yet.":("Radio recordings: "+std::to_string(recs.size())),palette.text); infoY+=18;
         }
 
-        { // NOUGAT_V57_RADIO_PRO_CONTROLS
+        if(radioProMode) {
             button_on(target,radioGainDownBtn,"GAIN -");
             button_on(target,radioGainUpBtn,"GAIN +");
             button_on(target,radioSquelchDownBtn,"SQL -");
@@ -10853,10 +10835,15 @@ public:
                      state.op25_available?"ready":"no",state.dab_decoder_available?"ready":"no",state.drm_decoder_available?"ready":"no",
                      state.satellite_decoder_available?"ready":"no",state.tx_hardware_available?"detected":"none");
             text(target,meterX,std::min(radioListBox.y+radioListBox.h-14,infoY+20),head_to_width(pro,radioListBox.w-32),palette.muted);
+        } else {
+            text(target,meterX,std::min(radioListBox.y+radioListBox.h-14,infoY+20),
+                 "RADIO mode chooses sane defaults. Switch to PRO only when you want the full receiver controls.",palette.muted);
         }
     }
 
     void handle_radio_click(int x, int y) {
+        if (radioSimpleBtn.contains(x,y)) { radioProMode=false; radioFrequencyFocused=false; redraw(); return; }
+        if (radioProBtn.contains(x,y)) { radioProMode=true; radioFrequencyFocused=false; redraw(); return; }
         if (radioLocalBtn.contains(x,y)) { set_radio_preset(RadioPanel::Local); redraw(); return; }
         if (radioEmergencyBtn.contains(x,y)) { set_radio_preset(RadioPanel::Emergency); redraw(); return; }
         if (radioWeatherBtn.contains(x,y)) { set_radio_preset(RadioPanel::Weather); redraw(); return; }
@@ -10908,11 +10895,11 @@ public:
         if (radioModeBtn.contains(x,y)) { radioBackend.cycle_modulation(1); redraw(); return; }
         if (radioStepBtn.contains(x,y)) { radioBackend.cycle_tuning_step(1); redraw(); return; }
         if (radioDeviceBtn.contains(x,y)) { radioBackend.cycle_device(1); redraw(); return; }
-        if (radioGainDownBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_gain_percent(s.gain_percent-5); redraw(); return; }
-        if (radioGainUpBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_gain_percent(s.gain_percent+5); redraw(); return; }
-        if (radioSquelchDownBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_squelch(s.squelch-5); redraw(); return; }
-        if (radioSquelchUpBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_squelch(s.squelch+5); redraw(); return; }
-        if (radioTxTestBtn.contains(x,y)) { std::string status; radioBackend.tx_chain_self_test(status); redraw(); return; }
+        if (radioProMode && radioGainDownBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_gain_percent(s.gain_percent-5); redraw(); return; }
+        if (radioProMode && radioGainUpBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_gain_percent(s.gain_percent+5); redraw(); return; }
+        if (radioProMode && radioSquelchDownBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_squelch(s.squelch-5); redraw(); return; }
+        if (radioProMode && radioSquelchUpBtn.contains(x,y)) { auto s=radioBackend.snapshot(); radioBackend.set_squelch(s.squelch+5); redraw(); return; }
+        if (radioProMode && radioTxTestBtn.contains(x,y)) { std::string status; radioBackend.tx_chain_self_test(status); redraw(); return; }
     }
 
     void draw_world_tv_screen(Drawable target) {
@@ -14079,36 +14066,9 @@ public:
         return metrics;
     }
 
-    std::string game_group_state_path() const { return config_dir() + "/games_collapsed_systems.txt"; }
-
-    void load_game_group_state() {
-        if (gameGroupStateLoaded) return;
-        gameGroupStateLoaded=true;
-        std::ifstream in(game_group_state_path());
-        std::string line;
-        while (std::getline(in,line)) if (!line.empty()) collapsedGameSystems.insert(line);
-    }
-
-    void save_game_group_state() const {
-        ensure_config_dir();
-        const std::string target=game_group_state_path();
-        const std::string temp=target+".tmp";
-        std::ofstream out(temp,std::ios::trunc); if (!out) return;
-        for (const auto& system:collapsedGameSystems) out << system << '\n';
-        out.close(); chmod(temp.c_str(),0600); rename(temp.c_str(),target.c_str());
-    }
-
-    int games_grouped_row_count() const {
-        std::map<std::string,int> counts;
-        { std::lock_guard<std::mutex> lock(gameState->mutex); for (const auto& game:gameState->games) ++counts[game.system.empty()?"Other":game.system]; }
-        int rows=0;
-        for (const auto& group:counts) rows += 1 + (collapsedGameSystems.count(group.first)?0:group.second);
-        return rows;
-    }
-
     int games_max_scroll() const {
-        const int visible=std::max(1,(gamesListBox.h-12)/40);
-        return std::max(0,games_grouped_row_count()-visible);
+        std::size_t count=0; { std::lock_guard<std::mutex> lock(gameState->mutex); count=gameState->games.size(); }
+        return std::max(0,static_cast<int>(count)-games_grid_metrics().visibleItems);
     }
 
     void update_games_vertical_scroll_from_pointer(int pointerY,bool centerThumb) {
@@ -14143,8 +14103,12 @@ public:
     bool handle_games_wheel_steps(Window target, int x, int y, int steps) {
         if (steps == 0 || currentView != ViewMode::Games || target != win ||
             gamesPanel != GamesPanel::Library || !gamesListBox.contains(x, y)) return false;
-        const int max_scroll = games_max_scroll();
-        gamesScroll = std::max(0, std::min(max_scroll, gamesScroll + steps));
+        std::size_t count = 0;
+        { std::lock_guard<std::mutex> lock(gameState->mutex); count = gameState->games.size(); }
+        const LibraryGridMetrics grid = games_grid_metrics();
+        const int max_scroll = std::max(0, static_cast<int>(count) - grid.visibleItems);
+        const int amount = gamesDisplayMode == GamesDisplayMode::Grid ? grid.columns : 1;
+        gamesScroll = std::max(0, std::min(max_scroll, gamesScroll + steps * amount));
         request_games_interactive_redraw();
         return true;
     }
@@ -14177,6 +14141,10 @@ public:
         tab(gamesSettingsBtn,"Settings",GamesPanel::Settings);
         button_on(target,gamesPlayBtn,"Play");
         button_on(target,gamesRefreshBtn,"Refresh");
+        if (gamesPanel==GamesPanel::Library) {
+            button_on_state(target,gamesGridBtn,"Grid",gamesDisplayMode==GamesDisplayMode::Grid?SheetControlState::Pressed:SheetControlState::Normal);
+            button_on_state(target,gamesListViewBtn,"List",gamesDisplayMode==GamesDisplayMode::List?SheetControlState::Pressed:SheetControlState::Normal);
+        }
         std::string status; bool busy=false; std::vector<GameEntry> games;
         { std::lock_guard<std::mutex> lock(gameState->mutex); status=gameState->status; busy=gameState->busy; games=gameState->games; }
         text(target,28+kCompactButtonW*2+14,112,
@@ -14185,55 +14153,53 @@ public:
         gameRows.clear();
 
         if (gamesPanel==GamesPanel::Library) {
-            // NOUGAT_V57_GAMES_COLLAPSIBLE_DRAW
-            load_game_group_state();
-            std::map<std::string,std::vector<int>> groups;
-            for (int i=0;i<static_cast<int>(games.size());++i) {
-                const std::string system=games[static_cast<std::size_t>(i)].system.empty()?"Other":games[static_cast<std::size_t>(i)].system;
-                groups[system].push_back(i);
-            }
-            gameSystemHeaders.clear();
-            const int rowH=40;
-            const int visibleRows=std::max(1,(gamesListBox.h-12)/rowH);
-            const int totalRows=games_grouped_row_count();
-            const int maxScroll=std::max(0,totalRows-visibleRows);
+            const LibraryGridMetrics grid=games_grid_metrics();
+            const int maxScroll=std::max(0,static_cast<int>(games.size())-grid.visibleItems);
             gamesScroll=std::max(0,std::min(gamesScroll,maxScroll));
-            int logicalRow=0;
-            int painted=0;
-            for (const auto& group:groups) {
-                if (logicalRow>=gamesScroll && painted<visibleRows) {
-                    Rect header{gamesListBox.x+6,gamesListBox.y+6+painted*rowH,gamesListBox.w-12,rowH-2};
-                    fill(target,header,palette.button); outline(target,header,palette.border);
-                    const bool collapsed=collapsedGameSystems.count(group.first)!=0U;
-                    text(target,header.x+10,header.y+25,(collapsed?"[+] ":"[-] ")+group.first+" ("+std::to_string(group.second.size())+")",palette.buttonText);
-                    gameSystemHeaders.push_back({header,group.first}); ++painted;
+            if (gamesDisplayMode==GamesDisplayMode::List) {
+                for (int visibleIndex=0; visibleIndex<grid.visibleItems; ++visibleIndex) {
+                    const int index=gamesScroll+visibleIndex; if (index>=static_cast<int>(games.size())) break;
+                    const GameEntry& game=games[static_cast<std::size_t>(index)];
+                    Rect row{gamesListBox.x+6,gamesListBox.y+6+visibleIndex*34,gamesListBox.w-12,32};
+                    if (index==gamesSelected) fill(target,row,palette.selection);
+                    outline(target,row,palette.border);
+                    const std::string source=std::string(game.bundled?"BUNDLED":"LINKED")+(game.archived?" | ZIP":"");
+                    text(target,row.x+8,row.y+20,head_to_width(game.title,row.w-300),palette.text);
+                    text(target,row.x+std::max(140,row.w-285),row.y+20,head_to_width(game.system+" | "+source,277),palette.muted);
+                    gameRows.push_back({row,index});
                 }
-                ++logicalRow;
-                if (collapsedGameSystems.count(group.first)!=0U) continue;
-                for (int index:group.second) {
-                    if (logicalRow>=gamesScroll && painted<visibleRows) {
-                        const GameEntry& game=games[static_cast<std::size_t>(index)];
-                        Rect row{gamesListBox.x+18,gamesListBox.y+6+painted*rowH,gamesListBox.w-24,rowH-2};
-                        if (index==gamesSelected) fill(target,row,palette.selection);
-                        outline(target,row,palette.border);
-                        Rect art{row.x+4,row.y+4,30,30}; fill(target,art,rgb8(30,29,24));
-                        reddmedia::LibraryPoster poster;
-                        if (cached_game_artwork(game,poster)) draw_poster_pixels(target,art,poster);
-                        const std::string source=std::string(game.bundled?"BUNDLED":"LINKED")+(game.archived?" | ZIP":"");
-                        text(target,row.x+42,row.y+17,head_to_width(game.title,row.w-220),palette.text);
-                        text(target,row.x+42,row.y+32,head_to_width(source,row.w-220),palette.muted);
-                        gameRows.push_back({row,index}); ++painted;
-                    }
-                    ++logicalRow;
+            } else {
+                const int gridUsedWidth=grid.columns*grid.tileWidth+(grid.columns-1)*grid.gap;
+                const int gridStartX=gamesListBox.x+6+std::max(0,(std::max(1,gamesListBox.w-12)-gridUsedWidth)/2);
+                for (int visibleIndex=0; visibleIndex<grid.visibleItems; ++visibleIndex) {
+                    const int index=gamesScroll+visibleIndex; if (index>=static_cast<int>(games.size())) break;
+                    const int column=visibleIndex%grid.columns; const int rowNumber=visibleIndex/grid.columns;
+                    Rect card{gridStartX+column*(grid.tileWidth+grid.gap),
+                              gamesListBox.y+6+rowNumber*(grid.tileHeight+grid.gap),grid.tileWidth,grid.tileHeight};
+                    const GameEntry& game=games[static_cast<std::size_t>(index)];
+                    if (index==gamesSelected) fill(target,card,palette.selection);
+                    outline(target,card,palette.border);
+                    Rect art{card.x+4,card.y+4,card.w-8,grid.posterHeight};
+                    fill(target,art,rgb8(30,29,24));
+                    reddmedia::LibraryPoster poster;
+                    if (cached_game_artwork(game,poster)) draw_poster_pixels(target,art,poster);
+                    else text(target,art.x+std::max(6,(art.w-text_width("NO ART"))/2),art.y+art.h/2,"NO ART",palette.muted);
+                    const int titleY=card.y+grid.posterHeight+18;
+                    const auto titleLines=library_title_lines(game.title,card.w-12);
+                    text(target,card.x+6,titleY,titleLines.first,palette.text);
+                    if (!titleLines.second.empty()) text(target,card.x+6,titleY+14,titleLines.second,palette.text);
+                    const std::string source=game.system+" | "+(game.bundled?"Bundled":"Linked")+(game.archived?" | ZIP":"");
+                    text(target,card.x+6,card.y+card.h-5,head_to_width(source,card.w-12),palette.muted);
+                    gameRows.push_back({card,index});
                 }
             }
             if (games.empty() && !busy) text(target,gamesListBox.x+12,gamesListBox.y+28,
                 "No games indexed. Add a ROM folder; bundled legal starter ROMs appear automatically.",palette.muted);
             if (maxScroll>0) {
                 const int thumbH=std::max(38,std::min(gamesVerticalScrollTrack.h,
-                    gamesVerticalScrollTrack.h*visibleRows/std::max(1,totalRows)));
+                    gamesVerticalScrollTrack.h*grid.visibleItems/std::max(1,static_cast<int>(games.size()))));
                 const int travel=std::max(0,gamesVerticalScrollTrack.h-thumbH);
-                const int thumbY=gamesVerticalScrollTrack.y+travel*gamesScroll/maxScroll;
+                const int thumbY=gamesVerticalScrollTrack.y+(maxScroll>0?travel*gamesScroll/maxScroll:0);
                 gamesVerticalScrollThumb={gamesVerticalScrollTrack.x,thumbY,gamesVerticalScrollTrack.w,thumbH};
             } else gamesVerticalScrollThumb=gamesVerticalScrollTrack;
             draw_home_scrollbar_component(target,gamesVerticalScrollTrack,gamesVerticalScrollThumb,palette);
@@ -14279,14 +14245,13 @@ public:
         if (gamesRefreshBtn.contains(x,y)) { start_game_scan(); redraw(); return; }
         if (gamesPlayBtn.contains(x,y)) { launch_selected_game(); redraw(); return; }
         if (gamesPanel == GamesPanel::Library && handle_games_scrollbar_press(x,y)) return;
+        if (gamesPanel == GamesPanel::Library && gamesGridBtn.contains(x,y)) {
+            gamesDisplayMode = GamesDisplayMode::Grid; gamesScroll = 0; redraw(); return;
+        }
+        if (gamesPanel == GamesPanel::Library && gamesListViewBtn.contains(x,y)) {
+            gamesDisplayMode = GamesDisplayMode::List; gamesScroll = 0; redraw(); return;
+        }
         if (gamesPanel == GamesPanel::Library) {
-            for (const auto& header : gameSystemHeaders) {
-                if (!header.first.contains(x,y)) continue;
-                if (collapsedGameSystems.count(header.second)) collapsedGameSystems.erase(header.second);
-                else collapsedGameSystems.insert(header.second);
-                save_game_group_state(); gamesScroll=std::min(gamesScroll,games_max_scroll());
-                gamesLastClickIndex=-1; gamesLastClickTime=0; redraw(); return;
-            }
             for (const auto& row : gameRows) {
                 if (!row.first.contains(x,y)) continue;
                 const bool doubleClick = row.second == gamesLastClickIndex && gamesLastClickTime != 0 &&
@@ -16916,12 +16881,14 @@ public:
                 std::lock_guard<std::mutex> lock(serverState->mutex);
                 server_busy = serverState->busy;
             }
-            if (!server_busy && mediaServer.poll()) {
+            const bool server_health_ready = mediaServer.probe_health();
+            if ((!server_busy || server_health_ready) && mediaServer.poll()) {
                 {
                     std::lock_guard<std::mutex> lock(serverState->mutex);
                     serverState->status = server_control_label();
-                    serverState->state = mediaServer.state();
+                    serverState->state = server_health_ready ? reddmedia::MediaServerState::Ready : mediaServer.state();
                     serverState->owned = mediaServer.owns_server();
+                    if (server_health_ready) serverState->busy = false;
                 }
                 if (currentView == ViewMode::Home && mediaServer.state() == reddmedia::MediaServerState::Ready) start_home_task();
                 if (!fullscreen) redraw();
