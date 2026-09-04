@@ -1,38 +1,98 @@
 # Nougat Media Plus
 
-Nougat Media Suite is an all-in-one native Linux media center and experimental media platform built by Elderred Softworks LLC. It brings personal media libraries, local and network playback, internet video, television, radio, games, search, downloading, media tools, servers, diagnostics, hardware integration, privacy-focused services, and local-network media access together inside one unified Nougat interface.
+**Nougat Media Plus** is a native Linux entertainment and media platform developed by **Elderred Softworks LLC**. It combines television, radio, local media, internet streaming, games, production tools, connected hardware, search, diagnostics, and network playback inside one unified desktop application.
 
-The **Player** handles local files and network media with play and pause, stop, rewind and fast-forward, fullscreen playback, volume, seeking, chapter navigation, resume state, television episode identity, episode progression, Up Next handling, keyboard and mouse controls, and Live TV channel navigation. **Home** provides Continue Watching and media shelves, while **Library** manages movies, television, music, videos, artwork, metadata, persistent media folders, search, list and grid views, playback history, collection organization, automatic discovery, and owner-controlled metadata correction through Fix Match.
+## **Media & Playback**
 
-**Stream** provides direct URL playback and webpage access for supported internet video sources and services. **Discover** provides media discovery and recommendation-oriented browsing. **Nougat Search** combines privacy-first search, crawler infrastructure, decentralized-search architecture, Secure Search protections, replaceable privacy transports, query isolation, private-retrieval research, integrated P2P downloading, stream-while-downloading playback, torrent and magnet support, metadata retrieval, playable-file selection, transfer progress, security analysis, and on-device recommendation intelligence.
+The built-in **Video Player** handles local and network media with playback controls, seeking, fullscreen playback, volume control, chapters, resume state, episode progression, Up Next, keyboard and mouse controls, and Live TV channel navigation.
 
-**Live TV** supports over-the-air television hardware, tuner discovery, channel scanning, channel storage, guide data, native playback, channel navigation, tuner diagnostics, channel artwork, provider-neutral tuner handling, regional tuner models, physical-device grouping, preferred-tuner selection, and independently allocatable tuner resources. The tuner architecture supports Hauppauge WinTV devices and HDHomeRun network tuners, including multiple physical devices and multiple independently usable tuner resources where the hardware provides them.
+**Home** provides Continue Watching and media shelves. **Library** manages movies, television, music, videos, artwork, metadata, persistent media folders, playback history, automatic discovery, list and grid views, collection organization, and owner-controlled metadata correction through Fix Match.
+
+**Discover** provides recommendation-oriented browsing, while **Nougat Search** combines privacy-focused search, crawler infrastructure, decentralized-search foundations, Secure Search protections, P2P downloading, torrent and magnet support, stream-while-downloading playback, metadata retrieval, playable-file selection, transfer progress, security analysis, and on-device recommendation intelligence.
+
+## **Live Television**
+
+**Live TV** supports compatible over-the-air television hardware including Hauppauge WinTV devices and HDHomeRun network tuners.
+
+The television system includes tuner discovery, channel scanning, channel storage, guide data, native playback, channel navigation, tuner diagnostics, artwork, preferred-device handling, physical-device grouping, multiple physical tuners, and independently allocatable tuner resources when supported by the hardware.
 
 **World TV** extends television beyond antenna reception with internet-accessible broadcaster sources, guide integration, source verification, asynchronous stream resolution, alternate-source recovery, playback-health diagnostics, bounded connection and retry handling, station artwork, source diagnostics, and clear failure reporting.
 
-**Radio** provides a unified receiver, scanner, and signal-monitoring environment. Its service surface includes **Local, Internet, AM, FM, HD Radio, DAB/DAB+, DRM, Longwave, Mediumwave, Shortwave, Weather, Emergency, Public Safety, Police, Fire, EMS, Government, Military, Airband, Marine, Railroad, CB, FRS/GMRS, MURS, Amateur/Ham, Business, Utilities, Trunked Radio, P25, DMR, NXDN, TETRA, Paging, Numbers Stations, Time/Beacon, ADS-B, ACARS, AIS, Weather Satellite, Satellite, Amateur Satellite, and ISS/Satellite**. Radio also provides direct frequency entry, modulation and tuning-step controls, bandwidth and filtering, gain and AGC, squelch, scanning, signal monitoring, favorites, recordings, presets, spectrum and waterfall foundations, automatic hardware discovery, multiple receiver resources, provider-neutral hardware handling, and expandable SDR and decoder backends. Services that are unavailable with the connected hardware remain identified truthfully instead of being presented as active, and encrypted traffic is identified as encrypted or locked rather than decrypted.
+## **Radio & Signal Monitoring**
 
-Nougat also includes a **Cellular Lab** foundation for private, controlled cellular-network experimentation using owned or explicitly authorized equipment. The architecture covers private 2G GSM laboratory concepts, BTS/BSC/MSC/HLR integration, enrolled test devices, subscriber and SIM management, local calls and SMS, RF and spectrum monitoring, protocol diagnostics, network health, and future historical analog-cellular experimentation. Actual transmission features depend on appropriate hardware, implementation status, authorization, and lawful controlled-spectrum conditions.
+**Radio** provides a unified receiver, scanner, and signal-monitoring environment for local and internet radio, AM, FM, HD Radio, DAB/DAB+, DRM, longwave, mediumwave, shortwave, weather, emergency services, public safety, aviation, marine, railroad, amateur radio, digital radio systems, beacon services, aircraft and marine data, weather satellites, amateur satellites, and ISS/satellite reception paths.
 
-**Games** provides a unified game library and emulator front end with persistent ROM folders, ZIP-contained game discovery, system recognition, artwork, controller support, automatic emulator selection, managed emulator runtimes, embedded gameplay where supported, and support for legally redistributable test and homebrew content while users provide their own legally obtained commercial game dumps and any required firmware or BIOS.
+Professional receiver controls include direct frequency entry, modulation and tuning-step controls, bandwidth and filtering, gain and AGC, squelch, scanning, signal monitoring, favorites, recordings, presets, spectrum and waterfall foundations, automatic hardware discovery, multiple receiver resources, provider-neutral hardware handling, and expandable SDR and decoder backends.
 
-**Studio** provides integrated media, file-production, and production-planning tools. Its File Splitter analyzes sources, calculates target-based piece recommendations, supports live Target MiB and Pieces interaction, and creates verified split sets. The separate File Assembler can begin from a manifest or numbered split part, discover the remaining pieces, validate completeness, ordering, sizes, and hashes, reconstruct the original payload, and verify final integrity. Studio also includes **Drone Production**, a director-oriented aerial-production environment for simulation, telemetry, camera and gimbal coordination, repeatable flight paths, and Director Shot planning that keeps aircraft movement, camera movement, timing, subject tracking, and shot metadata together.
+Services unavailable with connected hardware are identified truthfully rather than presented as active. Encrypted traffic is identified as encrypted or locked rather than represented as decrypted.
 
-Nougat includes a **Jellyfin-backed media-server foundation** and a Nougat-branded background **Web Player** for browsers and other devices on the local network. Local media access is designed to work without a mandatory cloud account, cloud relay, or Internet connection. The network-media architecture supports phones, tablets, laptops, televisions, browsers, and other LAN clients while keeping Nougat as the visible user-facing experience and Jellyfin as backend catalog infrastructure.
+## **Cellular Lab**
 
-The suite also includes diagnostic and system-status tools, hardware reporting, security-scanning foundations, server-health monitoring, media and tuner diagnostics, persistent application state, privacy infrastructure, expandable service integrations, and modular boundaries intended to let new media, tuner, receiver, emulator, networking, search, privacy, production, and hardware capabilities be added without replacing the rest of the application.
+**Cellular Lab** provides a foundation for private and controlled cellular-network experimentation using owned or explicitly authorized equipment.
 
-Nougat Media Suite uses the approved **Nougat N** identity throughout the application, desktop integration, launchers, running executable, window identity, and system integration. The interface combines the suite-wide cream, caramel, and chocolate visual language with feature-specific palettes while keeping the application native to Linux.
+Its architecture includes private cellular-network concepts, subscriber and SIM management, enrolled test devices, local calls and SMS, RF and spectrum monitoring, protocol diagnostics, network-health tooling, and future historical analog-cellular experimentation.
 
-The GitHub repository preserves the runnable Nougat project tree, including source, assets, tools, bundled runtimes, emulator components, media-server infrastructure, AI components, security components, and other required project dependencies. Oversized project files are stored through Git LFS rather than being intentionally omitted from the project history.
+Actual transmission capabilities depend on compatible hardware, implementation status, authorization, and appropriate spectrum conditions.
 
-### Educational and Lawful Use Notice
+## **Games**
 
-Nougat Media Suite is provided for **educational, research, testing, and development purposes only**. Elderred Softworks LLC does not endorse, encourage, authorize, or condone use of this software for unlawful activity, unauthorized access, unauthorized interception or surveillance, circumvention of access controls, harassment, injury, property damage, invasion of privacy, infringement of intellectual-property rights, interference with communications or services, or any other harmful or illegal purpose.
+**Games** provides a unified game library and emulator front end with persistent ROM folders, archive-contained game discovery, system recognition, artwork, controller support, emulator selection, managed emulator runtimes, and embedded gameplay where supported.
 
-Users are responsible for ensuring that their use of Nougat Media Suite complies with all applicable laws, regulations, licensing requirements, spectrum and communications rules, privacy obligations, intellectual-property rights, contractual restrictions, and third-party terms. Features involving networks, radio, cellular systems, devices, accounts, media, signals, or data should be used only with resources the user owns or is explicitly authorized to access, operate, test, receive, modify, or analyze.
+The Games architecture is designed to support multiple console generations while keeping game organization, artwork, controls, emulator management, launch behavior, and future embedded rendering inside the Nougat Media Plus environment.
 
-Nothing in Nougat Media Suite, its source code, or its documentation grants permission to perform an act that would otherwise be unlawful, unauthorized, or harmful. Availability of a technical capability does not imply legal authorization to use it in a particular jurisdiction, environment, or circumstance.
+## **Studio & Production Tools**
+
+**Studio** provides integrated media-production, file-production, and planning tools.
+
+**File Splitter** creates verified split sets using target-based sizing and integrity checks. **File Assembler** discovers numbered parts, validates completeness, ordering, sizes, and hashes, reconstructs the original payload, and verifies final integrity.
+
+## **Drone Production**
+
+**Drone Production** provides a director-oriented aerial-production environment for simulation, telemetry, camera and gimbal coordination, repeatable flight paths, mission planning, and Director Shot workflows.
+
+The system keeps aircraft movement, camera movement, timing, subject tracking, shot metadata, simulated telemetry, payload controls, and production planning together inside the application.
+
+## **Streaming & Network Media**
+
+**Stream** provides direct URL playback and webpage access for supported internet-video sources and services.
+
+Nougat Media Plus also includes a **Jellyfin-backed media-server foundation** and a Nougat-branded **Web Player** for browsers and devices on the local network.
+
+Local media access is designed to operate without a mandatory cloud account, cloud relay, or Internet connection. The network-media architecture supports phones, tablets, laptops, televisions, browsers, and other LAN clients while keeping Nougat Media Plus as the visible user-facing experience.
+
+## **Diagnostics, Privacy & Hardware Integration**
+
+Nougat Media Plus includes diagnostic and system-status tools, hardware reporting, server-health monitoring, media and tuner diagnostics, security-scanning foundations, persistent application state, privacy infrastructure, and expandable service integrations.
+
+Its modular architecture allows new media, tuner, receiver, emulator, networking, search, privacy, production, and hardware capabilities to be added without replacing the rest of the application.
+
+## **Nougat Media Plus Interface**
+
+Beginning with **v0.0.62**, Nougat Media Plus uses the approved black and deep-green tactical interface together with the metallic tactical-green **N** identity.
+
+The active identity is applied across the application, launcher, versioned executable, X11 window identity, GNOME dock and app switcher, and in-app branding.
+
+The tactical visual system coordinates navigation, panels, controls, dialogs, status surfaces, application identity, and UI interaction sounds while preserving the functionality of the individual Nougat systems.
+
+## **Platform & Repository**
+
+Nougat Media Plus is developed primarily as a **native Linux desktop application**.
+
+The GitHub repository preserves the complete runnable project tree including source, assets, tools, bundled runtimes, emulator components, media-server infrastructure, AI components, security components, and required project dependencies.
+
+Oversized project files are stored through **Git LFS** rather than intentionally omitted from project history.
+
+## **Educational and Lawful Use Notice**
+
+Nougat Media Plus is provided for **educational, research, testing, and development purposes only**.
+
+Elderred Softworks LLC does not endorse or authorize unlawful activity, unauthorized access, unauthorized interception or surveillance, circumvention of access controls, harassment, property damage, invasion of privacy, intellectual-property infringement, interference with communications or services, or other harmful or illegal activity.
+
+Users are responsible for ensuring that their use of Nougat Media Plus complies with applicable laws, regulations, licensing requirements, spectrum and communications rules, privacy obligations, intellectual-property rights, contractual restrictions, and third-party terms.
+
+Features involving networks, radio, cellular systems, devices, accounts, media, signals, or data should be used only with resources the user owns or is explicitly authorized to access, operate, test, receive, modify, or analyze.
+
+Nothing in Nougat Media Plus, its source code, or its documentation grants permission to perform an act that would otherwise be unlawful or unauthorized. Availability of a technical capability does not imply legal authorization to use it in a particular jurisdiction or environment.
 
 ## v0.0.62 - Nougat Media Plus Tactical UI Conversion
 
