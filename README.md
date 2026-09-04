@@ -34,61 +34,48 @@ Users are responsible for ensuring that their use of Nougat Media Suite complies
 
 Nothing in Nougat Media Suite, its source code, or its documentation grants permission to perform an act that would otherwise be unlawful, unauthorized, or harmful. Availability of a technical capability does not imply legal authorization to use it in a particular jurisdiction, environment, or circumstance.
 
-## v0.0.61 candidate - Drone Lab Mission Control and Director Shot Simulation
-
-Nougat Media Suite v0.0.61 is an **owner-test candidate** built strictly from the accepted v0.0.60 baseline. It is not accepted or release-tagged until owner testing passes.
-
-- Replaces the small v0.0.60 Drone foundation panel with the native dark-green **Nougat Drone Lab Mission Control** workspace.
-- Adds a real editable Mission Planner path: click the map to append Director Shot waypoints, clear the route, start a new shot, and save the shot locally.
-- Adds a functional Nougat trajectory simulator that animates the aircraft along the Director Shot path and updates altitude, horizontal/vertical speed, heading, battery, and flight-instrument state.
-- Adds interactive simulation camera/gimbal controls with pitch, yaw, Follow/Manual behavior, and simulation-only photo/record indicators.
-- Adds simulation-only payload ARM/RELEASE controls that never transmit hardware output.
-- Keeps PX4, ArduPilot, FFmpeg, and GStreamer source/tool detection visible without falsely claiming an aircraft or camera is connected.
-- Keeps **real-aircraft arming and command transmission disabled**.
-- Preserves the accepted Nougat N identity and the **Nougat Media Suite** product name.
-- Documents **Nougat Media Plus** only as a deferred future identity proposal; no rename or icon change is made in v0.0.61.
-- Advances the candidate executable to **Nougat_Media_Suite_v61**.
-
-## v0.0.61 - Drone Mission Control and Games Library Expansion
-
-Nougat Media Suite v0.0.61 is the owner-accepted closeout release built on v0.0.60. It is being closed with known Games emulator regressions intentionally carried forward into the complete v0.0.62 Games overhaul.
-
-- Advances Studio Drone Production from the v0.0.60 foundation into the native Mission Control workspace.
-- Adds editable Director Shot waypoints, path controls, trajectory visualization, simulation telemetry, camera and gimbal controls, simulated photo/video/payload actions, and deeper dependency discovery.
-- Keeps real-aircraft command transmission disabled.
-- Expands Games with persistent collapsible console groups while retaining both Grid and List presentation.
-- Restores large game-artwork cards inside expanded console groups.
-- Adds bounded Systems-panel scrolling so later systems remain inside the Nougat Games interface.
-- Adds the MesenCE NES/SNES runtime foundation.
-- Preserves the existing Xbox/Xenia runtime and Nougat emulator-host architecture for further v0.0.62 repair.
-- Advances the active executable to **Nougat_Media_Suite_v61**.
-
-### Known Games issues carried directly into v0.0.62
-
-- NES currently launches MesenCE in an external fullscreen emulator surface rather than rendering correctly inside Nougat's native Video Player viewport.
-- SNES currently has the same external MesenCE fullscreen-window regression.
-- Xbox 360 currently restores the Nougat-contained Xenia window path, but GTA IV does not successfully run through that restored path.
-- v0.0.62 is therefore assigned a complete Games overhaul rather than another narrow emulator patch.
-- v0.0.62 must build and validate the complete supported emulator matrix, with every supported backend launching correctly through the Nougat Games architecture and every system that requires embedded presentation rendering inside Nougat rather than as an unintended detached desktop window.
-
 ## v0.0.61 - Drone Mission Control and Games Expansion
 
-Nougat Media Suite v0.0.61 is the owner-approved closeout checkpoint for the v0.0.62 Games overhaul.
+Nougat Media Suite v0.0.61 is the owner-approved closeout release built from the accepted v0.0.60 baseline. All Drone Mission Control work, Games Library expansion, emulator-runtime work, and known Games regressions belong to this single v0.0.61 build.
 
-- Advances Drone Production into the native Mission Control workspace.
-- Adds editable Director Shot paths, trajectory visualization, simulation telemetry, camera and gimbal controls, and simulated production actions.
-- Keeps real-aircraft command transmission disabled.
-- Expands Games with collapsible console groups, large artwork cards, Grid and List views, and bounded Systems scrolling.
-- Adds the MesenCE NES/SNES runtime foundation.
-- Advances the active root executable to **Nougat_Media_Suite_v61**.
+### Drone Mission Control
 
-### Known Games issues carried into v0.0.62
+- Replaces the smaller v0.0.60 Drone foundation panel with the native dark-green **Nougat Drone Lab Mission Control** workspace.
+- Advances Director Shot from architecture scaffolding into an editable simulation workspace.
+- Allows Mission Planner waypoints to be added and edited as a Director Shot path.
+- Adds New Shot, path clearing, shot saving, and simulated path execution.
+- Adds animated trajectory visualization for the planned aircraft route.
+- Updates simulated altitude, horizontal speed, vertical speed, heading, battery, link state, and flight-instrument information while a shot runs.
+- Adds interactive camera and gimbal controls for pitch and yaw.
+- Adds Follow and Manual gimbal behavior.
+- Adds simulation-only photo and video-record controls.
+- Adds simulation-only payload ARM and RELEASE controls.
+- Keeps PX4, ArduPilot, MAVLink, MAVSDK, FFmpeg, and GStreamer integration/dependency discovery visible without falsely reporting hardware as connected.
+- Keeps real-aircraft arming and command transmission disabled.
+- Preserves the approved **Nougat N** identity and the **Nougat Media Suite** product name.
+- Keeps **Nougat Media Plus** only as a deferred future identity proposal and does not rename v0.0.61.
 
-- NES currently opens MesenCE externally instead of rendering inside Nougat's native Video Player.
-- SNES currently opens MesenCE externally instead of rendering inside Nougat's native Video Player.
-- Xbox 360 containment was restored, but GTA IV currently fails to run through that path.
-- These issues are intentionally carried into v0.0.62 instead of being falsely marked fixed.
-- v0.0.62 is assigned a complete Games and emulator overhaul.
+### Games Library Expansion
+
+- Reworks the Games Library around persistent collapsible console groups.
+- Preserves both **Grid** and **List** presentation modes.
+- Restores large game-artwork cards inside expanded console groups instead of reducing games to tiny rows.
+- Adds bounded vertical scrolling to the Systems panel so later consoles remain inside the Nougat interface.
+- Preserves persistent ROM folders, system recognition, artwork, metadata, controller architecture, ZIP-aware discovery, and Nougat's emulator-host foundation.
+- Adds the pinned **MesenCE 2.2.1** runtime foundation for NES and SNES.
+- Preserves the existing Xbox 360 / Xenia runtime and Nougat embedding infrastructure for the complete v0.0.62 repair.
+- Advances the active executable to **Nougat_Media_Suite_v61**.
+
+### Known Games Issues Carried Into v0.0.62
+
+- **NES:** MesenCE currently opens in its own external fullscreen emulator window instead of rendering inside Nougat's native Video Player viewport.
+- **SNES:** MesenCE currently has the same external fullscreen-window regression and does not render inside Nougat's native Video Player viewport.
+- **Xbox 360:** the Nougat-contained Xenia window path was restored, but GTA IV currently fails to run successfully through that path.
+- These failures are intentionally documented rather than being falsely marked fixed.
+- v0.0.62 is assigned a complete Games and emulator overhaul rather than another narrow emulator patch.
+- v0.0.62 must audit every system exposed by Nougat, add the required emulator backends, and validate real video, audio, controller input, startup, shutdown, cleanup, and relaunch behavior.
+- Emulator discovery alone does not count as working support.
+- Systems intended to use Nougat-contained gameplay must render inside Nougat rather than opening unintended detached desktop emulator windows.
 
 ## v0.0.60 - Drone Production Foundation
 
