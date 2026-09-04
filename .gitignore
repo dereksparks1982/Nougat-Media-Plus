@@ -23,3 +23,8 @@
 **/*CHANGED_FILES*.zip
 **/*CHANGED_FILES*.tar
 **/*CHANGED_FILES*.tar.gz
+
+# Local Nougat repair/rejection backup directories must never be committed
+/.nougat-v*-backup-*/
+/.nougat-v*-rejected-backup-*/
+/.nougat-v*-full-repair-backup-*/
