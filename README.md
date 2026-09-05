@@ -82,27 +82,25 @@ The GitHub repository preserves the complete runnable project tree including sou
 
 Oversized project files are stored through **Git LFS** rather than intentionally omitted from project history.
 
-## **Educational and Lawful Use Notice**
+## **Educational, Professional, and Lawful Use Notice**
 
-Nougat Media Plus is provided for **educational, research, testing, and development purposes only**.
+Nougat Media Plus is developed by **Elderred Softworks LLC** for **educational, research, testing, development, and authorized professional or operational use**. It is intended for users including licensed radio operators, communications professionals, broadcast and satellite technicians, engineers, researchers, educators, government agencies, military personnel, public-safety professionals, and other technical users working with media, radio-frequency systems, satellites, drones, cellular systems, networks, communications equipment, and related technologies.
 
-Elderred Softworks LLC does not endorse or authorize unlawful activity, unauthorized access, unauthorized interception or surveillance, circumvention of access controls, harassment, property damage, invasion of privacy, intellectual-property infringement, interference with communications or services, or other harmful or illegal activity.
+Nougat Media Plus may provide access to capabilities involving radio reception and transmission, satellite communications, cellular systems, drones and aircraft, networks, connected hardware, signals, media, accounts, and data. Some capabilities may require licenses, certifications, spectrum or frequency authorization, equipment approval, operator privileges, organizational authority, regulatory approval, coordination with a satellite or communications operator, or other permission before lawful use.
 
-Users are responsible for ensuring that their use of Nougat Media Plus complies with applicable laws, regulations, licensing requirements, spectrum and communications rules, privacy obligations, intellectual-property rights, contractual restrictions, and third-party terms.
+**Nougat Media Plus does not determine, verify, grant, or imply that a user is licensed or otherwise authorized to perform any particular operation.** Users are solely responsible for determining and maintaining the licenses, permissions, approvals, qualifications, and other legal authority required for their activities and jurisdiction.
 
-Features involving networks, radio, cellular systems, devices, accounts, media, signals, or data should be used only with resources the user owns or is explicitly authorized to access, operate, test, receive, modify, or analyze.
+Elderred Softworks LLC does not endorse or authorize unlawful activity, unauthorized access, interception, monitoring or surveillance, unauthorized circumvention of access controls or encryption, harmful interference with communications or services, invasion of privacy, property damage, intellectual-property infringement, harassment, or unauthorized operation of radio, satellite, cellular, drone, network, or other communications systems.
 
-Nothing in Nougat Media Plus, its source code, or its documentation grants permission to perform an act that would otherwise be unlawful or unauthorized. Availability of a technical capability does not imply legal authorization to use it in a particular jurisdiction or environment.
+Features involving equipment, frequencies, networks, satellites, aircraft, accounts, signals, communications systems, media, or data should be used only where the user has the ownership, permission, license, authorization, or other lawful authority required for the activity being performed.
 
-### **Intended Users**
+**Transmission capabilities require particular care.** Radio-frequency and satellite transmission may be subject to national and international spectrum regulations, licensing requirements, frequency allocations, equipment rules, coordination requirements, and operator restrictions. In the United States, applicable requirements may include rules administered by the **Federal Communications Commission (FCC)**. Other jurisdictions have their own communications and spectrum authorities. Users are responsible for determining which rules apply before transmitting.
 
-Nougat Media Plus is designed primarily for **licensed radio operators, communications professionals, broadcast and satellite technicians, researchers, educators, government agencies, military personnel, public-safety professionals, engineers, and other authorized technical users** working with communications, media, RF systems, satellites, drones, networking, and related hardware.
+Nothing in Nougat Media Plus, its documentation, source code, supported hardware, or availability of a technical capability grants permission to perform an act that would otherwise be unlawful or unauthorized. **Technical capability does not imply legal authorization.**
 
-Some capabilities may require licenses, permissions, certifications, spectrum authorization, equipment approval, or organizational authority before lawful use.
+The inclusion of professional, governmental, public-safety, military, satellite, aviation, cellular, or other regulated use cases does not imply endorsement, affiliation, certification, approval, sponsorship, or authorization by any government agency, military organization, regulator, communications authority, satellite operator, service provider, or equipment manufacturer.
 
-Nougat Media Plus does not verify a user's credentials or authorization. Users are solely responsible for ensuring that their use of the software, connected equipment, frequencies, networks, satellites, aircraft, and communications systems is lawful and authorized.
-
-The inclusion of professional, governmental, public-safety, or military use cases does not imply endorsement, affiliation, certification, or authorization by any government agency, military organization, regulator, or equipment manufacturer.
+**Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
 
 ## v0.0.62 - Nougat Media Plus Tactical UI Conversion
 
