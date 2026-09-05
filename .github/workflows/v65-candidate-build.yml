@@ -31,6 +31,9 @@ jobs:
 
       - name: Materialize only the AI runtime LFS objects
         run: |
+          cd "$GITHUB_WORKSPACE"
+          echo "WORKSPACE=$PWD"
+          test -d .git
           git lfs install --local
           git lfs pull --include="components/ai/runtime/**" --exclude=""
           test -f components/ai/runtime/include/llama.h
@@ -42,6 +45,7 @@ jobs:
 
       - name: Apply approved v65 source and UI repairs
         run: |
+          cd "$GITHUB_WORKSPACE"
           python3 tools/v65_patch.py
           python3 tools/v65_ui_repair.py
           grep -q 'NOUGAT_V65_APPROVED_MILITARY_SEEK' src/main.cpp
@@ -56,6 +60,7 @@ jobs:
 
       - name: Remove the exterior black border from the packaged dock icon
         run: |
+          cd "$GITHUB_WORKSPACE"
           python3 - <<'PY'
           from collections import deque
           from pathlib import Path
@@ -98,14 +103,17 @@ jobs:
 
       - name: Configure real v65 build
         run: |
+          cd "$GITHUB_WORKSPACE"
           cmake -S . -B build-v65-prebuilt -DCMAKE_BUILD_TYPE=Release
 
       - name: Build real v65 binary
         run: |
+          cd "$GITHUB_WORKSPACE"
           cmake --build build-v65-prebuilt --target Nougat_Media_Plus_v65 -j"$(nproc)"
 
       - name: Verify prebuilt binary
         run: |
+          cd "$GITHUB_WORKSPACE"
           test -x build-v65-prebuilt/Nougat_Media_Plus_v65
           LD_LIBRARY_PATH="$PWD/components/ai/runtime/lib:$PWD/components/ai/runtime/lib64" \
             ./build-v65-prebuilt/Nougat_Media_Plus_v65 --version | tee /tmp/v65-version.txt
@@ -115,6 +123,7 @@ jobs:
       - name: Package changed files and prebuilt executable
         run: |
           set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
           NAME='Nougat_Media_Plus_v0.0.65_Military_UI_REPAIR2'
           ROOT="$PWD/dist/$NAME"
           mkdir -p "$ROOT/src/chat" "$ROOT/assets/branding"
@@ -246,7 +255,7 @@ jobs:
           BASH
           chmod +x "$ROOT/apply_v65.sh"
 
-          cd "$PWD/dist"
+          cd "$GITHUB_WORKSPACE/dist"
           zip -qr "$NAME.zip" "$NAME"
           sha256sum "$NAME.zip"
 
@@ -254,6 +263,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Nougat_Media_Plus_v0.0.65_Military_UI_REPAIR2
-          path: dist/Nougat_Media_Plus_v0.0.65_Military_UI_REPAIR2.zip
+          path: ${{ github.workspace }}/dist/Nougat_Media_Plus_v0.0.65_Military_UI_REPAIR2.zip
           if-no-files-found: error
           retention-days: 7
