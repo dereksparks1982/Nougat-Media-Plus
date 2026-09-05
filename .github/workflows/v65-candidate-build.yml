@@ -1,4 +1,4 @@
-name: Nougat Media Plus v0.0.65 Candidate Build
+name: Nougat Media Plus v0.0.65 Prebuilt Repair
 
 on:
   push:
@@ -10,8 +10,10 @@ permissions:
   contents: read
 
 jobs:
-  inspect-v65-ui:
+  build-v65-prebuilt:
     runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:26.04
     steps:
       - name: Checkout candidate
         uses: actions/checkout@v4
@@ -19,27 +21,239 @@ jobs:
           ref: candidate/v0.0.65
           lfs: false
           fetch-depth: 1
-      - name: Apply existing v65 patch
-        run: python3 tools/v65_patch.py
-      - name: Inspect System and in-app brand anchors
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential cmake pkg-config libx11-dev libtorrent-rasterbar-dev \
+            git git-lfs python3 python3-pil zip file
+
+      - name: Materialize only the AI runtime LFS objects
+        run: |
+          git lfs install --local
+          git lfs pull --include="components/ai/runtime/**" --exclude=""
+          test -f components/ai/runtime/include/llama.h
+          test -e components/ai/runtime/lib/libllama.so
+          if head -n 1 components/ai/runtime/include/llama.h | grep -q 'git-lfs'; then
+            echo 'STOP: llama.h is still an LFS pointer'
+            false
+          fi
+
+      - name: Apply approved v65 source and UI repairs
+        run: |
+          python3 tools/v65_patch.py
+          python3 tools/v65_ui_repair.py
+          grep -q 'NOUGAT_V65_APPROVED_MILITARY_SEEK' src/main.cpp
+          grep -q 'NOUGAT_V65_HYBRID_COMMAND_BUTTON' src/main.cpp
+          grep -q 'NOUGAT_V65_SYSTEM_COMMAND_LANE' src/main.cpp
+          grep -q 'NOUGAT_V65_DOCK_ICON_BORDER_CLEANUP' src/main.cpp
+          grep -q 'NOUGAT_V65_RADIO_SERVICE_LANE' src/main.cpp
+          if grep -q '"TV Antenna Scan"' src/main.cpp; then
+            echo 'STOP: TV Antenna Scan still appears in Radio source'
+            false
+          fi
+
+      - name: Remove the exterior black border from the packaged dock icon
         run: |
           python3 - <<'PY'
+          from collections import deque
           from pathlib import Path
-          lines=Path('src/main.cpp').read_text().splitlines()
-          groups={
-            'SYSTEM':['serverStartBtn','serverStopBtn','serverRefreshBtn','securitySystemBtn','debugRunBtn','debugRetryBtn','debugMetadataBtn','debugTmdbBtn','debugLogsBtn','debugCopyBtn','debugExportTextBtn','debugExportJsonBtn','debugBundleBtn','draw_debug','SYSTEM'],
-            'BRAND':['draw_suite_brand(','kTopBarLockup','top_nav_left_bound','rgb8(0,0,0)','rgb8(0, 0, 0)','fill(target,{0','fill(target, {0']
-          }
-          for title,needles in groups.items():
-            hits=[i for i,l in enumerate(lines) if any(n in l for n in needles)]
-            print(f'===== {title} HIT COUNT {len(hits)} =====')
-            blocks=[]
-            for i in hits:
-              a=max(0,i-35); b=min(len(lines),i+36)
-              if any(not (b < aa or a > bb) for aa,bb in blocks): continue
-              blocks.append((a,b))
-              if len(blocks)>=24: break
-            for a,b in blocks:
-              print(f'===== {title} CONTEXT {a+1}-{b} =====')
-              for j in range(a,b): print(f'{j+1:06d}: {lines[j]}')
+          from PIL import Image
+
+          path = Path('assets/branding/nougat-media-plus-master-N.png')
+          im = Image.open(path).convert('RGBA')
+          px = im.load()
+          w, h = im.size
+          seen = set()
+          q = deque()
+
+          def dark(x, y):
+              r, g, b, a = px[x, y]
+              return a > 0 and r <= 38 and g <= 38 and b <= 38
+
+          def seed(x, y):
+              if (x, y) in seen or not dark(x, y):
+                  return
+              seen.add((x, y)); q.append((x, y))
+
+          for x in range(w):
+              seed(x, 0); seed(x, h - 1)
+          for y in range(h):
+              seed(0, y); seed(w - 1, y)
+
+          while q:
+              x, y = q.popleft()
+              for nx, ny in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)):
+                  if 0 <= nx < w and 0 <= ny < h:
+                      seed(nx, ny)
+
+          for x, y in seen:
+              r, g, b, _ = px[x, y]
+              px[x, y] = (r, g, b, 0)
+
+          im.save(path)
+          print(f'Cleaned {len(seen)} exterior black pixels; green rim preserved.')
           PY
+
+      - name: Configure real v65 build
+        run: |
+          cmake -S . -B build-v65-prebuilt -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build real v65 binary
+        run: |
+          cmake --build build-v65-prebuilt --target Nougat_Media_Plus_v65 -j"$(nproc)"
+
+      - name: Verify prebuilt binary
+        run: |
+          test -x build-v65-prebuilt/Nougat_Media_Plus_v65
+          LD_LIBRARY_PATH="$PWD/components/ai/runtime/lib:$PWD/components/ai/runtime/lib64" \
+            ./build-v65-prebuilt/Nougat_Media_Plus_v65 --version | tee /tmp/v65-version.txt
+          grep -q 'Nougat Media Plus v0.0.65' /tmp/v65-version.txt
+          file build-v65-prebuilt/Nougat_Media_Plus_v65
+
+      - name: Package changed files and prebuilt executable
+        run: |
+          set -euo pipefail
+          NAME='Nougat_Media_Plus_v0.0.65_Military_UI_REPAIR2'
+          ROOT="$PWD/dist/$NAME"
+          mkdir -p "$ROOT/src/chat" "$ROOT/assets/branding"
+
+          cp -a CMakeLists.txt "$ROOT/CMakeLists.txt"
+          cp -a src/main.cpp "$ROOT/src/main.cpp"
+          cp -a src/chat/nougat_chat.cpp "$ROOT/src/chat/nougat_chat.cpp"
+          cp -a src/chat/nougat_chat.hpp "$ROOT/src/chat/nougat_chat.hpp"
+          cp -a assets/branding/nougat-media-plus-master-N.png \
+                "$ROOT/assets/branding/nougat-media-plus-master-N.png"
+          cp -a build-v65-prebuilt/Nougat_Media_Plus_v65 "$ROOT/Nougat_Media_Plus_v65"
+          chmod +x "$ROOT/Nougat_Media_Plus_v65"
+
+          cat > "$ROOT/BUILD_INFO.txt" <<'EOF'
+          Nougat Media Plus v0.0.65 Military UI Repair 2
+
+          PREBUILT PACKAGE. The apply script does not run CMake, a compiler, or any rebuild.
+
+          Approved v65 repair scope:
+          - Preserve the already-approved regular/half-screen/fullscreen military seek bar unchanged.
+          - Apply the system-wide hybrid UI grammar: filled green-glass mode/navigation controls and angular outlined action/command controls.
+          - System keeps its complete command inventory in a horizontally scrollable command lane.
+          - Radio keeps its complete existing service inventory in a horizontally scrollable filled mode lane, with outlined receiver/action controls.
+          - TV Antenna Scan belongs to Live TV, not Radio.
+          - Remove the exterior black border from the Ubuntu dock/sidebar icon while retaining the green rim/strip.
+          - Preserve Nougat Chat scaffolding added for v0.0.65.
+          EOF
+
+          cat > "$ROOT/apply_v65.sh" <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          PROJECT="$HOME/DKLab/Projects/Nougat Media Suite"
+          ARCHIVE="$HOME/DKLab/Archives/Nougat Media Suite"
+          BASE="dbe202300f48c8e53b4ee5ab169b6f9e8e4e2395"
+          PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+          cd "$PROJECT"
+
+          echo "=== VERIFY NOUGAT v64 BASE ==="
+          [ "$(git rev-parse HEAD)" = "$BASE" ] || {
+              echo "STOP: Git HEAD is not the accepted v0.0.64 baseline."
+              git rev-parse HEAD
+              false
+          }
+
+          echo "=== SAFE NOUGAT SHUTDOWN ==="
+          PIDS=()
+          for proc in /proc/[0-9]*; do
+              pid="${proc##*/}"
+              exe="$(readlink -f "$proc/exe" 2>/dev/null || true)"
+              case "$exe" in
+                  "$PROJECT"/Nougat_Media_Plus_v*|"$PROJECT"/components/jellyfin/runtime/*)
+                      PIDS+=("$pid")
+                      ;;
+              esac
+          done
+          if ((${#PIDS[@]})); then
+              printf 'Stopping verified Nougat-owned PIDs:'
+              printf ' %s' "${PIDS[@]}"
+              printf '\n'
+              kill "${PIDS[@]}" 2>/dev/null || true
+              sleep 2
+          fi
+          for proc in /proc/[0-9]*; do
+              exe="$(readlink -f "$proc/exe" 2>/dev/null || true)"
+              case "$exe" in
+                  "$PROJECT"/Nougat_Media_Plus_v*|"$PROJECT"/components/jellyfin/runtime/*)
+                      echo "STOP: Nougat-owned process still running: $exe"
+                      false
+                      ;;
+              esac
+          done
+
+          echo "=== SNAPSHOT CURRENT v65 WORKTREE/EXECUTABLES ==="
+          STAMP="$(date +%Y%m%d-%H%M%S)"
+          SNAP="$ARCHIVE/v0.0.65-preapply-$STAMP"
+          mkdir -p "$SNAP/src/chat" "$SNAP/assets/branding"
+          git status --short > "$SNAP/status.txt"
+          git diff --binary > "$SNAP/worktree.patch" || true
+
+          for f in \
+              CMakeLists.txt \
+              src/main.cpp \
+              src/chat/nougat_chat.cpp \
+              src/chat/nougat_chat.hpp \
+              assets/branding/nougat-media-plus-master-N.png; do
+              if [ -e "$PROJECT/$f" ]; then
+                  mkdir -p "$SNAP/$(dirname "$f")"
+                  cp -a "$PROJECT/$f" "$SNAP/$f"
+              fi
+          done
+          find "$PROJECT" -maxdepth 1 -type f -name 'Nougat_Media_Plus_v*' -exec cp -a {} "$SNAP/" \;
+
+          echo "=== APPLY PREBUILT v0.0.65 REPAIR ==="
+          mkdir -p "$PROJECT/src/chat" "$PROJECT/assets/branding"
+          cp -f "$PKG_DIR/CMakeLists.txt" "$PROJECT/CMakeLists.txt"
+          cp -f "$PKG_DIR/src/main.cpp" "$PROJECT/src/main.cpp"
+          cp -f "$PKG_DIR/src/chat/nougat_chat.cpp" "$PROJECT/src/chat/nougat_chat.cpp"
+          cp -f "$PKG_DIR/src/chat/nougat_chat.hpp" "$PROJECT/src/chat/nougat_chat.hpp"
+          cp -f "$PKG_DIR/assets/branding/nougat-media-plus-master-N.png" \
+                "$PROJECT/assets/branding/nougat-media-plus-master-N.png"
+          cp -f "$PKG_DIR/Nougat_Media_Plus_v65" "$PROJECT/Nougat_Media_Plus_v65"
+          chmod +x "$PROJECT/Nougat_Media_Plus_v65"
+
+          echo "=== VERIFY PREBUILT EXECUTABLE ==="
+          VERSION="$($PROJECT/Nougat_Media_Plus_v65 --version)"
+          printf '%s\n' "$VERSION"
+          printf '%s\n' "$VERSION" | grep -q '^Nougat Media Plus v0\.0\.65$' || {
+              echo "STOP: v65 executable version verification failed."
+              false
+          }
+
+          echo "=== REMOVE OLD ROOT EXECUTABLES ==="
+          find "$PROJECT" -maxdepth 1 -type f -name 'Nougat_Media_Plus_v*' \
+              ! -name 'Nougat_Media_Plus_v65' -print -delete
+          rm -rf "$PROJECT/build-v65-candidate"
+
+          ICON="$PROJECT/assets/branding/nougat-media-plus-master-N.png"
+          if command -v gio >/dev/null 2>&1; then
+              gio set "$PROJECT/Nougat_Media_Plus_v65" metadata::custom-icon "file://$ICON" || true
+          fi
+
+          echo
+          echo "PASS: Nougat Media Plus v0.0.65 Military UI Repair 2 applied."
+          echo "EXECUTABLE: $PROJECT/Nougat_Media_Plus_v65"
+          echo "SNAPSHOT: $SNAP"
+          echo "NO LOCAL REBUILD WAS PERFORMED."
+          BASH
+          chmod +x "$ROOT/apply_v65.sh"
+
+          cd "$PWD/dist"
+          zip -qr "$NAME.zip" "$NAME"
+          sha256sum "$NAME.zip"
+
+      - name: Upload normal v65 download package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nougat_Media_Plus_v0.0.65_Military_UI_REPAIR2
+          path: dist/Nougat_Media_Plus_v0.0.65_Military_UI_REPAIR2.zip
+          if-no-files-found: error
+          retention-days: 7
