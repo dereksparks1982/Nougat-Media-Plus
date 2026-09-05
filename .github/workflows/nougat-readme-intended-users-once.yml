@@ -1,0 +1,62 @@
+name: One-time README intended-users update
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/nougat-readme-intended-users-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add intended-users section and remove one-time workflow
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path("README.md")
+          text = path.read_text(encoding="utf-8")
+
+          marker = "Nothing in Nougat Media Plus, its source code, or its documentation grants permission to perform an act that would otherwise be unlawful or unauthorized. Availability of a technical capability does not imply legal authorization to use it in a particular jurisdiction or environment.\n"
+
+          section = """
+          ### **Intended Users**
+
+          Nougat Media Plus is designed primarily for **licensed radio operators, communications professionals, broadcast and satellite technicians, researchers, educators, government agencies, military personnel, public-safety professionals, engineers, and other authorized technical users** working with communications, media, RF systems, satellites, drones, networking, and related hardware.
+
+          Some capabilities may require licenses, permissions, certifications, spectrum authorization, equipment approval, or organizational authority before lawful use.
+
+          Nougat Media Plus does not verify a user's credentials or authorization. Users are solely responsible for ensuring that their use of the software, connected equipment, frequencies, networks, satellites, aircraft, and communications systems is lawful and authorized.
+
+          The inclusion of professional, governmental, public-safety, or military use cases does not imply endorsement, affiliation, certification, or authorization by any government agency, military organization, regulator, or equipment manufacturer.
+          """.strip()
+
+          if "### **Intended Users**" not in text:
+              if marker not in text:
+                  raise SystemExit("Expected lawful-use marker was not found; refusing to alter README.")
+              text = text.replace(marker, marker + "\n" + section + "\n", 1)
+              path.write_text(text, encoding="utf-8")
+          PY
+
+          rm -f .github/workflows/nougat-readme-intended-users-once.yml
+
+          git config user.name "Elderred Softworks Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add README.md
+          git add -u .github/workflows/nougat-readme-intended-users-once.yml
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Document intended Nougat Media Plus users"
+            git push origin main
+          fi
