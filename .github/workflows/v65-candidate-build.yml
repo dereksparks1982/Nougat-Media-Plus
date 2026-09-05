@@ -24,17 +24,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake pkg-config libx11-dev git-lfs
-
-      - name: Materialize required AI runtime
-        run: |
-          git lfs install --local
-          git lfs fetch origin candidate/v0.0.65 --include='components/ai/runtime/**' --exclude=''
-          git lfs checkout components/ai/runtime
-          if head -n 1 components/ai/runtime/include/llama.h | grep -q 'git-lfs.github.com/spec'; then
-            echo 'FAIL: llama.h is still an LFS pointer'
-            exit 1
-          fi
+          sudo apt-get install -y build-essential cmake pkg-config libx11-dev
 
       - name: Apply v65 source patch
         run: |
@@ -45,7 +35,7 @@ jobs:
 
       - name: Configure CI validation lane
         run: |
-          cmake -S . -B build-v65 -DCMAKE_BUILD_TYPE=Release -DREDDMEDIA_P2P_STUB=ON
+          cmake -S . -B build-v65 -DCMAKE_BUILD_TYPE=Release -DREDDMEDIA_P2P_STUB=ON -DREDDMEDIA_AI_STUB=ON
 
       - name: Build with warnings as errors
         run: |
@@ -68,7 +58,7 @@ jobs:
           cat > out-v65/README_VALIDATION.txt <<'TXT'
           Nougat Media Plus v0.0.65 CI validation artifact.
           Base: accepted v0.0.64 commit dbe202300f48c8e53b4ee5ab169b6f9e8e4e2395.
-          This GitHub-runner executable is NOT the owner handoff candidate because the runner uses the P2P stub solely to avoid changing accepted P2P code for an unrelated libtorrent API mismatch on Ubuntu 24.04.
+          This GitHub-runner executable is NOT the owner handoff candidate. The runner uses the existing P2P and AI stub lanes only to validate the v0.0.65 source with warnings-as-errors because GitHub Ubuntu 24.04 does not match the accepted Nougat workstation's libtorrent API or GLIBC runtime.
           The real owner-test candidate must be built on the Nougat development host against its accepted runtime/dependency environment.
           TXT
 
