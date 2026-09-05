@@ -24,7 +24,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake pkg-config libx11-dev libtorrent-rasterbar-dev git-lfs
+          sudo apt-get install -y build-essential cmake pkg-config libx11-dev git-lfs
 
       - name: Materialize required AI runtime
         run: |
@@ -43,11 +43,11 @@ jobs:
           grep -q 'NOUGAT_V65_APPROVED_MILITARY_SEEK' src/main.cpp
           grep -q 'NOUGAT_V65_RADIO_SERVICE_LANE' src/main.cpp
 
-      - name: Configure
+      - name: Configure CI validation lane
         run: |
-          cmake -S . -B build-v65 -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build-v65 -DCMAKE_BUILD_TYPE=Release -DREDDMEDIA_P2P_STUB=ON
 
-      - name: Build
+      - name: Build with warnings as errors
         run: |
           cmake --build build-v65 --target Nougat_Media_Plus_v65 -j2
 
@@ -56,26 +56,25 @@ jobs:
           ./build-v65/Nougat_Media_Plus_v65 --version | tee v65-version.txt
           grep -q 'Nougat Media Plus v0.0.65' v65-version.txt
 
-      - name: Prepare candidate package
+      - name: Prepare CI validation artifact
         run: |
           mkdir -p out-v65/src/chat out-v65/tools
-          cp build-v65/Nougat_Media_Plus_v65 out-v65/
+          cp build-v65/Nougat_Media_Plus_v65 out-v65/Nougat_Media_Plus_v65_CI_VALIDATION_ONLY
           cp src/main.cpp out-v65/src/main.cpp
           cp src/chat/nougat_chat.hpp src/chat/nougat_chat.cpp out-v65/src/chat/
           cp CMakeLists.txt out-v65/
           cp tools/v65_patch.py out-v65/tools/
           cp v65-version.txt out-v65/
-          sha256sum out-v65/Nougat_Media_Plus_v65 > out-v65/SHA256.txt
-          cat > out-v65/README_CANDIDATE.txt <<'TXT'
-          Nougat Media Plus v0.0.65 candidate
-          Base: accepted v0.0.64 commit dbe202300f48c8e53b4ee5ab169b6f9e8e4e2395
-          Includes: approved military seek renderer for regular/half-screen and fullscreen, Radio two-row horizontally scrollable service lane using the complete existing Radio inventory, TV antenna scan ownership moved out of Radio UI, and Nougat Chat model scaffolding.
-          This is a candidate for owner testing, not an accepted release.
+          cat > out-v65/README_VALIDATION.txt <<'TXT'
+          Nougat Media Plus v0.0.65 CI validation artifact.
+          Base: accepted v0.0.64 commit dbe202300f48c8e53b4ee5ab169b6f9e8e4e2395.
+          This GitHub-runner executable is NOT the owner handoff candidate because the runner uses the P2P stub solely to avoid changing accepted P2P code for an unrelated libtorrent API mismatch on Ubuntu 24.04.
+          The real owner-test candidate must be built on the Nougat development host against its accepted runtime/dependency environment.
           TXT
 
-      - name: Upload candidate artifact
+      - name: Upload CI validation artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Nougat_Media_Plus_v0.0.65_candidate
+          name: Nougat_Media_Plus_v0.0.65_CI_validation
           path: out-v65/
           if-no-files-found: error
