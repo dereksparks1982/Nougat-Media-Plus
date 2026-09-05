@@ -94,6 +94,16 @@ Features involving networks, radio, cellular systems, devices, accounts, media, 
 
 Nothing in Nougat Media Plus, its source code, or its documentation grants permission to perform an act that would otherwise be unlawful or unauthorized. Availability of a technical capability does not imply legal authorization to use it in a particular jurisdiction or environment.
 
+### **Intended Users**
+
+Nougat Media Plus is designed primarily for **licensed radio operators, communications professionals, broadcast and satellite technicians, researchers, educators, government agencies, military personnel, public-safety professionals, engineers, and other authorized technical users** working with communications, media, RF systems, satellites, drones, networking, and related hardware.
+
+Some capabilities may require licenses, permissions, certifications, spectrum authorization, equipment approval, or organizational authority before lawful use.
+
+Nougat Media Plus does not verify a user's credentials or authorization. Users are solely responsible for ensuring that their use of the software, connected equipment, frequencies, networks, satellites, aircraft, and communications systems is lawful and authorized.
+
+The inclusion of professional, governmental, public-safety, or military use cases does not imply endorsement, affiliation, certification, or authorization by any government agency, military organization, regulator, or equipment manufacturer.
+
 ## v0.0.62 - Nougat Media Plus Tactical UI Conversion
 
 Nougat Media Plus v0.0.62 is the accepted tactical-interface and product-identity release built from the accepted v0.0.61 baseline.
