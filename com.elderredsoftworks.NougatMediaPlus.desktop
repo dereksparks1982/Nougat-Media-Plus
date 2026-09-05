@@ -1,13 +1,13 @@
 [Desktop Entry]
 Type=Application
 Name=Nougat Media Plus
-Comment=Nougat Media Plus unified media, television, radio, games, Studio, Drone Lab, Search, security, server, and system workstation
-Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Plus_v62"
+Comment=Nougat Media Plus unified media, television, radio, games, Studio, Drone Production, Search, security, server, and system workstation
+Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Plus_v63"
 Icon=nougat-media-plus
 StartupWMClass=NougatMediaPlus
 X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaPlus
+X-GNOME-WMClass=NougatMediaPlus
 Terminal=false
 Categories=AudioVideo;Player;
 StartupNotify=true
-X-GNOME-WMClass=NougatMediaPlus
 X-Nougat-Resources-DirectExec=true

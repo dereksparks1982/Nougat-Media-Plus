@@ -1235,9 +1235,12 @@ static std::string game_system_for_path_in_context(const std::string& path,
         return "Sega Genesis";
 
     const std::string context = lower_copy(combined);
+    // NOUGAT_V63_GAMES_EMULATOR_OVERHAUL
     const bool disc_image = ends_with_lower(path, ".iso") || ends_with_lower(path, ".chd") ||
                             ends_with_lower(path, ".bin") || ends_with_lower(path, ".cue") ||
-                            ends_with_lower(path, ".rvz");
+                            ends_with_lower(path, ".rvz") || ends_with_lower(path, ".cso") ||
+                            ends_with_lower(path, ".gz") || ends_with_lower(path, ".img") ||
+                            ends_with_lower(path, ".mdf") || ends_with_lower(path, ".nrg");
     if (disc_image) {
         if (context.find("playstation 2") != std::string::npos || context.find("/ps2") != std::string::npos) return "PlayStation 2";
         if (context.find("playstation 3") != std::string::npos || context.find("/ps3") != std::string::npos) return "PlayStation 3";
@@ -2711,12 +2714,9 @@ public:
 
 
     void outline_round_dashed(Drawable target, const Rect& r, int radius, unsigned long c, int dash=2) {
-        const int dashSize = std::max(1, dash);
-        char pattern[2] = {static_cast<char>(dashSize), static_cast<char>(dashSize)};
-        XSetLineAttributes(d, gc, 1, LineOnOffDash, CapButt, JoinRound);
-        XSetDashes(d, gc, 0, pattern, 2);
+        // NOUGAT_V63_REPAIR4_NO_STITCHING
+        (void)dash;
         outline_round(target, r, radius, c);
-        XSetLineAttributes(d, gc, 1, LineSolid, CapButt, JoinMiter);
     }
 
 
@@ -2866,44 +2866,23 @@ public:
     }
 
     void draw_quilted_background(Drawable target, const Rect& area, ViewMode view) {
+        (void)view;
+        // NOUGAT_V63_REPAIR4_CURRENT_DEFECTS
         if (area.w <= 0 || area.h <= 0) return;
-        const Pixmap tile = view == ViewMode::Stream
-            ? streamQuiltTiles[stream_platform_index(streamPlatform)]
-            : quiltTiles[quilt_view_index(view)];
-        if (!tile) {
-            // Safe fallback only if X11 could not allocate the exact concept tile.
-            unsigned long fallback = palette_for(view).background;
-            if (view == ViewMode::Stream) fallback = stream_palette_for(streamPlatform).background;
-            fill(target, area, fallback);
-            return;
-        }
-        XSetFillStyle(d, gc, FillTiled);
-        XSetTile(d, gc, tile);
-        XSetTSOrigin(d, gc, 0, 0);
-        XFillRectangle(d, target, gc, area.x, area.y,
-                       static_cast<unsigned>(area.w), static_cast<unsigned>(area.h));
-        XSetFillStyle(d, gc, FillSolid);
+        fill(target, area, rgb8(4,18,14));
     }
 
     void draw_concept_field(Drawable target, const Rect& r, unsigned long fillColor,
                             unsigned long borderColor, bool focused=false) {
-        // Literal component grammar from the approved sheet: soft drop shadow,
-        // dark outer rim, bright raised inner bevel, then an inset seam.
-        Rect shadow{r.x, r.y + 3, r.w, r.h};
-        fill_round(target, shadow, 8, rgb8(183, 149, 109));
-        fill_round(target, r, 8, fillColor);
-        const unsigned long rim = focused ? rgb8(179, 108, 42) : borderColor;
-        outline_round(target, r, 8, rim);
-        Rect bevel{r.x + 2, r.y + 2, std::max(1, r.w - 4), std::max(1, r.h - 4)};
-        outline_round(target, bevel, 6, rgb8(255, 244, 224));
-        Rect seam{r.x + 4, r.y + 4, std::max(1, r.w - 8), std::max(1, r.h - 8)};
-        const bool searchCream = borderColor == rgb8(166, 112, 56);
-        const unsigned long seamColor = searchCream
-            ? (focused ? rgb8(116, 66, 34) : rgb8(132, 78, 40))
-            : (focused ? rgb8(220, 163, 91) : rgb8(225, 205, 177));
-        outline_round_dashed(target, seam, 4, seamColor, 2);
-        line(target, r.x + 9, r.y + 2, r.x + r.w - 10, r.y + 2, rgb8(255, 249, 236));
-        line(target, r.x + 9, r.y + r.h - 2, r.x + r.w - 10, r.y + r.h - 2, rgb8(177, 139, 101));
+        // NOUGAT_V63_REPAIR4_TACTICAL_FIELDS
+        if (r.w <= 3 || r.h <= 3) return;
+        const unsigned long rim = focused ? rgb8(118,255,166) : borderColor;
+        draw_tactical_polygon(target, {r.x+1,r.y+3,r.w,r.h},
+                              rgb8(1,9,7), rgb8(1,9,7), 6);
+        draw_tactical_polygon(target, r, fillColor, rim, 6);
+        const Rect inner{r.x+3,r.y+3,std::max(1,r.w-6),std::max(1,r.h-6)};
+        draw_tactical_polygon(target, inner, fillColor,
+                              focused ? rgb8(53,186,101) : rgb8(12,94,55), 4);
     }
 
     void draw_speaker_icon(Drawable target, int x, int y, bool loud, unsigned long c) {
@@ -5279,7 +5258,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.62";
+        const std::string versionLabel = "v0.0.63";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -13832,7 +13811,7 @@ public:
     }
 
         std::string installed_game_emulator(const std::string& system) const {
-        const std::string bundledMesen = exe_dir() + "/components/games/runtime/mesen2/Mesen";
+        const std::string bundledMesen = exe_dir() + "/components/games/runtime/mesen2/mesen-nougat"; // NOUGAT_V63_REPAIR6_PORTABLE_EMULATORS
         const std::string bundledRmg = exe_dir() + "/components/games/runtime/rmg/AppRun";
         const std::string bundledAtari800 = exe_dir() + "/components/games/runtime/atari800/AppRun";
         const std::string bundledStella = exe_dir() + "/components/games/runtime/stella/stella";
@@ -13849,6 +13828,114 @@ public:
             return bundledRmg;
         if ((system == "Atari 5200" || system == "Atari 8-bit") &&
             exists_file(bundledAtari800) && access(bundledAtari800.c_str(), X_OK) == 0) return bundledAtari800;
+
+        // NOUGAT_V63_MANAGED_EMULATOR_RUNTIME_AUDIT
+        const auto executable_candidate = [](const std::string& path) {
+            return exists_file(path) && access(path.c_str(), X_OK) == 0;
+        };
+        const auto env_exec = [&](const char* name) -> std::string {
+            const char* value = std::getenv(name);
+            if (!value || !*value) return {};
+            const std::string path(value);
+            return executable_candidate(path) ? path : std::string{};
+        };
+        const auto first_managed = [&](const std::vector<std::string>& paths) -> std::string {
+            for (const std::string& path : paths) {
+                if (executable_candidate(path)) return path;
+            }
+            return {};
+        };
+        const auto managed_root = [&](const std::string& backend) {
+            return exe_dir() + "/components/games/runtime/" + backend + "/";
+        };
+
+        if (system == "PlayStation") {
+            const std::string owner = env_exec("NOUGAT_DUCKSTATION");
+            if (!owner.empty()) return owner;
+            const std::string found = first_managed({
+                managed_root("duckstation") + "duckstation-qt",
+                managed_root("duckstation") + "duckstation",
+                managed_root("duckstation") + "AppRun",
+                managed_root("duckstation") + "DuckStation.AppImage"
+            });
+            if (!found.empty()) return found;
+        }
+        if (system == "PlayStation 2") {
+            // NOUGAT_V63_REPAIR6_PCSX2_PROJECT_CONTAINED
+            const std::string bundled = managed_root("pcsx2") + "pcsx2-nougat";
+            if (exists_file(bundled) && access(bundled.c_str(), X_OK) == 0) return bundled;
+            return {};
+        }
+        if (system == "PlayStation Portable") {
+            const std::string owner = env_exec("NOUGAT_PPSSPP");
+            if (!owner.empty()) return owner;
+            const std::string found = first_managed({
+                managed_root("ppsspp") + "PPSSPPSDL",
+                managed_root("ppsspp") + "PPSSPPQt",
+                managed_root("ppsspp") + "ppsspp",
+                managed_root("ppsspp") + "AppRun"
+            });
+            if (!found.empty()) return found;
+        }
+        if (system == "PlayStation 3") {
+            const std::string owner = env_exec("NOUGAT_RPCS3");
+            if (!owner.empty()) return owner;
+            const std::string found = first_managed({
+                managed_root("rpcs3") + "rpcs3",
+                managed_root("rpcs3") + "AppRun",
+                managed_root("rpcs3") + "RPCS3.AppImage"
+            });
+            if (!found.empty()) return found;
+        }
+        if (system == "GameCube" || system == "Wii") {
+            const std::string owner = env_exec("NOUGAT_DOLPHIN");
+            if (!owner.empty()) return owner;
+            const std::string found = first_managed({
+                managed_root("dolphin") + "dolphin-emu",
+                managed_root("dolphin") + "dolphin",
+                managed_root("dolphin") + "AppRun",
+                managed_root("dolphin") + "Dolphin.AppImage"
+            });
+            if (!found.empty()) return found;
+        }
+        if (system == "Wii U") {
+            const std::string owner = env_exec("NOUGAT_CEMU");
+            if (!owner.empty()) return owner;
+            const std::string found = first_managed({
+                managed_root("cemu") + "Cemu",
+                managed_root("cemu") + "cemu",
+                managed_root("cemu") + "AppRun",
+                managed_root("cemu") + "Cemu.AppImage"
+            });
+            if (!found.empty()) return found;
+        }
+        if (system == "Arcade") {
+            const std::string owner = env_exec("NOUGAT_MAME");
+            if (!owner.empty()) return owner;
+            const std::string found = first_managed({
+                managed_root("mame") + "mame",
+                managed_root("mame") + "AppRun"
+            });
+            if (!found.empty()) return found;
+        }
+        if (system == "Nintendo Switch") {
+            const std::string owner = env_exec("NOUGAT_SWITCH_EMULATOR");
+            if (!owner.empty()) return owner;
+            const std::string found = first_managed({
+                managed_root("ryujinx") + "Ryujinx",
+                managed_root("ryujinx") + "ryujinx",
+                managed_root("suyu") + "suyu",
+                managed_root("yuzu") + "yuzu"
+            });
+            if (!found.empty()) return found;
+        }
+        if (system == "Xbox 360") {
+            // NOUGAT_V63_REPAIR6_XENIA_V53_PROXY_ONLY
+            const std::string bundled = managed_root("xenia") + "xenia_canary";
+            if (exists_file(bundled) && access(bundled.c_str(), X_OK) == 0) return bundled;
+            return {};
+        }
+
         std::vector<std::string> candidates;
         if (system == "NES") candidates = {"mesen", "fceux", "nestopia"};
         else if (system == "SNES") candidates = {"mesen", "snes9x"};
@@ -13868,6 +13955,7 @@ public:
         else if (system == "Wii U") candidates = {"Cemu", "cemu"};
         else if (system == "Arcade") candidates = {"mame"};
         else if (system == "Nintendo Switch") candidates = {"Ryujinx", "ryujinx", "suyu", "yuzu"};
+        else if (system == "Xbox 360") candidates = {"xenia_canary", "xenia-canary", "xenia"};
         for (const std::string& candidate : candidates) {
             const std::string found = run_command_capture("command -v " + candidate + " 2>/dev/null");
             if (!found.empty()) return candidate;
@@ -14326,8 +14414,7 @@ public:
                 native_candidates.emplace_back(native_override);
 
             // NOUGAT_V61_XBOX_PROVEN_PLAYER_EMBED_RESTORE
-            // Restore the owner-tested v0.0.53 Nougat Xenia wrapper.
-            // The wrapper owns the XWayland proxy and Vulkan render-surface hook.
+            // NOUGAT_V63_REPAIR6_XBOX_V53_PROXY_RESTORE
             native_candidates.push_back(
                 exe_dir() + "/components/games/runtime/xenia/xenia_canary");
             native_candidates.push_back(
@@ -14340,7 +14427,9 @@ public:
                 first_game_executable(native_candidates);
             if (!native_xenia.empty() &&
                 !ends_with_lower(native_xenia, ".exe")) {
-                request.backend = basename_only(native_xenia);
+                // NOUGAT_V63_REPAIR6_XENIA_PROXY_LAUNCH
+                request.backend = "xenia_canary";
+                request.window_timeout_ms = 12000;
                 request.argv = {native_xenia, launchPath};
                 return true;
             }
@@ -14406,17 +14495,32 @@ public:
             return false;
         }
 
+        const std::string emulator_lower = lower_copy(emulator);
         request.backend = basename_only(emulator);
-        const std::string backend_lower =
-            lower_copy(basename_only(emulator));
+        if (emulator_lower.find("/pcsx2/") != std::string::npos) request.backend = "PCSX2";
+        else if (emulator_lower.find("/duckstation/") != std::string::npos) request.backend = "DuckStation";
+        else if (emulator_lower.find("/dolphin/") != std::string::npos) request.backend = "Dolphin";
+        else if (emulator_lower.find("/rpcs3/") != std::string::npos) request.backend = "RPCS3";
+        else if (emulator_lower.find("/ppsspp/") != std::string::npos) request.backend = "PPSSPP";
+        else if (emulator_lower.find("/cemu/") != std::string::npos) request.backend = "Cemu";
+        else if (emulator_lower.find("/rmg/") != std::string::npos) request.backend = "RMG";
+        else if (emulator_lower.find("/mesen2/") != std::string::npos) request.backend = "Mesen";
+        else if (emulator_lower.find("/atari800/") != std::string::npos) request.backend = "atari800";
+        else if (emulator_lower.find("/stella/") != std::string::npos) request.backend = "stella";
+        else if (emulator_lower.find("/blastem/") != std::string::npos) request.backend = "blastem";
+        const std::string backend_lower = lower_copy(request.backend);
 
         // NOUGAT_V61_MESEN_PROVEN_PLAYER_EMBED_RESTORE
         // Restore the owner-tested v0.0.48 Mesen presentation path.
         // NES and SNES share this exact backend inside Nougat's Video Player.
         if (backend_lower == "mesen" ||
             backend_lower == "mesen2") {
-            request.argv =
-                {emulator, launchPath, "--fullscreen"};
+            // NOUGAT_V63_MESEN_EMBEDDED_WINDOW
+            // NOUGAT_V63_REPAIR4_MESEN_STRICT_EMBED
+            // NOUGAT_V63_REPAIR6_MESEN_V48_CONTAINED
+            request.backend = "Mesen";
+            request.window_timeout_ms = 12000;
+            request.argv = {emulator, launchPath};
             return true;
         }
 
@@ -14429,7 +14533,11 @@ public:
             return true;
         }
         if (backend_lower.find("pcsx2") != std::string::npos) {
-            request.argv = {emulator, "-fullscreen", launchPath};
+            // NOUGAT_V63_PCSX2_FIRST_CLASS
+            // NOUGAT_V63_REPAIR6_PCSX2_PORTABLE_BIOS
+            request.backend = "PCSX2";
+            request.window_timeout_ms = 30000;
+            request.argv = {emulator, launchPath};
             return true;
         }
         if (backend_lower.find("cemu") != std::string::npos) {
@@ -14627,11 +14735,13 @@ public:
             metrics.visibleItems=metrics.rows; return metrics;
         }
         int target_width=150;
-        const bool prefer_two_rows=inner_height>=430;
+        // NOUGAT_V63_REPAIR4_MULTIROW_GAMES
+        const bool prefer_two_rows=inner_height>=300;
         if (prefer_two_rows) {
-            const int two_row_tile_height=std::max(1,(inner_height-metrics.gap)/2);
+            const int grouped_card_area=std::max(1,inner_height-44);
+            const int two_row_tile_height=std::max(1,(grouped_card_area-metrics.gap)/2);
             const int two_row_poster_height=std::max(1,two_row_tile_height-50);
-            target_width=std::max(96,std::min(150,two_row_poster_height*2/3));
+            target_width=std::max(64,std::min(132,two_row_poster_height*2/3));
         }
         const int pitch=target_width+metrics.gap;
         metrics.columns=prefer_two_rows ? std::max(1,(inner_width+metrics.gap+pitch-1)/pitch)
@@ -14920,7 +15030,7 @@ public:
         int y=gamesListBox.y+32;
         if (gamesPanel==GamesPanel::Systems) {
             // NOUGAT_V61_GAMES_SYSTEMS_PANEL_SCROLL
-            const std::vector<std::string> systems={"NES","SNES","Game Boy","Game Boy Color","Game Boy Advance","Nintendo 64","Sega Genesis","Sega Master System","Sega Game Gear","Atari 2600","Atari 5200","Atari 7800","Atari 8-bit","Atari Lynx","PlayStation","PlayStation 2","PlayStation Portable","PlayStation 3","GameCube","Wii","Wii U","Arcade","Nintendo Switch"};
+            const std::vector<std::string> systems={"NES","SNES","Game Boy","Game Boy Color","Game Boy Advance","Nintendo 64","Sega Genesis","Sega Master System","Sega Game Gear","Atari 2600","Atari 5200","Atari 7800","Atari 8-bit","Atari Lynx","PlayStation","PlayStation 2","PlayStation Portable","PlayStation 3","Xbox 360","GameCube","Wii","Wii U","Arcade","Nintendo Switch","DOS"};
             const int viewportTop=gamesListBox.y+6;
             const int viewportBottom=gamesListBox.y+gamesListBox.h-6;
             const int viewportHeight=std::max(1,viewportBottom-viewportTop);
@@ -14942,7 +15052,7 @@ public:
                 sy+=rowH;
             }
             if (sy>=viewportTop && sy+footerH<=viewportBottom)
-                text(target,gamesListBox.x+14,sy+18,"MesenCE: NES/SNES/GB/GBA | RMG: N64 | BlastEm: Sega | Stella: Atari 2600 | Atari800: 5200/8-bit.",palette.muted);
+                text(target,gamesListBox.x+14,sy+18,"MesenCE: NES/SNES/GB/GBA | PCSX2: PS2 | Xenia: Xbox 360 | Dolphin: GC/Wii | backends auto-detected.",palette.muted);
 
             if (maxScroll>0) {
                 const int thumbH=std::max(38,std::min(gamesVerticalScrollTrack.h,
@@ -14954,13 +15064,48 @@ public:
             draw_home_scrollbar_component(target,gamesVerticalScrollTrack,gamesVerticalScrollThumb,palette);
         } else if (gamesPanel==GamesPanel::Controllers) {
             section_text(target,gamesListBox.x+14,y,"CONTROLLERS",palette.text); y+=30;
-            const std::filesystem::path byId("/dev/input/by-id/usb-081f_USB_gamepad-joystick"); std::error_code ec;
-            const bool manta=std::filesystem::exists(byId,ec);
-            text(target,gamesListBox.x+14,y,manta?"Manta USB gamepad 081f:e401: detected and ready.":"Manta USB gamepad 081f:e401: not currently connected.",manta?palette.text:palette.muted); y+=24;
-            int detected=0; const std::filesystem::path inputDir("/dev/input");
-            if (std::filesystem::is_directory(inputDir,ec)) for (const auto& entry:std::filesystem::directory_iterator(inputDir,ec)) if (entry.path().filename().string().rfind("js",0)==0) ++detected;
-            text(target,gamesListBox.x+14,y,"Linux joystick devices detected: "+std::to_string(detected)+". D-pad, A/B, Start and Select use normal Linux input.",palette.text);
-            text(target,gamesListBox.x+14,y+26,"Per-system button mapping remains owned by the chosen emulator backend.",palette.muted);
+            // NOUGAT_V63_REPAIR4_LIVE_CONTROLLER_TRUTH
+            std::set<std::string> connectedControllers;
+            std::vector<std::string> controllerNames;
+            const auto scanControllerLinks = [&](const std::filesystem::path& directory) {
+                std::error_code dirEc;
+                if (!std::filesystem::is_directory(directory, dirEc)) return;
+                for (const auto& entry : std::filesystem::directory_iterator(directory, dirEc)) {
+                    if (dirEc) break;
+                    const std::string name = entry.path().filename().string();
+                    if (name.size() < 9U ||
+                        name.compare(name.size()-9U, 9U, "-joystick") != 0) continue;
+                    std::error_code linkEc;
+                    const std::filesystem::path target =
+                        std::filesystem::canonical(entry.path(), linkEc);
+                    if (linkEc || target.empty()) continue;
+                    if (connectedControllers.insert(target.string()).second) {
+                        std::string pretty = name.substr(0, name.size()-9U);
+                        if (pretty.rfind("usb-",0)==0) pretty.erase(0,4);
+                        std::replace(pretty.begin(),pretty.end(),'_',' ');
+                        controllerNames.push_back(pretty);
+                    }
+                }
+            };
+            scanControllerLinks("/dev/input/by-id");
+            scanControllerLinks("/dev/input/by-path");
+
+            if (connectedControllers.empty()) {
+                text(target,gamesListBox.x+14,y,"No controller connected.",palette.muted);
+                y+=24;
+            } else {
+                const std::string countLabel = connectedControllers.size()==1U
+                    ? "1 controller connected."
+                    : std::to_string(connectedControllers.size())+" controllers connected.";
+                text(target,gamesListBox.x+14,y,countLabel,palette.text); y+=24;
+                for (const std::string& name : controllerNames) {
+                    text(target,gamesListBox.x+28,y,head_to_width(name,gamesListBox.w-56),palette.text);
+                    y+=22;
+                }
+            }
+            text(target,gamesListBox.x+14,y,
+                 "Per-system button mapping remains owned by the chosen emulator backend.",
+                 palette.muted);
         } else {
             section_text(target,gamesListBox.x+14,y,"GAME LIBRARY SETTINGS",palette.text); y+=30;
             text(target,gamesListBox.x+14,y,"Bundled library: "+exe_dir()+"/components/games/bundled",palette.text); y+=24;
@@ -16903,23 +17048,8 @@ public:
     }
 
 
-    // NOUGAT_V62_ONE_SHOT_UI_AUDIO
-    void play_ui_one_shot(const std::string& filename) const {
-        const std::string path=exe_dir()+"/assets/sounds/"+filename;
-        if (!exists_file(path)) return;
-        std::thread([path](){
-            pid_t child=fork();
-            if (child==0) {
-                execlp("paplay","paplay",path.c_str(),static_cast<char*>(nullptr));
-                execlp("ffplay","ffplay","-nodisp","-autoexit","-loglevel","quiet",path.c_str(),static_cast<char*>(nullptr));
-                execlp("aplay","aplay","-q",path.c_str(),static_cast<char*>(nullptr));
-                _exit(127);
-            }
-            if (child>0) { int status=0; while (waitpid(child,&status,0)<0 && errno==EINTR) {} }
-        }).detach();
-    }
-    void play_ui_hover_sound() const { play_ui_one_shot("nougat-ui-hover.wav"); }
-    void play_ui_press_sound() const { play_ui_one_shot("nougat-ui-press.wav"); }
+    // NOUGAT_V63_REPAIR5_NO_UI_AUDIO
+    // NOUGAT_V63_REPAIR5C_AUDIO_REGEX_FIX
 
     bool pointer_crossed_hover_target(int old_x, int old_y, int new_x, int new_y) const {
         const Rect* targets[] = {
@@ -16944,7 +17074,7 @@ public:
         for (const Rect* target : targets) {
             const bool was=target->contains(old_x,old_y);
             const bool now=target->contains(new_x,new_y);
-            if (was!=now) { if (!was && now) play_ui_hover_sound(); return true; }
+            if (was!=now) return true;
         }
         if (currentView == ViewMode::Library) {
             int oldRow = -1;
@@ -17131,8 +17261,6 @@ public:
     }
 
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
-        if (button==Button1 && target==win && point_on_ui_button(x,y)) play_ui_press_sound(); // NOUGAT_V62_PRESS_ON_ACTIVATION
-
         if (fixMatchVisible) { if (target==win) handle_fix_match_click(x,y,button); return; } // NOUGAT_V58_NATIVE_FIX_MATCH_INPUT
         if(target==fullscreenSeekWindow){
             if(button!=Button1) return;
@@ -18213,20 +18341,62 @@ public:
     }
 };
 
+
+// NOUGAT_V63_REPAIR4_GNOME_APP_SCOPE
+static void nougat_enter_gnome_app_scope(int argc, char** argv) {
+    if (std::getenv("NOUGAT_MEDIA_PLUS_APP_SCOPED")) return;
+    if (argc > 1 && argv[1] && std::string(argv[1]).rfind("--",0)==0) return;
+    if (access("/usr/bin/systemd-run", X_OK) != 0 ||
+        access("/usr/bin/env", X_OK) != 0) return;
+
+    const char* runtime = std::getenv("XDG_RUNTIME_DIR");
+    if (!runtime || !*runtime) return;
+
+    char self[PATH_MAX + 1] = {};
+    const ssize_t length = readlink("/proc/self/exe", self, PATH_MAX);
+    if (length <= 0 || length > PATH_MAX) return;
+    self[length] = '\0';
+
+    const std::string unit =
+        "app-com.elderredsoftworks.NougatMediaPlus-" +
+        std::to_string(static_cast<long long>(getpid())) + ".scope";
+
+    std::vector<std::string> command = {
+        "/usr/bin/systemd-run",
+        "--user",
+        "--scope",
+        "--quiet",
+        "--collect",
+        "--slice=app.slice",
+        "--description=Nougat Media Plus",
+        "--unit=" + unit,
+        "/usr/bin/env",
+        "NOUGAT_MEDIA_PLUS_APP_SCOPED=1",
+        self
+    };
+    for (int i=1; i<argc; ++i) command.emplace_back(argv[i] ? argv[i] : "");
+
+    std::vector<char*> raw;
+    raw.reserve(command.size()+1U);
+    for (std::string& value : command) raw.push_back(value.data());
+    raw.push_back(nullptr);
+
+    execv("/usr/bin/systemd-run", raw.data());
+}
+
 int main(int argc, char** argv) {
-    if (argc > 1 && std::string(argv[1]) == "--v62-media-plus-ui-self-test") {
+    nougat_enter_gnome_app_scope(argc, argv);
+    if (argc > 1 && std::string(argv[1]) == "--v63-media-plus-ui-self-test") {
         const bool brand=nougat_media_suite_icon::kTopBarWidth>180 && nougat_media_suite_icon::kTopBarHeight==40 && nougat_media_suite_icon::kIcon64Size==64;
-        const bool hoverSound=exists_file(exe_dir()+"/assets/sounds/nougat-ui-hover.wav");
-        const bool pressSound=exists_file(exe_dir()+"/assets/sounds/nougat-ui-press.wav");
         const bool authority=exists_file(exe_dir()+"/assets/ui/NOUGAT_MEDIA_PLUS_UI_AUTHORITY.png");
-        if (!brand || !hoverSound || !pressSound || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.62 UI self-test FAIL.\n"); return 1; }
-        std::printf("Nougat Media Plus v0.0.62 UI self-test PASS: new lockup/icon data, UI authority, and one-shot sound assets are active.\n");
+        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.63 UI self-test FAIL.\n"); return 1; }
+        std::printf("Nougat Media Plus v0.0.63 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
         return 0;
     }
 
     prctl(PR_SET_NAME, "NougatMediaPlus", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Plus v0.0.62\n");
+        printf("Nougat Media Plus v0.0.63\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

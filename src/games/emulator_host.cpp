@@ -115,6 +115,14 @@ bool xenia_backend_family(const std::string& value) {
     return normalized_window_token(value).find("xenia") != std::string::npos;
 }
 
+bool mesen_backend_family(const std::string& value) {
+    return normalized_window_token(value).find("mesen") != std::string::npos;
+}
+
+bool pcsx2_backend_family(const std::string& value) {
+    return normalized_window_token(value).find("pcsx2") != std::string::npos;
+}
+
 std::set<Window> ewmh_client_windows(Display* display, Window root) {
     std::set<Window> out;
     if (!display || !root) return out;
@@ -444,7 +452,12 @@ bool force_geometry() {
         // the GTK/X11 window manager relationship may otherwise be rebuilt while
         // the client is moving into the native Games viewport.
         const bool xenia_backend = xenia_backend_family(backend);
-        if (!mark_private_emulator_window(display, window, shell, !xenia_backend)) return false;
+        const bool mesen_backend = mesen_backend_family(backend);
+        const bool pcsx2_backend = pcsx2_backend_family(backend);
+        // NOUGAT_V63_REPAIR5_THREE_BACKEND_EMBED
+        const bool direct_embed_backend =
+            xenia_backend || mesen_backend || pcsx2_backend;
+        if (!mark_private_emulator_window(display, window, shell, !direct_embed_backend)) return false;
 
         // Perform the structural move first and synchronize it before focus.
         // This keeps wxGTK focus handling out of the reparent transaction.
@@ -484,6 +497,8 @@ bool force_geometry() {
         const std::string backend_hint = lower_ascii(backend);
         const std::string backend_token = normalized_window_token(backend_hint);
         const bool xenia_backend = xenia_backend_family(backend_hint);
+        const bool mesen_backend = mesen_backend_family(backend_hint);
+        const bool pcsx2_backend = pcsx2_backend_family(backend_hint);
         const std::set<Window> managed_clients =
             xenia_backend ? ewmh_client_windows(display, root) : std::set<Window>{};
         const long long age = monotonic_ms() - started_ms;
@@ -504,10 +519,7 @@ bool force_geometry() {
             // windows. Only capture the EWMH client window itself when GNOME
             // publishes _NET_CLIENT_LIST. Reparenting an internal wx child can
             // crash the host or leave a detached top-level frame behind.
-            if (xenia_backend && !managed_clients.empty() &&
-                managed_clients.count(window) == 0U && !preembedded) {
-                continue;
-            }
+            // NOUGAT_V63_REPAIR5C_XENIA_GATE_DEFERRED
 
             const pid_t owner_pid = x_window_pid(display, window);
             const bool process_owned = owner_pid > 1 && process_descends_from(owner_pid, child);
@@ -519,7 +531,24 @@ bool force_geometry() {
             const bool xenia_family_match =
                 xenia_backend &&
                 identity_token.find("xenia") != std::string::npos;
-            const bool backend_owned = direct_backend_match || xenia_family_match;
+            // NOUGAT_V63_REPAIR5_FRESH_RENDER_CAPTURE
+            // These three backends were owner-tested as launching successfully.
+            // Once forced onto X11, any new suitably sized client created after
+            // this launch is eligible for immediate containment. The preexisting
+            // snapshot prevents Nougat from taking unrelated desktop windows.
+            const bool fresh_strict_backend_window =
+                (xenia_backend || mesen_backend || pcsx2_backend) &&
+                preexisting.count(window) == 0U &&
+                age >= 0 && age < 30000;
+            const bool backend_owned =
+                direct_backend_match || xenia_family_match || fresh_strict_backend_window;
+
+            // NOUGAT_V63_REPAIR5C_XENIA_POST_OWNERSHIP_GATE
+            if (xenia_backend && !managed_clients.empty() &&
+                managed_clients.count(window) == 0U && !preembedded &&
+                !process_owned && !fresh_strict_backend_window) {
+                continue;
+            }
 
             // Do not ever grab an arbitrary unrelated desktop window. The real
             // emulator client must either belong to the launched process tree or
