@@ -74,6 +74,8 @@ The active identity is applied across the application, launcher, versioned execu
 
 The tactical visual system coordinates navigation, panels, controls, dialogs, status surfaces, application identity, and UI interaction sounds while preserving the functionality of the individual Nougat systems.
 
+Beginning with **v0.0.65**, the tactical interface expands with a left-side Nougat module rail while retaining the existing top navigation for owner verification. The Video Player also advances toward the approved military HUD treatment with chapter-marked seeking, dedicated chapter and episode navigation, a segmented tactical volume control, a highly translucent information overlay, and immediate retriggerable UI click feedback. Home retains Continue Watching, the Nougat N remains the required application and Linux desktop identity, and Network Center continues its tactical-interface consolidation.
+
 ## **Platform & Repository**
 
 Nougat Media Plus is developed primarily as a **native Linux desktop application**.
@@ -101,6 +103,35 @@ Nothing in Nougat Media Plus, its documentation, source code, supported hardware
 The inclusion of professional, governmental, public-safety, military, satellite, aviation, cellular, or other regulated use cases does not imply endorsement, affiliation, certification, approval, sponsorship, or authorization by any government agency, military organization, regulator, communications authority, satellite operator, service provider, or equipment manufacturer.
 
 **Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
+
+## v0.0.65 - Military UI Consolidation Checkpoint
+
+Nougat Media Plus v0.0.65 is an owner-requested GitHub checkpoint of the current tactical-interface work. It is preserved as a recoverable development checkpoint and is **not represented as the final accepted UI**. Additional owner-directed UI correction remains expected after this checkpoint.
+
+### Technical changes
+
+- Advances the active executable and runtime/build reporting to v0.0.65.
+- Adds the new left-side Nougat module rail while deliberately retaining the complete existing top navigation until the owner verifies that every required module is present and correctly routed from the side rail.
+- Preserves the rule that no existing top-level navigation control is removed until the owner explicitly approves removal after sidebar verification.
+- Advances the Video Player toward the approved black/deep-green military HUD design.
+- Adds the military chapter-marked seek treatment and retains visible synthetic chapter divisions when genuine chapter metadata is unavailable.
+- Adds dedicated Previous Chapter and Next Chapter navigation alongside Previous Episode and Next Episode navigation.
+- Preserves Rewind 10, Play/Pause, Fast Forward 10, Fullscreen, and Settings control requirements in the military Player control family.
+- Replaces the legacy cream/gold volume direction with the approved segmented tactical volume-control direction.
+- Advances the Player title/information surface toward the approved highly translucent smoked-green HUD treatment so video remains substantially visible beneath it.
+- Restores immediate UI click feedback intended to retrigger as rapidly as the owner can activate controls, without an artificial click cooldown.
+- Restores/preserves Home's Continue Watching shelf as a mandatory Home element rather than allowing tactical-interface work to remove it.
+- Reasserts the Nougat N as the required application, executable, launcher, window, dock, app-switcher, and in-app identity; a generic gear or placeholder is not an acceptable substitute.
+- Continues Network Center tactical-interface consolidation while preserving its existing Network-specific tabs and functionality.
+- Keeps the current top navigation and the new side rail simultaneously during the verification period so the owner can confirm complete module parity before any top navigation is retired.
+- Cleans superseded Nougat root executables and stale build debris as part of the v0.0.65 consolidation workflow while preserving user media, configuration, and runtime data.
+
+### Checkpoint status
+
+- The owner has reported remaining UI inconsistencies and additional UI correction is still required.
+- This checkpoint exists to preserve the current v0.0.65 source and executable state on GitHub before further UI work.
+- No remaining UI issue is silently marked fixed merely because this checkpoint is saved.
+- Final acceptance remains solely with the owner.
 
 ## v0.0.64 - Network Center and Satellite Foundation
 

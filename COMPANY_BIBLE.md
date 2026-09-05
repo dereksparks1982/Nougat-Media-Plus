@@ -31,6 +31,20 @@ Before changing Nougat Media Suite, read:
 
 The active Git commit, branch, worktree state, expected executable, rollback snapshot, and relevant runtime state must be verified before changes are applied.
 
+## 3A. Mandatory Bible reading and README release law
+
+- Before every Nougat Media Plus build, repair, patch, validation, packaging operation, checkpoint closeout, acceptance closeout, local Git commit, release tag, or GitHub publication, the canonical `COMPANY_BIBLE.md` must be read in full. Memory, summaries, prior-chat recollection, and assumptions are not substitutes for reading the current file.
+- The existing `README.md` introduction is persistent project documentation. It must remain intact unless the owner explicitly requests an introduction rewrite.
+- New owner-approved capabilities must be added to the existing README introduction using the smallest appropriate additions. Established introduction text must not be silently rewritten, condensed, reordered, or removed merely to document a new version.
+- Immediately below the maintained README introduction, the newest version number and its release notes must appear before all older version sections.
+- Older release sections remain historical records and are not rewritten to make them look current.
+- A candidate, repair, checkpoint, or release may not be represented as accepted, closed out, saved, tagged, or ready for GitHub publication until `README.md` accurately describes that exact state.
+- A checkpoint that still has known problems must say so truthfully in its newest README release notes. A checkpoint is not automatically an accepted final release.
+- If the README has not been updated according to these rules, the build is not accepted and the closeout is incomplete.
+- A README update required for a checkpoint, acceptance, release, commit, or GitHub closeout is not complete merely because `README.md` was modified locally. The updated `README.md` must be included in the same Git commit as the saved build state, pushed to the configured GitHub repository, and the remote `README.md` at that exact commit must be verified before the checkpoint, release, or closeout may be reported complete.
+- The three states `README updated locally`, `README committed locally`, and `README verified on GitHub` are distinct and must never be reported as interchangeable.
+- When historical version-specific UI rules conflict with a newer explicit owner-approved UI rule, the newer owner-approved rule is the active authority. Historical rules remain historical and must not be resurrected as current styling.
+
 ## 4. Build-scope law
 
 - Restate the proposed build with its base, goal, included work, exclusions, tests, package name, and acceptance boundary.
@@ -176,6 +190,9 @@ When the owner must run a command:
 - provide one complete copy-and-paste command block for that operation;
 - ensure all quoting and multiline messages terminate correctly;
 - do not leave the shell at a continuation prompt;
+- Nougat terminal commands must be non-interactive by default. They must not open `less`, `more`, `vim`, `nano`, another editor, a Git pager, or any other interactive viewer unless the owner explicitly requests that behavior.
+- Git output intended only for inspection must use non-interactive output such as `git --no-pager`, `GIT_PAGER=cat`, or an equivalent method.
+- Commands must complete their work and return control directly to the shell instead of leaving the owner inside a pager, editor, continuation prompt, or interactive application.
 - do not put `exit`, `exit 1`, or a command that closes the owner's terminal in the block;
 - do not claim success until the owner pastes the result;
 - explain the pasted output before starting any new work.
