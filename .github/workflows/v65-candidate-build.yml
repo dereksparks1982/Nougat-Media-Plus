@@ -33,6 +33,30 @@ jobs:
           grep -q 'NOUGAT_V65_APPROVED_MILITARY_SEEK' src/main.cpp
           grep -q 'NOUGAT_V65_RADIO_SERVICE_LANE' src/main.cpp
 
+      - name: Inspect System controls and sidebar icon
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path('src/main.cpp').read_text().splitlines()
+          needles = [
+              'Start Server','Stop Server','Refresh Server','Virus Scan',
+              'Quick Diagnostic','Deep Diagnostic','Refresh Metadata','Test TMDB',
+              'sidebar','Sidebar','nougatIcon','nougat_icon','sideIcon','side_icon',
+              'logoRect','logo_rect','iconRect','icon_rect'
+          ]
+          hits=[]
+          for i,line in enumerate(lines):
+              if any(n in line for n in needles): hits.append(i)
+          blocks=[]
+          for i in hits:
+              a=max(0,i-45); b=min(len(lines),i+46)
+              if any(not (b < aa or a > bb) for aa,bb in blocks): continue
+              blocks.append((a,b))
+          for a,b in blocks:
+              print(f'===== SOURCE CONTEXT {a+1}-{b} =====')
+              for j in range(a,b): print(f'{j+1:06d}: {lines[j]}')
+          PY
+
       - name: Configure CI validation lane
         run: |
           cmake -S . -B build-v65 -DCMAKE_BUILD_TYPE=Release -DREDDMEDIA_P2P_STUB=ON -DREDDMEDIA_AI_STUB=ON
