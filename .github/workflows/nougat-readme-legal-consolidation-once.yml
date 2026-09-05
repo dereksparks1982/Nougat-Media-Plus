@@ -11,66 +11,70 @@ permissions:
   contents: write
 
 jobs:
-  consolidate-readme-notice:
+  update-readme:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
 
-      - name: Replace legal and intended-user sections with one canonical notice
+      - name: Consolidate legal notice and remove one-time workflow
         shell: bash
         run: |
-          python3 - <<'PY'
+          python3 <<'PY'
           from pathlib import Path
 
           path = Path("README.md")
           text = path.read_text(encoding="utf-8")
+
           start_marker = "## **Educational and Lawful Use Notice**"
           end_marker = "## v0.0.62 - Nougat Media Plus Tactical UI Conversion"
 
           if start_marker not in text:
-              raise SystemExit("README start marker not found")
+              raise SystemExit("Expected legal-notice start marker was not found; refusing to alter README.")
           if end_marker not in text:
-              raise SystemExit("README end marker not found")
+              raise SystemExit("Expected v0.0.62 marker was not found; refusing to alter README.")
 
           start = text.index(start_marker)
           end = text.index(end_marker)
           if end <= start:
-              raise SystemExit("README notice markers are out of order")
+              raise SystemExit("README markers are out of order; refusing to alter README.")
 
-          replacement = '''## **Educational, Professional, and Lawful Use Notice**
+          section = """
+          ## **Educational, Professional, and Lawful Use Notice**
 
-Nougat Media Plus is developed by **Elderred Softworks LLC** for **educational, research, testing, development, and authorized professional or operational use**. It is intended for users including licensed radio operators, communications professionals, broadcast and satellite technicians, engineers, researchers, educators, government agencies, military personnel, public-safety professionals, and other technical users working with media, radio-frequency systems, satellites, drones, cellular systems, networks, communications equipment, and related technologies.
+          Nougat Media Plus is developed by **Elderred Softworks LLC** for **educational, research, testing, development, and authorized professional or operational use**. It is intended for users including licensed radio operators, communications professionals, broadcast and satellite technicians, engineers, researchers, educators, government agencies, military personnel, public-safety professionals, and other technical users working with media, radio-frequency systems, satellites, drones, cellular systems, networks, communications equipment, and related technologies.
 
-Nougat Media Plus may provide access to capabilities involving radio reception and transmission, satellite communications, cellular systems, drones and aircraft, networks, connected hardware, signals, media, accounts, and data. Some capabilities may require licenses, certifications, spectrum or frequency authorization, equipment approval, operator privileges, organizational authority, regulatory approval, coordination with a satellite or communications operator, or other permission before lawful use.
+          Nougat Media Plus may provide access to capabilities involving radio reception and transmission, satellite communications, cellular systems, drones and aircraft, networks, connected hardware, signals, media, accounts, and data. Some capabilities may require licenses, certifications, spectrum or frequency authorization, equipment approval, operator privileges, organizational authority, regulatory approval, coordination with a satellite or communications operator, or other permission before lawful use.
 
-**Nougat Media Plus does not determine, verify, grant, or imply that a user is licensed or otherwise authorized to perform any particular operation.** Users are solely responsible for determining and maintaining the licenses, permissions, approvals, qualifications, and other legal authority required for their activities and jurisdiction.
+          **Nougat Media Plus does not determine, verify, grant, or imply that a user is licensed or otherwise authorized to perform any particular operation.** Users are solely responsible for determining and maintaining the licenses, permissions, approvals, qualifications, and other legal authority required for their activities and jurisdiction.
 
-Elderred Softworks LLC does not endorse or authorize unlawful activity, unauthorized access, interception, monitoring or surveillance, unauthorized circumvention of access controls or encryption, harmful interference with communications or services, invasion of privacy, property damage, intellectual-property infringement, harassment, or unauthorized operation of radio, satellite, cellular, drone, network, or other communications systems.
+          Elderred Softworks LLC does not endorse or authorize unlawful activity, unauthorized access, interception, monitoring or surveillance, unauthorized circumvention of access controls or encryption, harmful interference with communications or services, invasion of privacy, property damage, intellectual-property infringement, harassment, or unauthorized operation of radio, satellite, cellular, drone, network, or other communications systems.
 
-Features involving equipment, frequencies, networks, satellites, aircraft, accounts, signals, communications systems, media, or data should be used only where the user has the ownership, permission, license, authorization, or other lawful authority required for the activity being performed.
+          Features involving equipment, frequencies, networks, satellites, aircraft, accounts, signals, communications systems, media, or data should be used only where the user has the ownership, permission, license, authorization, or other lawful authority required for the activity being performed.
 
-**Transmission capabilities require particular care.** Radio-frequency and satellite transmission may be subject to national and international spectrum regulations, licensing requirements, frequency allocations, equipment rules, coordination requirements, and operator restrictions. In the United States, applicable requirements may include rules administered by the **Federal Communications Commission (FCC)**. Other jurisdictions have their own communications and spectrum authorities. Users are responsible for determining which rules apply before transmitting.
+          **Transmission capabilities require particular care.** Radio-frequency and satellite transmission may be subject to national and international spectrum regulations, licensing requirements, frequency allocations, equipment rules, coordination requirements, and operator restrictions. In the United States, applicable requirements may include rules administered by the **Federal Communications Commission (FCC)**. Other jurisdictions have their own communications and spectrum authorities. Users are responsible for determining which rules apply before transmitting.
 
-Nothing in Nougat Media Plus, its documentation, source code, supported hardware, or availability of a technical capability grants permission to perform an act that would otherwise be unlawful or unauthorized. **Technical capability does not imply legal authorization.**
+          Nothing in Nougat Media Plus, its documentation, source code, supported hardware, or availability of a technical capability grants permission to perform an act that would otherwise be unlawful or unauthorized. **Technical capability does not imply legal authorization.**
 
-The inclusion of professional, governmental, public-safety, military, satellite, aviation, cellular, or other regulated use cases does not imply endorsement, affiliation, certification, approval, sponsorship, or authorization by any government agency, military organization, regulator, communications authority, satellite operator, service provider, or equipment manufacturer.
+          The inclusion of professional, governmental, public-safety, military, satellite, aviation, cellular, or other regulated use cases does not imply endorsement, affiliation, certification, approval, sponsorship, or authorization by any government agency, military organization, regulator, communications authority, satellite operator, service provider, or equipment manufacturer.
 
-**Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
+          **Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
+          """.strip()
 
-'''
-
-          path.write_text(text[:start] + replacement + text[end:], encoding="utf-8")
+          text = text[:start] + section + "\n\n" + text[end:]
+          path.write_text(text, encoding="utf-8")
           PY
 
           rm -f .github/workflows/nougat-readme-legal-consolidation-once.yml
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md .github/workflows/nougat-readme-legal-consolidation-once.yml
-          git diff --cached --quiet && exit 0
-          git commit -m "Consolidate Nougat legal and intended-user notice"
-          git push origin HEAD:main
+          git config user.name "Elderred Softworks Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add README.md
+          git add -u .github/workflows/nougat-readme-legal-consolidation-once.yml
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Consolidate Nougat legal and intended-user notice"
+            git push origin main
+          fi
