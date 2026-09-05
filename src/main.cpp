@@ -66,6 +66,7 @@
 #include "alerts/public_safety_alerts.hpp"
 #include "world_tv/world_tv_service.hpp"
 #include "radio/radio_backend.hpp"
+#include "chat/nougat_chat.hpp"
 
 // NOUGAT_V54_FILE_SPLITTER_PROFESSIONAL
 
@@ -936,7 +937,7 @@ static std::string format_time(long long ms) {
 }
 
 enum class MenuAction {
-    NoAction, OpenFile, ExitApp, TogglePlay, ToggleFullscreen, Rewind10, Forward10,
+    NoAction, OpenFile, StopMedia, ExitApp, TogglePlay, ToggleFullscreen, Rewind10, Forward10,
     SubtitleToggle, SubtitleLoadFile, SubtitleLoadFolder, SubtitleDelayPlus, SubtitleDelayMinus, SubtitleDelayReset, SubtitleTrack,
     AudioTrack, PrevChapter, NextChapter, ChapterJump, YtDlpClearLog, UrlCut, UrlCopy, UrlPaste,
     P2pUrlCut, P2pUrlCopy, P2pUrlPaste,
@@ -2043,12 +2044,17 @@ public:
     Pixmap streamQuiltTiles[6] = {};
     int W=1000,H=650;
     int videoW=980, videoH=530;
-    Rect openBtn, rewindBtn, previousBtn, playBtn, nextBtn, forwardBtn, stopBtn, fsBtn, seekRect, volRect, volumeHousingRect, resumeBtn, loadBtn;
+    Rect openBtn, rewindBtn, previousBtn, previousChapterBtn, playBtn, nextChapterBtn, nextBtn, forwardBtn, stopBtn, fsBtn, settingsBtn, seekRect, volRect, volumeHousingRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn, videoRestartBtn, videoCancelBtn, videoBackLibraryBtn;
     Rect videoUpNextPlayBtn, videoUpNextSeriesBtn, videoUpNextReplayBtn;
     Rect fullscreenRewindRect, fullscreenPreviousRect, fullscreenPlayRect, fullscreenNextRect, fullscreenForwardRect;
     int fullscreenTransportHover=-1;
     Rect homeTab, videoPlayerTab, libraryTab, discoverTab, liveTvTab, worldTvTab, radioTab, nougatTab, ytdlpTab, studioTab, gamesTab, networkTab, debugTab;
+    // NOUGAT_V65_CONSOLIDATED_MODULE_RAIL: permanent in-app launcher rail.
+    // Top navigation remains intact until the owner verifies every rail target.
+    Rect railHomeTab, railVideoPlayerTab, railLibraryTab, railDiscoverTab, railLiveTvTab, railWorldTvTab,
+         railRadioTab, railNougatTab, railStreamTab, railStudioTab, railGamesTab, railNetworkTab, railSystemTab;
+    Rect moduleRailRect, moduleRailIconRect;
     // NOUGAT_V64_NETWORK_SATELLITE
     NetworkPanel networkPanel = NetworkPanel::Overview;
     SatellitePanel satellitePanel = SatellitePanel::Track;
@@ -2142,6 +2148,9 @@ public:
     Rect radioFavoritesBtn, radioRecordingsBtn, radioAntennaScanBtn;
     // NOUGAT_V58_RADIO_ALL_SERVICES: deliberately broad. Dense is the feature.
     std::vector<std::pair<Rect,std::string>> radioServiceTabs;
+    Rect radioServiceStrip, radioServiceScrollTrack, radioServiceScrollThumb;
+    int radioServiceScrollX = 0;
+    int radioServiceMaxScrollX = 0;
     Rect radioCell2GBtn, radioCell1GBtn, radioCellSubscribersBtn, radioCellCallsBtn, radioCellRfLabBtn;
     int radioCellularSubtab = 0;
     std::string radioSelectedService = "Local";
@@ -2159,6 +2168,8 @@ public:
     Rect libraryRefreshBtn, libraryBackBtn, librarySearchRect, librarySearchBtn, libraryListBox;
     Rect libraryVerticalScrollTrack, libraryVerticalScrollThumb;
     Rect serverStartBtn, serverStopBtn, serverRefreshBtn, securitySystemBtn;
+    Rect systemCommandStrip, systemCommandScrollTrack, systemCommandScrollThumb;
+    int systemCommandMaxScrollX = 0;
     bool systemVirusScanMode = false;
     Rect discoverUsualTab, discoverRandomTab;
     Rect discoverLocalMovieBtn, discoverLocalTvBtn, discoverLiveTvBtn, discoverExternalMovieBtn, discoverExternalTvBtn;
@@ -2269,9 +2280,8 @@ public:
     int debugButtonsScrollX = 0;
     int volumePercent = 100;
     bool volumeDragging = false;
-    // Pixel-derived from the owner-approved VOLUME component in the canonical
-    // Nougat sheet. Frame 100 is the actual sheet housing, pixel-for-pixel;
-    // the remaining frames are generated from those same sheet pixels.
+    // Legacy sheet-volume assets remain load-compatible for older files, but
+    // the v65 Player renderer is the approved procedural military HUD.
     static constexpr int kSheetVolumeW = 335;
     static constexpr int kSheetVolumeH = 47;
     static constexpr int kSheetVolumeFrames = 201;
@@ -3295,15 +3305,28 @@ public:
     }
 
     void button_on(Drawable target, const Rect& r, const std::string& label) {
-        const ViewPalette palette = currentView == ViewMode::Stream
-            ? stream_palette_for(streamPlatform) : palette_for(currentView);
+        // NOUGAT_V65_VISIBLE_OUTLINED_COMMAND
         const bool hover = target == win && r.contains(pointerWindowX, pointerWindowY);
-        const SheetControlState state = hover ? SheetControlState::Hover : SheetControlState::Normal;
-        draw_sheet_button_surface(target, r, palette, state);
+        if (r.w <= 4 || r.h <= 6) return;
+
+        const unsigned long outer = hover ? rgb8(101,184,129) : rgb8(35,105,69);
+        const unsigned long inner = hover ? rgb8(58,137,91) : rgb8(15,65,43);
+        const unsigned long rail  = hover ? rgb8(79,159,108) : rgb8(25,86,57);
+        const unsigned long ink   = hover ? rgb8(219,239,226) : rgb8(166,202,179);
+
         const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        outline_tactical_polygon(target, visual, outer, 8);
+        const Rect inset{visual.x + 4, visual.y + 4,
+                         std::max(1, visual.w - 8), std::max(1, visual.h - 8)};
+        outline_tactical_polygon(target, inset, inner, 5);
+        line(target, visual.x + 10, visual.y + 2,
+             visual.x + std::max(11, visual.w / 3), visual.y + 2, rail);
+        line(target, visual.x + visual.w - std::max(11, visual.w / 3), visual.y + visual.h - 3,
+             visual.x + visual.w - 10, visual.y + visual.h - 3, rail);
+
         const int label_x = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
         const int label_y = visual.y + visual.h / 2 + 5;
-        text(target, label_x, label_y, head_to_width(label, visual.w - 10), sheet_button_ink(palette, state));
+        text(target, label_x, label_y, head_to_width(label, visual.w - 10), ink);
     }
 
     void button_on_state(Drawable target, const Rect& r, const std::string& label,
@@ -3315,6 +3338,39 @@ public:
         const int label_x = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
         const int label_y = visual.y + visual.h / 2 + 5;
         text(target, label_x, label_y, head_to_width(label, visual.w - 10), sheet_button_ink(palette, state));
+    }
+
+    void command_button_state(Drawable target, const Rect& r, const std::string& label,
+                              SheetControlState state) {
+        // NOUGAT_V65_VISIBLE_STATEFUL_OUTLINED_COMMAND
+        const bool pointerHover = target == win && r.contains(pointerWindowX, pointerWindowY);
+        const bool active = state == SheetControlState::Hover || state == SheetControlState::Pressed;
+        const bool hot = pointerHover || active;
+        if (r.w <= 4 || r.h <= 6) return;
+
+        const unsigned long outer = active ? rgb8(123,203,148)
+            : (pointerHover ? rgb8(101,184,129) : rgb8(35,105,69));
+        const unsigned long inner = active ? rgb8(70,151,101)
+            : (pointerHover ? rgb8(58,137,91) : rgb8(15,65,43));
+        const unsigned long rail = active ? rgb8(102,184,128)
+            : (pointerHover ? rgb8(79,159,108) : rgb8(25,86,57));
+        const unsigned long ink = hot ? rgb8(226,243,232) : rgb8(166,202,179);
+
+        const Rect visual{r.x + 2, r.y + 1, std::max(1, r.w - 4), std::max(1, r.h - 4)};
+        outline_tactical_polygon(target, visual, outer, 8);
+        const Rect inset{visual.x + 4, visual.y + 4,
+                         std::max(1, visual.w - 8), std::max(1, visual.h - 8)};
+        outline_tactical_polygon(target, inset, inner, 5);
+        line(target, visual.x + 10, visual.y + 2,
+             visual.x + std::max(11, visual.w / 3), visual.y + 2, rail);
+        if (active) {
+            line(target, visual.x + visual.w - std::max(11, visual.w / 3), visual.y + visual.h - 3,
+                 visual.x + visual.w - 10, visual.y + visual.h - 3, rail);
+        }
+
+        const int label_x = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
+        const int label_y = visual.y + visual.h / 2 + 5;
+        text(target, label_x, label_y, head_to_width(label, visual.w - 10), ink);
     }
 
     void draw_suite_brand(Drawable target, int x0, int y0,
@@ -3338,10 +3394,41 @@ public:
     }
 
     void append_net_wm_icon(std::vector<unsigned long>& data, int size, const std::uint32_t* pixels) {
+        // NOUGAT_V65_DOCK_ICON_BORDER_CLEANUP
         data.push_back(static_cast<unsigned long>(size));
         data.push_back(static_cast<unsigned long>(size));
         const int count = size * size;
-        for (int i=0; i<count; ++i) data.push_back(static_cast<unsigned long>(pixels[i]));
+        std::vector<unsigned char> exterior(static_cast<std::size_t>(count), 0U);
+        std::vector<int> stack;
+        stack.reserve(static_cast<std::size_t>(count));
+        const auto is_edge_black = [&](int idx) {
+            const std::uint32_t argb = pixels[idx];
+            const unsigned a = (argb >> 24) & 0xffU;
+            const unsigned r = (argb >> 16) & 0xffU;
+            const unsigned g = (argb >> 8) & 0xffU;
+            const unsigned b = argb & 0xffU;
+            return a != 0U && r <= 38U && g <= 38U && b <= 38U;
+        };
+        const auto seed = [&](int idx) {
+            if (idx < 0 || idx >= count || exterior[static_cast<std::size_t>(idx)] != 0U || !is_edge_black(idx)) return;
+            exterior[static_cast<std::size_t>(idx)] = 1U;
+            stack.push_back(idx);
+        };
+        for (int x=0; x<size; ++x) { seed(x); seed((size-1)*size+x); }
+        for (int y=0; y<size; ++y) { seed(y*size); seed(y*size+size-1); }
+        while (!stack.empty()) {
+            const int idx = stack.back(); stack.pop_back();
+            const int x = idx % size, y = idx / size;
+            if (x > 0) seed(idx-1);
+            if (x+1 < size) seed(idx+1);
+            if (y > 0) seed(idx-size);
+            if (y+1 < size) seed(idx+size);
+        }
+        for (int i=0; i<count; ++i) {
+            std::uint32_t argb = pixels[i];
+            if (exterior[static_cast<std::size_t>(i)] != 0U) argb &= 0x00ffffffU;
+            data.push_back(static_cast<unsigned long>(argb));
+        }
     }
 
     void set_net_wm_icon() {
@@ -3508,6 +3595,12 @@ public:
     // baseline; all peer pages align to it rather than carrying old offsets.
     static constexpr int kPageControlY = kTopBarH + 10; // 54
     static constexpr int kPageControlBottom = kPageControlY + kCompactButtonH;
+    static constexpr int kModuleRailW = 78;
+    static constexpr int kModuleRailGap = 8;
+    static constexpr int kPlayerTransportW = 92;
+    static constexpr int kPlayerTransportH = 34;
+    static constexpr int kPageLeft = kModuleRailW + kModuleRailGap + 18;
+    static constexpr int kPageRightPad = 28;
 
     int clamp_button_scroll(int value, int button_count, int viewport_width) const {
         const int total = std::max(0, button_count) * kCompactButtonW;
@@ -3516,9 +3609,9 @@ public:
     }
 
     void layout_button_row(std::initializer_list<Rect*> buttons, int y, int& scroll) {
-        const int viewport = std::max(kCompactButtonW, W - 56);
+        const int viewport = std::max(kCompactButtonW, W - kPageLeft - kPageRightPad);
         scroll = clamp_button_scroll(scroll, static_cast<int>(buttons.size()), viewport);
-        int x = 28 - scroll;
+        int x = kPageLeft - scroll;
         for (Rect* rect : buttons) {
             *rect = {x, y, kCompactButtonW, kCompactButtonH};
             x += kCompactButtonW;
@@ -3527,7 +3620,10 @@ public:
 
     Rect page_content_frame(ViewMode view) const {
         (void)view;
-        return {10,kTopBarH,std::max(1,W-20),std::max(1,H-kTopBarH-10)};
+        // The new module rail owns the left lane. Keep every existing page inside
+        // the shifted content frame so nothing is painted under the launcher.
+        const int left = kModuleRailW + kModuleRailGap + 4;
+        return {left,kTopBarH,std::max(1,W-left-10),std::max(1,H-kTopBarH-10)};
     }
 
     void apply_page_clip(ViewMode view) {
@@ -3566,8 +3662,8 @@ public:
     void layout() {
         auto layoutConnectedRow = [&](std::initializer_list<Rect*> items, int y) {
             if (items.size() == 0) return;
-            const int left = 28;
-            const int right = std::max(left + 1, W - 28);
+            const int left = kPageLeft;
+            const int right = std::max(left + 1, W - kPageRightPad);
             const int slash = 9;
             const int count = static_cast<int>(items.size());
             const int usable = std::max(count * 58, right - left);
@@ -3602,61 +3698,80 @@ public:
             topX += topStep;
         }
 
-        const int bottomY = H - 40; // v0.0.42 owner correction: lift transport row 8px
-        // Keep the player stack below the video instead of allowing the old
-        // smaller-tab offsets to overlap the title/seek region.
-        const int seekY = H - 140;
-        const int controlCount = 8;
-        const int controlTotalW = controlCount * kCompactButtonW;
-        const int controlViewportW = std::max(kCompactButtonW, W - 20);
-        controlsScrollX = clamp_button_scroll(controlsScrollX, controlCount, controlViewportW);
-        int x = controlTotalW <= controlViewportW ? std::max(10, (W - controlTotalW) / 2) : 10 - controlsScrollX;
-        openBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
-        rewindBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
-        previousBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
-        playBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
-        nextBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
-        forwardBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
-        stopBtn = {x, bottomY, kCompactButtonW, kCompactButtonH}; x += kCompactButtonW;
-        fsBtn = {x, bottomY, kCompactButtonW, kCompactButtonH};
+        // Permanent Nougat module rail.  The top row intentionally remains
+        // operational in this build so Derek can compare every target before
+        // authorizing any later removal of duplicate top navigation.
+        moduleRailRect = {4, kTopBarH + 4, kModuleRailW - 8, std::max(1, H - kTopBarH - 8)};
+        moduleRailIconRect = {moduleRailRect.x + 14, moduleRailRect.y + 6, 42, 42};
+        Rect* const railTabs[] = {
+            &railHomeTab,&railVideoPlayerTab,&railLibraryTab,&railDiscoverTab,&railLiveTvTab,&railWorldTvTab,
+            &railRadioTab,&railNougatTab,&railStreamTab,&railStudioTab,&railGamesTab,&railNetworkTab,&railSystemTab
+        };
+        const int railCount = static_cast<int>(sizeof(railTabs) / sizeof(railTabs[0]));
+        const int railTop = moduleRailIconRect.y + moduleRailIconRect.h + 7;
+        const int railBottom = moduleRailRect.y + moduleRailRect.h - 6;
+        const int railGap = 2;
+        const int availableRailH = std::max(railCount * 24, railBottom - railTop - railGap * (railCount - 1));
+        const int railButtonH = std::max(24, std::min(40, availableRailH / railCount));
+        int railY = railTop;
+        for (Rect* tab : railTabs) {
+            *tab = {moduleRailRect.x + 5, railY, moduleRailRect.w - 10, railButtonH};
+            railY += railButtonH + railGap;
+        }
 
-        // v0.0.37: the approved sheet seek model now expands across the player
-        // while the elapsed and total timestamps remain on the same line. The
-        // exact caps/knob are preserved by draw_sheet_seek_frame(); only the
-        // repeatable track spans scale to consume the available player width.
-        const int currentTimeReserve = 62;
-        const int totalTimeReserve = 62;
-        const int seekGap = 12;
-        const int sideMargin = 24;
-        const int seekAvailable = std::max(220, W - sideMargin * 2 - currentTimeReserve - totalTimeReserve - seekGap * 2);
-        const int seekWidth = seekAvailable;
-        seekRect = {sideMargin + currentTimeReserve + seekGap, seekY, seekWidth, kSheetSeekH};
+        const int bottomY = H - 43;
+        // Keep the player stack below the video.  Nine compact military controls
+        // match the approved mockup: episode, chapter, seek, play, fullscreen and settings.
+        const int seekY = H - 151;
+        const Rect playerFrame = page_content_frame(ViewMode::VideoPlayer);
+        const int controlCount = 9;
+        const int controlTotalW = controlCount * kPlayerTransportW;
+        const int controlViewportW = std::max(kPlayerTransportW, playerFrame.w - 16);
+        const int controlMaxScroll = std::max(0, controlTotalW - controlViewportW);
+        controlsScrollX = std::max(0, std::min(controlsScrollX, controlMaxScroll));
+        int x = controlTotalW <= controlViewportW
+            ? playerFrame.x + std::max(8, (playerFrame.w - controlTotalW) / 2)
+            : playerFrame.x + 8 - controlsScrollX;
+        openBtn = {0,0,0,0};
+        stopBtn = {0,0,0,0};
+        previousBtn = {x, bottomY, kPlayerTransportW, kPlayerTransportH}; x += kPlayerTransportW;
+        previousChapterBtn = {x, bottomY, kPlayerTransportW, kPlayerTransportH}; x += kPlayerTransportW;
+        rewindBtn = {x, bottomY, kPlayerTransportW, kPlayerTransportH}; x += kPlayerTransportW;
+        playBtn = {x, bottomY, kPlayerTransportW, kPlayerTransportH}; x += kPlayerTransportW;
+        forwardBtn = {x, bottomY, kPlayerTransportW, kPlayerTransportH}; x += kPlayerTransportW;
+        nextChapterBtn = {x, bottomY, kPlayerTransportW, kPlayerTransportH}; x += kPlayerTransportW;
+        nextBtn = {x, bottomY, kPlayerTransportW, kPlayerTransportH}; x += kPlayerTransportW;
+        fsBtn = {x, bottomY, kPlayerTransportW, kPlayerTransportH}; x += kPlayerTransportW;
+        settingsBtn = {x, bottomY, kPlayerTransportW, kPlayerTransportH};
 
-        // Exact approved VOLUME sheet component. It is intentionally fixed at
-        // its native 335x47 sheet size so the housing/icons/bevel are not a
-        // procedural approximation. The interactive track coordinates are the
-        // actual track inside that sprite.
-        const int volumeHousingW = kSheetVolumeW;
-        const int volumeHousingH = kSheetVolumeH;
-        // v0.0.38: center the physical sheet housing itself. The percentage is
-        // positioned afterward and never participates in centering math.
-        const int volumeHousingX = std::max(10, (W - volumeHousingW) / 2);
-        const int volumeHousingY = H - 91; // v0.0.42 owner correction: lift VOLUME row 8px
+        const int currentTimeReserve = 58;
+        const int totalTimeReserve = 58;
+        const int seekGap = 9;
+        const int sideMargin = 18;
+        const int seekWidth = std::max(180, playerFrame.w - sideMargin * 2 - currentTimeReserve - totalTimeReserve - seekGap * 2);
+        seekRect = {playerFrame.x + sideMargin + currentTimeReserve + seekGap, seekY, seekWidth, 26};
+
+        // Procedural military volume module.  The cream/gold sprite path is no
+        // longer authoritative for the Player UI.
+        const int volumeHousingW = std::min(410, std::max(300, playerFrame.w - 220));
+        const int volumeHousingH = 46;
+        const int volumeHousingX = playerFrame.x + std::max(8, (playerFrame.w - volumeHousingW) / 2);
+        const int volumeHousingY = H - 96;
         volumeHousingRect = {volumeHousingX, volumeHousingY, volumeHousingW, volumeHousingH};
-        volRect = {volumeHousingX + 50, volumeHousingY + 15, 229, 16};
+        volRect = {volumeHousingX + 52, volumeHousingY + 14, std::max(120, volumeHousingW - 132), 18};
 
         const int promptX = std::max(20, W/2-kCompactButtonW);
         resumeBtn = {promptX, H/2+40, kCompactButtonW, kCompactButtonH};
         loadBtn = {promptX+kCompactButtonW, H/2+40, kCompactButtonW, kCompactButtonH};
 
-        int gamesX = 28;
+        int gamesX = kPageLeft;
         gamesLibraryBtn = {gamesX,kPageControlY,kCompactButtonW,kCompactButtonH}; gamesX += kCompactButtonW;
         gamesSystemsBtn = {gamesX,kPageControlY,kCompactButtonW,kCompactButtonH}; gamesX += kCompactButtonW;
         gamesAddBtn = {gamesX,kPageControlY,kCompactButtonW,kCompactButtonH}; gamesX += kCompactButtonW;
         gamesControllersBtn = {gamesX,kPageControlY,kCompactButtonW,kCompactButtonH}; gamesX += kCompactButtonW;
         gamesSettingsBtn = {gamesX,kPageControlY,kCompactButtonW,kCompactButtonH};
-        gamesPlayBtn = {28, 92, kCompactButtonW, kCompactButtonH};
-        gamesRefreshBtn = {28 + kCompactButtonW, 92, kCompactButtonW, kCompactButtonH};
+        gamesPlayBtn = {kPageLeft, 92, kCompactButtonW, kCompactButtonH};
+        gamesRefreshBtn = {kPageLeft + kCompactButtonW, 92, kCompactButtonW, kCompactButtonH};
         gamesGridBtn = {W - 28 - 2 * kCompactButtonW, 92, kCompactButtonW, kCompactButtonH};
         gamesListViewBtn = {W - 28 - kCompactButtonW, 92, kCompactButtonW, kCompactButtonH};
         const Rect gamesFrame = page_content_frame(ViewMode::Games);
@@ -3681,19 +3796,35 @@ public:
             "CB", "FRS / GMRS", "MURS", "Amateur / Ham", "Business", "Utilities", "Trunked",
             "P25", "DMR", "NXDN", "TETRA", "Paging", "Numbers", "Time / Beacon",
             "ADS-B", "ACARS", "AIS", "Weather Sat", "Satellite", "Amateur Sat", "Cellular Lab",
-            "Favorites", "Recordings", "TV Antenna Scan", "ISS / Sat"
+            "Favorites", "Recordings", "ISS / Sat"
         };
-        const int serviceCols = 7;
+        // NOUGAT_V65_RADIO_SERVICE_LANE: one continuous filled mode lane, horizontally scrollable.
+        const int serviceRows = 1; // NOUGAT_V65_VISIBLE_ONE_ROW_RADIO_MODES
         const int serviceGap = 6;
-        const int serviceW = std::max(92, (usable - serviceGap * (serviceCols - 1)) / serviceCols);
+        const int serviceW = std::max(112, std::min(142, usable / 7));
         const int presetY = kPageControlY;
+        radioServiceStrip = {left, presetY, usable, serviceRows * (kCompactButtonH + 7) - 7};
+        const int serviceCols = (static_cast<int>(sizeof(kNougatRadioServices) / sizeof(kNougatRadioServices[0])) + serviceRows - 1) / serviceRows;
+        const int serviceVirtualW = std::max(0, serviceCols * (serviceW + serviceGap) - serviceGap);
+        radioServiceMaxScrollX = std::max(0, serviceVirtualW - usable);
+        radioServiceScrollX = std::max(0, std::min(radioServiceMaxScrollX, radioServiceScrollX));
         const int serviceCount = static_cast<int>(sizeof(kNougatRadioServices) / sizeof(kNougatRadioServices[0]));
         for (int i=0; i<serviceCount; ++i) {
-            const int row=i/serviceCols;
-            const int colIndex=i%serviceCols;
-            const Rect r{left + colIndex*(serviceW+serviceGap),
-                         presetY + row*(kCompactButtonH+7), serviceW, kCompactButtonH};
-            radioServiceTabs.push_back({r,kNougatRadioServices[i]});
+            const int row = i % serviceRows;
+            const int colIndex = i / serviceRows;
+            const Rect r{left + colIndex * (serviceW + serviceGap) - radioServiceScrollX,
+                         presetY + row * (kCompactButtonH + 7), serviceW, kCompactButtonH};
+            if (r.x + r.w > radioServiceStrip.x && r.x < radioServiceStrip.x + radioServiceStrip.w)
+                radioServiceTabs.push_back({r,kNougatRadioServices[i]});
+        }
+        radioServiceScrollTrack = {left, radioServiceStrip.y + radioServiceStrip.h + 4, usable, 6};
+        if (radioServiceMaxScrollX > 0) {
+            const int thumbW = std::max(36, usable * usable / std::max(1, serviceVirtualW));
+            const int travel = std::max(0, usable - thumbW);
+            const int thumbX = left + (radioServiceMaxScrollX > 0 ? radioServiceScrollX * travel / radioServiceMaxScrollX : 0);
+            radioServiceScrollThumb = {thumbX, radioServiceScrollTrack.y, thumbW, radioServiceScrollTrack.h};
+        } else {
+            radioServiceScrollThumb = radioServiceScrollTrack;
         }
         const auto radioTabRect=[&](const std::string& label) {
             for (const auto& entry : radioServiceTabs) if (entry.second==label) return entry.first;
@@ -3707,9 +3838,8 @@ public:
         radioSatelliteBtn=radioTabRect("ISS / Sat");
         radioFavoritesBtn=radioTabRect("Favorites");
         radioRecordingsBtn=radioTabRect("Recordings");
-        radioAntennaScanBtn=radioTabRect("TV Antenna Scan");
-        const int serviceRows=(serviceCount + serviceCols - 1) / serviceCols;
-        const int radioPanelY = presetY + serviceRows*(kCompactButtonH+7) + 10; // NOUGAT_V58_RADIO_SERVICE_GRID
+        radioAntennaScanBtn={}; // v65: TV antenna scanning lives in Live TV.
+        const int radioPanelY = radioServiceScrollTrack.y + radioServiceScrollTrack.h + 10; // NOUGAT_V65_RADIO_SERVICE_LANE
         radioListBox = {left, radioPanelY, usable,
                         std::max(170, radioFrame.y + radioFrame.h - (radioPanelY + 12))};
         const int consoleX = radioListBox.x + 16;
@@ -3735,50 +3865,50 @@ public:
 
         layout_button_row({&streamYoutubeTab,&streamVimeoTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab},
                           kPageControlY, streamSourceScrollX);
-        ytdlpUrlRect = {28, 120, std::max(240, W-56), 28};
-        ytdlpOutputRect = {28, 160, std::max(240, W-56), 28};
+        ytdlpUrlRect = {kPageLeft, 120, std::max(240, W-kPageLeft-kPageRightPad), 28};
+        ytdlpOutputRect = {kPageLeft, 160, std::max(240, W-kPageLeft-kPageRightPad), 28};
         layout_button_row({&ytdlpDownloadBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn},
                           202, ytdlpButtonsScrollX);
         ytdlpFolderBtn = {0,0,0,0};
 
-        p2pMagnetRect = {28, 148, std::max(240, W-56), 28};
-        p2pOutputRect = {28, 188, std::max(240, W-56), 28};
+        p2pMagnetRect = {kPageLeft, 148, std::max(240, W-kPageLeft-kPageRightPad), 28};
+        p2pOutputRect = {kPageLeft, 188, std::max(240, W-kPageLeft-kPageRightPad), 28};
         layout_button_row({&p2pLoadMagnetBtn,&p2pOpenTorrentBtn,&p2pPlayBtn,&p2pStopResumeBtn,&p2pRemoveBtn}, 230, p2pButtonsScrollX);
-        p2pSpeedBtn={28,264,kCompactButtonW,kCompactButtonH};
-        p2pSeedRulesBtn={28+kCompactButtonW,264,kCompactButtonW,kCompactButtonH};
-        p2pQueueUpBtn={28+kCompactButtonW*2,264,kCompactButtonW,kCompactButtonH};
-        p2pQueueDownBtn={28+kCompactButtonW*3,264,kCompactButtonW,kCompactButtonH};
-        p2pReannounceBtn={28+kCompactButtonW*4,264,kCompactButtonW,kCompactButtonH};
-        p2pRecheckBtn={28+kCompactButtonW*5,264,kCompactButtonW,kCompactButtonH};
-        p2pPriorityBtn={28+kCompactButtonW*6,264,kCompactButtonW,kCompactButtonH};
+        p2pSpeedBtn={kPageLeft,264,kCompactButtonW,kCompactButtonH};
+        p2pSeedRulesBtn={kPageLeft+kCompactButtonW,264,kCompactButtonW,kCompactButtonH};
+        p2pQueueUpBtn={kPageLeft+kCompactButtonW*2,264,kCompactButtonW,kCompactButtonH};
+        p2pQueueDownBtn={kPageLeft+kCompactButtonW*3,264,kCompactButtonW,kCompactButtonH};
+        p2pReannounceBtn={kPageLeft+kCompactButtonW*4,264,kCompactButtonW,kCompactButtonH};
+        p2pRecheckBtn={kPageLeft+kCompactButtonW*5,264,kCompactButtonW,kCompactButtonH};
+        p2pPriorityBtn={kPageLeft+kCompactButtonW*6,264,kCompactButtonW,kCompactButtonH};
 
         layoutConnectedRow({&nougatSearchPanelTab,&nougatCrawlerPanelTab,&nougatP2PPanelTab,&nougatArchivePanelTab},
                            kPageControlY);
         nougatPanelButtonsScrollX = 0;
         // v64: these two legacy Search-row rects are reused as connected P2P sub-tabs.
-        nougatVirusScanPanelTab = {28, 104, kCompactButtonW + 18, kCompactButtonH};
+        nougatVirusScanPanelTab = {kPageLeft, 104, kCompactButtonW + 18, kCompactButtonH};
         nougatNetworkAdvancedBtn = {nougatVirusScanPanelTab.x + nougatVirusScanPanelTab.w - 9, 104, kCompactButtonW + 34, kCompactButtonH};
         const int nougatSearchGap = 8;
         const int nougatSearchButtonsWidth = 2 * kCompactButtonW + 2 * nougatSearchGap;
-        nougatSearchRect = {28, 90, std::max(220, W - 56 - nougatSearchButtonsWidth), 30};
+        nougatSearchRect = {kPageLeft, 90, std::max(220, W - kPageLeft - kPageRightPad - nougatSearchButtonsWidth), 30};
         nougatSearchBtn = {nougatSearchRect.x + nougatSearchRect.w + nougatSearchGap,
                            90, kCompactButtonW, kCompactButtonH};
         nougatRawBtn = {nougatSearchBtn.x + kCompactButtonW + nougatSearchGap,
                         90, kCompactButtonW, kCompactButtonH};
         nougatPeersToggleBtn = {std::max(380, W-240),90,kCompactButtonW,kCompactButtonH};
-        nougatResultsBox = {28, 148, std::max(240, W-56), std::max(120, H-176)};
+        nougatResultsBox = {kPageLeft, 148, std::max(240, W-kPageLeft-kPageRightPad), std::max(120, H-176)};
 
-        nougatCrawlSeedRect = {28, 96, std::max(240, W-56), 30};
-        nougatSameDomainBtn = {28, 136, kCompactButtonW, kCompactButtonH};
-        nougatStartCrawlBtn = {28+kCompactButtonW+8, 136, kCompactButtonW, kCompactButtonH};
+        nougatCrawlSeedRect = {kPageLeft, 96, std::max(240, W-kPageLeft-kPageRightPad), 30};
+        nougatSameDomainBtn = {kPageLeft, 136, kCompactButtonW, kCompactButtonH};
+        nougatStartCrawlBtn = {kPageLeft+kCompactButtonW+8, 136, kCompactButtonW, kCompactButtonH};
         nougatCrawlPlusBtn = {std::max(28, W-64),136,36,26};
         nougatCrawlMinusBtn = {std::max(28, W-152),136,36,26};
-        nougatCrawlLogBox = {28, 176, std::max(240, W-56), std::max(120, H-204)};
+        nougatCrawlLogBox = {kPageLeft, 176, std::max(240, W-kPageLeft-kPageRightPad), std::max(120, H-204)};
         // v0.0.41 repair-v10: Network/Advanced keeps the peer field compact enough
         // to reserve a real action viewport. Wide windows show all four actions;
         // narrow windows left-anchor Add Peer and mouse-wheel-scroll the action row.
         const int networkInputWidth = std::max(200, W - 552);
-        nougatPeerEntryRect = {28, 142, networkInputWidth, 30};
+        nougatPeerEntryRect = {kPageLeft, 142, networkInputWidth, 30};
         const int networkActionsX = nougatPeerEntryRect.x + nougatPeerEntryRect.w + 12;
         const int networkActionsW = std::max(kCompactButtonW, W - 28 - networkActionsX);
         nougatNetworkActionsViewport = {networkActionsX, 142, networkActionsW, kCompactButtonH};
@@ -3788,17 +3918,17 @@ public:
         nougatRemovePeerBtn = {networkActionX,142,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
         nougatNodeBtn = {networkActionX,142,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
         nougatPeersToggleBtn = {networkActionX,142,kCompactButtonW,kCompactButtonH};
-        nougatPeerListBox = {28, 192, std::max(240, W-56), std::max(120, H-220)};
-        securityScanFileBtn = {28, 106, kCompactButtonW, kCompactButtonH};
-        securityScanFolderBtn = {28+kCompactButtonW, 106, kCompactButtonW, kCompactButtonH};
-        securityScanMoviesBtn = {28+kCompactButtonW*2, 106, kCompactButtonW, kCompactButtonH};
-        securityScanTvBtn = {28+kCompactButtonW*3, 106, kCompactButtonW, kCompactButtonH};
-        securityQuickScanBtn = {28, 140, kCompactButtonW, kCompactButtonH};
-        securitySystemScanBtn = {28+kCompactButtonW, 140, kCompactButtonW, kCompactButtonH};
-        securityScanAgainBtn = {28+kCompactButtonW*2, 140, kCompactButtonW, kCompactButtonH};
-        securityCommunityKeyBtn = {28+kCompactButtonW*3, 140, kCompactButtonW, kCompactButtonH};
-        securityHistoryBtn = {28+kCompactButtonW*4, 140, kCompactButtonW, kCompactButtonH};
-        securityResultsBox = {28, 222, std::max(240, W-56), std::max(120, H-250)};
+        nougatPeerListBox = {kPageLeft, 192, std::max(240, W-kPageLeft-kPageRightPad), std::max(120, H-220)};
+        securityScanFileBtn = {kPageLeft, 106, kCompactButtonW, kCompactButtonH};
+        securityScanFolderBtn = {kPageLeft+kCompactButtonW, 106, kCompactButtonW, kCompactButtonH};
+        securityScanMoviesBtn = {kPageLeft+kCompactButtonW*2, 106, kCompactButtonW, kCompactButtonH};
+        securityScanTvBtn = {kPageLeft+kCompactButtonW*3, 106, kCompactButtonW, kCompactButtonH};
+        securityQuickScanBtn = {kPageLeft, 140, kCompactButtonW, kCompactButtonH};
+        securitySystemScanBtn = {kPageLeft+kCompactButtonW, 140, kCompactButtonW, kCompactButtonH};
+        securityScanAgainBtn = {kPageLeft+kCompactButtonW*2, 140, kCompactButtonW, kCompactButtonH};
+        securityCommunityKeyBtn = {kPageLeft+kCompactButtonW*3, 140, kCompactButtonW, kCompactButtonH};
+        securityHistoryBtn = {kPageLeft+kCompactButtonW*4, 140, kCompactButtonW, kCompactButtonH};
+        securityResultsBox = {kPageLeft, 222, std::max(240, W-kPageLeft-kPageRightPad), std::max(120, H-250)};
 
         // Library now shares the same app-wide page-control baseline. Its
         // compact List/Grid toggles are fixed at the far right, while the main
@@ -3840,19 +3970,35 @@ public:
                            &discoverLiveTvBtn,&discoverExternalMovieBtn,&discoverExternalTvBtn,&discoverTmdbTestBtn,
                            &discoverTmdbReplaceBtn,&discoverTmdbClearBtn,&discoverMyServicesBtn},
                           kPageControlY, discoverButtonsScrollX);
-        discoverResultBox = {28, 112, std::max(240, W-56), std::max(150, H-190)};
-        discoverOpenBtn = {28, H-66, kCompactButtonW, kCompactButtonH};
-        discoverWatchBtn = {28+kCompactButtonW, H-66, kCompactButtonW, kCompactButtonH};
-        discoverServicesBackBtn = {28,kPageControlY,kCompactButtonW,kCompactButtonH};
+        discoverResultBox = {kPageLeft, 112, std::max(240, W-kPageLeft-kPageRightPad), std::max(150, H-190)};
+        discoverOpenBtn = {kPageLeft, H-66, kCompactButtonW, kCompactButtonH};
+        discoverWatchBtn = {kPageLeft+kCompactButtonW, H-66, kCompactButtonW, kCompactButtonH};
+        discoverServicesBackBtn = {kPageLeft,kPageControlY,kCompactButtonW,kCompactButtonH};
 
         // v0.0.37: System owns administrative server controls. Library stays
         // focused on media/catalog actions, while Start/Stop/Refresh Server
         // live with diagnostics, logs, exports, and maintenance tools here.
+        // NOUGAT_V65_SYSTEM_COMMAND_LANE: outlined actions with visible horizontal scroll.
+        systemCommandStrip = {kPageLeft, kPageControlY, std::max(1, W-kPageLeft-kPageRightPad), kCompactButtonH};
+        constexpr int kSystemCommandCount = 13;
+        const int systemVirtualW = kSystemCommandCount * kCompactButtonW;
+        systemCommandMaxScrollX = std::max(0, systemVirtualW - systemCommandStrip.w);
+        debugButtonsScrollX = std::max(0, std::min(systemCommandMaxScrollX, debugButtonsScrollX));
         layout_button_row({&serverStartBtn,&serverStopBtn,&serverRefreshBtn,&securitySystemBtn,
                            &debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugLogsBtn,&debugCopyBtn,
                            &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn},
                           kPageControlY, debugButtonsScrollX);
-        debugListBox = {28, 126, std::max(240, W-56), std::max(150, H-154)};
+        systemCommandScrollTrack = {systemCommandStrip.x, systemCommandStrip.y + systemCommandStrip.h + 4,
+                                    systemCommandStrip.w, 6};
+        if (systemCommandMaxScrollX > 0) {
+            const int thumbW = std::max(36, systemCommandStrip.w * systemCommandStrip.w / std::max(1, systemVirtualW));
+            const int travel = std::max(0, systemCommandStrip.w - thumbW);
+            const int thumbX = systemCommandStrip.x + debugButtonsScrollX * travel / systemCommandMaxScrollX;
+            systemCommandScrollThumb = {thumbX, systemCommandScrollTrack.y, thumbW, systemCommandScrollTrack.h};
+        } else {
+            systemCommandScrollThumb = systemCommandScrollTrack;
+        }
+        debugListBox = {kPageLeft, 126, std::max(240, W-kPageLeft-kPageRightPad), std::max(150, H-154)};
 
         // NOUGAT_V64_NETWORK_SATELLITE layout
         layoutConnectedRow({&networkOverviewTab,&networkConnectionsTab,&networkDevicesTab,&networkSecurityTab,
@@ -3860,8 +4006,8 @@ public:
         layoutConnectedRow({&satelliteTrackTab,&satellitePassesTab,&satelliteReceiveTab,&satelliteDecodeTab,
                             &satelliteTransmitTab,&satelliteImageryTab,&satelliteAntennaTab,&satelliteHardwareTab,&satelliteLogsTab},
                            kPageControlY + kCompactButtonH + 10);
-        networkRefreshBtn = {28, kPageControlY + kCompactButtonH + 12, kCompactButtonW, kCompactButtonH};
-        networkContentBox = {28, kPageControlY + kCompactButtonH + 54, std::max(240, W-56),
+        networkRefreshBtn = {kPageLeft, kPageControlY + kCompactButtonH + 12, kCompactButtonW, kCompactButtonH};
+        networkContentBox = {kPageLeft, kPageControlY + kCompactButtonH + 54, std::max(240, W-kPageLeft-kPageRightPad),
                              std::max(120, H-(kPageControlY + kCompactButtonH + 82))};
         update_video_prompt_layout();
     
@@ -3910,10 +4056,9 @@ public:
     
         if (gameHost.active()) gameHost.resize(videoW, videoH);
 }
-    void set_transient_opacity(Window window) {
+    void set_transient_opacity(Window window, unsigned long opacity=0xD9000000UL) {
         if (!window || !d) return;
         const Atom property=XInternAtom(d,"_NET_WM_WINDOW_OPACITY",False);
-        const unsigned long opacity=0xD9000000UL;
         XChangeProperty(d,window,property,XA_CARDINAL,32,PropModeReplace,
                         reinterpret_cast<const unsigned char*>(&opacity),1);
     }
@@ -3940,8 +4085,8 @@ public:
         XFreeGC(d,mgc); XFreePixmap(d,mask);
     }
 
-    void apply_transient_window_style(Window window,int width,int height,int radius=8) {
-        set_transient_opacity(window);
+    void apply_transient_window_style(Window window,int width,int height,int radius=8, unsigned long opacity=0xD9000000UL) {
+        set_transient_opacity(window,opacity);
         apply_rounded_transient_shape(window,width,height,radius);
     }
 
@@ -5017,7 +5162,7 @@ public:
 
         const Rect savedSeekRect = seekRect;
         seekRect = bar;
-        if (sheetSeekLoaded) {
+        if (true) {
             draw_sheet_seek_frame(seekFrame, seekPercent);
         } else {
             const unsigned long caramel = rgb8(170,91,24);
@@ -5155,12 +5300,11 @@ public:
         const int overlayW=std::max(1,std::min(std::max(220,text_width(identity)+28+logoReserve),std::max(1,videoW-36)));
         XMoveResizeWindow(d,videoActivityOverlayWindow,18,18,
                           static_cast<unsigned>(overlayW),static_cast<unsigned>(overlayH));
-        apply_transient_window_style(videoActivityOverlayWindow,overlayW,overlayH,8);
+        apply_transient_window_style(videoActivityOverlayWindow,overlayW,overlayH,7,0x62000000UL);
         XMapRaised(d,videoActivityOverlayWindow);
-        fill(videoActivityOverlayWindow,{0,0,overlayW,overlayH},rgb8(32,25,21));
-        fill_round(videoActivityOverlayWindow,{0,0,overlayW,overlayH},8,rgb8(32,25,21));
-        outline_round(videoActivityOverlayWindow,{0,0,overlayW,overlayH},8,
-                      world?rgb8(218,127,43):rgb8(184,111,43));
+        fill(videoActivityOverlayWindow,{0,0,overlayW,overlayH},rgb8(2,18,12));
+        outline_tactical_polygon(videoActivityOverlayWindow,{0,0,overlayW,overlayH},
+                                 world?rgb8(83,155,101):rgb8(46,137,82),7);
         int textX=12;
         if(world){
             const Rect logo{8,7,72,48};
@@ -5168,7 +5312,7 @@ public:
             textX=88;
         }
         text(videoActivityOverlayWindow,textX,world?35:22,
-             head_to_width(identity,overlayW-textX-12),rgb8(248,235,214));
+             head_to_width(identity,overlayW-textX-12),rgb8(184,232,198));
         XFlush(d);
     }
 
@@ -5293,6 +5437,76 @@ public:
         return col(0xf0b4,0xb4b4,0x2b2b);
     }
 
+    void draw_embedded_nougat_icon(Drawable target, const Rect& dest) {
+        if(dest.w<=0||dest.h<=0) return;
+        const int source=nougat_media_suite_icon::kIcon64Size;
+        for(int y=0;y<dest.h;++y){
+            const int sy=std::max(0,std::min(source-1,y*source/std::max(1,dest.h)));
+            for(int x=0;x<dest.w;++x){
+                const int sx=std::max(0,std::min(source-1,x*source/std::max(1,dest.w)));
+                std::uint32_t argb=nougat_media_suite_icon::kIcon64[sy*source+sx];
+                const unsigned a=(argb>>24)&0xffU;
+                const unsigned r=(argb>>16)&0xffU, g=(argb>>8)&0xffU, b=argb&0xffU;
+                if(a<24U) continue;
+                // Do not repaint the old exterior black square around the N.
+                if(r<30U&&g<30U&&b<30U) continue;
+                XSetForeground(d,gc,visual_pixel(static_cast<unsigned char>(r),static_cast<unsigned char>(g),static_cast<unsigned char>(b)));
+                XDrawPoint(d,target,gc,dest.x+x,dest.y+y);
+            }
+        }
+    }
+
+    void draw_module_icon(Drawable target,const Rect& r,int kind,unsigned long ink) {
+        const int cx=r.x+r.w/2, cy=r.y+12;
+        XSetForeground(d,gc,ink);
+        XSetLineAttributes(d,gc,2,LineSolid,CapRound,JoinRound);
+        switch(kind){
+            case 0: // home
+                XDrawLine(d,target,gc,cx-8,cy,cx,cy-7); XDrawLine(d,target,gc,cx,cy-7,cx+8,cy);
+                XDrawRectangle(d,target,gc,cx-6,cy,12,9); break;
+            case 1: { XPoint pts[3]={{(short)(cx-5),(short)(cy-7)},{(short)(cx+8),(short)cy},{(short)(cx-5),(short)(cy+7)}}; XFillPolygon(d,target,gc,pts,3,Convex,CoordModeOrigin); break; }
+            case 2: XDrawRectangle(d,target,gc,cx-8,cy-7,16,13); XDrawLine(d,target,gc,cx-5,cy-3,cx+5,cy-3); XDrawLine(d,target,gc,cx-5,cy+1,cx+5,cy+1); break;
+            case 3: XDrawArc(d,target,gc,cx-8,cy-8,16,16,0,360*64); XDrawLine(d,target,gc,cx,cy,cx+6,cy-5); break;
+            case 4: XDrawRectangle(d,target,gc,cx-9,cy-6,18,12); XDrawLine(d,target,gc,cx-5,cy+8,cx+5,cy+8); XDrawLine(d,target,gc,cx,cy+6,cx,cy+8); break;
+            case 5: XDrawArc(d,target,gc,cx-8,cy-8,16,16,0,360*64); XDrawLine(d,target,gc,cx-8,cy,cx+8,cy); XDrawLine(d,target,gc,cx,cy-8,cx,cy+8); break;
+            case 6: XDrawArc(d,target,gc,cx-9,cy-7,18,14,315*64,90*64); XDrawArc(d,target,gc,cx-6,cy-5,12,10,315*64,90*64); XFillArc(d,target,gc,cx-2,cy-2,4,4,0,360*64); break;
+            case 7: XDrawArc(d,target,gc,cx-7,cy-7,14,14,0,360*64); XDrawLine(d,target,gc,cx+5,cy+5,cx+10,cy+10); break;
+            case 8: XDrawLine(d,target,gc,cx-8,cy,cx+6,cy); XDrawLine(d,target,gc,cx+2,cy-4,cx+7,cy); XDrawLine(d,target,gc,cx+2,cy+4,cx+7,cy); break;
+            case 9: XDrawRectangle(d,target,gc,cx-8,cy-7,16,14); XDrawLine(d,target,gc,cx-8,cy-2,cx+8,cy-2); XDrawLine(d,target,gc,cx-3,cy-7,cx+1,cy-2); break;
+            case 10: XDrawArc(d,target,gc,cx-10,cy-4,20,12,180*64,180*64); XDrawLine(d,target,gc,cx-4,cy,cx,cy); XDrawLine(d,target,gc,cx-2,cy-2,cx-2,cy+2); XFillArc(d,target,gc,cx+4,cy-1,3,3,0,360*64); break;
+            case 11: XFillArc(d,target,gc,cx-2,cy-2,4,4,0,360*64); XDrawLine(d,target,gc,cx,cy,cx-8,cy-7); XDrawLine(d,target,gc,cx,cy,cx+8,cy-7); XDrawLine(d,target,gc,cx,cy,cx,cy+8); XFillArc(d,target,gc,cx-10,cy-9,4,4,0,360*64); XFillArc(d,target,gc,cx+6,cy-9,4,4,0,360*64); XFillArc(d,target,gc,cx-2,cy+6,4,4,0,360*64); break;
+            default: XDrawArc(d,target,gc,cx-7,cy-7,14,14,0,360*64); XDrawLine(d,target,gc,cx,cy-10,cx,cy+10); XDrawLine(d,target,gc,cx-10,cy,cx+10,cy); break;
+        }
+        XSetLineAttributes(d,gc,1,LineSolid,CapButt,JoinMiter);
+    }
+
+    void draw_module_rail(Drawable target) {
+        draw_tactical_polygon(target,moduleRailRect,rgb8(1,10,7),rgb8(24,105,63),9);
+        Rect inner{moduleRailRect.x+3,moduleRailRect.y+3,std::max(1,moduleRailRect.w-6),std::max(1,moduleRailRect.h-6)};
+        outline_tactical_polygon(target,inner,rgb8(7,49,31),6);
+        draw_embedded_nougat_icon(target,moduleRailIconRect);
+        const struct Item { Rect* r; const char* label; ViewMode view; int icon; } items[] = {
+            {&railHomeTab,"HOME",ViewMode::Home,0},{&railVideoPlayerTab,"PLAYER",ViewMode::VideoPlayer,1},
+            {&railLibraryTab,"LIBRARY",ViewMode::Library,2},{&railDiscoverTab,"DISCOVER",ViewMode::Discover,3},
+            {&railLiveTvTab,"LIVE TV",ViewMode::LiveTV,4},{&railWorldTvTab,"WORLD TV",ViewMode::WorldTV,5},
+            {&railRadioTab,"RADIO",ViewMode::Radio,6},{&railNougatTab,"SEARCH",ViewMode::Nougat,7},
+            {&railStreamTab,"STREAM",ViewMode::Stream,8},{&railStudioTab,"STUDIO",ViewMode::Studio,9},
+            {&railGamesTab,"GAMES",ViewMode::Games,10},{&railNetworkTab,"NETWORK",ViewMode::Network,11},
+            {&railSystemTab,"SYSTEM",ViewMode::Debug,12}
+        };
+        for(const auto& item:items){
+            const bool active=currentView==item.view;
+            const bool hover=item.r->contains(pointerWindowX,pointerWindowY);
+            const unsigned long border=active?rgb8(112,215,140):(hover?rgb8(67,157,96):rgb8(22,81,50));
+            const unsigned long face=active?rgb8(12,56,36):rgb8(2,17,12);
+            draw_tactical_polygon(target,*item.r,face,border,6);
+            draw_module_icon(target,*item.r,item.icon,active?rgb8(186,239,199):rgb8(112,171,129));
+            const std::string label=item.label;
+            text(target,item.r->x+std::max(3,(item.r->w-text_width(label))/2),item.r->y+item.r->h-5,label,
+                 active?rgb8(205,244,215):rgb8(112,165,127));
+        }
+    }
+
     void draw_top_bar(Drawable target) {
         const unsigned long topText = rgb8(218, 244, 228);
         const unsigned long divider = rgb8(21, 135, 78);
@@ -5302,12 +5516,12 @@ public:
 
         const int brandY = (kTopBarH - nougat_media_suite_icon::kTopBarHeight) / 2;
         const int headerBaseline = kTopBarH / 2 + 5;
-        draw_suite_brand(target, 4, brandY, 227, 204, 172);
+        draw_suite_brand(target, 4, brandY, 2, 15, 11); // NOUGAT_V65_BRAND_GREEN_BACKGROUND
 
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.64";
+        const std::string versionLabel = "v0.0.65";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -5452,35 +5666,41 @@ public:
         long long chapterEveryMs = 300000;
         if (l > 7200000) chapterEveryMs = 900000;
         else if (l > 3600000) chapterEveryMs = 600000;
+        // Synthetic chapter divisions are deliberately useful, not fake metadata.
+        // They provide navigation positions while never inventing chapter titles.
+        chapterMarksMs.push_back(0);
+        chapterNames.emplace_back();
         for (long long markMs = chapterEveryMs; markMs < l; markMs += chapterEveryMs) {
             chapterMarksMs.push_back(markMs);
-            chapterNames.push_back("Default mark");
+            chapterNames.emplace_back();
         }
         chapterScanComplete = true;
     }
     void jump_to_chapter_index(int idx) {
-        if (!mp || !chapterMarksAreReal || idx < 0 || idx >= (int)chapterMarksMs.size()) return;
+        if (!mp || idx < 0 || idx >= (int)chapterMarksMs.size()) return;
         api.set_time(mp, chapterMarksMs[(size_t)idx]);
         cachedPlaybackTimeMs = chapterMarksMs[(size_t)idx];
         playbackCacheValid = true;
         draw_seek_time_only();
     }
     int current_chapter_index() {
-        if (!mp || !chapterMarksAreReal || chapterMarksMs.empty()) return -1;
+        if (!mp || chapterMarksMs.empty()) return -1;
         long long t = playback_time_ms();
         int idx = 0;
         for (size_t i=0; i<chapterMarksMs.size(); ++i) if (chapterMarksMs[i] <= t) idx = (int)i;
         return idx;
     }
     void previous_chapter() {
-        if (!chapterMarksAreReal) return;
+        update_chapter_marks(false);
+        if (chapterMarksMs.empty()) return;
         int idx = current_chapter_index();
         long long t = mp ? playback_time_ms() : 0;
         if (idx > 0 && idx < (int)chapterMarksMs.size() && t - chapterMarksMs[(size_t)idx] < 3000) idx--;
         jump_to_chapter_index(std::max(0, idx));
     }
     void next_chapter() {
-        if (!chapterMarksAreReal) return;
+        update_chapter_marks(false);
+        if (chapterMarksMs.empty()) return;
         int idx = current_chapter_index();
         jump_to_chapter_index(std::min((int)chapterMarksMs.size()-1, idx+1));
     }
@@ -5624,15 +5844,16 @@ public:
     }
 
     void draw_seek_time_row(Drawable target) {
-        const unsigned long caramel = rgb8(170,91,24);
-        const unsigned long caramelLight = rgb8(218,156,82);
-        const unsigned long creamTrack = rgb8(247,236,217);
-        const unsigned long trackBorder = rgb8(153,91,35);
-        // NOUGAT_V39_BLACK_CHAPTER_MARKERS_V4
-        const unsigned long markDark = rgb8(0,0,0);
-        const unsigned long markReal = rgb8(0,0,0);
+        const unsigned long caramel = rgb8(36,91,61);
+        const unsigned long caramelLight = rgb8(72,143,96);
+        const unsigned long creamTrack = rgb8(7,20,14);
+        const unsigned long trackBorder = rgb8(42,86,61);
+        const unsigned long markDark = rgb8(47,101,69);
+        const unsigned long markReal = rgb8(121,199,143);
 
-        draw_quilted_background(target, {0, std::max(0, seekRect.y-7), W, seekRect.h+46}, ViewMode::VideoPlayer);
+        const Rect frame=page_content_frame(ViewMode::VideoPlayer);
+        const Rect hudBand{frame.x+8,std::max(kTopBarH+4,seekRect.y-8),std::max(1,frame.w-16),seekRect.h+34};
+        draw_tactical_polygon(target,hudBand,rgb8(2,15,11),rgb8(21,86,54),7);
 
         long long t=0,l=0;
         bool liveProgramTiming=false;
@@ -5657,7 +5878,7 @@ public:
             seekPercent = std::max(0, std::min(100, static_cast<int>((t * 100 + l / 2) / l)));
         }
 
-        if (sheetSeekLoaded) {
+        if (true) {
             // Pixel-derived from the literal approved SEEKBAR (PROGRESS)
             // component. v0.0.37 preserves the native end caps and knob while
             // stretching only the repeatable track spans to player width.
@@ -5690,7 +5911,7 @@ public:
         const int leftTextX = std::max(4, seekRect.x - seekTimeGap - text_width(currentText));
         const int rightTextX = std::min(W - 4 - text_width(totalText),
                                         seekRect.x + seekRect.w + seekTimeGap);
-        const unsigned long timingText = rgb8(0, 0, 0);
+        const unsigned long timingText = rgb8(206, 224, 213);
         text(target, leftTextX, timeY, currentText, timingText);
         text(target, rightTextX, timeY, totalText, timingText);
 
@@ -5735,35 +5956,42 @@ public:
     }
 
     void draw_sheet_seek_frame(Drawable target, int percent) {
-        // NOUGAT_V59_STABLE_SEARCH_STYLE_SEEK_THUMB
-        // The old 101-frame seek sprite stretched its embedded moving knob.
-        // Depending on position it could bulge, flatten, crescent, or briefly
-        // become normal again. The track is now stable and the thumb is one
-        // independent complete round Nougat control for every playback position.
-        if (seekRect.w <= 0 || seekRect.h <= 0) return;
+        // NOUGAT_V65_APPROVED_MILITARY_SEEK: exact design family approved by owner.
         percent = std::max(0, std::min(100, percent));
+        const int trackH = 8;
+        const int centerY = seekRect.y + seekRect.h / 2;
+        const Rect track{seekRect.x, centerY - trackH / 2, seekRect.w, trackH};
+        const unsigned long border = rgb8(42, 86, 61);
+        const unsigned long unplayed = rgb8(7, 20, 14);
+        const unsigned long played = rgb8(36, 91, 61);
+        const unsigned long playedHi = rgb8(55, 116, 79);
+        const unsigned long knobDark = rgb8(30, 70, 50);
+        const unsigned long knobMid = rgb8(57, 112, 80);
+        const unsigned long knobHi = rgb8(103, 153, 118);
 
-        const unsigned long caramel = rgb8(170,91,24);
-        const unsigned long caramelLight = rgb8(218,156,82);
-        const unsigned long creamTrack = rgb8(247,236,217);
-        const unsigned long trackBorder = rgb8(153,91,35);
+        fill(target, track, unplayed);
+        outline(target, track, border);
 
-        draw_sheet_track(target, seekRect, trackBorder, creamTrack, rgb8(255,246,227));
+        const int knobW = 24;
+        const int knobH = 28;
+        const int travelStart = seekRect.x + knobW / 2;
+        const int travelEnd = std::max(travelStart, seekRect.x + seekRect.w - knobW / 2);
+        const int centerX = travelStart + static_cast<int>((static_cast<long long>(travelEnd - travelStart) * percent) / 100LL);
+        const int filledW = std::max(0, std::min(seekRect.w, centerX - seekRect.x));
+        if (filledW > 0) {
+            Rect filled{seekRect.x, track.y, filledW, track.h};
+            fill(target, filled, played);
+            line(target, filled.x, filled.y + 1, filled.x + filled.w - 1, filled.y + 1, playedHi);
+        }
 
-        const int knobD = 26;
-        const int travelStart = seekRect.x + knobD / 2;
-        const int travelEnd = std::max(travelStart, seekRect.x + seekRect.w - knobD / 2);
-        const int centerX = travelStart +
-            static_cast<int>((static_cast<long long>(travelEnd - travelStart) * percent) / 100LL);
-
-        const int fillRight = std::max(seekRect.x, centerX);
-        const int filledW = std::max(0, std::min(seekRect.w, fillRight - seekRect.x));
-        if (filledW > 0)
-            draw_sheet_track_fill(target, seekRect, filledW, trackBorder, caramel, caramelLight);
-
-        const ViewPalette searchPalette = palette_for(ViewMode::Nougat);
-        draw_sheet_knob(target, centerX, seekRect.y + seekRect.h / 2, knobD,
-                        searchPalette.buttonDark, searchPalette.button, searchPalette.buttonLight);
+        Rect knob{centerX - knobW / 2, centerY - knobH / 2, knobW, knobH};
+        fill(target, knob, knobDark);
+        outline(target, knob, knobHi);
+        Rect inner{knob.x + 3, knob.y + 3, knob.w - 6, knob.h - 6};
+        fill(target, inner, knobMid);
+        line(target, inner.x + 1, inner.y + 1, inner.x + inner.w - 2, inner.y + 1, knobHi);
+        line(target, inner.x + 1, inner.y + 1, inner.x + 1, inner.y + inner.h - 2, knobHi);
+        line(target, inner.x + 1, inner.y + inner.h - 2, inner.x + inner.w - 2, inner.y + inner.h - 2, rgb8(25, 58, 42));
     }
 
     bool load_sheet_progress_frames() {
@@ -5903,41 +6131,49 @@ public:
     }
 
     void draw_volume_bar(Drawable target) {
-        const ViewPalette palette = palette_for(ViewMode::VideoPlayer);
-        const unsigned long caramel = rgb8(170, 91, 24);
-        const unsigned long caramelLight = rgb8(218, 156, 82);
-        const unsigned long creamTrack = rgb8(247, 236, 217);
-        const unsigned long trackBorder = rgb8(153, 91, 35);
-
-        const int y0 = std::max(0, volumeHousingRect.y - 21);
-        draw_quilted_background(target, {0, y0, W, volumeHousingRect.h + 27}, ViewMode::VideoPlayer);
+        const unsigned long panel = rgb8(2, 15, 11);
+        const unsigned long panel2 = rgb8(4, 27, 18);
+        const unsigned long border = rgb8(38, 126, 78);
+        const unsigned long dim = rgb8(16, 48, 32);
+        const unsigned long live = rgb8(57, 137, 88);
+        const unsigned long hi = rgb8(117, 190, 137);
+        const unsigned long ink = rgb8(188, 224, 198);
 
         int vol = mp ? api.get_volume(mp) : volumePercent;
         if (vol < 0) vol = volumePercent;
         vol = std::max(0,std::min(200,vol));
         volumePercent = vol;
 
-        if (sheetVolumeLoaded) {
-            draw_sheet_volume_frame(target, vol);
-        } else {
-            // Safety fallback only. The v0.0.35 repair contract requires the
-            // sheet-derived asset to be installed, so normal builds never use
-            // this procedural path.
-            draw_sheet_volume_housing(target, volumeHousingRect, palette);
-            draw_sheet_track(target, volRect, trackBorder, creamTrack, rgb8(255,246,227));
-            const int filledW = std::max(0,std::min(volRect.w,volRect.w*vol/200));
-            if (filledW > 0) draw_sheet_track_fill(target, volRect, filledW, trackBorder, caramel, caramelLight);
-            const int knobD = 26;
-            const int knobCenterX = std::max(volRect.x + knobD / 2,
-                std::min(volRect.x + volRect.w - knobD / 2, volRect.x + filledW));
-            draw_sheet_knob(target, knobCenterX, volRect.y + volRect.h / 2, knobD,
-                            trackBorder, rgb8(225,188,132), rgb8(249,222,177));
-            const unsigned long icon = rgb8(119, 63, 22);
-            draw_speaker_icon(target, volumeHousingRect.x + 14, volumeHousingRect.y + 14, false, icon);
-            draw_speaker_icon(target, volumeHousingRect.x + volumeHousingRect.w - 34, volumeHousingRect.y + 14, true, icon);
+        draw_tactical_polygon(target, volumeHousingRect, panel, border, 8);
+        Rect inner{volumeHousingRect.x+4,volumeHousingRect.y+4,
+                   std::max(1,volumeHousingRect.w-8),std::max(1,volumeHousingRect.h-8)};
+        draw_tactical_polygon(target, inner, panel2, rgb8(14,71,44), 5);
+
+        draw_speaker_icon(target, volumeHousingRect.x+16, volumeHousingRect.y+14, false, ink);
+        draw_speaker_icon(target, volumeHousingRect.x+volumeHousingRect.w-37, volumeHousingRect.y+14, true, ink);
+
+        fill(target, volRect, rgb8(1,10,7));
+        outline(target, volRect, border);
+        const int segments = 20;
+        const int gap = 2;
+        const int segW = std::max(2, (volRect.w - gap*(segments+1)) / segments);
+        const int lit = std::max(0,std::min(segments,(vol*segments + 199)/200));
+        int sx = volRect.x + gap;
+        for (int i=0;i<segments;++i) {
+            const Rect seg{sx,volRect.y+4,segW,std::max(3,volRect.h-8)};
+            fill(target,seg,i<lit?live:dim);
+            if (i<lit) line(target,seg.x,seg.y,seg.x+seg.w-1,seg.y,hi);
+            sx += segW + gap;
         }
-        text(target, volumeHousingRect.x + volumeHousingRect.w + 10, volumeHousingRect.y + 27,
-             std::to_string(vol) + "%", rgb8(0, 0, 0));
+        const int knobX = volRect.x + static_cast<int>((static_cast<long long>(volRect.w-12) * vol) / 200LL);
+        const Rect knob{knobX,volRect.y-5,12,volRect.h+10};
+        fill(target,knob,rgb8(32,78,55));
+        outline(target,knob,hi);
+        line(target,knob.x+2,knob.y+2,knob.x+knob.w-3,knob.y+2,rgb8(151,216,168));
+
+        const std::string pct=std::to_string(vol)+"%";
+        text(target, volumeHousingRect.x+volumeHousingRect.w-text_width(pct)-48,
+             volumeHousingRect.y+29,pct,ink);
     }
 
     bool episode_navigation_available(int delta) const {
@@ -5994,33 +6230,74 @@ public:
         if (!fullscreen) redraw();
     }
 
+    void draw_player_transport_button(Drawable target, const Rect& r, const std::string& label, bool enabled=true) {
+        if (r.w<=2 || r.h<=2) return;
+        const bool hover = target==win && r.contains(pointerWindowX,pointerWindowY) && enabled;
+        const unsigned long outer = enabled ? (hover?rgb8(114,205,139):rgb8(42,126,78)) : rgb8(24,55,39);
+        const unsigned long inner = enabled ? (hover?rgb8(29,73,49):rgb8(5,29,19)) : rgb8(8,22,16);
+        const unsigned long ink = enabled ? (hover?rgb8(225,246,230):rgb8(174,218,186)) : rgb8(74,102,84);
+        draw_tactical_polygon(target,r,inner,outer,7);
+        Rect inset{r.x+4,r.y+4,std::max(1,r.w-8),std::max(1,r.h-8)};
+        outline_tactical_polygon(target,inset,enabled?rgb8(18,77,48):rgb8(15,38,27),4);
+        line(target,r.x+10,r.y+2,r.x+r.w/2,r.y+2,enabled?rgb8(62,148,91):rgb8(28,57,41));
+        const std::string clipped=head_to_width(label,r.w-10);
+        text(target,r.x+std::max(5,(r.w-text_width(clipped))/2),r.y+r.h/2+5,clipped,ink);
+    }
+
+    void draw_player_title_hud(Drawable target) {
+        if (!playerActivityOverlayVisible) return;
+        const std::string identity=current_media_identity();
+        if (identity.empty()) return;
+        const Rect frame=page_content_frame(ViewMode::VideoPlayer);
+        const int y=std::max(kTopBarH+8,seekRect.y-34);
+        const int w=std::min(frame.w-28,std::max(240,text_width(identity)+34));
+        Rect hud{frame.x+14,y,std::max(120,w),24};
+        // Intentionally no opaque fill.  Only a very light smoked-green rail is
+        // drawn so the video remains visually dominant beneath the title HUD.
+        outline_tactical_polygon(target,hud,rgb8(47,139,84),6);
+        line(target,hud.x+8,hud.y+3,hud.x+std::min(hud.w-10,80),hud.y+3,rgb8(93,178,112));
+        text(target,hud.x+10,hud.y+17,head_to_width(identity,hud.w-20),rgb8(180,228,193));
+    }
+
+    void show_player_settings_menu() {
+        std::vector<MenuItem> items;
+        items.push_back({"Open File", MenuAction::OpenFile, 0});
+        items.push_back({"Stop Playback", MenuAction::StopMedia, 0});
+        items.push_back({"Audio", MenuAction::NoAction, 0});
+        const std::vector<TrackChoice> ats=audio_tracks();
+        const int ca=current_audio_track();
+        for (const TrackChoice& t:ats) items.push_back({(t.id==ca?"* ":"  ")+t.name,MenuAction::AudioTrack,t.id});
+        items.push_back({subtitlesOn?"Subtitles Off":"Subtitles On",MenuAction::SubtitleToggle,0});
+        items.push_back({"Load Subtitle File",MenuAction::SubtitleLoadFile,0});
+        items.push_back({"Open Subtitle Folder",MenuAction::SubtitleLoadFolder,0});
+        items.push_back({"Delay -0.5s (earlier)",MenuAction::SubtitleDelayMinus,0});
+        items.push_back({"Delay +0.5s (later)",MenuAction::SubtitleDelayPlus,0});
+        items.push_back({"Reset Subtitle Delay",MenuAction::SubtitleDelayReset,0});
+        show_menu(win,settingsBtn.x,std::max(kTopBarH,settingsBtn.y-contextMenuH*std::min<int>(9,items.size())),items);
+    }
+
     void draw_controls(Drawable target) {
         draw_top_bar(target);
         if (currentView != ViewMode::VideoPlayer) return;
-        // v0.0.29 player surround: the Video Player page background itself
-        // continues uniformly around all four sides of the video child.  Do not
-        // draw a separate partial brown rail/matte around only part of the frame.
-        draw_quilted_background(target, {0, kTopBarH, W, std::max(1, H - kTopBarH)}, ViewMode::VideoPlayer);
-        button_on(target, openBtn, "Open");
-        button_on(target, rewindBtn, "Rewind 10s");
-        if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(-1)) ||
-            (currentMediaIsWorldTv && world_tv_station_navigation_available(-1)) ||
-            (!currentMediaIsLiveTv && !currentMediaIsWorldTv && episode_navigation_available(-1))) button_on(target, previousBtn, "Previous");
-        else draw_disabled_player_button(target, previousBtn, "Previous");
-        button_on(target, playBtn, "Play/Pause");
-        if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(1)) ||
-            (currentMediaIsWorldTv && world_tv_station_navigation_available(1)) ||
-            (!currentMediaIsLiveTv && !currentMediaIsWorldTv && episode_navigation_available(1))) button_on(target, nextBtn, "Next");
-        else draw_disabled_player_button(target, nextBtn, "Next");
-        button_on(target, forwardBtn, "Fast Forward 10s");
-        button_on(target, stopBtn, "Stop");
-        button_on(target, fsBtn, "Fullscreen");
-        const int titleStripY = std::max(kTopBarH + 8, seekRect.y - 30);
-        draw_quilted_background(target, {10, titleStripY, std::max(1, W - 20), 20}, ViewMode::VideoPlayer);
-        if (playerActivityOverlayVisible) {
-            const std::string identity = current_media_identity();
-            if (!identity.empty()) text(target, 16, titleStripY + 15, head_to_width(identity, W - 32), palette_for(ViewMode::VideoPlayer).text);
-        }
+        const Rect frame=page_content_frame(ViewMode::VideoPlayer);
+        fill(target,{frame.x,frame.y,frame.w,frame.h},rgb8(1,10,7));
+        draw_player_transport_button(target,previousBtn,"PREV EP",
+            (currentMediaIsLiveTv&&live_tv_channel_navigation_available(-1)) ||
+            (currentMediaIsWorldTv&&world_tv_station_navigation_available(-1)) ||
+            (!currentMediaIsLiveTv&&!currentMediaIsWorldTv&&episode_navigation_available(-1)));
+        update_chapter_marks(false);
+        draw_player_transport_button(target,previousChapterBtn,"PREV CH",!chapterMarksMs.empty());
+        draw_player_transport_button(target,rewindBtn,"RW 10",mp!=nullptr);
+        draw_player_transport_button(target,playBtn,"PLAY / PAUSE",mp!=nullptr);
+        draw_player_transport_button(target,forwardBtn,"FF 10",mp!=nullptr);
+        draw_player_transport_button(target,nextChapterBtn,"NEXT CH",!chapterMarksMs.empty());
+        draw_player_transport_button(target,nextBtn,"NEXT EP",
+            (currentMediaIsLiveTv&&live_tv_channel_navigation_available(1)) ||
+            (currentMediaIsWorldTv&&world_tv_station_navigation_available(1)) ||
+            (!currentMediaIsLiveTv&&!currentMediaIsWorldTv&&episode_navigation_available(1)));
+        draw_player_transport_button(target,fsBtn,"FULLSCREEN",true);
+        draw_player_transport_button(target,settingsBtn,"SETTINGS",true);
+        draw_player_title_hud(target);
         draw_seek_time_row(target);
         draw_volume_bar(target);
     }
@@ -6184,42 +6461,38 @@ public:
 
     void draw_player_controls_only() {
         if (fullscreen || currentView != ViewMode::VideoPlayer) return;
-        // v0.0.36 owner-visible repair: seek/time, VOLUME, percentage, and the
-        // entire transport row are one repaint unit. The older independent
-        // partial rectangles alternately clipped the top of the 47px sheet
-        // VOLUME housing or the time text as pointer/drag updates arrived.
-        // Keep a single stable region from above the seek row through the
-        // bottom buttons and always remove any stale page clip before drawing.
-        const int titleStripY = std::max(kTopBarH + 8, seekRect.y - 30);
-        const int y0 = std::max(kTopBarH, titleStripY);
-        const int h = std::max(0, H - y0);
-        if (h <= 0) return;
-        XSetClipMask(d, gc, None);
-        Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
-        draw_quilted_background(buffer, {0, y0, W, h}, ViewMode::VideoPlayer);
-        if (playerActivityOverlayVisible) {
-            const std::string identity = current_media_identity();
-            if (!identity.empty()) text(buffer, 16, titleStripY + 15, head_to_width(identity, W - 32), palette_for(ViewMode::VideoPlayer).text);
-        }
+        const Rect frame=page_content_frame(ViewMode::VideoPlayer);
+        const int y0=std::max(kTopBarH,seekRect.y-38);
+        const int h=std::max(0,H-y0);
+        if(h<=0) return;
+        XSetClipMask(d,gc,None);
+        Pixmap buffer=XCreatePixmap(d,win,W,H,DefaultDepth(d,screen));
+        fill(buffer,{0,y0,W,h},rgb8(1,10,7));
+        draw_player_title_hud(buffer);
         draw_seek_time_row(buffer);
         draw_volume_bar(buffer);
-        button_on(buffer, openBtn, "Open");
-        button_on(buffer, rewindBtn, "Rewind 10s");
-        if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(-1)) ||
-            (!currentMediaIsLiveTv && episode_navigation_available(-1))) button_on(buffer, previousBtn, "Previous");
-        else draw_disabled_player_button(buffer, previousBtn, "Previous");
-        button_on(buffer, playBtn, "Play/Pause");
-        if ((currentMediaIsLiveTv && live_tv_channel_navigation_available(1)) ||
-            (!currentMediaIsLiveTv && episode_navigation_available(1))) button_on(buffer, nextBtn, "Next");
-        else draw_disabled_player_button(buffer, nextBtn, "Next");
-        button_on(buffer, forwardBtn, "Fast Forward 10s");
-        button_on(buffer, stopBtn, "Stop");
-        button_on(buffer, fsBtn, "Fullscreen");
-        draw_page_frame(buffer, ViewMode::VideoPlayer);
-        XSetClipMask(d, gc, None);
-        XCopyArea(d, buffer, win, gc, 0, y0, W, h, 0, y0);
-        XFreePixmap(d, buffer);
+        draw_player_transport_button(buffer,previousBtn,"PREV EP",
+            (currentMediaIsLiveTv&&live_tv_channel_navigation_available(-1)) ||
+            (currentMediaIsWorldTv&&world_tv_station_navigation_available(-1)) ||
+            (!currentMediaIsLiveTv&&!currentMediaIsWorldTv&&episode_navigation_available(-1)));
+        update_chapter_marks(false);
+        draw_player_transport_button(buffer,previousChapterBtn,"PREV CH",!chapterMarksMs.empty());
+        draw_player_transport_button(buffer,rewindBtn,"RW 10",mp!=nullptr);
+        draw_player_transport_button(buffer,playBtn,"PLAY / PAUSE",mp!=nullptr);
+        draw_player_transport_button(buffer,forwardBtn,"FF 10",mp!=nullptr);
+        draw_player_transport_button(buffer,nextChapterBtn,"NEXT CH",!chapterMarksMs.empty());
+        draw_player_transport_button(buffer,nextBtn,"NEXT EP",
+            (currentMediaIsLiveTv&&live_tv_channel_navigation_available(1)) ||
+            (currentMediaIsWorldTv&&world_tv_station_navigation_available(1)) ||
+            (!currentMediaIsLiveTv&&!currentMediaIsWorldTv&&episode_navigation_available(1)));
+        draw_player_transport_button(buffer,fsBtn,"FULLSCREEN",true);
+        draw_player_transport_button(buffer,settingsBtn,"SETTINGS",true);
+        draw_page_frame(buffer,ViewMode::VideoPlayer);
+        XSetClipMask(d,gc,None);
+        XCopyArea(d,buffer,win,gc,0,y0,W,h,0,y0);
+        XFreePixmap(d,buffer);
         XFlush(d);
+        (void)frame;
     }
 
     void draw_seek_time_only() {
@@ -6369,9 +6642,9 @@ public:
         button_on(target,ytdlpDirectWatchBtn,"Direct Watch");
         button_on(target,ytdlpWebpageBtn,"Open Webpage");
         button_on(target,ytdlpClearBtn,"Clear Log");
-        text(target,28,246,head_to_width("Status: "+ytdlpStatus,W-56),palette.text);
+        text(target,kPageLeft,246,head_to_width("Status: "+ytdlpStatus,W-kPageLeft-kPageRightPad),palette.text);
 
-        Rect logBox={28,264,std::max(240,W-56),std::max(100,H-289)};
+        Rect logBox={kPageLeft,264,std::max(240,W-kPageLeft-kPageRightPad),std::max(100,H-289)};
         // Match Discover's clean panel silhouette: the provider palette remains in
         // the sheet-style panel/bottom bevel, but no vertical accent strip climbs
         // the left edge. This applies uniformly to YouTube, Vimeo, Rumble, RuTube, VK and OK.
@@ -6463,46 +6736,46 @@ public:
         auto_select_single_video();
         P2PStatus st=p2p.status();
         int y=310;
-        text(target,28,y,"Status: "+p2pUiStatus,dark); y+=20;
+        text(target,kPageLeft,y,"Status: "+p2pUiStatus,dark); y+=20;
         if (st.active) {
             int pct=std::max(0,std::min(100,(int)(st.progress*100.0f + 0.5f)));
-            text(target,28,y,"Transfer: "+(st.name.empty()?std::string("fetching metadata"):st.name),dark); y+=20;
-            text(target,28,y,"State: "+st.state+"   Progress: "+std::to_string(pct)+"%   Downloaded: "+format_bytes(st.downloaded),dark); y+=20;
-            const Rect progressTrack{28,y-10,std::max(180,W-56),12};
+            text(target,kPageLeft,y,"Transfer: "+(st.name.empty()?std::string("fetching metadata"):st.name),dark); y+=20;
+            text(target,kPageLeft,y,"State: "+st.state+"   Progress: "+std::to_string(pct)+"%   Downloaded: "+format_bytes(st.downloaded),dark); y+=20;
+            const Rect progressTrack{kPageLeft,y-10,std::max(180,W-kPageLeft-kPageRightPad),12};
             draw_sheet_track(target,progressTrack,palette.border,palette.field,palette.buttonLight);
             draw_sheet_track_fill(target,progressTrack,progressTrack.w*pct/100,palette.buttonDark,palette.accent,palette.buttonLight);
             y+=18;
-            text(target,28,y,"Down: "+format_bytes(st.download_rate)+"/s   Up: "+format_bytes(st.upload_rate)+"/s   Connected peers: "+std::to_string(st.peers)+"   Remote seeds: "+std::to_string(st.seeds),dark); y+=20;
+            text(target,kPageLeft,y,"Down: "+format_bytes(st.download_rate)+"/s   Up: "+format_bytes(st.upload_rate)+"/s   Connected peers: "+std::to_string(st.peers)+"   Remote seeds: "+std::to_string(st.seeds),dark); y+=20;
             std::ostringstream plusLine; plusLine << std::fixed << std::setprecision(2) << st.share_ratio;
-            text(target,28,y,"P2P Plus: ratio "+plusLine.str()+"   trackers "+std::to_string(st.tracker_count)+"   queue "+std::to_string(st.queue_position)+
+            text(target,kPageLeft,y,"P2P Plus: ratio "+plusLine.str()+"   trackers "+std::to_string(st.tracker_count)+"   queue "+std::to_string(st.queue_position)+
                  "   limits D/U "+(st.download_limit>0?format_bytes(st.download_limit)+"/s":"∞")+" / "+(st.upload_limit>0?format_bytes(st.upload_limit)+"/s":"∞"),palette.muted); y+=20;
             const std::vector<P2PTrackerInfo> trackerRows=p2p.trackers();
             if (!trackerRows.empty()) {
                 std::string trackerText="Trackers: ";
                 const std::size_t show=std::min<std::size_t>(2,trackerRows.size());
                 for(std::size_t i=0;i<show;++i) { if(i) trackerText+=" | "; trackerText+=trackerRows[i].url; if(!trackerRows[i].message.empty()) trackerText+=" ("+trackerRows[i].message+")"; }
-                text(target,28,y,head_to_width(trackerText,W-56),palette.muted); y+=20;
+                text(target,kPageLeft,y,head_to_width(trackerText,W-kPageLeft-kPageRightPad),palette.muted); y+=20;
             }
             if (st.seeding) {
                 const std::string seedState = st.paused ? "Paused" : (st.upload_rate>0 ? "Uploading" : "Available, idle");
-                text(target,28,y,"You: Seed ✓   Seeding: "+seedState+"   Known peers: "+std::to_string(st.known_peers)+"   Known remote seeds: "+std::to_string(st.known_seeds),dark); y+=20;
-                text(target,28,y,"Swarm availability: your complete local copy = 1.00   Announce: "+std::string(st.announcing_trackers?"tracker ":"")+(st.announcing_dht?"DHT ":"")+(st.announcing_lsd?"LAN":""),palette.muted); y+=20;
+                text(target,kPageLeft,y,"You: Seed ✓   Seeding: "+seedState+"   Known peers: "+std::to_string(st.known_peers)+"   Known remote seeds: "+std::to_string(st.known_seeds),dark); y+=20;
+                text(target,kPageLeft,y,"Swarm availability: your complete local copy = 1.00   Announce: "+std::string(st.announcing_trackers?"tracker ":"")+(st.announcing_dht?"DHT ":"")+(st.announcing_lsd?"LAN":""),palette.muted); y+=20;
             } else {
                 std::ostringstream availability;
                 availability << std::fixed << std::setprecision(2) << std::max(0.0f,st.swarm_availability);
-                text(target,28,y,"Availability: "+availability.str()+"   Known peers: "+std::to_string(st.known_peers)+"   Known seeds: "+std::to_string(st.known_seeds),palette.muted); y+=20;
+                text(target,kPageLeft,y,"Availability: "+availability.str()+"   Known peers: "+std::to_string(st.known_peers)+"   Known seeds: "+std::to_string(st.known_seeds),palette.muted); y+=20;
             }
             if (st.selected_size > 0) {
                 const int selectedPct = std::max(0,std::min(100,(int)(st.selected_progress*100.0f + 0.5f)));
-                text(target,28,y,"Selected media: "+std::to_string(selectedPct)+"%   Start buffer: "+format_bytes((std::int64_t)st.selected_buffered_bytes),dark); y+=20;
+                text(target,kPageLeft,y,"Selected media: "+std::to_string(selectedPct)+"%   Start buffer: "+format_bytes((std::int64_t)st.selected_buffered_bytes),dark); y+=20;
             } else if (!st.metadata_ready) {
-                text(target,28,y,"Fetching metadata and waiting for the file list...",palette.muted); y+=20;
+                text(target,kPageLeft,y,"Fetching metadata and waiting for the file list...",palette.muted); y+=20;
             }
-            if (!st.error.empty()) { text(target,28,y,"P2P: "+st.error,col(0x9900,0,0)); y+=20; }
+            if (!st.error.empty()) { text(target,kPageLeft,y,"P2P: "+st.error,col(0x9900,0,0)); y+=20; }
         }
         p2pFileRows.clear();
         std::vector<P2PFileInfo> fs=p2p.files();
-        Rect fileBox={28,y,std::max(240,W-56),std::max(80,H-y-24)};
+        Rect fileBox={kPageLeft,y,std::max(240,W-kPageLeft-kPageRightPad),std::max(80,H-y-24)};
         if (embeddedInSearch) draw_nougat_panel(target,fileBox);
         else { fill(target,fileBox,palette.panel); outline(target,fileBox,palette.border); }
         text(target,fileBox.x+8,fileBox.y+19,"P2P files",dark);
@@ -8320,8 +8593,10 @@ public:
             busy = homeState->busy;
         }
 
+        // Continue Watching is a locked Home element. Never silently delete the
+        // shelf from the layout while data is loading or temporarily empty.
+        section_text(target, viewport_left + 8, y + 20, "CONTINUE WATCHING", palette.text);
         if (!continues.empty()) {
-            section_text(target, viewport_left + 8, y + 20, "CONTINUE WATCHING", palette.text);
             y += 34;
             // Every Continue Watching item uses one fixed card geometry. Source
             // media type/artwork can never make one card taller or shorter than its peers.
@@ -8393,6 +8668,9 @@ public:
             homeContinueMaxScrollX = 0;
             homeContinueScrollTrack = {0,0,0,0};
             homeContinueScrollThumb = {0,0,0,0};
+            y += 34;
+            metadata_text(target,viewport_left+8,y+18,busy?"Loading Continue Watching...":"No unfinished items yet.",palette.muted);
+            y += 38;
         }
 
         section_text(target, viewport_left + 8, y + 20, "LOCAL", palette.text);
@@ -9117,7 +9395,7 @@ public:
         const std::string fullTitle=library_display_title(item);
         if (item.technical_details.empty() && text_width(fullTitle)<=360) return;
         const ViewPalette palette=palette_for(ViewMode::Library);
-        const int popupW=std::min(440,std::max(300,W-56));
+        const int popupW=std::min(440,std::max(300,W-kPageLeft-kPageRightPad));
         const int popupH=78;
         int px=pointerWindowX+18;
         int py=pointerWindowY+18;
@@ -11307,6 +11585,13 @@ public:
                             active?SheetControlState::Hover:SheetControlState::Normal);
         }
 
+        if (radioServiceScrollTrack.w > 0) {
+            fill(target, radioServiceScrollTrack, rgb8(7,20,14));
+            outline(target, radioServiceScrollTrack, rgb8(45,92,64));
+            fill(target, radioServiceScrollThumb, rgb8(59,121,83));
+            outline(target, radioServiceScrollThumb, rgb8(102,156,119));
+        }
+
         draw_primary_panel(target,radioListBox,palette);
         const std::string radioHeader = (radioPanel==RadioPanel::Local && !radioSelectedService.empty())
             ? radioSelectedService : std::string(radio_panel_name(radioPanel));
@@ -11352,11 +11637,11 @@ public:
         text(target,radioFrequencyRect.x+12,radioFrequencyRect.y+25,head_to_width(freq,radioFrequencyRect.w-20),palette.text);
         button_on(target,radioTuneDownBtn,"-");
         button_on(target,radioTuneUpBtn,"+");
-        button_on_state(target,radioListenBtn,state.receiving?"LISTENING":"LISTEN",state.receiving?SheetControlState::Hover:SheetControlState::Normal);
+        command_button_state(target,radioListenBtn,state.receiving?"LISTENING":"LISTEN",state.receiving?SheetControlState::Hover:SheetControlState::Normal);
         button_on(target,radioStopBtn,"STOP");
-        button_on_state(target,radioScanBtn,state.scanning?"SCANNING":"SCAN",state.scanning?SheetControlState::Hover:SheetControlState::Normal);
+        command_button_state(target,radioScanBtn,state.scanning?"SCANNING":"SCAN",state.scanning?SheetControlState::Hover:SheetControlState::Normal);
         button_on(target,radioFavoriteBtn,"FAVORITE");
-        button_on_state(target,radioRecordBtn,state.recording?"RECORDING":"RECORD",state.recording?SheetControlState::Hover:SheetControlState::Normal);
+        command_button_state(target,radioRecordBtn,state.recording?"RECORDING":"RECORD",state.recording?SheetControlState::Hover:SheetControlState::Normal);
         button_on(target,radioModeBtn,reddmedia::RadioBackend::modulation_name(state.modulation));
         char stepLabel[64];
         if(state.tuning_step_hz>=1000.0) snprintf(stepLabel,sizeof(stepLabel),"STEP %.1fk",state.tuning_step_hz/1000.0);
@@ -11422,7 +11707,7 @@ public:
             const std::string& label=entry.second;
             if (label=="Local" || label=="Internet" || label=="Emergency" || label=="Weather" ||
                 label=="Shortwave" || label=="ISS / Sat" || label=="Favorites" ||
-                label=="Recordings" || label=="TV Antenna Scan") break;
+                label=="Recordings") break;
             radioFrequencyFocused=false;
             radioSelectedService=label;
             if (label=="Cellular Lab") {
@@ -13335,7 +13620,7 @@ public:
     void draw_security_screen(Drawable target) {
         const ViewPalette palette=palette_for(ViewMode::Nougat);
         const unsigned long ink=palette.text;
-        text(target,28,94,"VIRUS SCAN",ink);
+        text(target,kPageLeft,94,"VIRUS SCAN",ink);
         button_on(target,securityScanFileBtn,"Scan File");
         button_on(target,securityScanFolderBtn,"Scan Folder");
         button_on(target,securityScanMoviesBtn,"Scan Movies");
@@ -13359,14 +13644,14 @@ public:
         }
         const unsigned long warningInk=(verdict=="THREAT DETECTED")?rgb8(155,25,25):
             ((verdict=="SUSPICIOUS")?rgb8(135,78,20):((verdict=="ANALYSIS INCOMPLETE")?rgb8(151,112,42):ink));
-        text(target,28,188,head_to_width(std::string("Status: ")+status,W-56),warningInk);
+        text(target,kPageLeft,188,head_to_width(std::string("Status: ")+status,W-kPageLeft-kPageRightPad),warningInk);
         if (busy) {
             std::ostringstream progress;
             progress << "Scanning " << filesScanned;
             if (totalFiles > 0) progress << "/" << totalFiles;
             progress << " files | Threats " << detections << " | Suspicious " << suspicious << " | " << format_time(elapsedMs);
             if (!currentPath.empty()) progress << " | " << currentPath;
-            text(target,28,208,head_to_width(progress.str(),W-56),palette.muted);
+            text(target,kPageLeft,208,head_to_width(progress.str(),W-kPageLeft-kPageRightPad),palette.muted);
         }
         draw_nougat_panel(target,securityResultsBox);
         std::vector<std::string> lines;
@@ -13585,7 +13870,7 @@ public:
                 {"Vimm's Lair","https://vimm.net/",nullptr},
                 {"Anna's Archive","https://annas-archive.org/",nullptr}
             };
-            const Rect archiveBox={28,90,std::max(240,W-56),std::max(120,H-114)};
+            const Rect archiveBox={kPageLeft,90,std::max(240,W-kPageLeft-kPageRightPad),std::max(120,H-114)};
             draw_nougat_panel(target,archiveBox);
             text(target,archiveBox.x+12,archiveBox.y+22,"ARCHIVE DIRECTORY",searchPalette.text);
             text(target,archiveBox.x+170,archiveBox.y+22,
@@ -13632,7 +13917,7 @@ public:
             return;
         }
         if (nougatPanel == NougatPanel::P2P && nougatNetworkAdvanced) {
-            if (!node.empty()) text(target,28,136,"Node ID: "+node,searchPalette.muted);
+            if (!node.empty()) text(target,kPageLeft,136,"Node ID: "+node,searchPalette.muted);
             draw_nougat_input(target,nougatPeerEntryRect,nougatPeerEntry,NougatInputFocus::Peer);
             // Clip only the overflowable Network action strip. This prevents a
             // scrolled button from drawing back across the peer-entry field.
@@ -13665,7 +13950,7 @@ public:
             draw_nougat_input(target,nougatSearchRect,nougatSearchQuery,NougatInputFocus::Search);
             nougat_button(target,nougatRawBtn,"RAW",nougatRaw);
             nougat_button(target,nougatSearchBtn,search_busy?"SEARCHING":"SEARCH");
-            text(target,28,160,status,searchPalette.text);
+            text(target,kPageLeft,160,status,searchPalette.text);
             draw_nougat_panel(target,nougatResultsBox);
             nougatResultHitboxes.clear();
             std::vector<reddmedia::NougatSearchResult> results;
@@ -13700,7 +13985,7 @@ public:
             draw_visible_vertical_scrollbar(target,nougatResultsBox,nougatResultScroll,static_cast<int>(results.size()),visible,searchPalette);
             return;
         }
-        text(target,28,91,"Seed URL",searchPalette.text);
+        text(target,kPageLeft,91,"Seed URL",searchPalette.text);
         draw_nougat_input(target,nougatCrawlSeedRect,nougatCrawlSeed,NougatInputFocus::CrawlSeed);
         nougat_button(target,nougatSameDomainBtn,"Stay on domain",nougatSameDomain);
         nougat_button(target,nougatStartCrawlBtn,crawl_busy?"CRAWLING":"START CRAWL");
@@ -13735,7 +14020,7 @@ public:
             y+=18;
         }
         draw_visible_vertical_scrollbar(target,nougatCrawlLogBox,nougatCrawlScroll,static_cast<int>(lines.size()),visible,searchPalette);
-        text(target,28,174,status,searchPalette.text);
+        text(target,kPageLeft,174,status,searchPalette.text);
     }
 
     void poll_nougat_workers() {
@@ -14953,8 +15238,8 @@ public:
         }
         std::string status; bool busy=false; std::vector<GameEntry> games;
         { std::lock_guard<std::mutex> lock(gameState->mutex); status=gameState->status; busy=gameState->busy; games=gameState->games; }
-        text(target,28+kCompactButtonW*2+14,112,
-             head_to_width(std::string("Status: ")+(busy?"Scanning - ":"")+status,std::max(80,W-(28+kCompactButtonW*4+60))),palette.text);
+        text(target,kPageLeft+kCompactButtonW*2+14,112,
+             head_to_width(std::string("Status: ")+(busy?"Scanning - ":"")+status,std::max(80,W-(kPageLeft+kCompactButtonW*4+60))),palette.text);
         draw_primary_panel(target,gamesListBox,palette);
         gameRows.clear();
 
@@ -15308,12 +15593,12 @@ public:
         section_text(target, 28, kTopBarH*2+22, "STUDIO", palette.text);
         text(target, 28, kTopBarH*2+44, "Nougat creation, production, and media-processing workspace.", palette.muted);
 
-        studioToolsTab={28,kTopBarH*2+56,126,34};
+        studioToolsTab={kPageLeft,kTopBarH*2+56,126,34};
         studioDroneTab={164,kTopBarH*2+56,126,34};
         button_on(target,studioToolsTab,"Tools");
         button_on(target,studioDroneTab,"Drone"); // NOUGAT_V60_STUDIO_DRONE_TAB_BUTTON
 
-        Rect panel{28,kTopBarH*2+98,std::max(240,W-56),std::max(300,H-(kTopBarH*2+128))};
+        Rect panel{kPageLeft,kTopBarH*2+98,std::max(240,W-kPageLeft-kPageRightPad),std::max(300,H-(kTopBarH*2+128))};
         draw_primary_panel(target,panel,palette);
 
         if (studio_browser_active()) {
@@ -15776,20 +16061,17 @@ public:
     // NOUGAT_V64_NETWORK_SATELLITE connected tactical segments.
     void connected_segment_tab(Drawable target, const Rect& r, const std::string& label,
                                bool selected, bool first, bool last) {
-        const ViewPalette p = palette_for(currentView == ViewMode::Network ? ViewMode::Network : ViewMode::Nougat);
-        const int slash = 9;
-        XPoint pts[4];
-        pts[0] = {static_cast<short>(first ? r.x : r.x + slash), static_cast<short>(r.y)};
-        pts[1] = {static_cast<short>(r.x + r.w), static_cast<short>(r.y)};
-        pts[2] = {static_cast<short>(last ? r.x + r.w : r.x + r.w - slash), static_cast<short>(r.y + r.h)};
-        pts[3] = {static_cast<short>(r.x), static_cast<short>(r.y + r.h)};
-        XSetForeground(d, gc, selected ? p.selection : p.button);
-        XFillPolygon(d, target, gc, pts, 4, Convex, CoordModeOrigin);
-        XSetForeground(d, gc, p.border);
-        XDrawLines(d, target, gc, pts, 4, CoordModeOrigin);
-        XDrawLine(d, target, gc, pts[3].x, pts[3].y, pts[0].x, pts[0].y);
-        const int tx = r.x + std::max(6, (r.w - text_width(label)) / 2);
-        text(target, tx, r.y + r.h / 2 + 5, label, p.text);
+        (void)first; (void)last;
+        const bool hover=target==win&&r.contains(pointerWindowX,pointerWindowY);
+        const unsigned long outer=selected?rgb8(105,205,132):(hover?rgb8(64,153,93):rgb8(27,94,58));
+        const unsigned long face=selected?rgb8(10,55,35):rgb8(2,20,14);
+        draw_tactical_polygon(target,r,face,outer,7);
+        Rect inner{r.x+4,r.y+4,std::max(1,r.w-8),std::max(1,r.h-8)};
+        outline_tactical_polygon(target,inner,selected?rgb8(51,143,84):rgb8(12,58,37),4);
+        line(target,r.x+10,r.y+2,r.x+std::max(11,r.w/2),r.y+2,selected?rgb8(122,222,146):rgb8(37,112,68));
+        const unsigned long ink=selected?rgb8(211,244,219):(hover?rgb8(187,228,198):rgb8(137,184,150));
+        const int tx=r.x+std::max(6,(r.w-text_width(label))/2);
+        text(target,tx,r.y+r.h/2+5,head_to_width(label,r.w-12),ink);
     }
 
     void refresh_network_center() {
@@ -15869,10 +16151,12 @@ public:
             button_on(target, networkRefreshBtn, "Refresh");
         }
 
-        fill(target, networkContentBox, p.panel);
-        outline(target, networkContentBox, p.border);
+        draw_tactical_polygon(target,networkContentBox,rgb8(1,15,10),rgb8(29,111,67),10);
+        Rect netInner{networkContentBox.x+5,networkContentBox.y+5,std::max(1,networkContentBox.w-10),std::max(1,networkContentBox.h-10)};
+        outline_tactical_polygon(target,netInner,rgb8(8,51,32),6);
         const std::string heading = networkPanel == NetworkPanel::Satellite ? "SATELLITE" : "NETWORK CENTER";
-        text(target, networkContentBox.x + 14, networkContentBox.y + 20, heading, p.selection);
+        text(target, networkContentBox.x + 14, networkContentBox.y + 22, heading, rgb8(158,227,179));
+        line(target,networkContentBox.x+14,networkContentBox.y+29,networkContentBox.x+networkContentBox.w-15,networkContentBox.y+29,rgb8(18,75,46));
         draw_network_lines(target,
                            networkPanel == NetworkPanel::Satellite ? satellite_lines_for_panel() : network_lines_for_panel(),
                            networkContentBox.y + 46);
@@ -15919,6 +16203,13 @@ public:
         button_on(target, debugExportJsonBtn, "Export JSON");
         button_on(target, debugBundleBtn, "Support Bundle");
         button_on(target, securitySystemBtn, systemVirusScanMode ? "Back to System" : "Virus Scan");
+        // NOUGAT_V65_SYSTEM_SCROLL_DRAW
+        if (!systemVirusScanMode && systemCommandMaxScrollX > 0) {
+            fill(target, systemCommandScrollTrack, rgb8(3,20,14));
+            outline(target, systemCommandScrollTrack, rgb8(29,102,64));
+            fill(target, systemCommandScrollThumb, rgb8(47,112,76));
+            outline(target, systemCommandScrollThumb, rgb8(97,158,116));
+        }
         if (systemVirusScanMode) {
             draw_security_screen(target);
             return;
@@ -15936,7 +16227,7 @@ public:
             busy = debugState->busy;
         }
         text(target, 28, 116, head_to_width(
-            std::string("Status: ") + (busy ? "Working - " : "") + status, W - 56), dark);
+            std::string("Status: ") + (busy ? "Working - " : "") + status, W - kPageLeft - kPageRightPad), dark);
         draw_primary_panel(target, debugListBox, palette);
         debugIssueRows.clear();
         if (!has_report) {
@@ -16229,7 +16520,7 @@ public:
                  "Select services you use. Availability still shows every verified listing.",
                  palette.muted);
             const int servicesBoxY = servicesHelpY + 14;
-            const Rect services_box = {28, servicesBoxY, std::max(240, W - 56),
+            const Rect services_box = {kPageLeft, servicesBoxY, std::max(240, W - kPageLeft - kPageRightPad),
                                        std::max(120, H - servicesBoxY - 28)};
             draw_primary_panel(target, services_box, palette);
             std::vector<reddmedia::WatchProvider> providers;
@@ -16309,7 +16600,7 @@ public:
         button_on(target, discoverTmdbReplaceBtn, "Save / Replace");
         button_on(target, discoverTmdbClearBtn, "Clear TMDb");
         button_on(target, discoverMyServicesBtn, "My Services");
-        text(target, 28, 102, head_to_width(recommendationEngine->external_credential_label(), W - 56), dark);
+        text(target, 28, 102, head_to_width(recommendationEngine->external_credential_label(), W - kPageLeft - kPageRightPad), dark);
 
         reddmedia::RecommendationResult result;
         std::string status;
@@ -16505,6 +16796,7 @@ public:
         if (currentView == ViewMode::Games) draw_games_screen(buffer);
         XSetClipMask(d,gc,None);
         draw_page_frame(buffer,currentView);
+        draw_module_rail(buffer);
         draw_loading_bar(buffer);
         // Final chrome overlay: page backgrounds and loading strips must never
         // erase the larger selected-tab pointer.
@@ -16892,15 +17184,18 @@ public:
         redraw();
     }
     void scroll_button_row(int& offset, int button_count, int delta, int viewport_width = -1) {
-        if (viewport_width < 0) viewport_width = std::max(kCompactButtonW, W - 56);
+        if (viewport_width < 0) viewport_width = std::max(kCompactButtonW, W - kPageLeft - kPageRightPad);
         offset = clamp_button_scroll(offset + delta, button_count, viewport_width);
         layout();
         redraw();
     }
     void scroll_bottom_controls(int delta) {
-        // All eight player actions participate in the scroll extent. The old
-        // six-button count made half-screen scrolling stop at Fast Forward.
-        scroll_button_row(controlsScrollX, 8, delta, std::max(kCompactButtonW, W - 20));
+        // All nine approved military transport actions participate in the scroll extent.
+        const Rect frame = page_content_frame(ViewMode::VideoPlayer);
+        const int viewport = std::max(kPlayerTransportW, frame.w - 16);
+        const int maximum = std::max(0, 9 * kPlayerTransportW - viewport);
+        controlsScrollX = std::max(0, std::min(controlsScrollX + delta, maximum));
+        layout(); redraw();
     }
     int top_navigation_max_scroll() const {
         // The last rendered top-level tab is the authority.  Add the current
@@ -17198,6 +17493,7 @@ public:
             case MenuAction::CardOpenArtwork:
                 run_card_context_action(action); break;
             case MenuAction::OpenFile: do_open(); break;
+            case MenuAction::StopMedia: stop_media(); break;
             case MenuAction::ExitApp: shuttingDown=true; running=false; break;
             case MenuAction::TogglePlay: toggle_play(); break;
             case MenuAction::ToggleFullscreen: if (fullscreen) exit_fullscreen(); else toggle_fullscreen(); break;
@@ -17245,7 +17541,8 @@ public:
     bool pointer_crossed_hover_target(int old_x, int old_y, int new_x, int new_y) const {
         const Rect* targets[] = {
             &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&radioTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&networkTab,&debugTab,
-            &openBtn,&rewindBtn,&playBtn,&stopBtn,&forwardBtn,&fsBtn,
+            &railHomeTab,&railVideoPlayerTab,&railLibraryTab,&railDiscoverTab,&railLiveTvTab,&railWorldTvTab,&railRadioTab,&railNougatTab,&railStreamTab,&railStudioTab,&railGamesTab,&railNetworkTab,&railSystemTab,
+            &previousBtn,&previousChapterBtn,&rewindBtn,&playBtn,&forwardBtn,&nextChapterBtn,&nextBtn,&fsBtn,&settingsBtn,
             &libraryMoviesBtn,&libraryTvBtn,&libraryGridBtn,&libraryListViewBtn,&libraryAddFolderBtn,
             &libraryUnlinkFolderBtn,&libraryRefreshBtn,&libraryBackBtn,
             &discoverUsualTab,&discoverRandomTab,&discoverLocalMovieBtn,&discoverLocalTvBtn,&discoverLiveTvBtn,&discoverExternalMovieBtn,
@@ -17315,6 +17612,20 @@ public:
             scroll_button_row(nougatNetworkButtonsScrollX,4,delta,nougatNetworkActionsViewport.w);
             return true;
         }
+        // NOUGAT_V65_SYSTEM_SCROLL_WHEEL
+        if (currentView == ViewMode::Debug && target == win && systemCommandStrip.contains(x,y)) {
+            scroll_button_row(debugButtonsScrollX, 13, delta, systemCommandStrip.w);
+            layout();
+            redraw();
+            return true;
+        }
+        if (currentView == ViewMode::Radio && target == win && radioServiceStrip.contains(x,y)) {
+            radioServiceScrollX = std::max(0, std::min(radioServiceMaxScrollX,
+                radioServiceScrollX + (button == Button4 ? -180 : 180)));
+            layout();
+            redraw();
+            return true;
+        }
         if (currentView == ViewMode::Studio && target == win && studio_browser_active() && studioBrowserListRect.contains(x,y)) {
             const auto entries=studio_browser_entries();
             const int rowH=30;
@@ -17357,7 +17668,7 @@ public:
         if (currentView == ViewMode::Discover && target == win) {
             if (discoverServiceSettings) {
                 const int servicesBoxY = kPageControlBottom + 22 + 20 + 14;
-                const Rect services_box = {28, servicesBoxY, std::max(240, W - 56),
+                const Rect services_box = {kPageLeft, servicesBoxY, std::max(240, W - kPageLeft - kPageRightPad),
                                            std::max(120, H - servicesBoxY - 28)};
                 if (services_box.contains(x,y)) {
                     std::size_t count = 0;
@@ -17419,7 +17730,7 @@ public:
                 return true;
             }
         }
-        if (currentView == ViewMode::VideoPlayer && target == win && y >= H-40 && !volRect.contains(x,y)) {
+        if (currentView == ViewMode::VideoPlayer && target == win && y >= H-50 && !volRect.contains(x,y)) {
             scroll_bottom_controls(delta);
             return true;
         }
@@ -17434,7 +17745,8 @@ public:
     bool point_on_ui_button(int x,int y) const {
         const Rect* targets[] = {
             &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&radioTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&networkTab,&debugTab,
-            &openBtn,&rewindBtn,&playBtn,&stopBtn,&forwardBtn,&fsBtn,
+            &railHomeTab,&railVideoPlayerTab,&railLibraryTab,&railDiscoverTab,&railLiveTvTab,&railWorldTvTab,&railRadioTab,&railNougatTab,&railStreamTab,&railStudioTab,&railGamesTab,&railNetworkTab,&railSystemTab,
+            &previousBtn,&previousChapterBtn,&rewindBtn,&playBtn,&forwardBtn,&nextChapterBtn,&nextBtn,&fsBtn,&settingsBtn,
             &libraryMoviesBtn,&libraryTvBtn,&libraryGridBtn,&libraryListViewBtn,&libraryAddFolderBtn,
             &libraryUnlinkFolderBtn,&libraryRefreshBtn,&libraryBackBtn,
             &discoverUsualTab,&discoverRandomTab,&discoverLocalMovieBtn,&discoverLocalTvBtn,&discoverLiveTvBtn,&discoverExternalMovieBtn,
@@ -17456,10 +17768,31 @@ public:
         return false;
     }
 
+    void play_ui_click() const {
+        // Fire-and-forget by design: every physical press gets its own playback
+        // voice. A short double-fork prevents zombie accumulation while allowing
+        // arbitrarily fast overlapping clicks.
+        const std::string sample=exe_dir()+"/assets/ui/military-click.wav";
+        if(!exists_file(sample)) return;
+        const pid_t launcher=fork();
+        if(launcher==0){
+            const pid_t player=fork();
+            if(player>0) _exit(0);
+            if(player<0) _exit(127);
+            int nullfd=open("/dev/null",O_WRONLY);
+            if(nullfd>=0){ dup2(nullfd,STDOUT_FILENO); dup2(nullfd,STDERR_FILENO); if(nullfd>STDERR_FILENO) close(nullfd); }
+            execlp("paplay","paplay",sample.c_str(),(char*)nullptr);
+            execlp("aplay","aplay","-q",sample.c_str(),(char*)nullptr);
+            _exit(127);
+        }
+        if(launcher>0){ int status=0; (void)waitpid(launcher,&status,0); }
+    }
+
     void handle_button(Window target, int x, int y, unsigned int button, Time eventTime) {
         if (fixMatchVisible) { if (target==win) handle_fix_match_click(x,y,button); return; } // NOUGAT_V58_NATIVE_FIX_MATCH_INPUT
         if(target==fullscreenSeekWindow){
             if(button!=Button1) return;
+            play_ui_click();
             lastPlayerActivityMotionMs=now_ms(); playerActivityOverlayVisible=true;
             XWindowAttributes attr{}; int actualWidth=420;
             if(XGetWindowAttributes(d,fullscreenSeekWindow,&attr)) actualWidth=std::max(1,attr.width);
@@ -17472,6 +17805,7 @@ public:
         if(target==fullscreenTransportWindow){
             if(button!=Button1) return;
             const int hit=fullscreen_transport_hit(x,y);
+            if(hit>=0) play_ui_click();
             lastPlayerActivityMotionMs=now_ms(); playerActivityOverlayVisible=true;
             if(hit==0) seek_relative(-10000);
             else if(hit==1) {
@@ -17557,6 +17891,27 @@ public:
         }
         if (button == Button3 && target == win && show_card_context_menu(x,y)) return;
         if (button != Button1) return;
+        play_ui_click();
+
+        // New module rail is a parallel navigation path.  Existing top tabs are
+        // deliberately left untouched until the owner verifies this rail.
+        auto railSwitch=[&](const Rect& r,ViewMode view){ if(!r.contains(x,y)) return false; switch_view(view); return true; };
+        if(target==win && y>=kTopBarH){
+            if(railSwitch(railHomeTab,ViewMode::Home)) { start_home_task(); return; }
+            if(railSwitch(railVideoPlayerTab,ViewMode::VideoPlayer)) return;
+            if(railSwitch(railLibraryTab,ViewMode::Library)) { if(!libraryTypeChosen) start_library_task(0); return; }
+            if(railSwitch(railDiscoverTab,ViewMode::Discover)) return;
+            if(railSwitch(railLiveTvTab,ViewMode::LiveTV)) return;
+            if(railSwitch(railWorldTvTab,ViewMode::WorldTV)) return;
+            if(railSwitch(railRadioTab,ViewMode::Radio)) { radioBackend.refresh(); return; }
+            if(railSwitch(railNougatTab,ViewMode::Nougat)) return;
+            if(railSwitch(railStreamTab,ViewMode::Stream)) return;
+            if(railSwitch(railStudioTab,ViewMode::Studio)) return;
+            if(railSwitch(railGamesTab,ViewMode::Games)) return;
+            if(railSwitch(railNetworkTab,ViewMode::Network)) { if(!networkSnapshotReady) refresh_network_center(); return; }
+            if(railSwitch(railSystemTab,ViewMode::Debug)) return;
+        }
+
         const Rect nougatBrandBadge{
             4,
             (kTopBarH - nougat_media_suite_icon::kTopBarHeight) / 2,
@@ -17905,8 +18260,8 @@ public:
             redraw();
             return;
         }
-        if (openBtn.contains(x,y)) { do_open(); return; }
         if (rewindBtn.contains(x,y)) { seek_relative(-10000); return; }
+        if (previousChapterBtn.contains(x,y)) { previous_chapter(); return; }
         if (previousBtn.contains(x,y)) {
             if (currentMediaIsLiveTv) play_relative_live_tv_channel(-1);
             else if (currentMediaIsWorldTv) play_relative_world_tv_station(-1);
@@ -17914,6 +18269,7 @@ public:
             return;
         }
         if (playBtn.contains(x,y)) { toggle_play(); return; }
+        if (nextChapterBtn.contains(x,y)) { next_chapter(); return; }
         if (nextBtn.contains(x,y)) {
             if (currentMediaIsLiveTv) play_relative_live_tv_channel(1);
             else if (currentMediaIsWorldTv) play_relative_world_tv_station(1);
@@ -17921,8 +18277,8 @@ public:
             return;
         }
         if (forwardBtn.contains(x,y)) { seek_relative(10000); return; }
-        if (stopBtn.contains(x,y)) { stop_media(); return; }
         if (fsBtn.contains(x,y)) { toggle_fullscreen(); return; }
+        if (settingsBtn.contains(x,y)) { show_player_settings_menu(); return; }
         if (needResumePrompt && resumeBtn.contains(x,y)) { open_media(sessionPath, sessionTime); return; }
         if (needResumePrompt && loadBtn.contains(x,y)) { needResumePrompt=false; redraw(); do_open(); return; }
         if (seekRect.contains(x,y) && mp) {
@@ -18619,17 +18975,17 @@ static void nougat_enter_gnome_app_scope(int argc, char** argv) {
 
 int main(int argc, char** argv) {
     nougat_enter_gnome_app_scope(argc, argv);
-    if (argc > 1 && std::string(argv[1]) == "--v64-media-plus-ui-self-test") {
+    if (argc > 1 && std::string(argv[1]) == "--v65-media-plus-ui-self-test") {
         const bool brand=nougat_media_suite_icon::kTopBarWidth>180 && nougat_media_suite_icon::kTopBarHeight==40 && nougat_media_suite_icon::kIcon64Size==64;
         const bool authority=exists_file(exe_dir()+"/assets/ui/NOUGAT_MEDIA_PLUS_UI_AUTHORITY.png");
-        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.64 UI self-test FAIL.\n"); return 1; }
-        std::printf("Nougat Media Plus v0.0.64 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
+        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.65 UI self-test FAIL.\n"); return 1; }
+        std::printf("Nougat Media Plus v0.0.65 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
         return 0;
     }
 
     prctl(PR_SET_NAME, "NougatMediaPlus", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Plus v0.0.64\n");
+        printf("Nougat Media Plus v0.0.65\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {
@@ -19353,7 +19709,7 @@ int main(int argc, char** argv) {
         app.libraryButtonsScrollX = 100000;
         app.layout();
         const bool debugScrollReach = app.debugBundleBtn.x + app.debugBundleBtn.w <= app.W - 28 &&
-            app.debugBundleBtn.x >= 28;
+            app.debugBundleBtn.x >= App::kPageLeft;
         const bool playerScrollReach = app.fsBtn.x + app.fsBtn.w <= app.W - 10 && app.fsBtn.x >= 10;
         const int libraryToolRight = app.libraryListViewBtn.x - 8;
         const bool librarySingleRowReach = app.libraryBackBtn.y == App::kPageControlY &&
