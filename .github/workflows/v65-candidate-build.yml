@@ -26,10 +26,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential cmake pkg-config libx11-dev libtorrent-rasterbar-dev git-lfs
 
-      - name: Fetch only required AI link runtime
+      - name: Materialize required AI runtime
         run: |
           git lfs install --local
-          git lfs pull --include='components/ai/runtime/**' --exclude='*'
+          git lfs fetch origin candidate/v0.0.65 --include='components/ai/runtime/**' --exclude=''
+          git lfs checkout components/ai/runtime
+          if head -n 1 components/ai/runtime/include/llama.h | grep -q 'git-lfs.github.com/spec'; then
+            echo 'FAIL: llama.h is still an LFS pointer'
+            exit 1
+          fi
 
       - name: Apply v65 source patch
         run: |
