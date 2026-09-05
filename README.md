@@ -1,80 +1,138 @@
 # Nougat Media Plus
 
-**Nougat Media Plus** is a native Linux entertainment and media platform developed by **Elderred Softworks LLC**. It combines television, radio, local media, internet streaming, games, production tools, connected hardware, search, diagnostics, and network playback inside one unified desktop application.
+**Nougat Media Plus** is a native Linux entertainment, communications, production, networking, and media platform developed by **Elderred Softworks LLC**. It brings local and network media playback, television, radio, internet streaming, games and emulation, production tools, drones, cellular-lab foundations, satellite and network tooling, privacy-focused search, P2P media, security analysis, diagnostics, and connected hardware together inside one desktop application.
 
 ## **Media & Playback**
 
-The built-in **Video Player** handles local and network media with playback controls, seeking, fullscreen playback, volume control, chapters, resume state, episode progression, Up Next, keyboard and mouse controls, and Live TV channel navigation.
+The built-in **Video Player** handles local and network media through native VLC/libVLC playback with Open, Play/Pause, Stop, Rewind 10 seconds, Fast Forward 10 seconds, seeking, volume, fullscreen, resume state, keyboard controls, mouse controls, cursor activity handling, and persistent playback history.
 
-**Home** provides Continue Watching and media shelves. **Library** manages movies, television, music, videos, artwork, metadata, persistent media folders, playback history, automatic discovery, list and grid views, collection organization, and owner-controlled metadata correction through Fix Match.
+The Player supports embedded audio-track selection, embedded and external subtitles, automatic matching `.srt` discovery, subtitle-folder loading, subtitle delay adjustment, real embedded chapter discovery, direct chapter navigation, and automatic fallback chapter marks when genuine chapter metadata is unavailable.
 
-**Discover** provides recommendation-oriented browsing, while **Nougat Search** combines privacy-focused search, crawler infrastructure, decentralized-search foundations, Secure Search protections, P2P downloading, torrent and magnet support, stream-while-downloading playback, metadata retrieval, playable-file selection, transfer progress, security analysis, and on-device recommendation intelligence.
+Television playback includes episode progression, Previous/Next episode behavior, **Up Next** with a countdown and direct next-episode action, while Live TV and other linear sources use the same native Player architecture for channel or station navigation.
+
+Beginning with **v0.0.65**, the Player is moving into the approved black/deep-green military HUD family with a chapter-marked seek surface, dedicated chapter and episode navigation, segmented tactical volume control, highly translucent information overlay, Fullscreen and Settings controls, and immediate retriggerable UI-click feedback.
+
+## **Home, Library & Discover**
+
+**Home** provides the persistent **Continue Watching** shelf, watch progress, resume behavior, cached media presentation, and recommendation/media shelves. Continue Watching records real playback after the established viewing threshold and preserves useful recent movie and episode progress across launches.
+
+**Library** manages movies, television, music, videos, persistent media folders, catalog scanning, collections and box sets, series, seasons, episodes, artwork, playback history, search, independent Grid/List presentation, and direct native playback. Library hierarchy keeps collections and television structure organized instead of flattening everything into one list.
+
+Artwork can resolve through Jellyfin, provider identities, poster/backdrop sources, and local video-frame recovery. **Fix Match** provides owner-controlled title/year/type matching, provider IDs, candidate artwork and metadata, persistent manual matches, metadata editing, artwork selection, and clearing of manual corrections.
+
+**Discover** provides **Usual** and **Random** recommendations across local movies, local television, TMDb movies, TMDb television, and the Live TV recommendation path. Usual recommendations can use private local SQLite viewing history and local Nomic/llama.cpp embeddings; Random does not read the viewing profile.
+
+TMDb integration can provide external metadata and United States watch availability through JustWatch data, including subscription, free, ad-supported, rental, and purchase listings. Provider preferences remain local and Nougat opens only the official watch-option path supplied by the service.
 
 ## **Live Television**
 
-**Live TV** supports compatible over-the-air television hardware including Hauppauge WinTV devices and HDHomeRun network tuners.
+**Live TV** supports compatible over-the-air and network television hardware including Hauppauge WinTV devices and HDHomeRun tuners.
 
-The television system includes tuner discovery, channel scanning, channel storage, guide data, native playback, channel navigation, tuner diagnostics, artwork, preferred-device handling, physical-device grouping, multiple physical tuners, and independently allocatable tuner resources when supported by the hardware.
+The television system includes physical-device discovery, provider-neutral tuner handling, independently usable tuner resources, preferred-device persistence, ATSC 1.0 scanning, signal/lock reporting, channel persistence, native playback, channel navigation, station artwork, and system diagnostics.
 
-**World TV** extends television beyond antenna reception with internet-accessible broadcaster sources, guide integration, source verification, asynchronous stream resolution, alternate-source recovery, playback-health diagnostics, bounded connection and retry handling, station artwork, source diagnostics, and clear failure reporting.
+Nougat harvests broadcast PSIP/VCT/EIT information into its television guide, preserves cached guide data, can collect current-multiplex information while watching, and queues other-frequency guide work when a single tuner is busy. The guide presents channels, program blocks, current-program identity, timing, and locally packaged network/broadcaster marks where available.
+
+## **World TV**
+
+**World TV** is Nougat's international linear-television area. It uses direct broadcaster/CDN streaming sources rather than building its catalog around YouTube and limits adaptive playback to the established 1080p ceiling.
+
+World TV supports station artwork, program identity where available, source verification, asynchronous resolution, visible-video probing, alternate-source recovery, startup verification, buffering/stall detection, bounded reconnect behavior, and truthful failure reporting instead of leaving dead feeds on a black screen.
 
 ## **Radio & Signal Monitoring**
 
-**Radio** provides a unified receiver, scanner, and signal-monitoring environment for local and internet radio, AM, FM, HD Radio, DAB/DAB+, DRM, longwave, mediumwave, shortwave, weather, emergency services, public safety, aviation, marine, railroad, amateur radio, digital radio systems, beacon services, aircraft and marine data, weather satellites, amateur satellites, and ISS/satellite reception paths.
+**Radio** provides a unified receiver, scanner, and signal-monitoring environment for local and internet radio together with a broad professional service matrix.
 
-Professional receiver controls include direct frequency entry, modulation and tuning-step controls, bandwidth and filtering, gain and AGC, squelch, scanning, signal monitoring, favorites, recordings, presets, spectrum and waterfall foundations, automatic hardware discovery, multiple receiver resources, provider-neutral hardware handling, and expandable SDR and decoder backends.
+The Radio architecture covers AM, FM, HD Radio, DAB/DAB+, DRM, longwave, mediumwave, shortwave, weather and emergency services, public safety, aviation, marine, railroad, CB, FRS/GMRS, MURS, amateur radio, business and utility services, trunked and digital-radio families including P25, DMR, NXDN and TETRA, paging, numbers and beacon/time services, ADS-B, ACARS, AIS, weather satellites, amateur satellites, Satellite, and ISS/Satellite reception paths.
 
-Services unavailable with connected hardware are identified truthfully rather than presented as active. Encrypted traffic is identified as encrypted or locked rather than represented as decrypted.
+Professional receiver controls include direct frequency entry, modulation and tuning-step controls, bandwidth and filtering, gain and AGC, squelch, scanning, signal monitoring, favorites, recordings, presets, spectrum/waterfall foundations, automatic hardware discovery, multiple receiver resources, provider-neutral hardware handling, and expandable SDR/decoder backends.
+
+Services unavailable through the connected hardware are identified truthfully rather than presented as working. Encrypted traffic is identified as encrypted or locked rather than falsely represented as decrypted.
 
 ## **Cellular Lab**
 
-**Cellular Lab** provides a foundation for private and controlled cellular-network experimentation using owned or explicitly authorized equipment.
+**Cellular Lab** provides a controlled foundation for private cellular-network experimentation with owned or explicitly authorized equipment.
 
-Its architecture includes private cellular-network concepts, subscriber and SIM management, enrolled test devices, local calls and SMS, RF and spectrum monitoring, protocol diagnostics, network-health tooling, and future historical analog-cellular experimentation.
+Its interface and architecture cover **2G GSM**, historical **1G Analog** concepts, Subscribers/SIMs, Calls/SMS, and Network/RF work, including private-network concepts, enrolled test devices, RF and spectrum monitoring, protocol diagnostics, and network-health tooling.
 
-Actual transmission capabilities depend on compatible hardware, implementation status, authorization, and appropriate spectrum conditions.
+Actual cellular transmission remains dependent on compatible hardware, implementation status, spectrum conditions, licensing, and authorization; the interface foundation does not itself claim that transmission is active.
 
-## **Games**
+## **Search, P2P & Security**
 
-**Games** provides a unified game library and emulator front end with persistent ROM folders, archive-contained game discovery, system recognition, artwork, controller support, emulator selection, managed emulator runtimes, and embedded gameplay where supported.
+**Nougat Search** combines privacy-focused Search, Crawler infrastructure, P2P media transfer, and the newer visible **Archive** workspace.
 
-The Games architecture is designed to support multiple console generations while keeping game organization, artwork, controls, emulator management, launch behavior, and future embedded rendering inside the Nougat Media Plus environment.
+Secure Search separates user-query handling from crawler networking and uses fail-closed privacy behavior where an approved private transport is unavailable. The crawler reports access restrictions and service conditions truthfully rather than disguising blocked or unavailable sources as successful search results.
+
+**P2P** accepts magnet links and local torrent metadata, exposes transfer/file/peer information, supports persistent resume data, file selection, queue movement, speed limits, seeding ratio/time rules, file priorities, tracker status, Force Reannounce and Force Recheck, and can play supported media before the transfer has completed.
+
+Stream-while-downloading playback uses Nougat's localhost HTTP Range bridge into the native Player and reprioritizes libtorrent pieces around playback and seeking while the overall transfer continues.
+
+**Nougat Security Analysis** is an on-demand system rather than a resident antivirus product. The current security architecture uses pinned YARA-X, capa, and Magika foundations with optional ClamAV and optional community reputation services. Manual scans and completed Nougat downloads can launch one-shot analysis workers.
+
+Security follows the permanent **WARN ME FIRST** policy. Findings are reported with their evidence and engine source; Nougat does not automatically quarantine, delete, move, rename, or open a suspicious file. Running scans can be stopped, partial results are preserved, and cancellation is reported honestly.
+
+## **Games & Emulation**
+
+**Games** provides a unified game library and managed emulator front end with persistent ROM folders, Grid and List presentation, archive-contained game discovery, system recognition, artwork, metadata, controller support, automatic emulator selection, managed runtimes, and embedded gameplay where the backend supports Nougat containment.
+
+The current architecture recognizes or provides managed integration foundations across Nintendo, Sega, Atari, DOS, PlayStation, Xbox, arcade, and other emulator families. Release work includes NES, SNES, Game Boy, Game Boy Color, Game Boy Advance, Nintendo 64, GameCube/Wii, Wii U, Nintendo Switch, Sega Genesis/Mega Drive, Master System, Game Gear, Atari 2600/5200/7800/8-bit/Lynx, DOS, PlayStation, PlayStation 2, PSP, PlayStation 3, Xbox 360, and arcade-oriented backend discovery.
+
+Nougat can discover games inside supported ZIP libraries, keeps DOS packages together as games, manages prepared artwork and conservative filename matching, and provides context-aware ROM/image recognition. Commercial ROMs, console firmware, BIOS files, and game images are not bundled.
+
+Xbox 360/Xenia has an owner-tested Nougat-contained rendering path. Other emulator families remain subject to their backend's current containment status, so managed discovery is not falsely described as proof that every emulator is fully embedded.
 
 ## **Studio & Production Tools**
 
 **Studio** provides integrated media-production, file-production, and planning tools.
 
-**File Splitter** creates verified split sets using target-based sizing and integrity checks. **File Assembler** discovers numbered parts, validates completeness, ordering, sizes, and hashes, reconstructs the original payload, and verifies final integrity.
+**File Splitter** supports files, folders, existing ZIPs/manifests, output selection, piece-count planning, live editable Target MiB calculation, bounded part sizing, progress, and integrity records.
+
+**File Assembler** accepts a split manifest or numbered split part, discovers the matching set, verifies completeness, ordering and stored hashes, reconstructs the original payload, and verifies final integrity.
 
 ## **Drone Production**
 
-**Drone Production** provides a director-oriented aerial-production environment for simulation, telemetry, camera and gimbal coordination, repeatable flight paths, mission planning, and Director Shot workflows.
+**Drone Production** provides the native **Nougat Drone Lab Mission Control** workspace for aerial-production planning and simulation.
 
-The system keeps aircraft movement, camera movement, timing, subject tracking, shot metadata, simulated telemetry, payload controls, and production planning together inside the application.
+The Director Shot system supports editable waypoints and repeatable aircraft/camera paths, shot saving, simulated path execution, animated trajectory visualization, simulated altitude/speed/heading/battery/link telemetry, gimbal pitch/yaw controls, Follow and Manual gimbal behavior, simulation-only photo/video controls, and simulation-only payload controls.
+
+Nougat also detects or plans integration around MAVLink, MAVSDK, PX4, ArduPilot, FFmpeg, and GStreamer while keeping real-aircraft arming and command transmission disabled in the documented simulation foundation.
 
 ## **Streaming & Network Media**
 
-**Stream** provides direct URL playback and webpage access for supported internet-video sources and services.
+**Stream** provides a shared Direct Watch workflow for supported internet-video sources and webpages. The established service family includes **YouTube, Rumble, RuTube, VK, and OK**.
 
-Nougat Media Plus also includes a **Jellyfin-backed media-server foundation** and a Nougat-branded **Web Player** for browsers and devices on the local network.
+YouTube integration uses Nougat's bundled yt-dlp/FFmpeg pipeline for direct playback and download workflows, with native-player playback, seek-aware temporary caching/bridge behavior, and the established default 1080p ceiling.
 
-Local media access is designed to operate without a mandatory cloud account, cloud relay, or Internet connection. The network-media architecture supports phones, tablets, laptops, televisions, browsers, and other LAN clients while keeping Nougat Media Plus as the visible user-facing experience.
+Nougat includes a **Jellyfin-backed media-server foundation** and a Nougat-branded **Web Player** for browsers and devices on the private LAN. Jellyfin remains backend/catalog infrastructure rather than replacing Nougat with the stock Jellyfin interface.
+
+The Nougat Web Player and hidden Jellyfin backend can run as Nougat-owned local services. A Nougat-owned server intentionally survives normal desktop-UI close after **Start Server** and remains running until **Stop Server** is explicitly used; independently started Jellyfin processes are not claimed or killed.
+
+Local media access is designed to work without a mandatory cloud account, cloud relay, automatic port forwarding, or Internet round trip. The LAN architecture supports browsers, phones, tablets, laptops, televisions, consoles, and other local clients.
+
+## **Network Center & Satellite**
+
+**Network Center** is Nougat's top-level foundation for connected network hardware and services and provides the dedicated architecture used by the growing networking workspace.
+
+The satellite foundation has its own satellite-center architecture, an **SGP4 orbital-propagation foundation**, preserved upstream licensing, and GDAL/geospatial integration planning. Radio's satellite-reception paths and the dedicated satellite work remain separate pieces of the wider Nougat communications architecture.
 
 ## **Diagnostics, Privacy & Hardware Integration**
 
-Nougat Media Plus includes diagnostic and system-status tools, hardware reporting, server-health monitoring, media and tuner diagnostics, security-scanning foundations, persistent application state, privacy infrastructure, and expandable service integrations.
+Nougat includes evidence-based diagnostic and system-health tooling for the media server, Library/catalog, artwork and metadata, tuner hardware, signal state, Live TV channels and guide coverage, media playback, Search/security state, generated runtimes, paths, and other integrated subsystems.
 
-Its modular architecture allows new media, tuner, receiver, emulator, networking, search, privacy, production, and hardware capabilities to be added without replacing the rest of the application.
+Diagnostics distinguish healthy evidence from Needs Attention, Problems, Not Tested, and informational states rather than promoting unknown conditions to green. Diagnostic reports can include observed evidence, expected state, suggested action, JSON/TXT/support output, and private local diagnostic-history snapshots while credentials remain redacted.
+
+Nougat also includes persistent application state, local privacy infrastructure, hardware reporting, service health monitoring, security-scanning foundations, controller architecture, and replaceable interfaces intended to keep third-party tuner, emulator, security, server, and media engines from owning the application's user-facing behavior.
 
 ## **Nougat Media Plus Interface**
 
 Beginning with **v0.0.62**, Nougat Media Plus uses the approved black and deep-green tactical interface together with the metallic tactical-green **N** identity.
 
-The active identity is applied across the application, launcher, versioned executable, X11 window identity, GNOME dock and app switcher, and in-app branding.
+The N is the required application identity across the in-app interface, versioned executable, X11 window identity, installed launcher, GNOME dock, and app switcher. Generic gear, executable, placeholder, or substitute artwork is not an acceptable active identity.
 
-The tactical visual system coordinates navigation, panels, controls, dialogs, status surfaces, application identity, and UI interaction sounds while preserving the functionality of the individual Nougat systems.
+The tactical visual system coordinates navigation, panels, controls, dialogs, status surfaces, application identity, and UI feedback while preserving the functionality of the individual Nougat systems.
 
-Beginning with **v0.0.65**, the tactical interface expands with a left-side Nougat module rail while retaining the existing top navigation for owner verification. The Video Player also advances toward the approved military HUD treatment with chapter-marked seeking, dedicated chapter and episode navigation, a segmented tactical volume control, a highly translucent information overlay, and immediate retriggerable UI click feedback. Home retains Continue Watching, the Nougat N remains the required application and Linux desktop identity, and Network Center continues its tactical-interface consolidation.
+The **v0.0.65 checkpoint** adds the new left-side Nougat module rail while deliberately retaining the complete existing top navigation during owner verification. No top-level navigation control is retired until the owner confirms that the sidebar contains and correctly routes every required module.
+
+The same checkpoint advances the military Player HUD with chapter-marked seeking, chapter and episode controls, segmented tactical volume, translucent information surfaces, and rapid retriggerable click feedback. **Continue Watching** remains a mandatory Home feature during tactical-interface work.
 
 ## **Platform & Repository**
 
