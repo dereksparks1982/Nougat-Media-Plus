@@ -102,6 +102,52 @@ The inclusion of professional, governmental, public-safety, military, satellite,
 
 **Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
 
+## v0.0.63 - Games, Emulator, Controller, and Tactical UI Repair
+
+Nougat Media Plus v0.0.63 is the owner-accepted checkpoint built from the accepted v0.0.62 baseline. The release advances Games and emulator integration, controller reporting, tactical-interface cleanup, desktop identity, and the active Nougat Media Plus executable while carrying unresolved emulator-containment work forward truthfully.
+
+### Technical changes
+
+- Advances the active root executable to `Nougat_Media_Plus_v63` and advances build/runtime version reporting to v0.0.63.
+- Renames the active desktop launcher file to `com.elderredsoftworks.NougatMediaPlus.desktop` and strengthens the Nougat Media Plus GNOME/X11 application identity.
+- Adds the approved tactical-green Nougat Media Plus dock icon treatment.
+- Removes the v0.0.62 hover and button-activation UI sounds and removes their active playback path.
+- Removes active dashed/stitch-style field decoration and replaces remaining active quilt-style page backgrounds and legacy field presentation with the tactical interface treatment.
+- Adjusts the Games grid geometry to provide a real multi-row card layout in available space.
+- Repairs controller reporting so stale joystick nodes are not treated as proof of a connected controller and displays `No controller connected.` when no live controller is present.
+- Expands the visible Games Systems audit list to include Xbox 360 and DOS.
+- Expands context-aware optical-disc and emulator-image recognition for the managed emulator architecture.
+- Adds the pinned PCSX2 2.8.1 Linux Qt AppImage as the managed PlayStation 2 runtime under `components/games/runtime/pcsx2/`.
+- Expands managed emulator discovery for PlayStation, PlayStation 2, PSP, PlayStation 3, GameCube/Wii, Wii U, Arcade, Nintendo Switch, Xbox 360, and the existing Nougat emulator families.
+- Preserves the complete project-contained emulator architecture so required emulator runtimes can travel with the Nougat project instead of depending only on system-installed applications.
+- Does not include PlayStation 2 BIOS firmware or commercial game content. Users provide any required firmware or game data separately.
+- Restores the previously proven Nougat Xenia proxy/Vulkan presentation path for Xbox 360.
+- Owner testing confirms Xbox 360 / Xenia gameplay renders inside Nougat rather than opening as a separate desktop emulator window.
+- PlayStation 2 / PCSX2 launches through the managed Nougat runtime, but native Nougat-player containment remains unresolved and carries forward.
+- NES/SNES Mesen remains unresolved because its gameplay window still opens separately instead of remaining inside Nougat's native player viewport.
+- v0.0.63 is accepted with those Mesen and PlayStation 2 containment issues documented for the next build rather than falsely marked fixed.
+
+## v0.0.63 - Games and Emulator Overhaul
+
+Nougat Media Plus v0.0.63 is the owner-accepted checkpoint built from v0.0.62.
+
+### Technical changes
+
+- Advances the active executable to `Nougat_Media_Plus_v63` and runtime/build reporting to v0.0.63.
+- Advances the active desktop identity to Nougat Media Plus.
+- Removes the v0.0.62 hover and button-activation UI sounds.
+- Advances tactical UI cleanup, including removal of active stitched/dashed field decoration and legacy quilt-style presentation.
+- Improves the Games multi-row layout and controller reporting.
+- Restores Xbox 360 and DOS to the visible Games systems list.
+- Adds the managed PCSX2 2.8.1 Linux runtime for PlayStation 2.
+- Expands managed emulator discovery and supported game-image recognition.
+- Restores the proven Nougat Xenia proxy/Vulkan path for Xbox 360.
+- Owner testing confirms Xbox 360 / Xenia renders inside Nougat without a separate emulator window.
+- NES/SNES Mesen still opens separately and carries forward for repair.
+- PlayStation 2 / PCSX2 still opens separately and carries forward for repair.
+- PlayStation 2 BIOS firmware and commercial game content are not distributed with Nougat and remain user-supplied.
+- v0.0.63 is accepted with the remaining Mesen and PlayStation 2 containment defects carried forward to the next build.
+
 ## v0.0.62 - Nougat Media Plus Tactical UI Conversion
 
 Nougat Media Plus v0.0.62 is the accepted tactical-interface and product-identity release built from the accepted v0.0.61 baseline.
