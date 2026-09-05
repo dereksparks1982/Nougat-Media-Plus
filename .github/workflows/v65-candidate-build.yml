@@ -12,19 +12,24 @@ permissions:
 jobs:
   build-v65:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
-      - name: Checkout candidate with LFS
+      - name: Checkout candidate source
         uses: actions/checkout@v4
         with:
           ref: candidate/v0.0.65
-          lfs: true
+          lfs: false
           fetch-depth: 1
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake pkg-config libx11-dev libtorrent-rasterbar-dev
+          sudo apt-get install -y build-essential cmake pkg-config libx11-dev libtorrent-rasterbar-dev git-lfs
+
+      - name: Fetch only required AI link runtime
+        run: |
+          git lfs install --local
+          git lfs pull --include='components/ai/runtime/**' --exclude='*'
 
       - name: Apply v65 source patch
         run: |
@@ -48,7 +53,7 @@ jobs:
 
       - name: Prepare candidate package
         run: |
-          mkdir -p out-v65/src/chat out-v65/tools out-v65/docs/builds
+          mkdir -p out-v65/src/chat out-v65/tools
           cp build-v65/Nougat_Media_Plus_v65 out-v65/
           cp src/main.cpp out-v65/src/main.cpp
           cp src/chat/nougat_chat.hpp src/chat/nougat_chat.cpp out-v65/src/chat/
@@ -59,7 +64,7 @@ jobs:
           cat > out-v65/README_CANDIDATE.txt <<'TXT'
           Nougat Media Plus v0.0.65 candidate
           Base: accepted v0.0.64 commit dbe202300f48c8e53b4ee5ab169b6f9e8e4e2395
-          Includes: approved military seek renderer for regular/half-screen and fullscreen, Radio two-row scrollable service lane using the complete existing Radio inventory, TV antenna scan ownership moved out of Radio UI, and Nougat Chat model scaffolding.
+          Includes: approved military seek renderer for regular/half-screen and fullscreen, Radio two-row horizontally scrollable service lane using the complete existing Radio inventory, TV antenna scan ownership moved out of Radio UI, and Nougat Chat model scaffolding.
           This is a candidate for owner testing, not an accepted release.
           TXT
 
