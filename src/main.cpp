@@ -1,4 +1,7 @@
 #include <X11/Xlib.h>
+#include <initializer_list>
+#include "network_center.h"
+#include "satellite_center.h"
 #include <X11/Xutil.h>
 #include <X11/cursorfont.h>
 #include <dlfcn.h>
@@ -942,7 +945,9 @@ enum class MenuAction {
     SecuritySystemRemovable, SecuritySystemChanged,
     CardPlay, CardOpenSource, CardInfo, CardRefresh, CardFixMatch, CardClearMatch, CardOpenOfficial, CardRefreshArtwork, CardOpenArtwork
 };
-enum class ViewMode { Home, VideoPlayer, Library, Discover, LiveTV, WorldTV, Radio, Nougat, Stream, Studio, Games, P2P, Debug };
+enum class ViewMode { Home, VideoPlayer, Library, Discover, LiveTV, WorldTV, Radio, Nougat, Stream, Studio, Games, P2P, Network, Debug };
+enum class NetworkPanel { Overview, Connections, Devices, Security, Satellite, Diagnostics, Logs };
+enum class SatellitePanel { Track, Passes, Receive, Decode, Transmit, Imagery, Antenna, Hardware, Logs };
 enum class NougatPanel { Search, Crawler, P2P, VirusScan, Archive };
 enum class StreamPlatform { YouTube, Vimeo, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
@@ -2043,7 +2048,17 @@ public:
     Rect videoUpNextPlayBtn, videoUpNextSeriesBtn, videoUpNextReplayBtn;
     Rect fullscreenRewindRect, fullscreenPreviousRect, fullscreenPlayRect, fullscreenNextRect, fullscreenForwardRect;
     int fullscreenTransportHover=-1;
-    Rect homeTab, videoPlayerTab, libraryTab, discoverTab, liveTvTab, worldTvTab, radioTab, nougatTab, ytdlpTab, studioTab, gamesTab, debugTab;
+    Rect homeTab, videoPlayerTab, libraryTab, discoverTab, liveTvTab, worldTvTab, radioTab, nougatTab, ytdlpTab, studioTab, gamesTab, networkTab, debugTab;
+    // NOUGAT_V64_NETWORK_SATELLITE
+    NetworkPanel networkPanel = NetworkPanel::Overview;
+    SatellitePanel satellitePanel = SatellitePanel::Track;
+    Rect networkOverviewTab, networkConnectionsTab, networkDevicesTab, networkSecurityTab, networkSatelliteTab, networkDiagnosticsTab, networkLogsTab;
+    Rect satelliteTrackTab, satellitePassesTab, satelliteReceiveTab, satelliteDecodeTab, satelliteTransmitTab, satelliteImageryTab, satelliteAntennaTab, satelliteHardwareTab, satelliteLogsTab;
+    Rect networkRefreshBtn, networkContentBox;
+    ::nougat::network::Snapshot networkSnapshot;
+    ::nougat::satellite::Snapshot satelliteSnapshot;
+    bool networkSnapshotReady = false;
+    int networkContentScroll = 0;
     // NOUGAT_V54_FILE_SPLITTER_PROFESSIONAL
     // File Splitter is a button inside Studio > Tools. Its complete workflow
     // stays inside Nougat with no external chooser/question/info dialogs.
@@ -2143,7 +2158,8 @@ public:
     Rect libraryMoviesBtn, libraryTvBtn, libraryGridBtn, libraryListViewBtn, libraryAddFolderBtn, libraryUnlinkFolderBtn;
     Rect libraryRefreshBtn, libraryBackBtn, librarySearchRect, librarySearchBtn, libraryListBox;
     Rect libraryVerticalScrollTrack, libraryVerticalScrollThumb;
-    Rect serverStartBtn, serverStopBtn, serverRefreshBtn;
+    Rect serverStartBtn, serverStopBtn, serverRefreshBtn, securitySystemBtn;
+    bool systemVirusScanMode = false;
     Rect discoverUsualTab, discoverRandomTab;
     Rect discoverLocalMovieBtn, discoverLocalTvBtn, discoverLiveTvBtn, discoverExternalMovieBtn, discoverExternalTvBtn;
     Rect discoverTmdbTestBtn, discoverTmdbReplaceBtn, discoverTmdbClearBtn;
@@ -2734,6 +2750,7 @@ public:
             case ViewMode::Studio: return 9;
             case ViewMode::Games: return 10;
             case ViewMode::P2P: return 6;
+            case ViewMode::Network: return 7;
             case ViewMode::Debug: return 7;
         }
         return 4;
@@ -2783,6 +2800,7 @@ public:
             case ViewMode::Studio:      r=186; g=190; b=196; blendPercent=68; break; // Silver Screen Studio: cool silver quilt
             case ViewMode::Games:       r=45;  g=72;  b=112; blendPercent=54; break; // cartridge/navy blue
             case ViewMode::P2P:         r=105; g=160; b=192; blendPercent=17; break;
+            case ViewMode::Network:     r=41;  g=40;  b=48;  blendPercent=70; break;
             case ViewMode::Debug:       r=41;  g=40;  b=48;  blendPercent=70; break; // licorice/charcoal
         }
     }
@@ -3525,7 +3543,7 @@ public:
                view == ViewMode::Library || view == ViewMode::Discover ||
                view == ViewMode::LiveTV || view == ViewMode::WorldTV || view == ViewMode::Radio || view == ViewMode::Nougat ||
                view == ViewMode::Stream || view == ViewMode::Studio ||
-               view == ViewMode::Games || view == ViewMode::Debug;
+               view == ViewMode::Games || view == ViewMode::Network || view == ViewMode::Debug;
     }
 
     void draw_page_frame(Drawable target, ViewMode view) {
@@ -3546,10 +3564,28 @@ public:
     }
 
     void layout() {
+        auto layoutConnectedRow = [&](std::initializer_list<Rect*> items, int y) {
+            if (items.size() == 0) return;
+            const int left = 28;
+            const int right = std::max(left + 1, W - 28);
+            const int slash = 9;
+            const int count = static_cast<int>(items.size());
+            const int usable = std::max(count * 58, right - left);
+            const int nominal = std::max(58, (usable + slash * (count - 1)) / count);
+            int x = left;
+            int index = 0;
+            for (Rect* r : items) {
+                const int remainingRight = right - x;
+                const int w = (index == count - 1) ? std::max(40, remainingRight) : nominal;
+                *r = {x, y, w, kCompactButtonH};
+                x += w - slash;
+                ++index;
+            }
+        };
         const int topStatusReserve = 154;
         Rect* const topTabs[] = {
             &homeTab, &videoPlayerTab, &libraryTab, &discoverTab, &liveTvTab, &worldTvTab,
-            &radioTab, &nougatTab, &ytdlpTab, &studioTab, &gamesTab, &debugTab
+            &radioTab, &nougatTab, &ytdlpTab, &studioTab, &gamesTab, &networkTab, &debugTab
         };
         const int topControlCount = static_cast<int>(sizeof(topTabs) / sizeof(topTabs[0]));
         const int navLeft = top_nav_left_bound();
@@ -3716,9 +3752,12 @@ public:
         p2pRecheckBtn={28+kCompactButtonW*5,264,kCompactButtonW,kCompactButtonH};
         p2pPriorityBtn={28+kCompactButtonW*6,264,kCompactButtonW,kCompactButtonH};
 
-        layout_button_row({&nougatSearchPanelTab,&nougatCrawlerPanelTab,&nougatP2PPanelTab,
-                           &nougatVirusScanPanelTab,&nougatNetworkAdvancedBtn,&nougatArchivePanelTab},
-                          kPageControlY, nougatPanelButtonsScrollX);
+        layoutConnectedRow({&nougatSearchPanelTab,&nougatCrawlerPanelTab,&nougatP2PPanelTab,&nougatArchivePanelTab},
+                           kPageControlY);
+        nougatPanelButtonsScrollX = 0;
+        // v64: these two legacy Search-row rects are reused as connected P2P sub-tabs.
+        nougatVirusScanPanelTab = {28, 104, kCompactButtonW + 18, kCompactButtonH};
+        nougatNetworkAdvancedBtn = {nougatVirusScanPanelTab.x + nougatVirusScanPanelTab.w - 9, 104, kCompactButtonW + 34, kCompactButtonH};
         const int nougatSearchGap = 8;
         const int nougatSearchButtonsWidth = 2 * kCompactButtonW + 2 * nougatSearchGap;
         nougatSearchRect = {28, 90, std::max(220, W - 56 - nougatSearchButtonsWidth), 30};
@@ -3739,17 +3778,17 @@ public:
         // to reserve a real action viewport. Wide windows show all four actions;
         // narrow windows left-anchor Add Peer and mouse-wheel-scroll the action row.
         const int networkInputWidth = std::max(200, W - 552);
-        nougatPeerEntryRect = {28, 104, networkInputWidth, 30};
+        nougatPeerEntryRect = {28, 142, networkInputWidth, 30};
         const int networkActionsX = nougatPeerEntryRect.x + nougatPeerEntryRect.w + 12;
         const int networkActionsW = std::max(kCompactButtonW, W - 28 - networkActionsX);
-        nougatNetworkActionsViewport = {networkActionsX, 104, networkActionsW, kCompactButtonH};
+        nougatNetworkActionsViewport = {networkActionsX, 142, networkActionsW, kCompactButtonH};
         nougatNetworkButtonsScrollX = clamp_button_scroll(nougatNetworkButtonsScrollX, 4, networkActionsW);
         int networkActionX = networkActionsX - nougatNetworkButtonsScrollX;
-        nougatAddPeerBtn = {networkActionX,104,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
-        nougatRemovePeerBtn = {networkActionX,104,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
-        nougatNodeBtn = {networkActionX,104,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
-        nougatPeersToggleBtn = {networkActionX,104,kCompactButtonW,kCompactButtonH};
-        nougatPeerListBox = {28, 154, std::max(240, W-56), std::max(120, H-182)};
+        nougatAddPeerBtn = {networkActionX,142,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
+        nougatRemovePeerBtn = {networkActionX,142,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
+        nougatNodeBtn = {networkActionX,142,kCompactButtonW,kCompactButtonH}; networkActionX += kCompactButtonW;
+        nougatPeersToggleBtn = {networkActionX,142,kCompactButtonW,kCompactButtonH};
+        nougatPeerListBox = {28, 192, std::max(240, W-56), std::max(120, H-220)};
         securityScanFileBtn = {28, 106, kCompactButtonW, kCompactButtonH};
         securityScanFolderBtn = {28+kCompactButtonW, 106, kCompactButtonW, kCompactButtonH};
         securityScanMoviesBtn = {28+kCompactButtonW*2, 106, kCompactButtonW, kCompactButtonH};
@@ -3809,11 +3848,21 @@ public:
         // v0.0.37: System owns administrative server controls. Library stays
         // focused on media/catalog actions, while Start/Stop/Refresh Server
         // live with diagnostics, logs, exports, and maintenance tools here.
-        layout_button_row({&serverStartBtn,&serverStopBtn,&serverRefreshBtn,
+        layout_button_row({&serverStartBtn,&serverStopBtn,&serverRefreshBtn,&securitySystemBtn,
                            &debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugLogsBtn,&debugCopyBtn,
                            &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn},
                           kPageControlY, debugButtonsScrollX);
         debugListBox = {28, 126, std::max(240, W-56), std::max(150, H-154)};
+
+        // NOUGAT_V64_NETWORK_SATELLITE layout
+        layoutConnectedRow({&networkOverviewTab,&networkConnectionsTab,&networkDevicesTab,&networkSecurityTab,
+                            &networkSatelliteTab,&networkDiagnosticsTab,&networkLogsTab}, kPageControlY);
+        layoutConnectedRow({&satelliteTrackTab,&satellitePassesTab,&satelliteReceiveTab,&satelliteDecodeTab,
+                            &satelliteTransmitTab,&satelliteImageryTab,&satelliteAntennaTab,&satelliteHardwareTab,&satelliteLogsTab},
+                           kPageControlY + kCompactButtonH + 10);
+        networkRefreshBtn = {28, kPageControlY + kCompactButtonH + 12, kCompactButtonW, kCompactButtonH};
+        networkContentBox = {28, kPageControlY + kCompactButtonH + 54, std::max(240, W-56),
+                             std::max(120, H-(kPageControlY + kCompactButtonH + 82))};
         update_video_prompt_layout();
     
 }
@@ -3836,7 +3885,7 @@ public:
     void apply_video_layout() {
         if (!video) return;
         if (currentView == ViewMode::Home || currentView == ViewMode::Library || currentView == ViewMode::Discover ||
-            currentView == ViewMode::Radio || currentView == ViewMode::Nougat || currentView == ViewMode::Stream || currentView == ViewMode::Studio || currentView == ViewMode::Games || currentView == ViewMode::P2P ||
+            currentView == ViewMode::Radio || currentView == ViewMode::Nougat || currentView == ViewMode::Stream || currentView == ViewMode::Studio || currentView == ViewMode::Games || currentView == ViewMode::P2P || currentView == ViewMode::Network ||
             currentView == ViewMode::Debug || currentView == ViewMode::LiveTV || currentView == ViewMode::WorldTV) {
             hide_player_activity_overlay_window();
             XUnmapWindow(d, video);
@@ -5258,7 +5307,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.63";
+        const std::string versionLabel = "v0.0.64";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -5310,6 +5359,7 @@ public:
         draw_tab(ytdlpTab,"Stream",ViewMode::Stream);
         draw_tab(studioTab,"Studio",ViewMode::Studio);
         draw_tab(gamesTab,"Games",ViewMode::Games);
+        draw_tab(networkTab,"Network",ViewMode::Network);
         draw_tab(debugTab,"System",ViewMode::Debug);
         XSetClipMask(d, gc, None);
     }
@@ -5328,6 +5378,7 @@ public:
             case ViewMode::Stream: tab = &ytdlpTab; break;
             case ViewMode::Studio: tab = &studioTab; break;
             case ViewMode::Games: tab = &gamesTab; break;
+            case ViewMode::Network: tab = &networkTab; break;
             case ViewMode::Debug: tab = &debugTab; break;
             case ViewMode::P2P: return;
         }
@@ -6368,8 +6419,10 @@ public:
         unsigned long border = p2pMagnetFocused ? col(0x7070,0xb0b0,0xdada) : palette.border;
         if (embeddedInSearch) draw_quilted_background(target, {0,86,W,H-86}, ViewMode::Nougat);
         else fill(target, {0,86,W,H-86}, palette.background);
-        text(target, 28, 108, "P2P STREAMING", dark);
-        text(target, 28, 130, "Open a magnet or P2P metadata file, choose a video, then Play.", dark);
+        if (!embeddedInSearch) {
+            text(target, 28, 108, "P2P STREAMING", dark);
+            text(target, 28, 130, "Open a magnet or P2P metadata file, choose a video, then Play.", dark);
+        }
         if (embeddedInSearch) draw_concept_field(target, p2pMagnetRect, palette.field, palette.border, p2pMagnetFocused);
         else { fill(target, p2pMagnetRect, palette.field); outline(target, p2pMagnetRect, border); }
         text(target, p2pMagnetRect.x+8, p2pMagnetRect.y-7, "Magnet link", dark);
@@ -12246,6 +12299,7 @@ public:
         case ViewMode::Studio: return "Studio";
         case ViewMode::Games: return "Games";
         case ViewMode::P2P: return "P2P";
+        case ViewMode::Network: return "Network";
         case ViewMode::Debug: return "System";
         }
         return "Unknown";
@@ -13244,7 +13298,7 @@ public:
         if (!updated) return;
         if (securityWorker.joinable()) securityWorker.join();
         if (verdict=="THREAT DETECTED" || verdict=="SUSPICIOUS") {
-            p2pUiStatus = "SECURITY WARNING: "+verdict+". See Search > Virus Scan. Nothing was quarantined.";
+            p2pUiStatus = "SECURITY WARNING: "+verdict+". See System > Virus Scan. Nothing was quarantined.";
         }
         if (!pendingP2PAutoScanPaths.empty()) {
             const std::string next=pendingP2PAutoScanPaths.front();
@@ -13381,20 +13435,17 @@ public:
             nougatPanel=NougatPanel::P2P; nougatNetworkAdvanced=false;
             nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; redraw(); return;
         }
-        if (nougatVirusScanPanelTab.contains(x,y)) {
-            if (nougatPanel != NougatPanel::VirusScan || nougatNetworkAdvanced) push_navigation_history();
-            nougatPanel=NougatPanel::VirusScan; nougatNetworkAdvanced=false;
+        if (nougatPanel == NougatPanel::P2P && nougatVirusScanPanelTab.contains(x,y)) {
+            nougatNetworkAdvanced=false;
             nougatInputFocus=NougatInputFocus::NoFocus; nougatOutputFocused=false; p2pMagnetFocused=false; redraw(); return;
         }
-        if (nougatNetworkAdvancedBtn.contains(x,y)) {
-            push_navigation_history();
-            nougatPanel=NougatPanel::Search;
+        if (nougatPanel == NougatPanel::P2P && nougatNetworkAdvancedBtn.contains(x,y)) {
             nougatNetworkAdvanced=true;
             nougatInputFocus=NougatInputFocus::NoFocus;
-            if (nougatNetworkAdvanced) refresh_nougat_peers();
+            refresh_nougat_peers();
             redraw(); return;
         }
-        if (nougatPanel == NougatPanel::P2P) { handle_p2p_click(x,y); return; }
+        if (nougatPanel == NougatPanel::P2P && !nougatNetworkAdvanced) { handle_p2p_click(x,y); return; }
         if (nougatPanel == NougatPanel::VirusScan) {
             if (securityScanFileBtn.contains(x,y)) { std::string p=choose_file_dialog(); if(!p.empty()) start_security_scan(p,false); return; }
             if (securityScanFolderBtn.contains(x,y)) { std::string p=choose_folder_dialog(); if(!p.empty()) start_security_scan(p,true); return; }
@@ -13422,7 +13473,7 @@ public:
             if (securityHistoryBtn.contains(x,y)) { show_security_history(); redraw(); return; }
             return;
         }
-        if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced) {
+        if (nougatPanel == NougatPanel::P2P && nougatNetworkAdvanced) {
             if (nougatPeerEntryRect.contains(x,y)) { focus_nougat_input(NougatInputFocus::Peer); return; }
             if (nougatNetworkActionsViewport.contains(x,y)) {
                 if (nougatAddPeerBtn.contains(x,y)) { add_nougat_peer(); return; }
@@ -13487,12 +13538,10 @@ public:
         std::string status;
         bool search_busy=false, crawl_busy=false;
         { std::lock_guard<std::mutex> lock(nougatState->mutex); node=nougatState->node_id; status=nougatState->status; search_busy=nougatState->search_busy; crawl_busy=nougatState->crawl_busy; }
-        nougat_tab_button(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search && !nougatNetworkAdvanced);
-        nougat_tab_button(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler);
-        nougat_tab_button(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P);
-        nougat_tab_button(target,nougatVirusScanPanelTab,"Virus Scan",nougatPanel==NougatPanel::VirusScan);
-        nougat_tab_button(target,nougatNetworkAdvancedBtn,"Network",nougatPanel==NougatPanel::Search && nougatNetworkAdvanced);
-        nougat_tab_button(target,nougatArchivePanelTab,"Archive",nougatPanel==NougatPanel::Archive);
+        connected_segment_tab(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search,true,false);
+        connected_segment_tab(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler,false,false);
+        connected_segment_tab(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P,false,false);
+        connected_segment_tab(target,nougatArchivePanelTab,"Archive",nougatPanel==NougatPanel::Archive,false,true);
 
         if (nougatPanel == NougatPanel::Archive) {
             struct ArchiveSite { const char* name; const char* url; const char* onion; };
@@ -13569,15 +13618,21 @@ public:
         }
 
         if (nougatPanel == NougatPanel::P2P) {
-            draw_p2p_screen(target);
-            return;
+            if (!nougatNetworkAdvanced) {
+                draw_p2p_screen(target);
+                connected_segment_tab(target,nougatVirusScanPanelTab,"Downloads",true,true,false);
+                connected_segment_tab(target,nougatNetworkAdvancedBtn,"Peer Network",false,false,true);
+                return;
+            }
+            connected_segment_tab(target,nougatVirusScanPanelTab,"Downloads",false,true,false);
+            connected_segment_tab(target,nougatNetworkAdvancedBtn,"Peer Network",true,false,true);
         }
         if (nougatPanel == NougatPanel::VirusScan) {
             draw_security_screen(target);
             return;
         }
-        if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced) {
-            if (!node.empty()) text(target,28,101,"Node ID: "+node,searchPalette.muted);
+        if (nougatPanel == NougatPanel::P2P && nougatNetworkAdvanced) {
+            if (!node.empty()) text(target,28,136,"Node ID: "+node,searchPalette.muted);
             draw_nougat_input(target,nougatPeerEntryRect,nougatPeerEntry,NougatInputFocus::Peer);
             // Clip only the overflowable Network action strip. This prevents a
             // scrolled button from drawing back across the peer-entry field.
@@ -15717,6 +15772,136 @@ public:
              "Tip: Ctrl+V pastes into the active field. Split and reassembly stream data instead of loading huge files into RAM.",palette.muted);
     }
 
+
+    // NOUGAT_V64_NETWORK_SATELLITE connected tactical segments.
+    void connected_segment_tab(Drawable target, const Rect& r, const std::string& label,
+                               bool selected, bool first, bool last) {
+        const ViewPalette p = palette_for(currentView == ViewMode::Network ? ViewMode::Network : ViewMode::Nougat);
+        const int slash = 9;
+        XPoint pts[4];
+        pts[0] = {static_cast<short>(first ? r.x : r.x + slash), static_cast<short>(r.y)};
+        pts[1] = {static_cast<short>(r.x + r.w), static_cast<short>(r.y)};
+        pts[2] = {static_cast<short>(last ? r.x + r.w : r.x + r.w - slash), static_cast<short>(r.y + r.h)};
+        pts[3] = {static_cast<short>(r.x), static_cast<short>(r.y + r.h)};
+        XSetForeground(d, gc, selected ? p.selection : p.button);
+        XFillPolygon(d, target, gc, pts, 4, Convex, CoordModeOrigin);
+        XSetForeground(d, gc, p.border);
+        XDrawLines(d, target, gc, pts, 4, CoordModeOrigin);
+        XDrawLine(d, target, gc, pts[3].x, pts[3].y, pts[0].x, pts[0].y);
+        const int tx = r.x + std::max(6, (r.w - text_width(label)) / 2);
+        text(target, tx, r.y + r.h / 2 + 5, label, p.text);
+    }
+
+    void refresh_network_center() {
+        networkSnapshot = ::nougat::network::collect_snapshot();
+        satelliteSnapshot = ::nougat::satellite::collect_snapshot();
+        networkSnapshotReady = true;
+        networkContentScroll = 0;
+    }
+
+    const std::vector<std::string>& network_lines_for_panel() const {
+        switch (networkPanel) {
+            case NetworkPanel::Overview: return networkSnapshot.overview;
+            case NetworkPanel::Connections: return networkSnapshot.connections;
+            case NetworkPanel::Devices: return networkSnapshot.devices;
+            case NetworkPanel::Security: return networkSnapshot.security;
+            case NetworkPanel::Diagnostics: return networkSnapshot.diagnostics;
+            case NetworkPanel::Logs: return networkSnapshot.logs;
+            case NetworkPanel::Satellite: break;
+        }
+        return networkSnapshot.overview;
+    }
+
+    const std::vector<std::string>& satellite_lines_for_panel() const {
+        switch (satellitePanel) {
+            case SatellitePanel::Track: return satelliteSnapshot.track;
+            case SatellitePanel::Passes: return satelliteSnapshot.passes;
+            case SatellitePanel::Receive: return satelliteSnapshot.receive;
+            case SatellitePanel::Decode: return satelliteSnapshot.decode;
+            case SatellitePanel::Transmit: return satelliteSnapshot.transmit;
+            case SatellitePanel::Imagery: return satelliteSnapshot.imagery;
+            case SatellitePanel::Antenna: return satelliteSnapshot.antenna;
+            case SatellitePanel::Hardware: return satelliteSnapshot.hardware;
+            case SatellitePanel::Logs: return satelliteSnapshot.logs;
+        }
+        return satelliteSnapshot.track;
+    }
+
+    void draw_network_lines(Drawable target, const std::vector<std::string>& items, int topY) {
+        const ViewPalette p = palette_for(ViewMode::Network);
+        const int lineH = 20;
+        const int visible = std::max(1, (networkContentBox.h - 34) / lineH);
+        const int maxScroll = std::max(0, static_cast<int>(items.size()) - visible);
+        networkContentScroll = std::max(0, std::min(networkContentScroll, maxScroll));
+        int y = topY;
+        const int maxWidth = std::max(40, networkContentBox.w - 28);
+        for (int i = networkContentScroll; i < static_cast<int>(items.size()) && y < networkContentBox.y + networkContentBox.h - 12; ++i) {
+            text(target, networkContentBox.x + 14, y, tail_to_width(items[static_cast<std::size_t>(i)], maxWidth), p.text);
+            y += lineH;
+        }
+        if (items.empty()) text(target, networkContentBox.x + 14, y, "No data available.", p.muted);
+    }
+
+    void draw_network_screen(Drawable target) {
+        const ViewPalette p = palette_for(ViewMode::Network);
+        fill(target, {0, kTopBarH, W, std::max(1, H-kTopBarH)}, p.background);
+        if (!networkSnapshotReady) refresh_network_center();
+
+        connected_segment_tab(target,networkOverviewTab,"Overview",networkPanel==NetworkPanel::Overview,true,false);
+        connected_segment_tab(target,networkConnectionsTab,"Connections",networkPanel==NetworkPanel::Connections,false,false);
+        connected_segment_tab(target,networkDevicesTab,"Devices",networkPanel==NetworkPanel::Devices,false,false);
+        connected_segment_tab(target,networkSecurityTab,"Security",networkPanel==NetworkPanel::Security,false,false);
+        connected_segment_tab(target,networkSatelliteTab,"Satellite",networkPanel==NetworkPanel::Satellite,false,false);
+        connected_segment_tab(target,networkDiagnosticsTab,"Diagnostics",networkPanel==NetworkPanel::Diagnostics,false,false);
+        connected_segment_tab(target,networkLogsTab,"Logs",networkPanel==NetworkPanel::Logs,false,true);
+
+        if (networkPanel == NetworkPanel::Satellite) {
+            connected_segment_tab(target,satelliteTrackTab,"Track",satellitePanel==SatellitePanel::Track,true,false);
+            connected_segment_tab(target,satellitePassesTab,"Passes",satellitePanel==SatellitePanel::Passes,false,false);
+            connected_segment_tab(target,satelliteReceiveTab,"Receive",satellitePanel==SatellitePanel::Receive,false,false);
+            connected_segment_tab(target,satelliteDecodeTab,"Decode",satellitePanel==SatellitePanel::Decode,false,false);
+            connected_segment_tab(target,satelliteTransmitTab,"Transmit",satellitePanel==SatellitePanel::Transmit,false,false);
+            connected_segment_tab(target,satelliteImageryTab,"Imagery",satellitePanel==SatellitePanel::Imagery,false,false);
+            connected_segment_tab(target,satelliteAntennaTab,"Antenna",satellitePanel==SatellitePanel::Antenna,false,false);
+            connected_segment_tab(target,satelliteHardwareTab,"Hardware",satellitePanel==SatellitePanel::Hardware,false,false);
+            connected_segment_tab(target,satelliteLogsTab,"Logs",satellitePanel==SatellitePanel::Logs,false,true);
+        } else {
+            button_on(target, networkRefreshBtn, "Refresh");
+        }
+
+        fill(target, networkContentBox, p.panel);
+        outline(target, networkContentBox, p.border);
+        const std::string heading = networkPanel == NetworkPanel::Satellite ? "SATELLITE" : "NETWORK CENTER";
+        text(target, networkContentBox.x + 14, networkContentBox.y + 20, heading, p.selection);
+        draw_network_lines(target,
+                           networkPanel == NetworkPanel::Satellite ? satellite_lines_for_panel() : network_lines_for_panel(),
+                           networkContentBox.y + 46);
+    }
+
+    void handle_network_click(int x, int y) {
+        auto setPanel = [&](NetworkPanel p) { networkPanel = p; networkContentScroll = 0; redraw(); };
+        if (networkOverviewTab.contains(x,y)) { setPanel(NetworkPanel::Overview); return; }
+        if (networkConnectionsTab.contains(x,y)) { setPanel(NetworkPanel::Connections); return; }
+        if (networkDevicesTab.contains(x,y)) { setPanel(NetworkPanel::Devices); return; }
+        if (networkSecurityTab.contains(x,y)) { setPanel(NetworkPanel::Security); return; }
+        if (networkSatelliteTab.contains(x,y)) { setPanel(NetworkPanel::Satellite); return; }
+        if (networkDiagnosticsTab.contains(x,y)) { setPanel(NetworkPanel::Diagnostics); return; }
+        if (networkLogsTab.contains(x,y)) { setPanel(NetworkPanel::Logs); return; }
+        if (networkPanel != NetworkPanel::Satellite && networkRefreshBtn.contains(x,y)) { refresh_network_center(); redraw(); return; }
+        if (networkPanel == NetworkPanel::Satellite) {
+            auto setSatellite = [&](SatellitePanel p) { satellitePanel = p; networkContentScroll = 0; redraw(); };
+            if (satelliteTrackTab.contains(x,y)) { setSatellite(SatellitePanel::Track); return; }
+            if (satellitePassesTab.contains(x,y)) { setSatellite(SatellitePanel::Passes); return; }
+            if (satelliteReceiveTab.contains(x,y)) { setSatellite(SatellitePanel::Receive); return; }
+            if (satelliteDecodeTab.contains(x,y)) { setSatellite(SatellitePanel::Decode); return; }
+            if (satelliteTransmitTab.contains(x,y)) { setSatellite(SatellitePanel::Transmit); return; }
+            if (satelliteImageryTab.contains(x,y)) { setSatellite(SatellitePanel::Imagery); return; }
+            if (satelliteAntennaTab.contains(x,y)) { setSatellite(SatellitePanel::Antenna); return; }
+            if (satelliteHardwareTab.contains(x,y)) { setSatellite(SatellitePanel::Hardware); return; }
+            if (satelliteLogsTab.contains(x,y)) { setSatellite(SatellitePanel::Logs); return; }
+        }
+    }
+
     void draw_debug_screen(Drawable target) {
         const ViewPalette palette = palette_for(ViewMode::Debug);
         const unsigned long dark = palette.text;
@@ -15733,6 +15918,11 @@ public:
         button_on(target, debugExportTextBtn, "Export TXT");
         button_on(target, debugExportJsonBtn, "Export JSON");
         button_on(target, debugBundleBtn, "Support Bundle");
+        button_on(target, securitySystemBtn, systemVirusScanMode ? "Back to System" : "Virus Scan");
+        if (systemVirusScanMode) {
+            draw_security_screen(target);
+            return;
+        }
 
         reddmedia::DiagnosticReport report;
         std::string status;
@@ -16308,6 +16498,7 @@ public:
         if (currentView == ViewMode::WorldTV) draw_world_tv_screen(buffer);
         if (currentView == ViewMode::Radio) draw_radio_screen(buffer);
         if (currentView == ViewMode::Nougat) draw_nougat_screen(buffer);
+        if (currentView == ViewMode::Network) draw_network_screen(buffer);
         if (currentView == ViewMode::Debug) draw_debug_screen(buffer);
         if (currentView == ViewMode::Stream) draw_stream_screen(buffer);
         if (currentView == ViewMode::Studio) draw_studio_screen(buffer);
@@ -17053,13 +17244,13 @@ public:
 
     bool pointer_crossed_hover_target(int old_x, int old_y, int new_x, int new_y) const {
         const Rect* targets[] = {
-            &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&radioTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&debugTab,
+            &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&radioTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&networkTab,&debugTab,
             &openBtn,&rewindBtn,&playBtn,&stopBtn,&forwardBtn,&fsBtn,
             &libraryMoviesBtn,&libraryTvBtn,&libraryGridBtn,&libraryListViewBtn,&libraryAddFolderBtn,
             &libraryUnlinkFolderBtn,&libraryRefreshBtn,&libraryBackBtn,
             &discoverUsualTab,&discoverRandomTab,&discoverLocalMovieBtn,&discoverLocalTvBtn,&discoverLiveTvBtn,&discoverExternalMovieBtn,
             &discoverExternalTvBtn,&discoverTmdbTestBtn,&discoverTmdbReplaceBtn,&discoverTmdbClearBtn,&discoverMyServicesBtn,
-            &serverStartBtn,&serverStopBtn,&serverRefreshBtn,
+            &serverStartBtn,&serverStopBtn,&serverRefreshBtn,&securitySystemBtn,
             &debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugLogsBtn,&debugCopyBtn,
             &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn,
             &streamYoutubeTab,&streamVimeoTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab,
@@ -17106,7 +17297,7 @@ public:
         }
         if (target == win && y >= kPageControlY && y < kPageControlBottom + 4) {
             if (currentView == ViewMode::Stream) { scroll_button_row(streamSourceScrollX,6,delta); return true; }
-            if (currentView == ViewMode::Nougat) { scroll_button_row(nougatPanelButtonsScrollX,6,delta); return true; }
+            if (currentView == ViewMode::Nougat) { scroll_button_row(nougatPanelButtonsScrollX,4,delta); return true; }
             if (currentView == ViewMode::LiveTV) { scroll_button_row(liveTvButtonsScrollX,9,delta); return true; }
             if (currentView == ViewMode::Debug) { scroll_button_row(debugButtonsScrollX,14,delta); return true; }
             if (currentView == ViewMode::Discover && !discoverServiceSettings) { scroll_button_row(discoverButtonsScrollX,11,delta); return true; }
@@ -17119,7 +17310,7 @@ public:
         }
         if (target == win && currentView == ViewMode::Stream && y >= 198 && y < 234) { scroll_button_row(ytdlpButtonsScrollX,4,delta); return true; }
         if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && y >= 224 && y < 266) { scroll_button_row(p2pButtonsScrollX,5,delta); return true; }
-        if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::Search && nougatNetworkAdvanced &&
+        if (target == win && currentView == ViewMode::Nougat && nougatPanel == NougatPanel::P2P && nougatNetworkAdvanced &&
             nougatNetworkActionsViewport.contains(x,y)) {
             scroll_button_row(nougatNetworkButtonsScrollX,4,delta,nougatNetworkActionsViewport.w);
             return true;
@@ -17193,6 +17384,11 @@ public:
             redraw();
             return true;
         }
+        if (currentView == ViewMode::Network && target == win && networkContentBox.contains(x,y)) {
+            networkContentScroll = std::max(0, networkContentScroll + (button == Button4 ? -1 : 1));
+            redraw();
+            return true;
+        }
         if (currentView == ViewMode::Nougat && target == win) {
             if (nougatPanel == NougatPanel::Search && nougatResultsBox.contains(x,y)) {
                 nougatResultScroll = std::max(0, nougatResultScroll + (button == Button4 ? -1 : 1));
@@ -17213,7 +17409,7 @@ public:
                 redraw();
                 return true;
             }
-            if (nougatPanel == NougatPanel::Search && nougatNetworkAdvanced && nougatPeerListBox.contains(x,y)) {
+            if (nougatPanel == NougatPanel::P2P && nougatNetworkAdvanced && nougatPeerListBox.contains(x,y)) {
                 std::size_t count = 0;
                 { std::lock_guard<std::mutex> lock(nougatState->mutex); count = nougatState->peers.size(); }
                 const int visible = std::max(1, ((int)nougatPeerListBox.h - 16) / 22);
@@ -17237,13 +17433,13 @@ public:
 
     bool point_on_ui_button(int x,int y) const {
         const Rect* targets[] = {
-            &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&radioTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&debugTab,
+            &homeTab,&videoPlayerTab,&libraryTab,&discoverTab,&liveTvTab,&worldTvTab,&radioTab,&nougatTab,&ytdlpTab,&studioTab,&gamesTab,&networkTab,&debugTab,
             &openBtn,&rewindBtn,&playBtn,&stopBtn,&forwardBtn,&fsBtn,
             &libraryMoviesBtn,&libraryTvBtn,&libraryGridBtn,&libraryListViewBtn,&libraryAddFolderBtn,
             &libraryUnlinkFolderBtn,&libraryRefreshBtn,&libraryBackBtn,
             &discoverUsualTab,&discoverRandomTab,&discoverLocalMovieBtn,&discoverLocalTvBtn,&discoverLiveTvBtn,&discoverExternalMovieBtn,
             &discoverExternalTvBtn,&discoverTmdbTestBtn,&discoverTmdbReplaceBtn,&discoverTmdbClearBtn,&discoverMyServicesBtn,
-            &serverStartBtn,&serverStopBtn,&serverRefreshBtn,
+            &serverStartBtn,&serverStopBtn,&serverRefreshBtn,&securitySystemBtn,
             &debugRunBtn,&debugRetryBtn,&debugMetadataBtn,&debugTmdbBtn,&debugLogsBtn,&debugCopyBtn,
             &debugExportTextBtn,&debugExportJsonBtn,&debugBundleBtn,
             &streamYoutubeTab,&streamVimeoTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab,
@@ -17437,6 +17633,11 @@ public:
             if (currentView != ViewMode::Games) switch_view(ViewMode::Games);
             return;
         }
+        if (topNavHit && networkTab.contains(x,y)) {
+            if (currentView != ViewMode::Network) switch_view(ViewMode::Network);
+            if (!networkSnapshotReady) refresh_network_center();
+            return;
+        }
         if (topNavHit && debugTab.contains(x,y)) {
             if (currentView != ViewMode::Debug) switch_view(ViewMode::Debug);
             return;
@@ -17448,6 +17649,10 @@ public:
         }
         if (currentView == ViewMode::Nougat) {
             handle_nougat_click(x, y);
+            return;
+        }
+        if (currentView == ViewMode::Network) {
+            handle_network_click(x, y);
             return;
         }
         if (currentView == ViewMode::Studio) {
@@ -17616,6 +17821,34 @@ public:
             return;
         }
         if (currentView == ViewMode::Debug) {
+            if (securitySystemBtn.contains(x,y)) { systemVirusScanMode=!systemVirusScanMode; redraw(); return; }
+            if (systemVirusScanMode) {
+                if (securityScanFileBtn.contains(x,y)) { std::string p=choose_file_dialog(); if(!p.empty()) start_security_scan(p,false); return; }
+                if (securityScanFolderBtn.contains(x,y)) { std::string p=choose_folder_dialog(); if(!p.empty()) start_security_scan(p,true); return; }
+                if (securityScanMoviesBtn.contains(x,y)) { start_security_mapped_library("movies"); return; }
+                if (securityScanTvBtn.contains(x,y)) { start_security_mapped_library("tv"); return; }
+                if (securityQuickScanBtn.contains(x,y)) { start_security_quick_scan(); return; }
+                if (securitySystemScanBtn.contains(x,y)) {
+                    std::vector<MenuItem> items;
+                    items.push_back({"Full System", MenuAction::SecuritySystemFull, 0});
+                    items.push_back({"Critical System Areas", MenuAction::SecuritySystemCritical, 0});
+                    items.push_back({"Startup Locations", MenuAction::SecuritySystemStartup, 0});
+                    items.push_back({"Downloads", MenuAction::SecuritySystemDownloads, 0});
+                    items.push_back({"Removable Drives", MenuAction::SecuritySystemRemovable, 0});
+                    items.push_back({"New/Changed Files (7 days)", MenuAction::SecuritySystemChanged, 0});
+                    show_menu(win, securitySystemScanBtn.x, securitySystemScanBtn.y + securitySystemScanBtn.h, items);
+                    return;
+                }
+                if (securityScanAgainBtn.contains(x,y)) {
+                    bool busyNow=false;
+                    { std::lock_guard<std::mutex> lock(securityState->mutex); busyNow=securityState->busy; }
+                    if (busyNow) cancel_security_scan(); else repeat_security_scan();
+                    return;
+                }
+                if (securityCommunityKeyBtn.contains(x,y)) { save_security_auth_key(choose_security_auth_key_dialog()); redraw(); return; }
+                if (securityHistoryBtn.contains(x,y)) { show_security_history(); redraw(); return; }
+                return;
+            }
             if (serverStartBtn.contains(x,y)) { start_server_task(1); return; }
             if (serverStopBtn.contains(x,y)) { start_server_task(2); return; }
             if (serverRefreshBtn.contains(x,y)) { start_server_task(3); return; }
@@ -18386,17 +18619,17 @@ static void nougat_enter_gnome_app_scope(int argc, char** argv) {
 
 int main(int argc, char** argv) {
     nougat_enter_gnome_app_scope(argc, argv);
-    if (argc > 1 && std::string(argv[1]) == "--v63-media-plus-ui-self-test") {
+    if (argc > 1 && std::string(argv[1]) == "--v64-media-plus-ui-self-test") {
         const bool brand=nougat_media_suite_icon::kTopBarWidth>180 && nougat_media_suite_icon::kTopBarHeight==40 && nougat_media_suite_icon::kIcon64Size==64;
         const bool authority=exists_file(exe_dir()+"/assets/ui/NOUGAT_MEDIA_PLUS_UI_AUTHORITY.png");
-        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.63 UI self-test FAIL.\n"); return 1; }
-        std::printf("Nougat Media Plus v0.0.63 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
+        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.64 UI self-test FAIL.\n"); return 1; }
+        std::printf("Nougat Media Plus v0.0.64 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
         return 0;
     }
 
     prctl(PR_SET_NAME, "NougatMediaPlus", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Plus v0.0.63\n");
+        printf("Nougat Media Plus v0.0.64\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

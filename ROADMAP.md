@@ -1,3 +1,37 @@
+## v0.0.65 planned - Military UI Enhancement and Nougat Chat Scaffolding
+
+- Replace the Video Player seek control in regular/half-screen and fullscreen playback with the exact owner-approved military green-glass seek-bar design: square track, square ends, oversized square handle extending above and below the track, no old caramel palette, and no separate background panel.
+- Apply the system-wide hybrid control hierarchy already emerging in Nougat: filled green-glass controls for sections, modes, and navigation; angular outlined controls for commands and actions.
+- Keep long control lanes scrollable rather than shrinking buttons into unreadable rows.
+- Apply the same hierarchy to Radio after auditing the actual existing Radio control inventory from source. Do not substitute a guessed list of Radio services.
+- Add Nougat Chat scaffolding for a future built-in global Nougat-user chat service.
+- Initial Chat architecture centers on one plain global room, username/display-name plumbing, message entry, connection state, enable/disable control, and backend interfaces.
+- Future Chat expansion may grow toward Discord-style channels, replies, reactions, private messages, groups, roles, voice, video, screen sharing, and file sharing.
+
+## Future feature roadmap
+
+### Nougat Weather
+- Full weather environment including forecasts, radar, satellite weather imagery, severe-weather information, storm tracking, and appropriate integration with received weather-radio information.
+- Not part of v0.0.65 unless separately approved.
+
+### Nougat Studio Music Production
+- Future Cakewalk-style DAW environment with multitrack recording/editing, mixer, MIDI, instruments, effects/plugins, automation, mastering, and export.
+- Not part of v0.0.65 unless separately approved.
+
+### Nougat Calendar
+- Multi-calendar system with selectable Gregorian, Islamic Hijri, Hebrew/Jewish, and relevant Christian/liturgical calendar views.
+- Display the correct year numbering for the selected calendar rather than forcing every calendar into Gregorian year numbering.
+- Support religious holidays and observances appropriate to the selected calendar.
+- Allow multiple calendar systems to be displayed together when desired.
+
+## v0.0.64 accepted - Network Center and Satellite Foundation
+
+- Network Center foundation completed.
+- Search/Crawler/P2P/Archive navigation structure completed.
+- Virus Scan placed under System.
+- Satellite Center architecture, SGP4 foundation, and GDAL integration planning added.
+- v0.0.64 is the frozen base for v0.0.65 military-interface enhancement work.
+
 ## v0.0.62 - Complete Games and Emulator Overhaul
 
 v0.0.62 is the dedicated complete Games overhaul.

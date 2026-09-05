@@ -102,6 +102,22 @@ The inclusion of professional, governmental, public-safety, military, satellite,
 
 **Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
 
+## v0.0.64 - Network Center and Satellite Foundation
+
+Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accepted v0.0.63 baseline.
+
+### Technical changes
+
+- Advances the active executable to `Nougat_Media_Plus_v64` and advances runtime/build reporting to v0.0.64.
+- Adds the top-level Nougat Network Center foundation.
+- Establishes dedicated network-center source architecture for connected network hardware and services.
+- Advances Search to the visible `Search | Crawler | P2P | Archive` structure.
+- Keeps peer/network administration associated with P2P while moving Virus Scan to the System area.
+- Adds the satellite-center foundation and dedicated satellite source architecture.
+- Adds the SGP4 orbital-propagation foundation and its upstream license record.
+- Adds the GDAL satellite/geospatial integration planning record.
+- Preserves the accepted v0.0.63 Games and emulator behavior outside the approved v0.0.64 scope.
+
 ## v0.0.63 - Games, Emulator, Controller, and Tactical UI Repair
 
 Nougat Media Plus v0.0.63 is the owner-accepted checkpoint built from the accepted v0.0.62 baseline. The release advances Games and emulator integration, controller reporting, tactical-interface cleanup, desktop identity, and the active Nougat Media Plus executable while carrying unresolved emulator-containment work forward truthfully.
