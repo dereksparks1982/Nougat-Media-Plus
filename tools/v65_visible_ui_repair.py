@@ -43,15 +43,11 @@ def replace_function(text: str, signature: str, replacement: str) -> str:
 
 # ---------------------------------------------------------------------------
 # OWNER-APPROVED HYBRID GRAMMAR, made visually unmistakable.
-#
-# Mode/navigation controls continue to use button_on_state() and therefore the
-# filled dark green-glass face. Direct commands use button_on() and are now
-# genuinely hollow angular outlines. There is deliberately NO filled face here.
+# Filled green-glass remains the navigation/mode path. Direct commands are
+# genuinely hollow angular outlines with no filled center.
 # ---------------------------------------------------------------------------
 command_button = r'''    void button_on(Drawable target, const Rect& r, const std::string& label) {
         // NOUGAT_V65_VISIBLE_OUTLINED_COMMAND
-        const ViewPalette palette = currentView == ViewMode::Stream
-            ? stream_palette_for(streamPlatform) : palette_for(currentView);
         const bool hover = target == win && r.contains(pointerWindowX, pointerWindowY);
         if (r.w <= 4 || r.h <= 6) return;
 
@@ -65,9 +61,6 @@ command_button = r'''    void button_on(Drawable target, const Rect& r, const st
         const Rect inset{visual.x + 4, visual.y + 4,
                          std::max(1, visual.w - 8), std::max(1, visual.h - 8)};
         outline_tactical_polygon(target, inset, inner, 5);
-
-        // Short military rails keep the old angular-command identity without
-        // turning the center back into another filled glass tab.
         line(target, visual.x + 10, visual.y + 2,
              visual.x + std::max(11, visual.w / 3), visual.y + 2, rail);
         line(target, visual.x + visual.w - std::max(11, visual.w / 3), visual.y + visual.h - 3,
@@ -117,9 +110,7 @@ s = replace_function(s,
     '    void command_button_state(Drawable target, const Rect& r, const std::string& label,',
     stateful_button)
 
-# Radio's service/mode selectors are one continuous filled green-glass lane.
-# No categories, no two-row grid. The existing horizontal scroll mechanics are
-# retained, so every existing service remains reachable without tiny buttons.
+# Radio services are one continuous filled green-glass selector lane.
 if 'const int serviceRows = 2;' in s:
     s = s.replace('const int serviceRows = 2;', 'const int serviceRows = 1; // NOUGAT_V65_VISIBLE_ONE_ROW_RADIO_MODES', 1)
 elif 'const int serviceRows = 1;' not in s and 'NOUGAT_V65_VISIBLE_ONE_ROW_RADIO_MODES' not in s:
@@ -127,7 +118,7 @@ elif 'const int serviceRows = 1;' not in s and 'NOUGAT_V65_VISIBLE_ONE_ROW_RADIO
 s = s.replace('// NOUGAT_V65_RADIO_SERVICE_LANE: two-row mode lane, horizontally scrollable.',
               '// NOUGAT_V65_RADIO_SERVICE_LANE: one continuous filled mode lane, horizontally scrollable.')
 
-# Direct Radio actions must never fall back to the filled mode style.
+# Direct Radio actions stay outlined even while active.
 radio_replacements = {
     'button_on_state(target,radioListenBtn,state.receiving?"LISTENING":"LISTEN",state.receiving?SheetControlState::Hover:SheetControlState::Normal);':
         'command_button_state(target,radioListenBtn,state.receiving?"LISTENING":"LISTEN",state.receiving?SheetControlState::Hover:SheetControlState::Normal);',
@@ -139,18 +130,15 @@ radio_replacements = {
 for old, new in radio_replacements.items():
     s = s.replace(old, new)
 
-# Keep TV antenna ownership in Live TV only.
+# TV antenna scanning belongs to Live TV only.
 s = s.replace('"Favorites", "Recordings", "TV Antenna Scan", "ISS / Sat"',
               '"Favorites", "Recordings", "ISS / Sat"')
 s = s.replace(' || label=="TV Antenna Scan"', '')
 
-# The embedded top-bar brand must be composited against the real tactical header,
-# not the historical tan background. This removes the square/black-ish backing
-# while preserving the green rim itself.
+# Composite the in-app brand against the tactical header, not the old tan backing.
 s = s.replace('draw_suite_brand(target,4,brandY,227,204,172);',
               'draw_suite_brand(target,4,brandY,2,15,11); // NOUGAT_V65_VISIBLE_BRAND_BACKGROUND_CLEANUP')
 
-# Assertions check actual rendering paths rather than decorative marker comments.
 required = [
     'NOUGAT_V65_VISIBLE_OUTLINED_COMMAND',
     'NOUGAT_V65_VISIBLE_STATEFUL_OUTLINED_COMMAND',
@@ -164,9 +152,7 @@ for marker in required:
     if marker not in s:
         raise SystemExit(f'STOP: visible v65 UI requirement missing: {marker}')
 
-# The command renderer must be hollow. If either visible outlined-command
-# function contains a tactical fill call, fail rather than package another fake
-# hybrid UI.
+# Refuse to package if either command renderer contains a filled face.
 for sig in (
     '    void button_on(Drawable target, const Rect& r, const std::string& label)',
     '    void command_button_state(Drawable target, const Rect& r, const std::string& label,',
