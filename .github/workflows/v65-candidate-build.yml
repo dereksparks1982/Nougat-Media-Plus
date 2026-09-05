@@ -21,24 +21,24 @@ jobs:
           fetch-depth: 1
       - name: Apply existing v65 patch
         run: python3 tools/v65_patch.py
-      - name: Inspect Radio and sidebar UI anchors
+      - name: Inspect System and in-app brand anchors
         run: |
           python3 - <<'PY'
           from pathlib import Path
           lines=Path('src/main.cpp').read_text().splitlines()
           groups={
-            'RADIO':['radioServiceTabs','radioPanel','RadioPanel::','radioPreset','radioTune','radioScan','radioConnect','radioRefresh','radioRecord','radioStop','radioAntennaScanBtn'],
-            'ICON':['branding','png','PNG','Pixmap','sidebar','SIDEBAR','appIcon','AppIcon','logo','Logo','icon','Icon','NOUgat','NOUGAT']
+            'SYSTEM':['serverStartBtn','serverStopBtn','serverRefreshBtn','securitySystemBtn','debugRunBtn','debugRetryBtn','debugMetadataBtn','debugTmdbBtn','debugLogsBtn','debugCopyBtn','debugExportTextBtn','debugExportJsonBtn','debugBundleBtn','draw_debug','SYSTEM'],
+            'BRAND':['draw_suite_brand(','kTopBarLockup','top_nav_left_bound','rgb8(0,0,0)','rgb8(0, 0, 0)','fill(target,{0','fill(target, {0']
           }
           for title,needles in groups.items():
             hits=[i for i,l in enumerate(lines) if any(n in l for n in needles)]
             print(f'===== {title} HIT COUNT {len(hits)} =====')
             blocks=[]
             for i in hits:
-              a=max(0,i-18); b=min(len(lines),i+19)
+              a=max(0,i-35); b=min(len(lines),i+36)
               if any(not (b < aa or a > bb) for aa,bb in blocks): continue
               blocks.append((a,b))
-              if len(blocks)>=30: break
+              if len(blocks)>=24: break
             for a,b in blocks:
               print(f'===== {title} CONTEXT {a+1}-{b} =====')
               for j in range(a,b): print(f'{j+1:06d}: {lines[j]}')
