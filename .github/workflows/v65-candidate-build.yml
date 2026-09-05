@@ -34,7 +34,9 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           echo "WORKSPACE=$PWD"
           test -d .git
-          git lfs install --local
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git rev-parse --show-toplevel
+          git lfs version
           git lfs pull --include="components/ai/runtime/**" --exclude=""
           test -f components/ai/runtime/include/llama.h
           test -e components/ai/runtime/lib/libllama.so
