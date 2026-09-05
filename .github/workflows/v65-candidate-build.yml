@@ -10,85 +10,36 @@ permissions:
   contents: read
 
 jobs:
-  build-v65:
+  inspect-v65-ui:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
     steps:
-      - name: Checkout candidate source
+      - name: Checkout candidate
         uses: actions/checkout@v4
         with:
           ref: candidate/v0.0.65
           lfs: false
           fetch-depth: 1
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake pkg-config libx11-dev
-
-      - name: Apply v65 source patch
-        run: |
-          python3 tools/v65_patch.py
-          grep -q 'v0.0.65' src/main.cpp
-          grep -q 'NOUGAT_V65_APPROVED_MILITARY_SEEK' src/main.cpp
-          grep -q 'NOUGAT_V65_RADIO_SERVICE_LANE' src/main.cpp
-
-      - name: Inspect System controls and sidebar icon
+      - name: Apply existing v65 patch
+        run: python3 tools/v65_patch.py
+      - name: Inspect Radio and sidebar UI anchors
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          lines = Path('src/main.cpp').read_text().splitlines()
-          needles = [
-              'Start Server','Stop Server','Refresh Server','Virus Scan',
-              'Quick Diagnostic','Deep Diagnostic','Refresh Metadata','Test TMDB',
-              'sidebar','Sidebar','nougatIcon','nougat_icon','sideIcon','side_icon',
-              'logoRect','logo_rect','iconRect','icon_rect'
-          ]
-          hits=[]
-          for i,line in enumerate(lines):
-              if any(n in line for n in needles): hits.append(i)
-          blocks=[]
-          for i in hits:
-              a=max(0,i-45); b=min(len(lines),i+46)
+          lines=Path('src/main.cpp').read_text().splitlines()
+          groups={
+            'RADIO':['radioServiceTabs','radioPanel','RadioPanel::','radioPreset','radioTune','radioScan','radioConnect','radioRefresh','radioRecord','radioStop','radioAntennaScanBtn'],
+            'ICON':['branding','png','PNG','Pixmap','sidebar','SIDEBAR','appIcon','AppIcon','logo','Logo','icon','Icon','NOUgat','NOUGAT']
+          }
+          for title,needles in groups.items():
+            hits=[i for i,l in enumerate(lines) if any(n in l for n in needles)]
+            print(f'===== {title} HIT COUNT {len(hits)} =====')
+            blocks=[]
+            for i in hits:
+              a=max(0,i-18); b=min(len(lines),i+19)
               if any(not (b < aa or a > bb) for aa,bb in blocks): continue
               blocks.append((a,b))
-          for a,b in blocks:
-              print(f'===== SOURCE CONTEXT {a+1}-{b} =====')
+              if len(blocks)>=30: break
+            for a,b in blocks:
+              print(f'===== {title} CONTEXT {a+1}-{b} =====')
               for j in range(a,b): print(f'{j+1:06d}: {lines[j]}')
           PY
-
-      - name: Configure CI validation lane
-        run: |
-          cmake -S . -B build-v65 -DCMAKE_BUILD_TYPE=Release -DREDDMEDIA_P2P_STUB=ON -DREDDMEDIA_AI_STUB=ON
-
-      - name: Build with warnings as errors
-        run: |
-          cmake --build build-v65 --target Nougat_Media_Plus_v65 -j2
-
-      - name: Verify version
-        run: |
-          ./build-v65/Nougat_Media_Plus_v65 --version | tee v65-version.txt
-          grep -q 'Nougat Media Plus v0.0.65' v65-version.txt
-
-      - name: Prepare CI validation artifact
-        run: |
-          mkdir -p out-v65/src/chat out-v65/tools
-          cp build-v65/Nougat_Media_Plus_v65 out-v65/Nougat_Media_Plus_v65_CI_VALIDATION_ONLY
-          cp src/main.cpp out-v65/src/main.cpp
-          cp src/chat/nougat_chat.hpp src/chat/nougat_chat.cpp out-v65/src/chat/
-          cp CMakeLists.txt out-v65/
-          cp tools/v65_patch.py out-v65/tools/
-          cp v65-version.txt out-v65/
-          cat > out-v65/README_VALIDATION.txt <<'TXT'
-          Nougat Media Plus v0.0.65 CI validation artifact.
-          Base: accepted v0.0.64 commit dbe202300f48c8e53b4ee5ab169b6f9e8e4e2395.
-          This GitHub-runner executable is NOT the owner handoff candidate. The runner uses the existing P2P and AI stub lanes only to validate the v0.0.65 source with warnings-as-errors because GitHub Ubuntu 24.04 does not match the accepted Nougat workstation's libtorrent API or GLIBC runtime.
-          The real owner-test candidate must be built on the Nougat development host against its accepted runtime/dependency environment.
-          TXT
-
-      - name: Upload CI validation artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Nougat_Media_Plus_v0.0.65_CI_validation
-          path: out-v65/
-          if-no-files-found: error
