@@ -49,13 +49,17 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           python3 tools/v65_patch.py
           python3 tools/v65_ui_repair.py
+          sed -i 's/ || label=="TV Antenna Scan"//g' src/main.cpp
           grep -q 'NOUGAT_V65_APPROVED_MILITARY_SEEK' src/main.cpp
           grep -q 'NOUGAT_V65_HYBRID_COMMAND_BUTTON' src/main.cpp
           grep -q 'NOUGAT_V65_SYSTEM_COMMAND_LANE' src/main.cpp
           grep -q 'NOUGAT_V65_DOCK_ICON_BORDER_CLEANUP' src/main.cpp
           grep -q 'NOUGAT_V65_RADIO_SERVICE_LANE' src/main.cpp
-          echo '=== TV antenna phrase diagnostics ==='
-          grep -n 'TV Antenna Scan' src/main.cpp || true
+          if grep -q 'TV Antenna Scan' src/main.cpp; then
+            echo 'STOP: stale TV Antenna Scan reference remains in Radio source'
+            grep -n 'TV Antenna Scan' src/main.cpp
+            false
+          fi
 
       - name: Remove the exterior black border from the packaged dock icon
         run: |
