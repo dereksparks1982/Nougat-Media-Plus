@@ -26,3 +26,10 @@ Owner-accepted closeout date: 2026-09-05
 - REPAIR1 owner-machine output reached 100% compilation and linked `Nougat_Media_Plus_v66` with the project's warnings-as-errors build. The subsequent failure was the temporary-build authority-marker lookup in the UI CLI self-test.
 - REPAIR2 changes only that validation path and retains the approved source/UI scope.
 - No owner-pasted successful RPCS3 gameplay-containment run is claimed by this record.
+
+## Final GitHub root executable closeout
+- Root executable: `Nougat_Media_Plus_v66`
+- Size: `3708696` bytes
+- SHA-256: `14ab6aeb80d479d11cba7e9cbc08d093d6781aded433bc22ff391cee07435a7b`
+- Built and CLI-validated on Ubuntu 26.04 with libtorrent 2.0.12.
+- Stale root `Nougat_Media_Plus_v65` removed.
