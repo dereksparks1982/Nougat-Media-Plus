@@ -1,3 +1,11 @@
+## v0.0.66 - PlayStation 3 Integration and UI Authority Closeout
+
+- Adds managed RPCS3 runtime/profile integration inside Games with PC-style graphics controls and capability-gated neural options.
+- Removes the owner-rejected standalone PS3 graphics-app architecture.
+- Makes the approved left module rail authoritative, removes duplicate top navigation, restores approved sheet-button geometry, square N treatment, separated Studio controls, and removes the Studio film strip.
+- Keeps Xbox/Xenia source and containment behavior unchanged from the accepted v0.0.65 baseline.
+- Accepted for GitHub closeout by the owner on 2026-09-05.
+
 ## v0.0.61 - Drone Mission Control and Games Library Expansion
 
 ## v0.0.64 - Network Center and Satellite Foundation

@@ -80,6 +80,8 @@ Nougat can discover games inside supported ZIP libraries, keeps DOS packages tog
 
 Xbox 360/Xenia has an owner-tested Nougat-contained rendering path. Other emulator families remain subject to their backend's current containment status, so managed discovery is not falsely described as proof that every emulator is fully embedded.
 
+PlayStation 3/RPCS3 in **v0.0.66** adds a managed RPCS3 runtime wrapper and native Games settings with **Original, Performance, Balanced, Quality, Ultra, and Custom** profiles. Nougat exposes render scale, anisotropic filtering, MSAA, output scaling, frame limit, VSync, and GPU texture scaling. Neural controls are capability-gated and do not claim an active DLSS or neural-rendering backend when a compatible Linux bridge is absent. RPCS3 launches through the existing Nougat game-host/Video Player containment path; PlayStation 3 game content and console firmware are not bundled.
+
 ## **Studio & Production Tools**
 
 **Studio** provides integrated media-production, file-production, and planning tools.
@@ -130,7 +132,7 @@ The N is the required application identity across the in-app interface, versione
 
 The tactical visual system coordinates navigation, panels, controls, dialogs, status surfaces, application identity, and UI feedback while preserving the functionality of the individual Nougat systems.
 
-The **v0.0.65 checkpoint** adds the new left-side Nougat module rail while deliberately retaining the complete existing top navigation during owner verification. No top-level navigation control is retired until the owner confirms that the sidebar contains and correctly routes every required module.
+In **v0.0.66**, the owner-approved left-side Nougat module rail becomes the authoritative top-level navigation and the duplicate top navigation row is removed. Rail controls and Search workspace controls use the approved UI-sheet button surface rather than alternate or guessed tactical geometry. The rail N preserves its approved square proportions and borderless green identity treatment; reference screenshots are never embedded as application UI assets.
 
 The same checkpoint advances the military Player HUD with chapter-marked seeking, chapter and episode controls, segmented tactical volume, translucent information surfaces, and rapid retriggerable click feedback. **Continue Watching** remains a mandatory Home feature during tactical-interface work.
 
@@ -161,6 +163,33 @@ Nothing in Nougat Media Plus, its documentation, source code, supported hardware
 The inclusion of professional, governmental, public-safety, military, satellite, aviation, cellular, or other regulated use cases does not imply endorsement, affiliation, certification, approval, sponsorship, or authorization by any government agency, military organization, regulator, communications authority, satellite operator, service provider, or equipment manufacturer.
 
 **Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
+
+## v0.0.66 - PlayStation 3 Integration and UI Authority Closeout
+
+Nougat Media Plus v0.0.66 is the owner-accepted closeout of the PlayStation 3/RPCS3 integration and the owner-approved UI-authority corrections built from the accepted v0.0.65 GitHub baseline.
+
+### Technical changes
+
+- Advances the active application/build reporting and root executable target to v0.0.66.
+- Adds the managed RPCS3 runtime wrapper under `components/games/runtime/rpcs3/` through the tracked `src/games/rpcs3_runtime_wrapper.sh` source.
+- Adds native PlayStation 3 graphics/profile management inside Games with Original, Performance, Balanced, Quality, Ultra, and Custom profiles.
+- Adds configurable render scale, anisotropic filtering, MSAA, output scaling, frame limit, VSync, and GPU texture scaling for the RPCS3 configuration path.
+- Adds capability-gated neural controls for neural enable/strength/quality, motion reconstruction, HUD protection, and frame generation. These controls remain disabled where no compatible Linux neural bridge is detected and do not claim that DLSS or another neural backend is active.
+- Keeps commercial PlayStation 3 games, firmware, BIOS material, and proprietary neural runtimes outside the repository.
+- Keeps RPCS3 inside the existing Nougat Games architecture and launches it through the existing game-host/Video Player containment path rather than adding a standalone PS3 graphics application.
+- Removes the duplicate top navigation row after owner approval and makes the left module rail the authoritative top-level navigation.
+- Replaces guessed side-rail and Search/Crawler/P2P/Archive control geometry with the existing approved UI-sheet button surface.
+- Restores the side-rail N to approved square proportions and applies the approved borderless green N treatment to active window/dock identity.
+- Removes the Studio film-strip decoration and keeps Tools and Drone as separate controls.
+- Treats screenshots and design captures as reference material only; no screenshot/image payload is embedded as application UI by this release.
+- Preserves `src/games/emulator_host.cpp` byte-for-byte from the accepted v0.0.65 baseline, so the owner-frozen Xbox/Xenia containment implementation is unchanged.
+
+### Validation and acceptance
+
+- The owner explicitly accepted v0.0.66 for GitHub closeout on 2026-09-05.
+- The accepted changed-files package is `Nougat_Media_Plus_v0.0.66_UI_AUTHORITY_CHANGED_FILES_REPAIR2.zip`, SHA-256 `06ff1f1da0fcde9bbcb9d65ed96a5d793119022a28e776001ecf2e6ebe70cdfa`.
+- The preceding REPAIR1 owner-machine run compiled the full v0.0.66 target successfully with warnings treated as errors; its failure occurred afterward in the temporary-build UI self-test asset lookup. REPAIR2 corrects that validation path without changing the approved UI scope.
+- This record does not claim an owner-pasted successful RPCS3 gameplay-containment test or an active neural/DLSS backend.
 
 ## v0.0.65 - Military UI Consolidation Checkpoint
 

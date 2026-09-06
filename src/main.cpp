@@ -42,6 +42,7 @@
 #include <X11/Xatom.h>
 #include "p2p_engine.hpp"
 #include "games/emulator_host.hpp"
+#include "games/ps3_profile.hpp"
 #include "p2p_stream_server.hpp"
 #include "ytdlp_stream_server.hpp"
 #include "nougat_media_suite_icon_data.hpp"
@@ -3434,9 +3435,22 @@ public:
     void set_net_wm_icon() {
         std::vector<unsigned long> data;
         data.reserve(2 + 16*16 + 2 + 32*32 + 2 + 64*64);
-        append_net_wm_icon(data, nougat_media_suite_icon::kIcon16Size, nougat_media_suite_icon::kIcon16);
-        append_net_wm_icon(data, nougat_media_suite_icon::kIcon32Size, nougat_media_suite_icon::kIcon32);
-        append_net_wm_icon(data, nougat_media_suite_icon::kIcon64Size, nougat_media_suite_icon::kIcon64);
+        // NOUGAT_V66_UI_AUTHORITY_BORDERLESS_WM_N
+        const auto append_borderless_n = [&data](int size, const std::uint32_t* pixels) {
+            data.push_back(static_cast<unsigned long>(size));
+            data.push_back(static_cast<unsigned long>(size));
+            const int count=size*size;
+            for(int i=0;i<count;++i) {
+                std::uint32_t argb=pixels[i];
+                const unsigned a=(argb>>24)&0xffU;
+                const unsigned r=(argb>>16)&0xffU, g=(argb>>8)&0xffU, b=argb&0xffU;
+                if(a<24U || (r<30U&&g<30U&&b<30U)) argb=0U;
+                data.push_back(static_cast<unsigned long>(argb));
+            }
+        };
+        append_borderless_n(nougat_media_suite_icon::kIcon16Size, nougat_media_suite_icon::kIcon16);
+        append_borderless_n(nougat_media_suite_icon::kIcon32Size, nougat_media_suite_icon::kIcon32);
+        append_borderless_n(nougat_media_suite_icon::kIcon64Size, nougat_media_suite_icon::kIcon64);
         Atom netWmIcon = XInternAtom(d, "_NET_WM_ICON", False);
         Atom cardinal = XInternAtom(d, "CARDINAL", False);
         XChangeProperty(d, win, netWmIcon, cardinal, 32, PropModeReplace,
@@ -3702,17 +3716,22 @@ public:
         // operational in this build so Derek can compare every target before
         // authorizing any later removal of duplicate top navigation.
         moduleRailRect = {4, kTopBarH + 4, kModuleRailW - 8, std::max(1, H - kTopBarH - 8)};
-        moduleRailIconRect = {moduleRailRect.x + 14, moduleRailRect.y + 6, 42, 42};
+        // NOUGAT_V66_UI_AUTHORITY_SQUARE_RAIL_N
+        const int moduleRailIconSize = std::max(1, moduleRailRect.w - 12);
+        moduleRailIconRect = {moduleRailRect.x + (moduleRailRect.w-moduleRailIconSize)/2,
+                              moduleRailRect.y + moduleRailRect.h - moduleRailIconSize - 6,
+                              moduleRailIconSize, moduleRailIconSize};
         Rect* const railTabs[] = {
             &railHomeTab,&railVideoPlayerTab,&railLibraryTab,&railDiscoverTab,&railLiveTvTab,&railWorldTvTab,
             &railRadioTab,&railNougatTab,&railStreamTab,&railStudioTab,&railGamesTab,&railNetworkTab,&railSystemTab
         };
         const int railCount = static_cast<int>(sizeof(railTabs) / sizeof(railTabs[0]));
-        const int railTop = moduleRailIconRect.y + moduleRailIconRect.h + 7;
-        const int railBottom = moduleRailRect.y + moduleRailRect.h - 6;
+        const int railTop = moduleRailRect.y + 6;
+        const int railBottom = moduleRailIconRect.y - 7;
         const int railGap = 2;
         const int availableRailH = std::max(railCount * 24, railBottom - railTop - railGap * (railCount - 1));
-        const int railButtonH = std::max(24, std::min(40, availableRailH / railCount));
+        // NOUGAT_V66_UI_AUTHORITY_RAIL_PROPORTIONS
+        const int railButtonH = std::max(24, availableRailH / railCount);
         int railY = railTop;
         for (Rect* tab : railTabs) {
             *tab = {moduleRailRect.x + 5, railY, moduleRailRect.w - 10, railButtonH};
@@ -5497,9 +5516,11 @@ public:
         for(const auto& item:items){
             const bool active=currentView==item.view;
             const bool hover=item.r->contains(pointerWindowX,pointerWindowY);
-            const unsigned long border=active?rgb8(112,215,140):(hover?rgb8(67,157,96):rgb8(22,81,50));
-            const unsigned long face=active?rgb8(12,56,36):rgb8(2,17,12);
-            draw_tactical_polygon(target,*item.r,face,border,6);
+            // NOUGAT_V66_UI_AUTHORITY_EXACT_SHEET_RAIL_BUTTON
+            const ViewPalette railPalette=palette_for(ViewMode::Network);
+            const SheetControlState railState=active?SheetControlState::Pressed:
+                (hover?SheetControlState::Hover:SheetControlState::Normal);
+            draw_sheet_button_surface(target,*item.r,railPalette,railState);
             draw_module_icon(target,*item.r,item.icon,active?rgb8(186,239,199):rgb8(112,171,129));
             const std::string label=item.label;
             text(target,item.r->x+std::max(3,(item.r->w-text_width(label))/2),item.r->y+item.r->h-5,label,
@@ -5521,7 +5542,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.65";
+        const std::string versionLabel = "v0.0.66";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -5547,38 +5568,13 @@ public:
         // Paint the divider before the tabs so the active downward notch sits cleanly over it.
         line(target, 0, kTopBarH - 2, W, kTopBarH - 2, divider);
 
-        topNavClipX = std::max(0, std::min(top_nav_left_bound(), W));
-        topNavClipRight = std::max(topNavClipX + 1, std::min(W, serverX - 8));
-        XRectangle navClip{static_cast<short>(topNavClipX),0,
-                           static_cast<unsigned short>(std::max(1,topNavClipRight-topNavClipX)),kTopBarH};
-        XSetClipRectangles(d, gc, 0, 0, &navClip, 1, Unsorted);
-        const auto draw_tab = [&](const Rect& tab, const char* label, ViewMode view) {
-            const bool active = currentView == view;
-            const bool hover = tab.contains(pointerWindowX, pointerWindowY);
-            const ViewPalette tabPalette = palette_for(view);
-            Rect surface{tab.x, tab.y, tab.w, tab.h};
-            draw_top_nav_tab_surface(target, surface, tabPalette, active, hover);
-            const Rect visual{surface.x + 2, surface.y + 1, std::max(1, surface.w - 4), std::max(1, surface.h - 4)};
-            const int labelX = visual.x + std::max(5, (visual.w - text_width(label)) / 2);
-            text(target, labelX, visual.y + visual.h / 2 + 5, label, tabPalette.buttonText);
-        };
-        draw_tab(homeTab,"Home",ViewMode::Home);
-        draw_tab(videoPlayerTab,"Video Player",ViewMode::VideoPlayer);
-        draw_tab(libraryTab,"Library",ViewMode::Library);
-        draw_tab(discoverTab,"Discover",ViewMode::Discover);
-        draw_tab(liveTvTab,"Live TV",ViewMode::LiveTV);
-        draw_tab(worldTvTab,"World TV",ViewMode::WorldTV);
-        draw_tab(radioTab,"Radio",ViewMode::Radio);
-        draw_tab(nougatTab,"Search",ViewMode::Nougat);
-        draw_tab(ytdlpTab,"Stream",ViewMode::Stream);
-        draw_tab(studioTab,"Studio",ViewMode::Studio);
-        draw_tab(gamesTab,"Games",ViewMode::Games);
-        draw_tab(networkTab,"Network",ViewMode::Network);
-        draw_tab(debugTab,"System",ViewMode::Debug);
-        XSetClipMask(d, gc, None);
+        // NOUGAT_V66_UI_AUTHORITY_NO_TOP_NAV
     }
 
     void draw_active_top_tab_pointer(Drawable target) {
+        // NOUGAT_V66_UI_AUTHORITY_NO_TOP_NAV_POINTER
+        (void)target;
+        return;
         const Rect* tab = nullptr;
         switch (currentView) {
             case ViewMode::Home: tab = &homeTab; break;
@@ -13823,10 +13819,11 @@ public:
         std::string status;
         bool search_busy=false, crawl_busy=false;
         { std::lock_guard<std::mutex> lock(nougatState->mutex); node=nougatState->node_id; status=nougatState->status; search_busy=nougatState->search_busy; crawl_busy=nougatState->crawl_busy; }
-        connected_segment_tab(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search,true,false);
-        connected_segment_tab(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler,false,false);
-        connected_segment_tab(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P,false,false);
-        connected_segment_tab(target,nougatArchivePanelTab,"Archive",nougatPanel==NougatPanel::Archive,false,true);
+        // NOUGAT_V66_UI_AUTHORITY_EXACT_SHEET_SEARCH_BUTTONS
+        nougat_button(target,nougatSearchPanelTab,"Search",nougatPanel==NougatPanel::Search);
+        nougat_button(target,nougatCrawlerPanelTab,"Crawler",nougatPanel==NougatPanel::Crawler);
+        nougat_button(target,nougatP2PPanelTab,"P2P",nougatPanel==NougatPanel::P2P);
+        nougat_button(target,nougatArchivePanelTab,"Archive",nougatPanel==NougatPanel::Archive);
 
         if (nougatPanel == NougatPanel::Archive) {
             struct ArchiveSite { const char* name; const char* url; const char* onion; };
@@ -15447,6 +15444,28 @@ public:
                  "Per-system button mapping remains owned by the chosen emulator backend.",
                  palette.muted);
         } else {
+            // NOUGAT_V66_PS3_INTEGRATED_GAMES_SETTINGS
+            section_text(target,gamesListBox.x+14,y,"PLAYSTATION 3 / RPCS3 GRAPHICS",palette.text); y+=26;
+            auto ps3p=nougat::games::ps3::load_profile();
+            const bool ps3Neural=nougat::games::ps3::neural_bridge_available();
+            text(target,gamesListBox.x+14,y,"Preset",palette.muted);
+            { const std::vector<std::string> presets={"Original","Performance","Balanced","Quality","Ultra","Custom"}; int px=gamesListBox.x+100; for(const auto& name:presets){ Rect r{px,y-16,78,22}; button_on_state(target,r,name,ps3p.preset==name?SheetControlState::Pressed:SheetControlState::Normal); px+=80; } }
+            y+=25; const int vx=gamesListBox.x+190;
+            text(target,gamesListBox.x+14,y,"Render scale",palette.muted); button_on(target,{vx,y-16,30,22},"-"); text(target,vx+42,y,std::to_string(ps3p.render_scale)+"%",palette.text); button_on(target,{vx+100,y-16,30,22},"+"); y+=24;
+            text(target,gamesListBox.x+14,y,"Anisotropic",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.anisotropic==0?"Auto":std::to_string(ps3p.anisotropic)+"x"); y+=24;
+            text(target,gamesListBox.x+14,y,"MSAA",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.msaa); y+=24;
+            text(target,gamesListBox.x+14,y,"Output scaling",palette.muted); button_on(target,{vx,y-16,248,22},ps3p.output_scaling); y+=24;
+            text(target,gamesListBox.x+14,y,"Frame limit",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.frame_limit); y+=24;
+            text(target,gamesListBox.x+14,y,"VSync",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.vsync?"Enabled":"Disabled"); y+=24;
+            text(target,gamesListBox.x+14,y,"GPU texture scaling",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.gpu_texture_scaling?"Enabled":"Disabled"); y+=27;
+            section_text(target,gamesListBox.x+14,y,"PS3 NEURAL ENHANCEMENT",palette.text); y+=24;
+            text(target,gamesListBox.x+14,y,ps3Neural?"Linux neural bridge detected.":"Neural controls locked until a compatible Linux bridge is installed.",ps3Neural?palette.text:palette.muted); y+=24;
+            text(target,gamesListBox.x+14,y,"Neural rendering",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.neural_enabled?"Enabled":"Disabled"); y+=24;
+            text(target,gamesListBox.x+14,y,"Neural strength",palette.muted); button_on(target,{vx,y-16,30,22},"-"); text(target,vx+42,y,std::to_string(ps3p.neural_strength)+"%",palette.text); button_on(target,{vx+100,y-16,30,22},"+"); y+=24;
+            text(target,gamesListBox.x+14,y,"Neural quality",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.neural_quality); y+=24;
+            text(target,gamesListBox.x+14,y,"Motion reconstruction",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.motion_reconstruction); y+=24;
+            text(target,gamesListBox.x+14,y,"HUD protection",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.hud_protection?"Enabled":"Disabled"); y+=24;
+            text(target,gamesListBox.x+14,y,"Frame generation",palette.muted); button_on(target,{vx,y-16,140,22},ps3p.frame_generation?"Enabled":"Disabled"); y+=28;
             section_text(target,gamesListBox.x+14,y,"GAME LIBRARY SETTINGS",palette.text); y+=30;
             text(target,gamesListBox.x+14,y,"Bundled library: "+exe_dir()+"/components/games/bundled",palette.text); y+=24;
             const auto folders=load_game_rom_folders();
@@ -15465,6 +15484,27 @@ public:
         if (gamesAddBtn.contains(x,y)) { add_game_rom_folder(); redraw(); return; }
         if (gamesRefreshBtn.contains(x,y)) { start_game_scan(); redraw(); return; }
         if (gamesPlayBtn.contains(x,y)) { launch_selected_game(); redraw(); return; }
+        // NOUGAT_V66_PS3_INTEGRATED_SETTINGS_CLICKS
+        if (gamesPanel==GamesPanel::Settings) {
+            auto p=nougat::games::ps3::load_profile(); const bool bridge=nougat::games::ps3::neural_bridge_available();
+            const auto cycle=[](const std::vector<std::string>& v,const std::string& c){ for(std::size_t i=0;i<v.size();++i) if(v[i]==c) return v[(i+1)%v.size()]; return v.front(); };
+            int py=gamesListBox.y+32+26, px=gamesListBox.x+100; const std::vector<std::string> presets={"Original","Performance","Balanced","Quality","Ultra","Custom"};
+            for(const auto& name:presets){ Rect r{px,py-16,78,22}; if(r.contains(x,y)){ if(name=="Custom")p.preset="Custom"; else nougat::games::ps3::apply_preset(p,name); nougat::games::ps3::save_profile(p); redraw(); return;} px+=80; }
+            py+=25; const int vx=gamesListBox.x+190;
+            if(Rect{vx,py-16,30,22}.contains(x,y)){p.render_scale=std::max(25,p.render_scale-25);p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;} if(Rect{vx+100,py-16,30,22}.contains(x,y)){p.render_scale=std::min(800,p.render_scale+25);p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(Rect{vx,py-16,140,22}.contains(x,y)){const std::vector<int>a={0,2,4,8,16};std::size_t n=0;for(std::size_t i=0;i<a.size();++i)if(a[i]==p.anisotropic)n=(i+1)%a.size();p.anisotropic=a[n];p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(Rect{vx,py-16,140,22}.contains(x,y)){p.msaa=p.msaa=="Auto"?"Disabled":"Auto";p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(Rect{vx,py-16,248,22}.contains(x,y)){p.output_scaling=cycle({"Nearest","Bilinear","FidelityFX Super Resolution"},p.output_scaling);p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(Rect{vx,py-16,140,22}.contains(x,y)){p.frame_limit=cycle({"Auto","30","60","120","PS3 Native","Infinite"},p.frame_limit);p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(Rect{vx,py-16,140,22}.contains(x,y)){p.vsync=!p.vsync;p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(Rect{vx,py-16,140,22}.contains(x,y)){p.gpu_texture_scaling=!p.gpu_texture_scaling;p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=27+24+24; if(bridge&&Rect{vx,py-16,140,22}.contains(x,y)){p.neural_enabled=!p.neural_enabled;p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(bridge&&Rect{vx,py-16,30,22}.contains(x,y)){p.neural_strength=std::max(0,p.neural_strength-5);p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;} if(bridge&&Rect{vx+100,py-16,30,22}.contains(x,y)){p.neural_strength=std::min(100,p.neural_strength+5);p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(bridge&&Rect{vx,py-16,140,22}.contains(x,y)){p.neural_quality=cycle({"Quality","Balanced","Performance"},p.neural_quality);p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(bridge&&Rect{vx,py-16,140,22}.contains(x,y)){p.motion_reconstruction=cycle({"Auto","Conservative","Aggressive"},p.motion_reconstruction);p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(bridge&&Rect{vx,py-16,140,22}.contains(x,y)){p.hud_protection=!p.hud_protection;p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+            py+=24; if(bridge&&Rect{vx,py-16,140,22}.contains(x,y)){p.frame_generation=!p.frame_generation;p.preset="Custom";nougat::games::ps3::save_profile(p);redraw();return;}
+        }
         // NOUGAT_V61_GAME_VIEW_BUTTON_CLICKS
         if (gamesPanel==GamesPanel::Library && gamesGridBtn.contains(x,y)) {
             gamesDisplayMode=GamesDisplayMode::Grid; gamesScroll=0; gamesLastClickIndex=-1; gamesLastClickTime=0; redraw(); return;
@@ -15589,12 +15629,13 @@ public:
         // Silver Screen identity: the film strip is the full-width Studio
         // header band, matching the global top bar instead of reading as a
         // small decoration embedded inside the page content.
-        draw_studio_film_strip(target,{0,kTopBarH,W,kTopBarH});
+        // NOUGAT_V66_UI_AUTHORITY_FILM_STRIP_REMOVED
         section_text(target, 28, kTopBarH*2+22, "STUDIO", palette.text);
         text(target, 28, kTopBarH*2+44, "Nougat creation, production, and media-processing workspace.", palette.muted);
 
         studioToolsTab={kPageLeft,kTopBarH*2+56,126,34};
-        studioDroneTab={164,kTopBarH*2+56,126,34};
+        // NOUGAT_V66_UI_AUTHORITY_SEPARATE_TOOLS_DRONE
+        studioDroneTab={studioToolsTab.x+studioToolsTab.w+10,studioToolsTab.y,126,34};
         button_on(target,studioToolsTab,"Tools");
         button_on(target,studioDroneTab,"Drone"); // NOUGAT_V60_STUDIO_DRONE_TAB_BUTTON
 
@@ -17919,7 +17960,8 @@ public:
             nougat_media_suite_icon::kTopBarHeight
         };
         if (target==win && y<kTopBarH && nougatBrandBadge.contains(x,y)) return;
-        const bool topNavHit = y < kTopBarH && x >= topNavClipX && x < topNavClipRight;
+        // NOUGAT_V66_UI_AUTHORITY_NO_TOP_NAV_HITBOX
+        const bool topNavHit = false;
         if (topNavHit && homeTab.contains(x,y)) {
             if (currentView != ViewMode::Home) switch_view(ViewMode::Home);
             else start_home_task();
@@ -18975,17 +19017,17 @@ static void nougat_enter_gnome_app_scope(int argc, char** argv) {
 
 int main(int argc, char** argv) {
     nougat_enter_gnome_app_scope(argc, argv);
-    if (argc > 1 && std::string(argv[1]) == "--v65-media-plus-ui-self-test") {
+    if (argc > 1 && std::string(argv[1]) == "--v66-media-plus-ui-self-test") {
         const bool brand=nougat_media_suite_icon::kTopBarWidth>180 && nougat_media_suite_icon::kTopBarHeight==40 && nougat_media_suite_icon::kIcon64Size==64;
         const bool authority=exists_file(exe_dir()+"/assets/ui/NOUGAT_MEDIA_PLUS_UI_AUTHORITY.png");
-        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.65 UI self-test FAIL.\n"); return 1; }
-        std::printf("Nougat Media Plus v0.0.65 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
+        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.66 UI self-test FAIL.\n"); return 1; }
+        std::printf("Nougat Media Plus v0.0.66 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
         return 0;
     }
 
     prctl(PR_SET_NAME, "NougatMediaPlus", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Plus v0.0.65\n");
+        printf("Nougat Media Plus v0.0.66\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {
