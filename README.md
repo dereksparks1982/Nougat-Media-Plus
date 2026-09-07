@@ -46,6 +46,10 @@ The Radio architecture covers AM, FM, HD Radio, DAB/DAB+, DRM, longwave, mediumw
 
 Professional receiver controls include direct frequency entry, modulation and tuning-step controls, bandwidth and filtering, gain and AGC, squelch, scanning, signal monitoring, favorites, recordings, presets, spectrum/waterfall foundations, automatic hardware discovery, multiple receiver resources, provider-neutral hardware handling, and expandable SDR/decoder backends.
 
+Beginning with **v0.0.67**, Nougat includes a native Linux V4L2 FM-receiver path for the Hauppauge WinTV-HVR-955Q instead of treating that hardware as an RTL-SDR device. The v0.0.67 work adds native `/dev/radio*` discovery, direct V4L2 tuning, measured signal scanning, cx231xx ALSA audio integration, and matched cx231xx, cx231xx-dvb, cx231xx-alsa, and Si2157 kernel work including the HVR radio node, radio-mode propagation, and the 6.6 MHz FM intermediate-frequency path.
+
+The HVR-955Q FM work remains a **failed development checkpoint rather than a completed radio feature**. The tested driver reached `radio0` registration but later failed the cx231xx probe after a cx25840 subdevice-registration failure, leaving no usable radio device after initialization. The work is preserved so it can be resumed later without discarding the completed driver, application, and diagnostic groundwork.
+
 Services unavailable through the connected hardware are identified truthfully rather than presented as working. Encrypted traffic is identified as encrypted or locked rather than falsely represented as decrypted.
 
 ## **Cellular Lab**
@@ -79,6 +83,8 @@ The current architecture recognizes or provides managed integration foundations 
 Nougat can discover games inside supported ZIP libraries, keeps DOS packages together as games, manages prepared artwork and conservative filename matching, and provides context-aware ROM/image recognition. Commercial ROMs, console firmware, BIOS files, and game images are not bundled.
 
 Xbox 360/Xenia has an owner-tested Nougat-contained rendering path. Other emulator families remain subject to their backend's current containment status, so managed discovery is not falsely described as proof that every emulator is fully embedded.
+
+PlayStation 3/RPCS3 in **v0.0.66** adds a managed RPCS3 runtime wrapper and native Games settings with **Original, Performance, Balanced, Quality, Ultra, and Custom** profiles. Nougat exposes render scale, anisotropic filtering, MSAA, output scaling, frame limit, VSync, and GPU texture scaling. Neural controls are capability-gated and do not claim an active DLSS or neural-rendering backend when a compatible Linux bridge is absent. RPCS3 launches through the existing Nougat game-host/Video Player containment path; PlayStation 3 game content and console firmware are not bundled.
 
 ## **Studio & Production Tools**
 
@@ -130,7 +136,7 @@ The N is the required application identity across the in-app interface, versione
 
 The tactical visual system coordinates navigation, panels, controls, dialogs, status surfaces, application identity, and UI feedback while preserving the functionality of the individual Nougat systems.
 
-The **v0.0.65 checkpoint** adds the new left-side Nougat module rail while deliberately retaining the complete existing top navigation during owner verification. No top-level navigation control is retired until the owner confirms that the sidebar contains and correctly routes every required module.
+In **v0.0.66**, the owner-approved left-side Nougat module rail becomes the authoritative top-level navigation and the duplicate top navigation row is removed. Rail controls and Search workspace controls use the approved UI-sheet button surface rather than alternate or guessed tactical geometry. The rail N preserves its approved square proportions and borderless green identity treatment; reference screenshots are never embedded as application UI assets.
 
 The same checkpoint advances the military Player HUD with chapter-marked seeking, chapter and episode controls, segmented tactical volume, translucent information surfaces, and rapid retriggerable click feedback. **Continue Watching** remains a mandatory Home feature during tactical-interface work.
 
@@ -161,6 +167,69 @@ Nothing in Nougat Media Plus, its documentation, source code, supported hardware
 The inclusion of professional, governmental, public-safety, military, satellite, aviation, cellular, or other regulated use cases does not imply endorsement, affiliation, certification, approval, sponsorship, or authorization by any government agency, military organization, regulator, communications authority, satellite operator, service provider, or equipment manufacturer.
 
 **Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
+
+## v0.0.67 - HVR-955Q FM Radio Failure Checkpoint
+
+Nougat Media Plus v0.0.67 is the preserved development checkpoint for the Hauppauge WinTV-HVR-955Q native FM-radio integration. It is intentionally recorded as a **failed checkpoint**, not as an owner-accepted release. **v0.0.66 remains the most recent owner-accepted release.**
+
+### Technical changes
+
+- Advances the active application and root executable to `Nougat_Media_Plus_v67`.
+- Adds the native Linux V4L2 radio provider in `src/radio/v4l2_radio_provider.cpp` and `.hpp`.
+- Adds native Hauppauge/V4L2 radio discovery ahead of the existing RTL-SDR/Soapy fallback.
+- Adds direct V4L2 FM frequency tuning.
+- Adds measured V4L2 signal-strength scanning rather than routing HVR scans through `rtl_power`.
+- Adds cx231xx ALSA audio integration for the HVR receive path.
+- Preserves the existing RTL-SDR receive path for actual RTL/compatible SDR hardware.
+- Adds HVR-955Q kernel work to expose the cx231xx V4L2 radio node.
+- Adds explicit radio-mode propagation through cx231xx and cx231xx-dvb to the Si2157 tuner.
+- Adds the HVR-955Q 6.6 MHz FM intermediate-frequency configuration.
+- Adds Si2157 FM support work and removes the unfinished FM rejection path used by the upstream analog implementation.
+- Adds cx231xx FM audio-routing work through the tuner SIF/audio-decoder path.
+- Builds a matched four-module stack consisting of `cx231xx`, `cx231xx-dvb`, `cx231xx-alsa`, and `si2157` for Ubuntu kernel `7.0.0-31-generic`.
+- Preserves the television restoration path while adding radio-mode handling.
+- Carries forward the complete v0.0.66 PlayStation 3/RPCS3 integration and approved UI-authority work.
+- Updates the v0.0.67 desktop launcher identity to the approved Nougat Media Plus N icon.
+
+### Failure status
+
+- The matched four-module HVR stack compiled successfully.
+- Nougat Media Plus v0.0.67 compiled successfully with the native HVR V4L2 radio provider.
+- The installed modules resolved to the Nougat v0.0.67 driver directory.
+- The HVR-955Q was identified correctly and the driver temporarily registered `radio0`.
+- Kernel initialization then reported `cx25840 subdev registration failure`.
+- The cx231xx probe failed with error `-22`.
+- The driver subsequently deregistered its V4L2 devices and no usable `/dev/radio*` node remained.
+- Nougat therefore fell through to its existing RTL-SDR/Soapy fallback message because the native HVR radio device did not survive driver initialization.
+- FM reception was **not proven working**.
+- v0.0.67 is preserved specifically as a failure checkpoint for later continuation.
+
+## v0.0.66 - PlayStation 3 Integration and UI Authority Closeout
+
+Nougat Media Plus v0.0.66 is the owner-accepted closeout of the PlayStation 3/RPCS3 integration and the owner-approved UI-authority corrections built from the accepted v0.0.65 GitHub baseline.
+
+### Technical changes
+
+- Advances the active application/build reporting and root executable target to v0.0.66.
+- Adds the managed RPCS3 runtime wrapper under `components/games/runtime/rpcs3/` through the tracked `src/games/rpcs3_runtime_wrapper.sh` source.
+- Adds native PlayStation 3 graphics/profile management inside Games with Original, Performance, Balanced, Quality, Ultra, and Custom profiles.
+- Adds configurable render scale, anisotropic filtering, MSAA, output scaling, frame limit, VSync, and GPU texture scaling for the RPCS3 configuration path.
+- Adds capability-gated neural controls for neural enable/strength/quality, motion reconstruction, HUD protection, and frame generation. These controls remain disabled where no compatible Linux neural bridge is detected and do not claim that DLSS or another neural backend is active.
+- Keeps commercial PlayStation 3 games, firmware, BIOS material, and proprietary neural runtimes outside the repository.
+- Keeps RPCS3 inside the existing Nougat Games architecture and launches it through the existing game-host/Video Player containment path rather than adding a standalone PS3 graphics application.
+- Removes the duplicate top navigation row after owner approval and makes the left module rail the authoritative top-level navigation.
+- Replaces guessed side-rail and Search/Crawler/P2P/Archive control geometry with the existing approved UI-sheet button surface.
+- Restores the side-rail N to approved square proportions and applies the approved borderless green N treatment to active window/dock identity.
+- Removes the Studio film-strip decoration and keeps Tools and Drone as separate controls.
+- Treats screenshots and design captures as reference material only; no screenshot/image payload is embedded as application UI by this release.
+- Preserves `src/games/emulator_host.cpp` byte-for-byte from the accepted v0.0.65 baseline, so the owner-frozen Xbox/Xenia containment implementation is unchanged.
+
+### Validation and acceptance
+
+- The owner explicitly accepted v0.0.66 for GitHub closeout on 2026-09-05.
+- The accepted changed-files package is `Nougat_Media_Plus_v0.0.66_UI_AUTHORITY_CHANGED_FILES_REPAIR2.zip`, SHA-256 `06ff1f1da0fcde9bbcb9d65ed96a5d793119022a28e776001ecf2e6ebe70cdfa`.
+- The preceding REPAIR1 owner-machine run compiled the full v0.0.66 target successfully with warnings treated as errors; its failure occurred afterward in the temporary-build UI self-test asset lookup. REPAIR2 corrects that validation path without changing the approved UI scope.
+- This record does not claim an owner-pasted successful RPCS3 gameplay-containment test or an active neural/DLSS backend.
 
 ## v0.0.65 - Military UI Consolidation Checkpoint
 
