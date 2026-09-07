@@ -60,6 +60,23 @@ std::vector<std::string> split_csv(const std::string& line) {
     return out;
 }
 
+std::string find_cx231xx_alsa_capture() {
+    std::ifstream cards("/proc/asound/cards");
+    std::string line;
+    while (std::getline(cards, line)) {
+        if (!contains_case_insensitive(line, "cx231xx") &&
+            !contains_case_insensitive(line, "hauppauge") &&
+            !contains_case_insensitive(line, "conexant hybrid"))
+            continue;
+
+        std::istringstream parser(line);
+        int card = -1;
+        if (parser >> card && card >= 0)
+            return "plughw:" + std::to_string(card) + ",0";
+    }
+    return {};
+}
+
 } // namespace
 
 RadioBackend::RadioBackend() {
@@ -202,14 +219,18 @@ void RadioBackend::detect_devices_locked() {
     state_.devices.clear();
 
     for (const std::string& path : glob_paths("/dev/radio*")) {
+        const V4l2RadioProbe probe = V4l2RadioProvider::probe(path);
+        if (!probe.usable)
+            continue;
+
         RadioDevice device;
         device.id = path;
-        device.name = "Linux V4L2 radio " + path;
+        device.name = probe.card.empty() ? ("V4L2 radio " + path) : probe.card;
         device.backend = "V4L2 Radio";
-        device.notes = "Kernel radio device. Frequency/audio capabilities come from the attached tuner driver.";
-        device.receive = access(path.c_str(), R_OK) == 0;
-        device.minimum_hz = 65000000.0;
-        device.maximum_hz = 108000000.0;
+        device.notes = "Native HVR/V4L2 FM receiver. Kernel tuning and hardware AGC are used; rtl_fm is not used.";
+        device.receive = true;
+        device.minimum_hz = probe.minimum_hz;
+        device.maximum_hz = probe.maximum_hz;
         state_.devices.push_back(device);
     }
 
@@ -392,6 +413,17 @@ void RadioBackend::cycle_tuning_step(int direction) {
 
 void RadioBackend::set_gain_percent(int percent) {
     std::lock_guard<std::mutex> lock(mutex_);
+
+    if (state_.selected_device >= 0 &&
+        state_.selected_device < static_cast<int>(state_.devices.size()) &&
+        state_.devices[static_cast<std::size_t>(state_.selected_device)].backend ==
+            "V4L2 Radio") {
+        // NOUGAT_V67_HVR955Q_FM_FINAL_GAIN
+        state_.status =
+            "HVR-955Q FM uses the Si2157 hardware AGC; manual gain is not exposed by this driver.";
+        return;
+    }
+
     state_.gain_percent = clamp_percent(percent);
 }
 
@@ -426,10 +458,113 @@ void RadioBackend::stop_receive_locked() {
         waitpid(receive_pid_, &ignored, WNOHANG);
     }
     receive_pid_ = -1;
+    v4l2_radio_.close_device();
     state_.receiving = false;
 }
 
 bool RadioBackend::spawn_receive_pipeline_locked(std::string& status) {
+    if (state_.selected_device >= 0 &&
+        state_.selected_device < static_cast<int>(state_.devices.size()) &&
+        state_.devices[static_cast<std::size_t>(state_.selected_device)].backend == "V4L2 Radio") {
+        // NOUGAT_V67_HVR955Q_FM_FINAL_NATIVE_RECEIVE
+        const RadioDevice& device =
+            state_.devices[static_cast<std::size_t>(state_.selected_device)];
+
+        if (state_.modulation != RadioModulation::WFM) {
+            status = "The WinTV-HVR-955Q native path supports broadcast FM/WFM only.";
+            state_.status = status;
+            return false;
+        }
+
+        if (!executable_available("arecord") || !executable_available("aplay")) {
+            status = "ALSA arecord/aplay are required for HVR-955Q FM audio.";
+            state_.status = status;
+            return false;
+        }
+
+        std::string error;
+        if (!v4l2_radio_.open_device(device.id, error)) {
+            status = error;
+            state_.status = status;
+            return false;
+        }
+
+        if (!v4l2_radio_.tune(state_.frequency_hz, error)) {
+            v4l2_radio_.close_device();
+            status = error;
+            state_.status = status;
+            return false;
+        }
+
+        const std::string capture = find_cx231xx_alsa_capture();
+        if (capture.empty()) {
+            v4l2_radio_.close_device();
+            status = "FM tuned, but the cx231xx ALSA capture device was not found.";
+            state_.status = status;
+            return false;
+        }
+
+        const int signal = v4l2_radio_.signal_percent(error);
+        state_.signal_percent = signal >= 0 ? signal : -1;
+
+        std::ostringstream command;
+        command << "exec arecord -q -D " << shell_quote(capture)
+                << " -t raw -f S16_LE -r 48000 -c 2";
+
+        if (state_.recording) {
+            if (!executable_available("ffmpeg")) {
+                v4l2_radio_.close_device();
+                status = "Recording requires ffmpeg.";
+                state_.status = status;
+                return false;
+            }
+
+            std::error_code ec;
+            std::filesystem::create_directories(recordings_dir(), ec);
+            current_recording_path_ =
+                recordings_dir() + "/fm-" + timestamp_name() + ".wav";
+
+            command << " | tee >(aplay -q -t raw -f S16_LE -r 48000 -c 2)"
+                    << " | ffmpeg -nostdin -loglevel error -y"
+                    << " -f s16le -ar 48000 -ac 2 -i pipe:0 "
+                    << shell_quote(current_recording_path_);
+        } else {
+            current_recording_path_.clear();
+            command << " | aplay -q -t raw -f S16_LE -r 48000 -c 2";
+        }
+
+        const pid_t pid = fork();
+        if (pid < 0) {
+            v4l2_radio_.close_device();
+            status = std::string("Could not start HVR FM audio capture: ") +
+                     std::strerror(errno);
+            state_.status = status;
+            return false;
+        }
+
+        if (pid == 0) {
+            setsid();
+            execl("/bin/bash", "bash", "-c",
+                  command.str().c_str(), static_cast<char*>(nullptr));
+            _exit(127);
+        }
+
+        receive_pid_ = pid;
+        state_.receiving = true;
+
+        std::ostringstream text;
+        text << "HVR-955Q FM receiving "
+             << std::fixed << std::setprecision(1)
+             << (state_.frequency_hz / 1000000.0) << " MHz";
+
+        if (state_.signal_percent >= 0)
+            text << " signal " << state_.signal_percent << "%";
+
+        status = text.str();
+        state_.status = status;
+        return true;
+    }
+
     if (!state_.rtl_available) {
         status = "No active analog SDR receive engine. Install/build an RTL-SDR or compatible Soapy receive frontend first.";
         state_.status = status;
@@ -533,12 +668,23 @@ bool RadioBackend::start_scan(double minimum_hz, double maximum_hz, double step_
         status = "Invalid scan range.";
         return false;
     }
-    if (!executable_available("rtl_power")) {
-        status = "rtl_power is not available, so a spectrum scan cannot be started with the current runtime.";
+    bool native_v4l2_scan = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        native_v4l2_scan =
+            state_.selected_device >= 0 &&
+            state_.selected_device < static_cast<int>(state_.devices.size()) &&
+            state_.devices[static_cast<std::size_t>(state_.selected_device)].backend ==
+                "V4L2 Radio";
+    }
+
+    if (!native_v4l2_scan && !executable_available("rtl_power")) {
+        status = "rtl_power is not available for the selected SDR device.";
         std::lock_guard<std::mutex> lock(mutex_);
         state_.status = status;
         return false;
     }
+
     cancel_scan();
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -552,6 +698,79 @@ bool RadioBackend::start_scan(double minimum_hz, double maximum_hz, double step_
 }
 
 void RadioBackend::finish_scan(double minimum_hz, double maximum_hz, double step_hz) {
+    std::string native_path;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (state_.selected_device >= 0 &&
+            state_.selected_device < static_cast<int>(state_.devices.size()) &&
+            state_.devices[static_cast<std::size_t>(state_.selected_device)].backend ==
+                "V4L2 Radio") {
+            native_path =
+                state_.devices[static_cast<std::size_t>(state_.selected_device)].id;
+        }
+    }
+
+    if (!native_path.empty()) {
+        // NOUGAT_V67_HVR955Q_FM_FINAL_NATIVE_SCAN
+        V4l2RadioProvider scanner;
+        std::string error;
+
+        if (!scanner.open_device(native_path, error)) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            state_.scanning = false;
+            state_.status = error;
+            return;
+        }
+
+        double strongest_hz = 0.0;
+        int strongest_signal = -1;
+
+        const double bounded_min =
+            std::max(minimum_hz, scanner.info().minimum_hz);
+        const double bounded_max =
+            scanner.info().maximum_hz > 0.0
+                ? std::min(maximum_hz, scanner.info().maximum_hz)
+                : maximum_hz;
+
+        for (double hz = bounded_min;
+             hz <= bounded_max && !scan_cancel_.load();
+             hz += step_hz) {
+            if (!scanner.tune(hz, error))
+                continue;
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(90));
+            const int signal = scanner.signal_percent(error);
+
+            if (signal > strongest_signal) {
+                strongest_signal = signal;
+                strongest_hz = hz;
+            }
+        }
+
+        scanner.close_device();
+
+        std::lock_guard<std::mutex> lock(mutex_);
+        state_.scanning = false;
+
+        if (scan_cancel_.load()) {
+            state_.status = "FM scan cancelled.";
+        } else if (strongest_hz > 0.0 && strongest_signal > 0) {
+            state_.frequency_hz = strongest_hz;
+            state_.signal_percent = strongest_signal;
+
+            std::ostringstream result;
+            result << "Strongest FM activity near "
+                   << std::fixed << std::setprecision(1)
+                   << (strongest_hz / 1000000.0)
+                   << " MHz (" << strongest_signal << "%).";
+            state_.status = result.str();
+        } else {
+            state_.status =
+                "FM scan completed; no usable signal level was reported.";
+        }
+        return;
+    }
+
     const std::string output = cache_dir() + "/scan-" + timestamp_name() + ".csv";
     std::error_code ec;
     std::filesystem::create_directories(cache_dir(), ec);

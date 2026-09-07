@@ -2,8 +2,8 @@
 Type=Application
 Name=Nougat Media Plus
 Comment=Nougat Media Plus unified media, television, radio, games, Studio, Drone Production, Search, security, server, and system workstation
-Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Suite/Nougat_Media_Plus_v63"
-Icon=nougat-media-plus
+Exec="/home/dereksparks1982/DKLab/Projects/Nougat Media Plus/Nougat_Media_Plus_v67"
+Icon=/home/dereksparks1982/DKLab/Projects/Nougat Media Plus/assets/branding/nougat-media-plus-dock-N.png
 StartupWMClass=NougatMediaPlus
 X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaPlus
 X-GNOME-WMClass=NougatMediaPlus

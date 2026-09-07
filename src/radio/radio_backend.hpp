@@ -1,5 +1,7 @@
 #pragma once
 
+#include "v4l2_radio_provider.hpp"
+
 #include <atomic>
 #include <mutex>
 #include <string>
@@ -104,6 +106,7 @@ public:
 private:
     mutable std::mutex mutex_;
     RadioSnapshot state_;
+    V4l2RadioProvider v4l2_radio_; // NOUGAT_V67_HVR955Q_FM_FINAL
     pid_t receive_pid_ = -1;
     std::thread scan_thread_;
     std::atomic<bool> scan_cancel_{false};

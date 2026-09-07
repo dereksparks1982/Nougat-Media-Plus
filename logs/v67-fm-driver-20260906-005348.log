@@ -1,0 +1,134 @@
+=== DATE ===
+Sun Sep  6 12:54:35 AM CDT 2026
+
+=== KERNEL ===
+Linux saxondesktop 7.0.0-30-generic #30-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul 31 18:22:54 UTC 2026 x86_64 GNU/Linux
+
+=== MODULE PATHS ===
+cx231xx          /lib/modules/7.0.0-30-generic/updates/nougat-v67-fm/cx231xx.ko
+cx231xx_alsa     /lib/modules/7.0.0-30-generic/updates/nougat-v67-fm/cx231xx-alsa.ko
+cx231xx_dvb      /lib/modules/7.0.0-30-generic/updates/nougat-v67-fm/cx231xx-dvb.ko
+si2157           /lib/modules/7.0.0-30-generic/updates/nougat-v67-fm/si2157.ko
+
+=== LOADED MODULES ===
+si2157                 28672  0
+lgdt3306a              40960  0
+cx231xx_alsa           24576  1
+cx25840                90112  1
+cx231xx               225280  1 cx231xx_alsa
+cx2341x                28672  1 cx231xx
+tveeprom               24576  1 cx231xx
+videobuf2_vmalloc      20480  1 cx231xx
+videobuf2_v4l2         36864  1 cx231xx
+videobuf2_common       90112  4 videobuf2_vmalloc,videobuf2_v4l2,cx231xx,videobuf2_memops
+videodev              376832  5 cx2341x,videobuf2_v4l2,cx231xx_alsa,cx231xx,cx25840
+i2c_mux                20480  3 lgdt3306a,i2c_i801,cx231xx
+rc_core                81920  5 mceusb,cx231xx,ir_rc5_decoder,rc_hauppauge
+snd_pcm               208896  11 snd_soc_avs,snd_hda_codec_hdmi,snd_hda_intel,snd_usb_audio,snd_hda_codec,snd_compress,cx231xx_alsa,snd_soc_core,snd_hda_core,snd_pcm_dmaengine
+snd                   147456  30 snd_hda_codec_generic,snd_seq,snd_seq_device,snd_hda_codec_hdmi,snd_hwdep,snd_hda_intel,snd_usb_audio,snd_usbmidi_lib,snd_hda_codec,snd_timer,snd_hda_codec_realtek_lib,snd_compress,cx231xx_alsa,snd_soc_core,snd_ump,snd_pcm,snd_rawmidi
+mc                     90112  8 videodev,si2157,snd_usb_audio,videobuf2_v4l2,dvb_core,videobuf2_common,cx231xx,cx25840
+
+=== DEVICE NODES ===
+crw-rw----+  1 root video 81, 1 Sep  5 18:07 /dev/vbi0
+crw-rw----+  1 root video 81, 0 Sep  5 18:07 /dev/video0
+
+=== KERNEL MEDIA LOG ===
+[    0.181154] ACPI: Added _OSI(Module Device)
+[    0.423896] loop: module loaded
+[    0.446028] Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing 2025 Kmod: 4627603d2357a2a3f81006370894c221175893e9'
+[    0.446343] Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing: 88f752e560a1e0737e31163a466ad7b70a850c19'
+[    0.486671] Loading compiled-in module X.509 certificates
+[    0.503483] systemd[1]: Inserted module 'autofs4'
+[    0.606178] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+[    0.614216] systemd[1]: Finished systemd-modules-load.service - Load Kernel Modules.
+[    1.730969] usb 1-2.4: Product: Hauppauge Device
+[    1.730975] usb 1-2.4: Manufacturer: Hauppauge
+[    4.010872] systemd[1]: modprobe@configfs.service - Load Kernel Module configfs skipped, unmet condition check ConditionKernelModuleLoaded=!configfs
+[    4.010907] systemd[1]: modprobe@drm.service - Load Kernel Module drm skipped, unmet condition check ConditionKernelModuleLoaded=!drm
+[    4.011602] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+[    4.011632] systemd[1]: modprobe@fuse.service - Load Kernel Module fuse skipped, unmet condition check ConditionKernelModuleLoaded=!fuse
+[    4.013230] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+[    4.022608] systemd[1]: Finished systemd-modules-load.service - Load Kernel Modules.
+[    4.480571] nvidia: loading out-of-tree module taints kernel.
+[    4.508387] Registered IR keymap rc-hauppauge
+[    4.593760] rc rc0: Conexant Hybrid TV (cx231xx) MCE IR no TX as /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2.4/1-2.4:1.0/rc/rc0
+[    4.598322] input: Conexant Hybrid TV (cx231xx) MCE IR no TX as /devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2.4/1-2.4:1.0/rc/rc0/input22
+[    4.603908] NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  595.84  Release Build  (dvs-builder@U22-I3-AM25-26-2)  Wed Jun 10 21:06:37 UTC 2026
+[    4.744552] mceusb 1-2.4:1.0: Registered Hauppauge Hauppauge Device with mce emulator interface version 1
+[    4.772450] cx231xx 1-2.4:1.1: New device Hauppauge Hauppauge Device @ 480 Mbps (2040:b123) with 7 interfaces
+[    4.772486] cx231xx 1-2.4:1.1: Identified as Hauppauge WinTV-HVR-955Q (111401) (card=21)
+[    4.883959] cx25840 1-0044: cx23102 A/V decoder found @ 0x88 (cx231xx #0-0)
+[    6.770768] cx25840 1-0044: loaded v4l-cx231xx-avcore-01.fw firmware (16382 bytes)
+[    6.825804] tveeprom: Hauppauge model 111401, rev E3I6, serial# 4036206871
+[    6.825808] tveeprom: tuner model is SiLabs Si2157 (idx 186, type 4)
+[    6.825812] tveeprom: has no radio, has IR receiver, has no IR transmitter
+[    6.825814] cx231xx 1-2.4:1.1: v4l2 driver version 0.0.3
+[    7.237638] cx231xx 1-2.4:1.1: Registered video device video0 [v4l2]
+[    7.237664] cx231xx 1-2.4:1.1: Registered VBI device vbi0
+[    7.237666] cx231xx 1-2.4:1.1: video EndPoint Addr 0x84, Alternate settings: 5
+[    7.237668] cx231xx 1-2.4:1.1: VBI EndPoint Addr 0x85, Alternate settings: 2
+[    7.237672] cx231xx 1-2.4:1.1: sliced CC EndPoint Addr 0x86, Alternate settings: 2
+[    7.237675] cx231xx 1-2.4:1.1: TS EndPoint Addr 0x81, Alternate settings: 6
+[    7.237771] usbcore: registered new interface driver cx231xx
+[    7.306058] cx231xx 1-2.4:1.1: audio EndPoint Addr 0x83, Alternate settings: 3
+[    7.306065] cx231xx 1-2.4:1.1: Cx231xx Audio Extension initialized
+[    7.363838] lgdt3306a 5-0059: LG Electronics LGDT3306A successfully identified
+[    7.368059] si2157 5-0060: Silicon Labs Si2157 successfully attached
+[    7.368074] dvbdev: DVB: registering new adapter (cx231xx #0)
+[    7.368076] cx231xx 1-2.4:1.1: DVB: registering adapter 0 frontend 0 (LG Electronics LGDT3306A VSB/QAM Frontend)...
+[    7.368079] dvbdev: dvb_create_media_entity: media entity 'LG Electronics LGDT3306A VSB/QAM Frontend' registered.
+[    7.368860] cx231xx 1-2.4:1.1: Successfully loaded cx231xx-dvb
+[    7.368863] cx231xx 1-2.4:1.1: Cx231xx dvb Extension initialized
+[ 4774.834900] si2157 5-0060: found a 'Silicon Labs Si2157-A30 ROM 0x50'
+[ 4774.835750] si2157 5-0060: Using ROM firmware.
+[ 4774.885135] si2157 5-0060: firmware version: 3.0.5
+[22390.473625] cx231xx 1-2.4:1.1: Cx231xx dvb Extension removed
+[22390.551500] cx231xx_dvb: module verification failed: signature and/or required key missing - tainting kernel
+[22390.551513] cx231xx_dvb: disagrees about version of symbol cx231xx_unregister_extension
+[22390.551514] cx231xx_dvb: Unknown symbol cx231xx_unregister_extension (err -22)
+[22390.551520] cx231xx_dvb: disagrees about version of symbol cx231xx_set_alt_setting
+[22390.551521] cx231xx_dvb: Unknown symbol cx231xx_set_alt_setting (err -22)
+[22390.551525] cx231xx_dvb: disagrees about version of symbol cx231xx_get_i2c_adap
+[22390.551525] cx231xx_dvb: Unknown symbol cx231xx_get_i2c_adap (err -22)
+[22390.551528] cx231xx_dvb: disagrees about version of symbol cx231xx_init_isoc
+[22390.551529] cx231xx_dvb: Unknown symbol cx231xx_init_isoc (err -22)
+[22390.551531] cx231xx_dvb: disagrees about version of symbol cx231xx_init_bulk
+[22390.551531] cx231xx_dvb: Unknown symbol cx231xx_init_bulk (err -22)
+[22390.551533] cx231xx_dvb: disagrees about version of symbol cx231xx_set_mode
+[22390.551534] cx231xx_dvb: Unknown symbol cx231xx_set_mode (err -22)
+[22390.551539] cx231xx_dvb: disagrees about version of symbol cx231xx_uninit_bulk
+[22390.551540] cx231xx_dvb: Unknown symbol cx231xx_uninit_bulk (err -22)
+[22390.551549] cx231xx_dvb: disagrees about version of symbol cx231xx_uninit_isoc
+[22390.551549] cx231xx_dvb: Unknown symbol cx231xx_uninit_isoc (err -22)
+[22390.551559] cx231xx_dvb: disagrees about version of symbol cx231xx_register_extension
+[22390.551560] cx231xx_dvb: Unknown symbol cx231xx_register_extension (err -22)
+[22390.551562] cx231xx_dvb: disagrees about version of symbol cx231xx_demod_reset
+[22390.551563] cx231xx_dvb: Unknown symbol cx231xx_demod_reset (err -22)
+[24359.565569] lgdt3306a 5-0059: LG Electronics LGDT3306A successfully identified
+[24359.568227] si2157 5-0060: Silicon Labs Si2157 successfully attached
+[24359.568241] dvbdev: DVB: registering new adapter (cx231xx #0)
+[24359.568244] cx231xx 1-2.4:1.1: DVB: registering adapter 0 frontend 0 (LG Electronics LGDT3306A VSB/QAM Frontend)...
+[24359.568247] dvbdev: dvb_create_media_entity: media entity 'LG Electronics LGDT3306A VSB/QAM Frontend' registered.
+[24359.568874] cx231xx 1-2.4:1.1: Successfully loaded cx231xx-dvb
+[24359.568878] cx231xx 1-2.4:1.1: Cx231xx dvb Extension initialized
+[24403.292848] cx231xx 1-2.4:1.1: Cx231xx dvb Extension removed
+[24403.414283] cx231xx_dvb: disagrees about version of symbol cx231xx_unregister_extension
+[24403.414287] cx231xx_dvb: Unknown symbol cx231xx_unregister_extension (err -22)
+[24403.414293] cx231xx_dvb: disagrees about version of symbol cx231xx_set_alt_setting
+[24403.414294] cx231xx_dvb: Unknown symbol cx231xx_set_alt_setting (err -22)
+[24403.414298] cx231xx_dvb: disagrees about version of symbol cx231xx_get_i2c_adap
+[24403.414299] cx231xx_dvb: Unknown symbol cx231xx_get_i2c_adap (err -22)
+[24403.414301] cx231xx_dvb: disagrees about version of symbol cx231xx_init_isoc
+[24403.414302] cx231xx_dvb: Unknown symbol cx231xx_init_isoc (err -22)
+[24403.414304] cx231xx_dvb: disagrees about version of symbol cx231xx_init_bulk
+[24403.414305] cx231xx_dvb: Unknown symbol cx231xx_init_bulk (err -22)
+[24403.414307] cx231xx_dvb: disagrees about version of symbol cx231xx_set_mode
+[24403.414307] cx231xx_dvb: Unknown symbol cx231xx_set_mode (err -22)
+[24403.414312] cx231xx_dvb: disagrees about version of symbol cx231xx_uninit_bulk
+[24403.414313] cx231xx_dvb: Unknown symbol cx231xx_uninit_bulk (err -22)
+[24403.414321] cx231xx_dvb: disagrees about version of symbol cx231xx_uninit_isoc
+[24403.414322] cx231xx_dvb: Unknown symbol cx231xx_uninit_isoc (err -22)
+[24403.414331] cx231xx_dvb: disagrees about version of symbol cx231xx_register_extension
+[24403.414332] cx231xx_dvb: Unknown symbol cx231xx_register_extension (err -22)
+[24403.414334] cx231xx_dvb: disagrees about version of symbol cx231xx_demod_reset
+[24403.414335] cx231xx_dvb: Unknown symbol cx231xx_demod_reset (err -22)
