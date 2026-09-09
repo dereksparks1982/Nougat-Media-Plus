@@ -1,4 +1,4 @@
-# GDAL integration status for Nougat Media Plus v0.0.64
+# GDAL integration status for Nougat Play Portal v0.0.64
 
 GDAL is used as the planned geospatial/raster backend for Network -> Satellite -> Imagery.
 The v0.0.64 foundation detects an installed `gdalinfo` command and reports its availability honestly.

@@ -164,7 +164,7 @@ bool LanViewerService::discover(std::vector<LanPeer>& peers, std::string& status
         const std::string key = address + ":" + std::to_string(port);
         if (!seen.insert(key).second) continue;
         LanPeer peer;
-        peer.service_name = parts[3].empty() ? "Nougat Media Suite" : parts[3];
+        peer.service_name = parts[3].empty() ? "Nougat Play Portal" : parts[3];
         peer.host = parts[6];
         peer.address = address;
         peer.port = static_cast<std::uint16_t>(port);

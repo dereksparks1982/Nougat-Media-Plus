@@ -7,7 +7,7 @@ import shutil
 import sys
 
 BASE = "8e346237928d4d358136b926f70e27729b6bd731"
-TARGET = "Nougat_Media_Suite_v53"
+TARGET = "Nougat_Play_Portal_v53"
 MARKER = "NOUGAT_V53_CANDIDATE"
 
 class ApplyError(RuntimeError):
@@ -31,10 +31,10 @@ def patch_cmake(root: Path) -> None:
     path = root / "CMakeLists.txt"
     text = path.read_text(encoding="utf-8")
     text = replace_exact(text,
-        "project(NougatMediaSuite VERSION 0.0.52 LANGUAGES CXX)",
-        "project(NougatMediaSuite VERSION 0.0.53 LANGUAGES CXX)",
+        "project(NougatPlayPortal VERSION 0.0.52 LANGUAGES CXX)",
+        "project(NougatPlayPortal VERSION 0.0.53 LANGUAGES CXX)",
         "CMake version")
-    text = text.replace("Nougat_Media_Suite_v52", "Nougat_Media_Suite_v53")
+    text = text.replace("Nougat_Play_Portal_v52", "Nougat_Play_Portal_v53")
     anchor = "    src/lan/lan_media_service.cpp\n"
     addition = (
         anchor +
@@ -47,11 +47,11 @@ def patch_cmake(root: Path) -> None:
     path.write_text(text, encoding="utf-8")
 
 def patch_desktop(root: Path) -> None:
-    for name in ("NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop"):
+    for name in ("NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop"):
         path = root / name
         text = path.read_text(encoding="utf-8")
-        text = replace_exact(text, "Nougat_Media_Suite_v52", "Nougat_Media_Suite_v53", f"{name} executable")
-        text = replace_exact(text, "Icon=text-x-generic", "Icon=nougat-media-suite", f"{name} icon")
+        text = replace_exact(text, "Nougat_Play_Portal_v52", "Nougat_Play_Portal_v53", f"{name} executable")
+        text = replace_exact(text, "Icon=text-x-generic", "Icon=nougat-play-portal", f"{name} icon")
         path.write_text(text, encoding="utf-8")
 
 def patch_world_tv_service(root: Path) -> None:
@@ -103,7 +103,7 @@ def patch_world_tv_service(root: Path) -> None:
 
     worker = root / "components/world_tv/nougat_world_tv_worker.py"
     text = worker.read_text(encoding="utf-8")
-    text = text.replace("NougatMediaSuite/0.0.51", "NougatMediaSuite/0.0.53")
+    text = text.replace("NougatPlayPortal/0.0.51", "NougatPlayPortal/0.0.53")
     old = '''    emit(OK=0, ERROR=f"No playable direct source passed verification after {checked} checks from {len(candidates)} candidates. Last probe: {LAST_PROBE_REASON or 'no candidate completed'}.")
     return 3
 '''
@@ -169,7 +169,7 @@ def artwork_name_candidates(rom_stem: str, display_title: str) -> list[str]:
         '    for value in (rom_stem, display_title, short_name(rom_stem), short_name(display_title)):\n',
         '    for value in (rom_stem, display_title, short_name(rom_stem), short_name(display_title), strip_release_noise(rom_stem), strip_release_noise(display_title)):\n',
         "Games artwork candidate normalization")
-    text = text.replace("Nougat-Media-Suite-v0.0.49", "Nougat-Media-Suite-v0.0.53")
+    text = text.replace("Nougat-Play-Portal-v0.0.49", "Nougat-Play-Portal-v0.0.53")
     path.write_text(text, encoding="utf-8")
 
 def patch_hdhomerun(root: Path) -> None:
@@ -420,7 +420,7 @@ def patch_main(root: Path) -> None:
 
     text = replace_exact(text,
         "int main(int argc, char** argv) {\n",
-        "int main(int argc, char** argv) {\n    prctl(PR_SET_NAME, \"NougatMediaSuite\", 0, 0, 0);\n",
+        "int main(int argc, char** argv) {\n    prctl(PR_SET_NAME, \"NougatPlayPortal\", 0, 0, 0);\n",
         "Linux process identity")
 
     text = replace_exact(text,
@@ -840,7 +840,7 @@ def copy_new_files(package: Path, root: Path) -> None:
         "src/security/security_advisory_service.cpp",
         "src/alerts/public_safety_alerts.hpp",
         "src/alerts/public_safety_alerts.cpp",
-        "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_SCOPE.md",
+        "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_53_SCOPE.md",
         "tools/nougat_icon_alpha_fix_v53.py",
         "tools/test_v53_static.py",
         "tools/apply_v53.py",
@@ -855,7 +855,7 @@ def copy_new_files(package: Path, root: Path) -> None:
 
 def main() -> int:
     package = Path(__file__).resolve().parents[1]
-    root = Path(sys.argv[1] if len(sys.argv) > 1 else Path.home() / "DKLab/Projects/Nougat Media Suite").resolve()
+    root = Path(sys.argv[1] if len(sys.argv) > 1 else Path.home() / "DKLab/Projects/Nougat Play Portal").resolve()
     need((root / "src/main.cpp").is_file(), f"Nougat project not found: {root}")
     copy_new_files(package, root)
     patch_cmake(root)

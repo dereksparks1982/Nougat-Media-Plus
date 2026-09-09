@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "build": "Nougat Media Suite v0.0.52",
+  "build": "Nougat Play Portal v0.0.52",
   "policy": "Upstream source remains under its own license. GPL-family components are separate worker/runtime boundaries and are not linked into Elderred Softworks LLC Original Materials.",
   "components": [
     {

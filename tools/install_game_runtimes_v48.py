@@ -28,7 +28,7 @@ def sha256(path: Path) -> str:
 
 def download(url: str, target: Path, expected: str) -> None:
     print("Downloading:", url)
-    req = urllib.request.Request(url, headers={"User-Agent": "Nougat-Media-Suite-v0.0.48"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Nougat-Play-Portal-v0.0.48"})
     with urllib.request.urlopen(req, timeout=90) as response, target.open("wb") as out:
         shutil.copyfileobj(response, out)
     actual = sha256(target)

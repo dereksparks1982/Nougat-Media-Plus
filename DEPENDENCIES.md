@@ -14,7 +14,7 @@ Nougat Radio uses a provider/worker architecture so RF hardware and specialized 
 - The approved v0.0.51 N and brand lockup are bundled raster assets; no runtime font dependency is required.
 
 
-## Nougat Media Suite v0.0.50 Studio splitter and HDHomeRun requirements
+## Nougat Play Portal v0.0.50 Studio splitter and HDHomeRun requirements
 
 v0.0.50 adds no new linked third-party library. HDHomeRun control/discovery uses the installed `hdhomerun_config` command from Ubuntu's `hdhomerun-config` package behind a Nougat-owned provider boundary. MPEG-TS playback is handed directly to the existing embedded libVLC player. `curl`, Python 3, and Zenity are already part of Nougat's accepted dependency stack and are reused by the HDHomeRun lineup path and Studio File Splitter dialogs. The File Splitter core uses Python standard-library modules only.
 
@@ -27,7 +27,7 @@ The v0.0.34 installer builds natively against the owner machine's existing accep
 
 New active adapters remain replaceable Nougat-owned boundaries. The generated Security Analysis runtime pins YARA-X 1.19.0, capa 9.4.0 with matching capa-rules, and Magika 1.0.3. Optional ClamAV uses external one-shot `clamscan` only. Live TV discovery uses Linux `/dev/dvb` and V4L2 device/sysfs interfaces and adds no tuner daemon. Existing libtorrent 2.x remains the temporary P2P backend behind `P2PEngine`.
 
-# Nougat Media Suite Dependencies
+# Nougat Play Portal Dependencies
 
 ## v0.0.18 metadata, diagnostics, and watch-availability requirements
 
@@ -156,27 +156,27 @@ The full-tab palette system, 0-200% volume control, Grid/List Library views, vis
 The v0.0.20 changed-files handoff does not re-ship the unchanged 84,106,624-byte Nomic model. Accepted v0.0.19 already installed that pinned runtime asset. The v0.0.20 installer verifies the existing file is exactly 84,106,624 bytes with SHA-256 `d4e388894e09cf3816e8b0896d81d265b55e7a9fff9ab03fe8bf4ef5e11295ac` before modifying the project.
 
 
-## Nougat Media Suite v0.0.21 identity/palette build
+## Nougat Play Portal v0.0.21 identity/palette build
 
 v0.0.21 adds no new runtime or build dependency. The rename, icon replacement, palette expansion, and service-reactive Stream colors are implemented in the existing native X11 application. Existing backward-compatible runtime/config paths remain unchanged in this identity-only release.
-## Nougat Media Suite v0.0.22 license-protection build
+## Nougat Play Portal v0.0.22 license-protection build
 
 v0.0.22 adds no runtime or build dependency. It changes licensing/release records and advances version/release plumbing only. Existing VLC/libVLC, FFmpeg, libtorrent, Jellyfin, llama.cpp, Nomic, X11, Python/SQLite, curl, and other dependency behavior remains unchanged from accepted v0.0.21.
 
 
-## Nougat Media Suite v0.0.23 UI and Direct Watch build
+## Nougat Play Portal v0.0.23 UI and Direct Watch build
 
 v0.0.23 adds no mandatory bundled dependency. It retains the existing X11, VLC/libVLC, FFmpeg, libtorrent, Jellyfin, llama.cpp, Nomic, Python/SQLite, curl, and bundled yt-dlp requirements. For current YouTube extraction, Direct Watch automatically uses an already-installed supported JavaScript runtime when available: Deno is preferred, followed by Node or QuickJS. No JavaScript runtime is silently installed by the v0.0.23 installer.
 
 
 ## v0.0.32 Nougat Security Analysis
 
-Generated runtime (excluded from Git): YARA-X 1.19.0, flare-capa 9.4.0, matching capa-rules 9.4.0, and Magika 1.0.3. The installer creates this private runtime under `components/security/runtime/`. ClamAV is never linked or bundled; if `clamscan` is present on the owner's system Nougat may invoke it once for a requested scan. MalwareBazaar and ThreatFox are optional free/community reputation sources and require an owner-supplied free abuse.ch Auth-Key stored outside Git at `~/.config/nougat-media-suite/security/abusech.key` with mode 0600.
+Generated runtime (excluded from Git): YARA-X 1.19.0, flare-capa 9.4.0, matching capa-rules 9.4.0, and Magika 1.0.3. The installer creates this private runtime under `components/security/runtime/`. ClamAV is never linked or bundled; if `clamscan` is present on the owner's system Nougat may invoke it once for a requested scan. MalwareBazaar and ThreatFox are optional free/community reputation sources and require an owner-supplied free abuse.ch Auth-Key stored outside Git at `~/.config/nougat-play-portal/security/abusech.key` with mode 0600.
 
-## Nougat Media Suite v0.0.36 Library/UI/player repair
+## Nougat Play Portal v0.0.36 Library/UI/player repair
 
 v0.0.36 adds no new linked third-party runtime dependency. Library collection/search behavior uses the existing Jellyfin HTTP client and standard C++ library. The Home/player/header repairs remain native X11 rendering. The exact seek component is packaged as a Nougat-owned pixel-derived runtime asset generated from the already approved UI sheet stored under `docs/design/`; no external UI toolkit or web runtime is introduced.
 
-## Nougat Media Suite v0.0.35 Live TV scan and Studio foundation
+## Nougat Play Portal v0.0.35 Live TV scan and Studio foundation
 
 v0.0.35 adds no new linked third-party runtime library. The native ATSC 1.0 channel-scan path uses the Linux DVB userspace API (`linux/dvb/frontend.h` and `linux/dvb/dmx.h`) supplied by the normal Ubuntu Linux development headers and talks directly to `/dev/dvb/adapter*/frontend*` and `demux0` devices. The existing build dependency set remains sufficient on the target Ubuntu workstation. Studio v0.0.35 is navigation/palette foundation only; the future FFmpeg/libav media-processing engine remains roadmap work and does not add a new v0.0.35 dependency.

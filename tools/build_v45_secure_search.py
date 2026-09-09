@@ -28,23 +28,23 @@ def main() -> int:
 
     build_dir = root / "build"
     jobs = max(1, min(8, os.cpu_count() or 2))
-    print("=== NOUGAT MEDIA SUITE v0.0.45 NATIVE BUILD ===")
+    print("=== NOUGAT PLAY PORTAL v0.0.45 NATIVE BUILD ===")
     if run(["cmake", "-S", str(root), "-B", str(build_dir)], root) != 0:
         return stop("CMake configure failed; terminal left open")
     if run(["cmake", "--build", str(build_dir), "-j", str(jobs)], root) != 0:
         return stop("native compile/link failed; terminal left open")
 
-    candidate = build_dir / "Nougat_Media_Suite_v45"
+    candidate = build_dir / "Nougat_Play_Portal_v45"
     if not candidate.is_file():
         return stop(f"build succeeded but executable is missing: {candidate}")
-    installed = root / "Nougat_Media_Suite_v45"
+    installed = root / "Nougat_Play_Portal_v45"
     shutil.copy2(candidate, installed)
     installed.chmod(installed.stat().st_mode | 0o111)
     print(f"PASS: installed root executable {installed}")
 
     version = subprocess.run([str(installed), "--version"], cwd=root, capture_output=True, text=True, timeout=10)
     output = (version.stdout + version.stderr).strip()
-    if version.returncode != 0 or output != "Nougat Media Suite v0.0.45":
+    if version.returncode != 0 or output != "Nougat Play Portal v0.0.45":
         return stop(f"native version smoke failed: rc={version.returncode} output={output!r}")
     print("PASS: native --version smoke")
 

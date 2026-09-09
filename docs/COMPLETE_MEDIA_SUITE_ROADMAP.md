@@ -1,4 +1,4 @@
-# Nougat Media Suite
+# Nougat Play Portal
 ## Complete Media Suite / Nero Capability Program
 
 **Roadmap status:** Approved for long-term planning during v0.0.44.  
@@ -7,7 +7,7 @@
 
 ## Program Goal
 
-Nougat Media Suite should ultimately cover the practical feature territory of:
+Nougat Play Portal should ultimately cover the practical feature territory of:
 
 1. **Classic Nero**, including the broad Nero 9-era multimedia toolbox.
 2. **Later and current Nero**, including the useful capabilities found in modern Nero Platinum and related Nero products.

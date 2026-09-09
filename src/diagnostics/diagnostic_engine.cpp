@@ -827,7 +827,7 @@ const char* DiagnosticEngine::severity_name(DiagnosticSeverity severity) {
 std::string DiagnosticEngine::report_text(const DiagnosticReport& report, const DiagnosticInput& input) {
     (void)input;
     std::ostringstream output;
-    output << "Nougat Media Suite Diagnostic Report\n";
+    output << "Nougat Play Portal Diagnostic Report\n";
     output << "Checked: " << time_text(report.checked_at) << '\n';
     output << "SYSTEM HEALTH: " << severity_name(report.overall) << '\n';
     output << "Passed: " << report.passed_count << '\n';
@@ -862,7 +862,7 @@ std::string DiagnosticEngine::report_json(const DiagnosticReport& report, const 
     (void)input;
     std::ostringstream out;
     out << "{\n";
-    out << "  \"report\": \"Nougat Media Suite Diagnostic Report\",\n";
+    out << "  \"report\": \"Nougat Play Portal Diagnostic Report\",\n";
     out << "  \"checked\": \"" << json_escape(time_text(report.checked_at)) << "\",\n";
     out << "  \"checked_unix\": " << report.checked_at << ",\n";
     out << "  \"overall\": \"" << severity_name(report.overall) << "\",\n";
@@ -985,7 +985,7 @@ bool DiagnosticEngine::write_support_bundle(const DiagnosticReport& report, cons
     }
     if (ok) {
         const std::string readme =
-            "Nougat Media Suite diagnostic support bundle\n"
+            "Nougat Play Portal diagnostic support bundle\n"
             "Evidence-backed v0.0.39 diagnostics.\n"
             "Sensitive log lines containing credentials, authorization headers, cookies, passwords, tokens, secrets, or API keys are redacted.\n";
         ok = write_file((temp / "README.txt").string(), readme, error);

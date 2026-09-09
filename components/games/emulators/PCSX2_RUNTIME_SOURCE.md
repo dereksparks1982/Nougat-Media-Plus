@@ -1,4 +1,4 @@
-# PCSX2 Runtime Source - Nougat Media Plus v0.0.63 Build 2
+# PCSX2 Runtime Source - Nougat Play Portal v0.0.63 Build 2
 
 - Project: PCSX2
 - Version: 2.8.1

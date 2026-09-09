@@ -672,8 +672,8 @@ def patch_main(original: str) -> str:
     )
 
     text = text.replace('"v0.0.47"', '"v0.0.48"', 1)
-    text = text.replace('"Nougat Media Suite v0.0.47"', '"Nougat Media Suite v0.0.48"')
-    text = text.replace('Nougat Media Suite v0.0.47\\n', 'Nougat Media Suite v0.0.48\\n')
+    text = text.replace('"Nougat Play Portal v0.0.47"', '"Nougat Play Portal v0.0.48"')
+    text = text.replace('Nougat Play Portal v0.0.47\\n', 'Nougat Play Portal v0.0.48\\n')
     text = text.replace('"No user ROM folders linked yet."', '"No user game folders linked yet."')
     text = text.replace('"Link ROM Folder"', '"Link Game Folder"')
     text = text.replace(
@@ -685,10 +685,10 @@ def patch_main(original: str) -> str:
 
 def patch_cmake(original: str) -> str:
     text = original.replace(
-        "project(NougatMediaSuite VERSION 0.0.47 LANGUAGES CXX)",
-        "project(NougatMediaSuite VERSION 0.0.48 LANGUAGES CXX)",
+        "project(NougatPlayPortal VERSION 0.0.47 LANGUAGES CXX)",
+        "project(NougatPlayPortal VERSION 0.0.48 LANGUAGES CXX)",
     )
-    text = text.replace("Nougat_Media_Suite_v47", "Nougat_Media_Suite_v48")
+    text = text.replace("Nougat_Play_Portal_v47", "Nougat_Play_Portal_v48")
     text = replace_once(
         text,
         "    src/main.cpp\n",
@@ -723,7 +723,7 @@ def main() -> None:
     main_cpp = ROOT / "src/main.cpp"
     cmake = ROOT / "CMakeLists.txt"
     if not main_cpp.is_file() or not cmake.is_file():
-        fail("Extract this changed-files package over the Nougat Media Suite v0.0.47 repository.")
+        fail("Extract this changed-files package over the Nougat Play Portal v0.0.47 repository.")
 
     head = git("rev-parse", "HEAD")
     if head != BASELINE_HEAD:
@@ -735,7 +735,7 @@ def main() -> None:
 
     dirty = subprocess.run(
         ["git", "diff", "--quiet", "--", "src/main.cpp", "CMakeLists.txt",
-         "NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop"],
+         "NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop"],
         cwd=ROOT,
     )
     if dirty.returncode != 0:
@@ -756,20 +756,20 @@ def main() -> None:
     for token in [
         '#include "games/emulator_host.hpp"', '"DOS"', '"Xbox 360"',
         "scan_dos_game_directories", "NOUGAT_DOSBOX", "NOUGAT_XENIA",
-        "gameHost.start", "Nougat Media Suite v0.0.48",
+        "gameHost.start", "Nougat Play Portal v0.0.48",
     ]:
         require(patched_main, token, "patched main.cpp")
-    require(patched_cmake, "Nougat_Media_Suite_v48", "patched CMake")
+    require(patched_cmake, "Nougat_Play_Portal_v48", "patched CMake")
     require(patched_cmake, "src/games/emulator_host.cpp", "patched CMake")
 
     launcher_updates = []
-    for name in ("NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop"):
+    for name in ("NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop"):
         path = ROOT / name
         if path.is_file():
             source = path.read_text(encoding="utf-8")
-            if "Nougat_Media_Suite_v47" not in source:
+            if "Nougat_Play_Portal_v47" not in source:
                 fail(f"{name} no longer targets v47; refusing to guess")
-            launcher_updates.append((path, source.replace("Nougat_Media_Suite_v47", "Nougat_Media_Suite_v48")))
+            launcher_updates.append((path, source.replace("Nougat_Play_Portal_v47", "Nougat_Play_Portal_v48")))
 
     # All transformations succeeded in memory. Only now touch the working tree.
     main_cpp.write_text(patched_main, encoding="utf-8")
@@ -777,7 +777,7 @@ def main() -> None:
     for path, content in launcher_updates:
         path.write_text(content, encoding="utf-8")
 
-    print("=== NOUGAT MEDIA SUITE v0.0.48 PATCH APPLIED ===")
+    print("=== NOUGAT PLAY PORTAL v0.0.48 PATCH APPLIED ===")
     print(git("diff", "--stat"))
     print()
     print("Next command:")

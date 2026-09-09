@@ -148,7 +148,7 @@ bool PublicSafetyAlertService::refresh_area(const std::string& area_code,
     }
     const std::string url = "https://api.weather.gov/alerts/active?area=" + area;
     const CommandResult response = run_command(
-        "curl -fsS --connect-timeout 3 --max-time 12 -H 'User-Agent: Nougat-Media-Suite/0.0.53' '" + url + "'");
+        "curl -fsS --connect-timeout 3 --max-time 12 -H 'User-Agent: Nougat-Play-Portal/0.0.53' '" + url + "'");
     if (response.code != 0) {
         status = "NOAA/NWS public alert refresh failed.";
         return false;

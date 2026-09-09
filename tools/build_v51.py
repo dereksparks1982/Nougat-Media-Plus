@@ -13,8 +13,8 @@ import tempfile
 import time
 
 BASE='45f163752e5f1e0ed00f7d6d851bb6f6a5abf96e'
-TARGET='Nougat_Media_Suite_v51'
-PREVIOUS='Nougat_Media_Suite_v50'
+TARGET='Nougat_Play_Portal_v51'
+PREVIOUS='Nougat_Play_Portal_v50'
 PREVIOUS_SHA='cd1cf65c0e31772b0d7890f7243020b390f4409ba7e0605e870c0290ea506a6d'
 
 
@@ -55,20 +55,20 @@ def clean_output(text: str) -> bool:
 
 def candidate_changed_paths() -> list[str]:
     return [
-        'src/main.cpp','src/nougat_media_suite_icon_data.hpp','src/live_tv/hdhomerun_provider.cpp',
+        'src/main.cpp','src/nougat_play_portal_icon_data.hpp','src/live_tv/hdhomerun_provider.cpp',
         'src/world_tv/world_tv_service.cpp','components/world_tv/nougat_world_tv_worker.py',
         'src/lan/lan_media_service.hpp','src/lan/lan_media_service.cpp','CMakeLists.txt',
-        'NougatMediaSuite.desktop','com.elderredsoftworks.NougatMediaSuite.desktop',
-        'CHANGELOG.md','ROADMAP.md','DEPENDENCIES.md','docs/builds/NOUGAT_MEDIA_SUITE_v0_0_51_SCOPE.md',
+        'NougatPlayPortal.desktop','com.elderredsoftworks.NougatPlayPortal.desktop',
+        'CHANGELOG.md','ROADMAP.md','DEPENDENCIES.md','docs/builds/NOUGAT_PLAY_PORTAL_v0_0_51_SCOPE.md',
         'tools/nougat_file_splitter.py','tools/test_nougat_file_splitter_v51.py','tools/test_v51_static.py',
         'tools/test_v51_icon_alpha.py','tools/apply_v51.py','tools/build_v51.py',
-        'assets/branding/nougat-media-suite-v51-lockup-master.png',
-        'assets/branding/nougat-media-suite-v51-lockup-header.png',
-        'assets/branding/nougat-media-suite-v51-master-N.png',
-        'assets/icons/nougat-media-suite-v51.png','assets/icons/nougat-media-suite-v51-16.png',
-        'assets/icons/nougat-media-suite-v51-32.png','assets/icons/nougat-media-suite-v51-48.png',
-        'assets/icons/nougat-media-suite-v51-64.png','assets/icons/nougat-media-suite-v51-128.png',
-        'assets/icons/nougat-media-suite-v51-256.png','assets/icons/nougat-media-suite-v51-512.png',
+        'assets/branding/nougat-play-portal-v51-lockup-master.png',
+        'assets/branding/nougat-play-portal-v51-lockup-header.png',
+        'assets/branding/nougat-play-portal-v51-master-N.png',
+        'assets/icons/nougat-play-portal-v51.png','assets/icons/nougat-play-portal-v51-16.png',
+        'assets/icons/nougat-play-portal-v51-32.png','assets/icons/nougat-play-portal-v51-48.png',
+        'assets/icons/nougat-play-portal-v51-64.png','assets/icons/nougat-play-portal-v51-128.png',
+        'assets/icons/nougat-play-portal-v51-256.png','assets/icons/nougat-play-portal-v51-512.png',
     ]
 
 
@@ -246,8 +246,8 @@ def safe_shutdown(root: Path) -> None:
         if not proc.name.isdigit(): continue
         pid=int(proc.name)
         exe=proc_exe(pid)
-        if exe.startswith(prefix) and Path(exe).name.startswith('Nougat_Media_Suite'):
-            terminate(pid,'Nougat Media Suite')
+        if exe.startswith(prefix) and Path(exe).name.startswith('Nougat_Play_Portal'):
+            terminate(pid,'Nougat Play Portal')
 
     ownership=Path.home()/'.local/share/reddmedia/server/nougat-owned.pid'
     if ownership.is_file():
@@ -260,7 +260,7 @@ def safe_shutdown(root: Path) -> None:
             exe=proc_exe(pid); cmd=proc_bytes(pid,'cmdline'); env=proc_bytes(pid,'environ')
             runtime_match=bool(runtime) and (exe==runtime or runtime.encode() in cmd)
             token_match=bool(token) and (('NOUGAT_MEDIA_SERVER_OWNER='+token).encode() in env)
-            signature=runtime_match and b'Nougat Media Suite integrated Jellyfin' in cmd
+            signature=runtime_match and b'Nougat Play Portal integrated Jellyfin' in cmd
             need(runtime_match and (token_match or signature),
                  'Running server from ownership file could not be verified as Nougat-owned; it was left untouched.')
             terminate(pid,'verified Nougat-owned Jellyfin')
@@ -270,20 +270,20 @@ def safe_shutdown(root: Path) -> None:
 def copy_payload(package: Path, work: Path) -> None:
     # Exact owner-approved branding and v51 support files.
     files=[
-        'src/nougat_media_suite_icon_data.hpp',
+        'src/nougat_play_portal_icon_data.hpp',
         'tools/nougat_file_splitter.py','tools/test_nougat_file_splitter_v51.py',
         'tools/test_v51_static.py','tools/test_v51_icon_alpha.py','tools/apply_v51.py','tools/build_v51.py',
-        'assets/branding/nougat-media-suite-v51-lockup-master.png',
-        'assets/branding/nougat-media-suite-v51-lockup-header.png',
-        'assets/branding/nougat-media-suite-v51-master-N.png',
-        'assets/icons/nougat-media-suite-v51.png',
-        'assets/icons/nougat-media-suite-v51-16.png',
-        'assets/icons/nougat-media-suite-v51-32.png',
-        'assets/icons/nougat-media-suite-v51-48.png',
-        'assets/icons/nougat-media-suite-v51-64.png',
-        'assets/icons/nougat-media-suite-v51-128.png',
-        'assets/icons/nougat-media-suite-v51-256.png',
-        'assets/icons/nougat-media-suite-v51-512.png',
+        'assets/branding/nougat-play-portal-v51-lockup-master.png',
+        'assets/branding/nougat-play-portal-v51-lockup-header.png',
+        'assets/branding/nougat-play-portal-v51-master-N.png',
+        'assets/icons/nougat-play-portal-v51.png',
+        'assets/icons/nougat-play-portal-v51-16.png',
+        'assets/icons/nougat-play-portal-v51-32.png',
+        'assets/icons/nougat-play-portal-v51-48.png',
+        'assets/icons/nougat-play-portal-v51-64.png',
+        'assets/icons/nougat-play-portal-v51-128.png',
+        'assets/icons/nougat-play-portal-v51-256.png',
+        'assets/icons/nougat-play-portal-v51-512.png',
     ]
     for rel in files:
         src=package/rel; dst=work/rel
@@ -301,29 +301,29 @@ def link_runtime(main: Path, work: Path, rel: str) -> None:
 
 
 def install_identity(root: Path) -> None:
-    icon=root/'assets/icons/nougat-media-suite-v51.png'
+    icon=root/'assets/icons/nougat-play-portal-v51.png'
     need(icon.is_file(),'v51 approved N icon asset missing')
     home=Path.home()
     icon_root=home/'.local/share/icons'
     icon_root.mkdir(parents=True,exist_ok=True)
-    shutil.copy2(icon,icon_root/'nougat-media-suite-v51.png')
+    shutil.copy2(icon,icon_root/'nougat-play-portal-v51.png')
     for size in (16,32,48,64,128,256,512):
-        source=root/f'assets/icons/nougat-media-suite-v51-{size}.png'
+        source=root/f'assets/icons/nougat-play-portal-v51-{size}.png'
         need(source.is_file(),f'missing {size}px N icon')
-        target=icon_root/'hicolor'/f'{size}x{size}'/'apps'/'nougat-media-suite-v51.png'
+        target=icon_root/'hicolor'/f'{size}x{size}'/'apps'/'nougat-play-portal-v51.png'
         target.parent.mkdir(parents=True,exist_ok=True)
         shutil.copy2(source,target)
 
     apps=home/'.local/share/applications'
     apps.mkdir(parents=True,exist_ok=True)
-    canonical='com.elderredsoftworks.NougatMediaSuite.desktop'
-    for name in ('NougatMediaSuite.desktop',canonical):
+    canonical='com.elderredsoftworks.NougatPlayPortal.desktop'
+    for name in ('NougatPlayPortal.desktop',canonical):
         source=root/name
         need(TARGET in source.read_text(encoding='utf-8'),f'{name} does not target v51')
     # One canonical installed application identity prevents WM_CLASS/app-ID
     # ambiguity in GNOME's dock, switcher and process/application grouping.
     shutil.copy2(root/canonical,apps/canonical)
-    stale=apps/'NougatMediaSuite.desktop'
+    stale=apps/'NougatPlayPortal.desktop'
     if stale.exists() or stale.is_symlink():
         stale.unlink()
 
@@ -331,7 +331,7 @@ def install_identity(root: Path) -> None:
     need(gio is not None,'gio is required for executable icon identity')
     uri=icon.resolve().as_uri()
     promoted=root/TARGET
-    identity_paths=(promoted,root/'NougatMediaSuite.desktop',root/canonical)
+    identity_paths=(promoted,root/'NougatPlayPortal.desktop',root/canonical)
     for identity_path in identity_paths:
         result=run([gio,'set','-t','string',identity_path,'metadata::custom-icon',uri],capture=True)
         need(result.returncode==0,f'could not set v51 custom icon on {identity_path.name}')
@@ -354,7 +354,7 @@ def install_identity(root: Path) -> None:
 def main() -> int:
     try:
         package=Path(__file__).resolve().parents[1]
-        root=Path(sys.argv[1] if len(sys.argv)>1 else Path.home()/'DKLab/Projects/Nougat Media Suite').resolve()
+        root=Path(sys.argv[1] if len(sys.argv)>1 else Path.home()/'DKLab/Projects/Nougat Play Portal').resolve()
         need((root/'.git').exists() or git(root,'rev-parse','--git-dir'),f'Not a Git repo: {root}')
         need(Path(git(root,'rev-parse','--show-toplevel')).resolve()==root,'Run against Nougat repository root')
         head=git(root,'rev-parse','HEAD')
@@ -364,7 +364,7 @@ def main() -> int:
         safe_shutdown(root)
         verify_package_manifest(package)
         archive_base=migrate_wrong_archives_folder()
-        archive_root=archive_base/'Nougat Media Suite'
+        archive_root=archive_base/'Nougat Play Portal'
         archive_root.mkdir(parents=True,exist_ok=True)
         snapshot_known_rejected_candidate(root,archive_root)
 
@@ -380,7 +380,7 @@ def main() -> int:
 
         archive=archive_root/('v0.0.51-prebuild-'+time.strftime('%Y%m%d-%H%M%S'))
         archive.mkdir(parents=True,exist_ok=False)
-        snapshot=archive/'Nougat-Media-Suite-v0.0.50-base.tar.gz'
+        snapshot=archive/'Nougat-Play-Portal-v0.0.50-base.tar.gz'
         result=run(['git','archive','--format=tar.gz','-o',snapshot,BASE],cwd=root)
         need(result.returncode==0 and snapshot.is_file() and snapshot.stat().st_size>0,'prebuild snapshot failed')
         print('Snapshot:',snapshot)
@@ -427,7 +427,7 @@ def main() -> int:
             if libs:
                 env['LD_LIBRARY_PATH']=':'.join(libs)+((':'+env['LD_LIBRARY_PATH']) if env.get('LD_LIBRARY_PATH') else '')
             result=run([built,'--version'],capture=True,env=env)
-            need(result.returncode==0 and (result.stdout or '').strip()=='Nougat Media Suite v0.0.51','build-tree v51 identity mismatch')
+            need(result.returncode==0 and (result.stdout or '').strip()=='Nougat Play Portal v0.0.51','build-tree v51 identity mismatch')
 
             for flag in ('--v49-games-self-test','--v47-nav-self-test','--v47-fullscreen-controls-self-test','--v47-window-identity-self-test'):
                 result=run([built,flag],capture=True,env=env)
@@ -466,14 +466,14 @@ def main() -> int:
                 previous=root/PREVIOUS
                 if previous.exists() or previous.is_symlink():
                     previous.unlink()
-                root_execs=sorted(x.name for x in root.glob('Nougat_Media_Suite_v[0-9]*') if x.is_file())
+                root_execs=sorted(x.name for x in root.glob('Nougat_Play_Portal_v[0-9]*') if x.is_file())
                 need(root_execs==[TARGET],f'root executable gate failed after promotion: {root_execs}')
 
                 clean_env=dict(os.environ); clean_env.pop('LD_LIBRARY_PATH',None)
                 result=run([root/TARGET,'--version'],capture=True,env=clean_env)
-                need(result.returncode==0 and (result.stdout or '').strip()=='Nougat Media Suite v0.0.51','promoted v51 executable identity mismatch')
+                need(result.returncode==0 and (result.stdout or '').strip()=='Nougat Play Portal v0.0.51','promoted v51 executable identity mismatch')
                 install_identity(root)
-                root_execs=sorted(x.name for x in root.glob('Nougat_Media_Suite_v[0-9]*') if x.is_file())
+                root_execs=sorted(x.name for x in root.glob('Nougat_Play_Portal_v[0-9]*') if x.is_file())
                 need(root_execs==[TARGET],f'final root executable gate failed: {root_execs}')
                 need(not (Path.home()/'DKLab/Archives').exists(),'final archive gate failed: DKLab/Archives exists')
             except Exception:
@@ -500,7 +500,7 @@ def main() -> int:
             print('Executable:',root/TARGET)
             print('SHA-256:',sha256(root/TARGET))
             print('Accepted Git v0.0.50 rollback SHA-256:',previous_sha)
-            print('Root executable gate: only Nougat_Media_Suite_v51 is present.')
+            print('Root executable gate: only Nougat_Play_Portal_v51 is present.')
             print('Snapshot:',snapshot)
             print('NO GIT COMMIT, TAG, OR GITHUB PUSH PERFORMED.')
             print('OWNER TEST GATES:')

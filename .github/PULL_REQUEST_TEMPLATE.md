@@ -1,4 +1,4 @@
-## Nougat Media Suite contribution confirmation
+## Nougat Play Portal contribution confirmation
 
 By submitting this pull request, I confirm:
 
@@ -14,4 +14,4 @@ None, or list the source, copyright holder, and license here:
 
 ### What this changes
 
-Describe the contribution and why it belongs in Nougat Media Suite.
+Describe the contribution and why it belongs in Nougat Play Portal.

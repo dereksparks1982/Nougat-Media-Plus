@@ -8,9 +8,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
-TARGET = "Nougat_Media_Suite_v50"
-PREVIOUS_TARGET = "Nougat_Media_Suite_v49"
-APPROVED_ICON = ROOT / "assets/icons/nougat-media-suite-concept-sheet-v24.png"
+TARGET = "Nougat_Play_Portal_v50"
+PREVIOUS_TARGET = "Nougat_Play_Portal_v49"
+APPROVED_ICON = ROOT / "assets/icons/nougat-play-portal-concept-sheet-v24.png"
 APPROVED_SHA = "681ece987dd00d9958cf953939403bd71a5ad9d70d8ad284e133272a0204d804"
 
 
@@ -51,7 +51,7 @@ def install_gnome_identity():
     home = Path.home()
     apps = home / ".local/share/applications"
     apps.mkdir(parents=True, exist_ok=True)
-    for source in (ROOT / "com.elderredsoftworks.NougatMediaSuite.desktop", ROOT / "NougatMediaSuite.desktop"):
+    for source in (ROOT / "com.elderredsoftworks.NougatPlayPortal.desktop", ROOT / "NougatPlayPortal.desktop"):
         need(source.is_file(), source.name + " is missing")
         body = source.read_text(encoding="utf-8")
         need(TARGET in body, source.name + " does not target v50")
@@ -61,7 +61,7 @@ def install_gnome_identity():
 
     icon_root = home / ".local/share/icons"
     icon_root.mkdir(parents=True, exist_ok=True)
-    icon_copy = icon_root / "nougat-media-suite-concept-sheet-v24.png"
+    icon_copy = icon_root / "nougat-play-portal-concept-sheet-v24.png"
     shutil.copy2(APPROVED_ICON, icon_copy)
     need(sha256(icon_copy) == APPROVED_SHA, "user icon copy does not match approved Nougat N")
 
@@ -69,7 +69,7 @@ def install_gnome_identity():
     need(width > 0 and height > 0, "approved Nougat N is not a readable PNG")
     themed = icon_root / "hicolor" / (f"{width}x{height}" if width == height else "scalable") / "apps"
     themed.mkdir(parents=True, exist_ok=True)
-    themed_copy = themed / "nougat-media-suite-concept-sheet-v24.png"
+    themed_copy = themed / "nougat-play-portal-concept-sheet-v24.png"
     shutil.copy2(APPROVED_ICON, themed_copy)
     need(sha256(themed_copy) == APPROVED_SHA, "themed icon copy does not match approved Nougat N")
 
@@ -145,7 +145,7 @@ def main():
 
         run_python_test("tools/test_nougat_file_splitter_v50.py")
         run_python_test("tools/test_hdhomerun_provider_v50.py")
-        run_python_test("tools/test_nougat_media_suite_v50.py")
+        run_python_test("tools/test_nougat_play_portal_v50.py")
         run_python_test("tools/test_license_protection_v22.py")
 
         result = run(["cmake", "-S", ROOT, "-B", BUILD], capture=True)
@@ -163,7 +163,7 @@ def main():
         env = runtime_environment()
         result = run([built, "--version"], capture=True, env=env)
         print(result.stdout, end="")
-        need(result.returncode == 0 and result.stdout.strip() == "Nougat Media Suite v0.0.50",
+        need(result.returncode == 0 and result.stdout.strip() == "Nougat Play Portal v0.0.50",
              "build-tree v50 identity mismatch: " + repr(result.stdout.strip()))
         print("PASS: build-tree v50 identity")
 
@@ -187,7 +187,7 @@ def main():
         clean_env.pop("LD_LIBRARY_PATH", None)
         result = run([promoted, "--version"], capture=True, env=clean_env)
         print(result.stdout, end="")
-        need(result.returncode == 0 and result.stdout.strip() == "Nougat Media Suite v0.0.50",
+        need(result.returncode == 0 and result.stdout.strip() == "Nougat Play Portal v0.0.50",
              "promoted v50 does not start from embedded project runtime")
 
         gio = shutil.which("gio")

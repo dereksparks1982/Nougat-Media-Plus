@@ -119,16 +119,16 @@ def privacy_canary_test(root: Path) -> None:
 
 def main() -> None:
     root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
-    print(f"=== NOUGAT MEDIA SUITE v0.0.46 SECURE SEARCH RETENTION VALIDATION ===\nProject: {root}")
+    print(f"=== NOUGAT PLAY PORTAL v0.0.46 SECURE SEARCH RETENTION VALIDATION ===\nProject: {root}")
 
     cmake = read(root, "CMakeLists.txt")
     for token in [
-        "project(NougatMediaSuite VERSION 0.0.46 LANGUAGES CXX)",
-        "add_executable(Nougat_Media_Suite_v46",
+        "project(NougatPlayPortal VERSION 0.0.46 LANGUAGES CXX)",
+        "add_executable(Nougat_Play_Portal_v46",
         "src/search/secure_search.cpp",
         "src/privacy/privacy_broker_client.cpp",
         "src/crawler/crawler_access_manager.cpp",
-        "target_compile_options(Nougat_Media_Suite_v46 PRIVATE -Wall -Wextra -Werror)",
+        "target_compile_options(Nougat_Play_Portal_v46 PRIVATE -Wall -Wextra -Werror)",
     ]:
         require(cmake, token, "CMake v46")
     ok("CMake wires retained Secure Search modules into v46")

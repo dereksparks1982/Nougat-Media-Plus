@@ -64,7 +64,7 @@ def install(runtime: Path) -> None:
 
         archive = Path(td) / "capa-rules-v9.4.0.zip"
         print("+ download", CAPA_RULES_URL)
-        req = urllib.request.Request(CAPA_RULES_URL, headers={"User-Agent": "Nougat-Media-Suite/0.0.32"})
+        req = urllib.request.Request(CAPA_RULES_URL, headers={"User-Agent": "Nougat-Play-Portal/0.0.32"})
         with urllib.request.urlopen(req, timeout=60) as response, archive.open("wb") as out:
             shutil.copyfileobj(response, out)
         if not zipfile.is_zipfile(archive):

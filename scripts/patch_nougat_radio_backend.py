@@ -304,7 +304,7 @@ std::string find_cx231xx_alsa_capture() {
 
     cmake = cmake_path.read_text()
     cmake = cmake.replace("VERSION 0.0.66", "VERSION 0.0.67")
-    cmake = cmake.replace("Nougat_Media_Plus_v66", "Nougat_Media_Plus_v67")
+    cmake = cmake.replace("Nougat_Play_Portal_v66", "Nougat_Play_Portal_v67")
     if "src/radio/v4l2_radio_provider.cpp" not in cmake:
         cmake = replace_once(
             cmake,
@@ -314,12 +314,12 @@ std::string find_cx231xx_alsa_capture() {
         )
     cmake_path.write_text(cmake)
 
-    desktop = project / "com.elderredsoftworks.NougatMediaPlus.desktop"
+    desktop = project / "com.elderredsoftworks.NougatPlayPortal.desktop"
     if desktop.exists():
         d = desktop.read_text()
-        d = re.sub(r'^Exec=.*$', f'Exec="{project}/Nougat_Media_Plus_v67"', d, flags=re.M)
+        d = re.sub(r'^Exec=.*$', f'Exec="{project}/Nougat_Play_Portal_v67"', d, flags=re.M)
         if re.search(r'^Icon=', d, flags=re.M):
-            d = re.sub(r'^Icon=.*$', 'Icon=nougat-media-plus', d, flags=re.M)
+            d = re.sub(r'^Icon=.*$', 'Icon=nougat-play-portal', d, flags=re.M)
         desktop.write_text(d)
 
     print("PASS: Nougat RadioBackend wired to native V4L2 HVR FM provider")

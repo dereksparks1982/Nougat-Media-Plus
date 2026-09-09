@@ -1,7 +1,7 @@
 # Nougat UI Component Sheet Authority
 
 The file `NOUGAT_UI_COMPONENT_SHEET_APPROVED.png` in this directory is the owner-approved,
-literal visual specification for Nougat Media Suite controls.
+literal visual specification for Nougat Play Portal controls.
 
 ## Mandatory interpretation
 

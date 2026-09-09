@@ -124,7 +124,7 @@ def patch_main(path: Path) -> None:
     # Its label is intentionally not user-rendered in v44, so do not anchor v45
     # installation to a nonexistent per-view loading-label assignment.
 
-    text = text.replace("Nougat_Media_Suite_v44", "Nougat_Media_Suite_v45")
+    text = text.replace("Nougat_Play_Portal_v44", "Nougat_Play_Portal_v45")
     text = text.replace("v0.0.44", "v0.0.45")
     path.write_text(text, encoding="utf-8")
 
@@ -133,10 +133,10 @@ def patch_desktop(path: Path) -> None:
     if not path.is_file():
         raise RuntimeError(f"missing desktop launcher: {path.name}")
     text = path.read_text(encoding="utf-8")
-    if "Nougat_Media_Suite_v45" not in text:
-        if "Nougat_Media_Suite_v44" not in text:
+    if "Nougat_Play_Portal_v45" not in text:
+        if "Nougat_Play_Portal_v44" not in text:
             raise RuntimeError(f"{path.name}: expected v44 executable target not found")
-        text = text.replace("Nougat_Media_Suite_v44", "Nougat_Media_Suite_v45")
+        text = text.replace("Nougat_Play_Portal_v44", "Nougat_Play_Portal_v45")
         path.write_text(text, encoding="utf-8")
 
 
@@ -145,7 +145,7 @@ def patch_docs(root: Path) -> None:
     if readme.is_file():
         text = readme.read_text(encoding="utf-8")
         if "## v0.0.45 - Secure Search Foundation" not in text:
-            marker = "# Nougat Media Suite\n\n"
+            marker = "# Nougat Play Portal\n\n"
             if not text.startswith(marker):
                 raise RuntimeError("README title/structure changed; refusing blind insertion")
             text = marker + README_SECTION + text[len(marker):]
@@ -202,12 +202,12 @@ def restore_snapshot(snapshot: dict[Path, tuple[bytes | None, int | None]]) -> N
 def main() -> int:
     package_root = Path(__file__).resolve().parents[1]
     root = Path(sys.argv[1]).expanduser().resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
-    print("=== NOUGAT MEDIA SUITE v0.0.45 SECURE SEARCH APPLY R3 ===")
+    print("=== NOUGAT PLAY PORTAL v0.0.45 SECURE SEARCH APPLY R3 ===")
     print(f"Package: {package_root}")
     print(f"Project: {root}")
 
     if not (root / ".git").exists():
-        return stop("target is not the Nougat Media Suite Git working tree")
+        return stop("target is not the Nougat Play Portal Git working tree")
     status = git(root, "status", "--porcelain")
     if status.returncode != 0:
         return stop("could not read Git working-tree status")
@@ -253,16 +253,16 @@ def main() -> int:
         "components/privacy_broker/src/relay.rs",
         "components/privacy_broker/src/receipt.rs",
         "docs/security/NOUGAT_SECURE_SEARCH_ARCHITECTURE_v1.md",
-        "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_45_SECURE_SEARCH_FOUNDATION_OWNER_HANDSHAKE.md",
-        "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_45_SECURE_SEARCH_FOUNDATION_VALIDATION.md",
+        "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_45_SECURE_SEARCH_FOUNDATION_OWNER_HANDSHAKE.md",
+        "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_45_SECURE_SEARCH_FOUNDATION_VALIDATION.md",
         "tools/test_nougat_secure_search_v45.py",
         "tools/build_v45_secure_search.py",
         "tools/apply_v45_secure_search.py",
     ]
 
     touched = [root / "src/main.cpp",
-               root / "NougatMediaSuite.desktop",
-               root / "com.elderredsoftworks.NougatMediaSuite.desktop",
+               root / "NougatPlayPortal.desktop",
+               root / "com.elderredsoftworks.NougatPlayPortal.desktop",
                root / "README.md",
                root / "CHANGELOG.md",
                root / "ROADMAP.md"]
@@ -279,8 +279,8 @@ def main() -> int:
                 raise RuntimeError(f"package payload missing: {rel}")
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
-        patch_desktop(root / "NougatMediaSuite.desktop")
-        patch_desktop(root / "com.elderredsoftworks.NougatMediaSuite.desktop")
+        patch_desktop(root / "NougatPlayPortal.desktop")
+        patch_desktop(root / "com.elderredsoftworks.NougatPlayPortal.desktop")
         patch_docs(root)
 
         for rel in [

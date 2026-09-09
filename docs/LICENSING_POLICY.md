@@ -1,8 +1,8 @@
-# Nougat Media Suite Licensing Policy
+# Nougat Play Portal Licensing Policy
 
 ## 1. Licensing model
 
-Nougat Media Suite uses a **license boundary** rather than pretending every file in the project has one owner or one license.
+Nougat Play Portal uses a **license boundary** rather than pretending every file in the project has one owner or one license.
 
 - **Original Materials controlled by Elderred Softworks LLC**: PolyForm Noncommercial License 1.0.0 for recipients.
 - **Third-Party Materials**: retain their upstream licenses and notices.
@@ -24,7 +24,7 @@ The main inventory is maintained in `THIRD_PARTY_NOTICES.md` and `licenses/`.
 
 A project-level license notice never changes the license of Jellyfin, FFmpeg, VLC/libVLC, libtorrent-rasterbar, yt-dlp, llama.cpp, Nomic models, or any other third-party component. Their license notices must remain intact.
 
-Likewise, adding third-party code to Nougat Media Suite does not automatically make that code PolyForm-licensed. Its original license remains attached to it.
+Likewise, adding third-party code to Nougat Play Portal does not automatically make that code PolyForm-licensed. Its original license remains attached to it.
 
 ## 5. Owner commercial rights
 

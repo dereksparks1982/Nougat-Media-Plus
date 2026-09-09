@@ -9,7 +9,7 @@ cleanup_alias() {
 }
 
 main() {
-    PROJECT="/home/dereksparks1982/DKLab/Projects/Nougat Media Plus"
+    PROJECT="/home/dereksparks1982/DKLab/Projects/Nougat Play Portal"
     KREL="$(uname -r)"
     KBUILD="/lib/modules/$KREL/build"
     BUILDROOT="$PROJECT/build/v67-hvr955q-fm-$KREL"
@@ -37,7 +37,7 @@ main() {
     mkdir -p "$PROJECT/logs" "$BUILDROOT" || return 1
 
     echo "============================================================"
-    echo "Nougat Media Plus v0.0.67 HVR-955Q FM MATCHED STACK FIX8"
+    echo "Nougat Play Portal v0.0.67 HVR-955Q FM MATCHED STACK FIX8"
     echo "Kernel: $KREL"
     echo "============================================================"
     echo
@@ -197,7 +197,7 @@ EOF
         echo "PASS: /lib/modules override installed; no update-initramfs command is present."
     fi
 
-    ROOT_EXE="$PROJECT/Nougat_Media_Plus_v67"
+    ROOT_EXE="$PROJECT/Nougat_Play_Portal_v67"
     if [[ -x "$ROOT_EXE" ]]; then
         if strings "$ROOT_EXE" | grep -Fq "HVR-955Q FM receiving"; then
             echo "PASS: v67 executable contains the native HVR FM receive path."

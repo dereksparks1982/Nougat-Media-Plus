@@ -8,8 +8,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
-TARGET = "Nougat_Media_Suite_v47"
-APPROVED_ICON = ROOT / "assets/icons/nougat-media-suite-concept-sheet-v24.png"
+TARGET = "Nougat_Play_Portal_v47"
+APPROVED_ICON = ROOT / "assets/icons/nougat-play-portal-concept-sheet-v24.png"
 APPROVED_SHA = "681ece987dd00d9958cf953939403bd71a5ad9d70d8ad284e133272a0204d804"
 
 def run(args, capture=False, **kwargs):
@@ -44,8 +44,8 @@ def install_gnome_identity():
     home = Path.home()
     applications = home/".local/share/applications"
     applications.mkdir(parents=True, exist_ok=True)
-    canonical_source = ROOT/"com.elderredsoftworks.NougatMediaSuite.desktop"
-    legacy_source = ROOT/"NougatMediaSuite.desktop"
+    canonical_source = ROOT/"com.elderredsoftworks.NougatPlayPortal.desktop"
+    legacy_source = ROOT/"NougatPlayPortal.desktop"
     need(canonical_source.is_file() and legacy_source.is_file(), "Nougat desktop launchers are missing")
 
     canonical_target = applications/canonical_source.name
@@ -55,7 +55,7 @@ def install_gnome_identity():
 
     icon_root = home/".local/share/icons"
     icon_root.mkdir(parents=True, exist_ok=True)
-    root_icon = icon_root/"nougat-media-suite-concept-sheet-v24.png"
+    root_icon = icon_root/"nougat-play-portal-concept-sheet-v24.png"
     shutil.copy2(APPROVED_ICON, root_icon)
 
     width, height = png_dimensions(APPROVED_ICON)
@@ -65,7 +65,7 @@ def install_gnome_identity():
     else:
         themed_dir = icon_root/"hicolor"/"scalable"/"apps"
     themed_dir.mkdir(parents=True, exist_ok=True)
-    themed_icon = themed_dir/"nougat-media-suite-concept-sheet-v24.png"
+    themed_icon = themed_dir/"nougat-play-portal-concept-sheet-v24.png"
     shutil.copy2(APPROVED_ICON, themed_icon)
 
     desktop_db = shutil.which("update-desktop-database")
@@ -84,14 +84,14 @@ def install_gnome_identity():
 
     for launcher in (canonical_target, legacy_target):
         text = launcher.read_text()
-        need("Nougat_Media_Suite_v47" in text, launcher.name + " does not launch v47")
-        need("Icon=nougat-media-suite-concept-sheet-v24" in text,
+        need("Nougat_Play_Portal_v47" in text, launcher.name + " does not launch v47")
+        need("Icon=nougat-play-portal-concept-sheet-v24" in text,
              launcher.name + " does not use the approved N icon key")
-        need("StartupWMClass=NougatMediaSuite" in text,
+        need("StartupWMClass=NougatPlayPortal" in text,
              launcher.name + " lost StartupWMClass")
-        need("X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaSuite" in text,
+        need("X-GNOME-Application-ID=com.elderredsoftworks.NougatPlayPortal" in text,
              launcher.name + " lost GNOME application ID")
-        need("X-GNOME-WMClass=NougatMediaSuite" in text,
+        need("X-GNOME-WMClass=NougatPlayPortal" in text,
              launcher.name + " lost GNOME WM class")
         need("StartupNotify=true" in text,
              launcher.name + " lost StartupNotify")
@@ -108,7 +108,7 @@ def main():
 
         for base in (ROOT, BUILD):
             if base.is_dir():
-                for p in base.glob("Nougat_Media_Suite_v*"):
+                for p in base.glob("Nougat_Play_Portal_v*"):
                     if p.is_file():
                         print("Removing stale executable before build:", p)
                         p.unlink()
@@ -140,11 +140,11 @@ def main():
         r = run([built, "--version"], capture=True, env=runtime_env)
         need(r.returncode == 0,
              "build-tree v47 could not start with Nougat AI runtime: " + r.stdout.strip())
-        need(r.stdout.strip() == "Nougat Media Suite v0.0.47",
+        need(r.stdout.strip() == "Nougat Play Portal v0.0.47",
              "build-tree v47 identity mismatch: " + repr(r.stdout.strip()))
         print("PASS: build-tree v47 starts with project AI runtime")
 
-        r = run([sys.executable, ROOT/"tools/test_nougat_media_suite_v47.py", ROOT, built],
+        r = run([sys.executable, ROOT/"tools/test_nougat_play_portal_v47.py", ROOT, built],
                 env=runtime_env)
         need(r.returncode == 0, "v0.0.47 contract validation failed")
 
@@ -153,7 +153,7 @@ def main():
         r = run([sys.executable, secure_v47, ROOT], env=runtime_env)
         need(r.returncode == 0, "v0.0.47 Secure Search retention validation failed")
 
-        for p in ROOT.glob("Nougat_Media_Suite_v*"):
+        for p in ROOT.glob("Nougat_Play_Portal_v*"):
             if p.is_file():
                 print("Removing obsolete root executable:", p.name)
                 p.unlink()
@@ -174,9 +174,9 @@ def main():
         need(r.returncode == 0 and icon_uri in r.stdout,
              "final executable custom-icon readback did not match approved Nougat N")
 
-        roots = sorted(p.name for p in ROOT.glob("Nougat_Media_Suite_v*") if p.is_file())
+        roots = sorted(p.name for p in ROOT.glob("Nougat_Play_Portal_v*") if p.is_file())
         need(roots == [TARGET], "obsolete/multiple root executables survived promotion: " + repr(roots))
-        built_versions = sorted(p.name for p in BUILD.glob("Nougat_Media_Suite_v*") if p.is_file())
+        built_versions = sorted(p.name for p in BUILD.glob("Nougat_Play_Portal_v*") if p.is_file())
         need(built_versions == [TARGET],
              "obsolete/multiple CMake-build executables survived: " + repr(built_versions))
 
@@ -185,7 +185,7 @@ def main():
         r = run([promoted, "--version"], capture=True, env=clean_env)
         need(r.returncode == 0,
              "final root executable could not start from embedded $ORIGIN runtime: " + r.stdout.strip())
-        need(r.stdout.strip() == "Nougat Media Suite v0.0.47",
+        need(r.stdout.strip() == "Nougat Play Portal v0.0.47",
              "final root executable identity failed: " + repr(r.stdout.strip()))
         print("PASS: final root v47 starts without LD_LIBRARY_PATH")
 
@@ -206,10 +206,10 @@ def main():
              "GNOME/X11 window identity self-test failed: " + r.stdout.strip())
         print(r.stdout.strip())
 
-        for name in ("NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop"):
+        for name in ("NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop"):
             text = (ROOT/name).read_text()
-            need("Nougat_Media_Suite_v47" in text, f"{name} does not target v47")
-            need("Icon=nougat-media-suite-concept-sheet-v24" in text,
+            need("Nougat_Play_Portal_v47" in text, f"{name} does not target v47")
+            need("Icon=nougat-play-portal-concept-sheet-v24" in text,
                  f"{name} lost approved icon key")
 
         print("=== v0.0.47 NATIVE BUILD + EXECUTABLE PROMOTION PASS ===")

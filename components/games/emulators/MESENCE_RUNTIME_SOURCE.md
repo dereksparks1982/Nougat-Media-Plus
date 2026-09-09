@@ -1,6 +1,6 @@
 # MesenCE 2.2.1 runtime source record
 
-Nougat Media Suite v0.0.44 installs the unmodified upstream MesenCE 2.2.1 Linux x64 release into `components/games/runtime/mesen2/` at install time. The runtime directory is generated and Git-ignored.
+Nougat Play Portal v0.0.44 installs the unmodified upstream MesenCE 2.2.1 Linux x64 release into `components/games/runtime/mesen2/` at install time. The runtime directory is generated and Git-ignored.
 
 - Upstream project: https://github.com/nesdev-org/MesenCE
 - Upstream release/tag: 2.2.1
@@ -9,4 +9,4 @@ Nougat Media Suite v0.0.44 installs the unmodified upstream MesenCE 2.2.1 Linux 
 - License: GNU GPL v3
 - Corresponding source: https://github.com/nesdev-org/MesenCE/tree/2.2.1
 
-MesenCE remains a separate third-party work and is not relicensed under Nougat Media Suite's project license. A GPL-3.0 license copy accompanies this record in the candidate package.
+MesenCE remains a separate third-party work and is not relicensed under Nougat Play Portal's project license. A GPL-3.0 license copy accompanies this record in the candidate package.

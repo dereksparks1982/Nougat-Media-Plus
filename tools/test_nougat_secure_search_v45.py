@@ -121,16 +121,16 @@ def privacy_canary_test(root: Path) -> None:
 
 def main() -> None:
     root = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd().resolve()
-    print(f"=== NOUGAT MEDIA SUITE v0.0.45 SECURE SEARCH VALIDATION ===\nProject: {root}")
+    print(f"=== NOUGAT PLAY PORTAL v0.0.45 SECURE SEARCH VALIDATION ===\nProject: {root}")
 
     cmake = read(root, "CMakeLists.txt")
     for token in [
-        "project(NougatMediaSuite VERSION 0.0.45 LANGUAGES CXX)",
-        "add_executable(Nougat_Media_Suite_v45",
+        "project(NougatPlayPortal VERSION 0.0.45 LANGUAGES CXX)",
+        "add_executable(Nougat_Play_Portal_v45",
         "src/search/secure_search.cpp",
         "src/privacy/privacy_broker_client.cpp",
         "src/crawler/crawler_access_manager.cpp",
-        "target_compile_options(Nougat_Media_Suite_v45 PRIVATE -Wall -Wextra -Werror)",
+        "target_compile_options(Nougat_Play_Portal_v45 PRIVATE -Wall -Wextra -Werror)",
     ]:
         require(cmake, token, "CMake v45")
     ok("CMake wires v45 security modules outside main.cpp")
@@ -194,11 +194,11 @@ def main() -> None:
     privacy_canary_test(root)
     compile_changed_cpp(root)
 
-    exe = root / "Nougat_Media_Suite_v45"
+    exe = root / "Nougat_Play_Portal_v45"
     if exe.is_file() and os.access(exe, os.X_OK):
         version = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=10)
         output = (version.stdout + version.stderr).strip()
-        if version.returncode != 0 or output != "Nougat Media Suite v0.0.45":
+        if version.returncode != 0 or output != "Nougat Play Portal v0.0.45":
             fail(f"native version identity failed: rc={version.returncode} output={output!r}")
         selftest = subprocess.run([str(exe), "--v44-release-self-test"], capture_output=True, text=True, timeout=60)
         if selftest.returncode != 0:

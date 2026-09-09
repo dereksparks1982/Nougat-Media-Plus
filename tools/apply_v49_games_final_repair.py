@@ -51,7 +51,7 @@ def insert_before_once(text: str, anchor: str, addition: str, label: str) -> str
 
 
 def verify_current_state() -> None:
-    need((ROOT / ".git").exists(), "Run this from the Nougat Media Suite project root")
+    need((ROOT / ".git").exists(), "Run this from the Nougat Play Portal project root")
     head = run(["git", "rev-parse", "HEAD"])
     need(head.returncode == 0, "Could not read Git HEAD")
     need(head.stdout.strip() == EXPECTED_HEAD,
@@ -69,7 +69,7 @@ def verify_current_state() -> None:
         ROOT / "components/games/artwork_cache_worker.py": EXPECTED_OLD_WORKER,
         ROOT / "tools/install_game_runtimes_v49.py": EXPECTED_OLD_INSTALLER,
         ROOT / "tools/check_game_runtimes_v49.py": EXPECTED_OLD_CHECKER,
-        ROOT / "tools/test_nougat_media_suite_v49.py": EXPECTED_OLD_TEST,
+        ROOT / "tools/test_nougat_play_portal_v49.py": EXPECTED_OLD_TEST,
         ROOT / "tools/build_v49.py": EXPECTED_BUILD,
     }
     for path, expected in current.items():
@@ -92,9 +92,9 @@ def verify_current_state() -> None:
 
     main = (ROOT / "src/main.cpp").read_text(encoding="utf-8")
     required = [
-        'printf("Nougat Media Suite v0.0.49\\n")',
+        'printf("Nougat Play Portal v0.0.49\\n")',
         'const std::string versionLabel = "v0.0.49";',
-        'input.app_version = "Nougat Media Suite v0.0.49";',
+        'input.app_version = "Nougat Play Portal v0.0.49";',
         'if (backend_lower == "stella")',
         'start_game_artwork_prefetch',
         'filter_game_library_preferences',
@@ -598,11 +598,11 @@ static std::string dos_archive_entrypoint(const std::string& archive_path,
 
     # Expand the existing native self-test so the new archive/system behavior is
     # validated by the built executable, not just by source-token tests.
-    old_pass = '''        std::printf("Nougat Media Suite v0.0.49 Games preference PASS: USA first, English fallback, newest final revision, foreign-only fallback.\\\\n");
+    old_pass = '''        std::printf("Nougat Play Portal v0.0.49 Games preference PASS: USA first, English fallback, newest final revision, foreign-only fallback.\\\\n");
         return 0;
 '''
     if old_pass not in text:
-        old_pass = '''        std::printf("Nougat Media Suite v0.0.49 Games preference PASS: USA first, English fallback, newest final revision, foreign-only fallback.\\n");
+        old_pass = '''        std::printf("Nougat Play Portal v0.0.49 Games preference PASS: USA first, English fallback, newest final revision, foreign-only fallback.\\n");
         return 0;
 '''
     native_tests = r'''        const bool sega_bin = game_system_for_path_in_context(
@@ -629,7 +629,7 @@ static std::string dos_archive_entrypoint(const std::string& archive_path,
                 sega_bin, sega_gen, sega_sms, sega_gg, zip_safe, dos_prince, dos_gta);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.49 Games PASS: USA/English/revision filtering, Sega ZIP recognition, and DOS ZIP package detection.\n");
+        std::printf("Nougat Play Portal v0.0.49 Games PASS: USA/English/revision filtering, Sega ZIP recognition, and DOS ZIP package detection.\n");
         return 0;
 '''
     text = replace_once(text, old_pass, native_tests, "expanded v49 Games native self-test")
@@ -738,7 +738,7 @@ def main() -> int:
             (ROOT / "components/games/artwork_cache_worker.py", "artwork_cache_worker.py"),
             (ROOT / "tools/install_game_runtimes_v49.py", "install_game_runtimes_v49.py"),
             (ROOT / "tools/check_game_runtimes_v49.py", "check_game_runtimes_v49.py"),
-            (ROOT / "tools/test_nougat_media_suite_v49.py", "test_nougat_media_suite_v49.py"),
+            (ROOT / "tools/test_nougat_play_portal_v49.py", "test_nougat_play_portal_v49.py"),
             (ROOT / "components/games/emulators/BLASTEM_RUNTIME_SOURCE.md", "BLASTEM_RUNTIME_SOURCE.md"),
         ]
         for target, payload_name in payloads:

@@ -95,19 +95,19 @@ def patch_main(path: Path) -> None:
     # Version identity. Comments/history are intentionally not rewritten.
     text = replace_once(text, 'const std::string versionLabel = "v0.0.49";',
                         'const std::string versionLabel = "v0.0.51";', "visible header version")
-    text = replace_once(text, 'input.app_version = "Nougat Media Suite v0.0.50";',
-                        'input.app_version = "Nougat Media Suite v0.0.51";', "diagnostic version")
-    text = replace_once(text, 'printf("Nougat Media Suite v0.0.50\\n");',
-                        'printf("Nougat Media Suite v0.0.51\\n");', "CLI version")
+    text = replace_once(text, 'input.app_version = "Nougat Play Portal v0.0.50";',
+                        'input.app_version = "Nougat Play Portal v0.0.51";', "diagnostic version")
+    text = replace_once(text, 'printf("Nougat Play Portal v0.0.50\\n");',
+                        'printf("Nougat Play Portal v0.0.51\\n");', "CLI version")
 
     # New approved branding: exact raster lockup in the top bar and exact N crop
     # for _NET_WM_ICON through the replaced icon-data header.
     text = replace_function(text, '    void draw_suite_badge(Drawable target, int x0, int y0, unsigned char bgR, unsigned char bgG, unsigned char bgB)', r'''    void draw_suite_brand(Drawable target, int x0, int y0,
                           unsigned char bgR, unsigned char bgG, unsigned char bgB) {
-        for (int y = 0; y < nougat_media_suite_icon::kTopBarHeight; ++y) {
-            for (int x = 0; x < nougat_media_suite_icon::kTopBarWidth; ++x) {
-                const std::uint32_t argb = nougat_media_suite_icon::kTopBarLockup[
-                    y * nougat_media_suite_icon::kTopBarWidth + x];
+        for (int y = 0; y < nougat_play_portal_icon::kTopBarHeight; ++y) {
+            for (int x = 0; x < nougat_play_portal_icon::kTopBarWidth; ++x) {
+                const std::uint32_t argb = nougat_play_portal_icon::kTopBarLockup[
+                    y * nougat_play_portal_icon::kTopBarWidth + x];
                 const unsigned char a = static_cast<unsigned char>((argb >> 24) & 0xffU);
                 if (a == 0) continue;
                 const unsigned char sr = static_cast<unsigned char>((argb >> 16) & 0xffU);
@@ -122,20 +122,20 @@ def patch_main(path: Path) -> None:
         }
     }''')
     text = replace_once(text,
-        '        return 28 + text_width("NOUGAT MEDIA SUITE") + 6;',
-        '        return 4 + nougat_media_suite_icon::kTopBarWidth + 6;',
+        '        return 28 + text_width("NOUGAT PLAY PORTAL") + 6;',
+        '        return 4 + nougat_play_portal_icon::kTopBarWidth + 6;',
         "top navigation brand bound")
-    old_header = '''        const int badgeY = (kTopBarH - nougat_media_suite_icon::kTopBar14Size) / 2;
+    old_header = '''        const int badgeY = (kTopBarH - nougat_play_portal_icon::kTopBar14Size) / 2;
         const int headerBaseline = kTopBarH / 2 + 5;
         draw_suite_badge(target, 8, badgeY, 227, 204, 172);
-        text(target, 28, headerBaseline, "NOUGAT MEDIA SUITE", topText);'''
-    new_header = '''        const int brandY = (kTopBarH - nougat_media_suite_icon::kTopBarHeight) / 2;
+        text(target, 28, headerBaseline, "NOUGAT PLAY PORTAL", topText);'''
+    new_header = '''        const int brandY = (kTopBarH - nougat_play_portal_icon::kTopBarHeight) / 2;
         const int headerBaseline = kTopBarH / 2 + 5;
         draw_suite_brand(target, 4, brandY, 227, 204, 172);'''
     text = replace_once(text, old_header, new_header, "approved header lockup")
 
     # v0.0.51 approved branding replaces the old square badge with the full
-    # N + cursive Nougat Media Suite lockup.  Replace the old click shield
+    # N + cursive Nougat Play Portal lockup.  Replace the old click shield
     # structurally so harmless whitespace changes cannot break the build.
     brand_decl = "        const Rect nougatBrandBadge"
     brand_start = text.find(brand_decl)
@@ -151,12 +151,12 @@ def patch_main(path: Path) -> None:
     brand_end += 1
     new_brand_hitbox = """        const Rect nougatBrandBadge{
             4,
-            (kTopBarH - nougat_media_suite_icon::kTopBarHeight) / 2,
-            nougat_media_suite_icon::kTopBarWidth,
-            nougat_media_suite_icon::kTopBarHeight
+            (kTopBarH - nougat_play_portal_icon::kTopBarHeight) / 2,
+            nougat_play_portal_icon::kTopBarWidth,
+            nougat_play_portal_icon::kTopBarHeight
         };"""
     text = text[:brand_start] + new_brand_hitbox + text[brand_end:]
-    need("nougat_media_suite_icon::kTopBar14Size" not in text,
+    need("nougat_play_portal_icon::kTopBar14Size" not in text,
          "retired Nougat N header constant remains after approved branding patch")
 
     # Radio top-level view and Mulberry palette.
@@ -895,8 +895,8 @@ def patch_world_service(path: Path) -> None:
 def patch_world_worker(path: Path) -> None:
     text=path.read_text(encoding="utf-8")
     text=replace_once(text,
-        'UA = "Mozilla/5.0 (X11; Linux x86_64) NougatMediaSuite/0.0.47"',
-        'UA = "Mozilla/5.0 (X11; Linux x86_64) NougatMediaSuite/0.0.51"',
+        'UA = "Mozilla/5.0 (X11; Linux x86_64) NougatPlayPortal/0.0.47"',
+        'UA = "Mozilla/5.0 (X11; Linux x86_64) NougatPlayPortal/0.0.51"',
         "World TV user agent version")
     replacement=r'''LAST_PROBE_REASON = ""
 
@@ -1025,23 +1025,23 @@ def patch_lan() -> None:
 def patch_cmake_desktop() -> None:
     p=ROOT/'CMakeLists.txt'
     text=p.read_text(encoding='utf-8')
-    text=replace_once(text,'project(NougatMediaSuite VERSION 0.0.50 LANGUAGES CXX)',
-                      'project(NougatMediaSuite VERSION 0.0.51 LANGUAGES CXX)','CMake version')
-    need('Nougat_Media_Suite_v50' in text,'CMake v50 target missing')
-    text=text.replace('Nougat_Media_Suite_v50','Nougat_Media_Suite_v51')
+    text=replace_once(text,'project(NougatPlayPortal VERSION 0.0.50 LANGUAGES CXX)',
+                      'project(NougatPlayPortal VERSION 0.0.51 LANGUAGES CXX)','CMake version')
+    need('Nougat_Play_Portal_v50' in text,'CMake v50 target missing')
+    text=text.replace('Nougat_Play_Portal_v50','Nougat_Play_Portal_v51')
     p.write_text(text,encoding='utf-8')
-    for name in ('NougatMediaSuite.desktop','com.elderredsoftworks.NougatMediaSuite.desktop'):
+    for name in ('NougatPlayPortal.desktop','com.elderredsoftworks.NougatPlayPortal.desktop'):
         d=ROOT/name
         body=d.read_text(encoding='utf-8')
-        body=replace_once(body,'Nougat_Media_Suite_v50','Nougat_Media_Suite_v51',name+' Exec')
-        body=replace_once(body,'Icon=nougat-media-suite-concept-sheet-v24','Icon=nougat-media-suite-v51',name+' icon')
+        body=replace_once(body,'Nougat_Play_Portal_v50','Nougat_Play_Portal_v51',name+' Exec')
+        body=replace_once(body,'Icon=nougat-play-portal-concept-sheet-v24','Icon=nougat-play-portal-v51',name+' icon')
         d.write_text(body,encoding='utf-8')
 
 
 def patch_docs() -> None:
-    scope=ROOT/'docs/builds/NOUGAT_MEDIA_SUITE_v0_0_51_SCOPE.md'
+    scope=ROOT/'docs/builds/NOUGAT_PLAY_PORTAL_v0_0_51_SCOPE.md'
     scope.parent.mkdir(parents=True,exist_ok=True)
-    scope.write_text('''# Nougat Media Suite v0.0.51 Candidate Scope\n\nBase: accepted/published v0.0.50 commit `45f163752e5f1e0ed00f7d6d851bb6f6a5abf96e`.\n\n## Candidate work\n\n- Repairs the File Splitter around direct folder, normal file, and existing ZIP input; owner-selected output name; owner-selected piece count; mathematically derived minimum recommendation when an explicit maximum-piece setting requires it; `.zip.001` naming; SHA-256 verification; exact packaged reassembly.\n- Repairs HDHomeRun physical-device presentation so one FLEX-class unit is one device card with nested tuner resources, makes detection/status provider-neutral, and separates completed RF traversal from helper/cleanup status.\n- Rebuilds World TV around the Live-TV-style timeline guide geometry using World TV orange data/palette and improves direct-stream resolution tolerance/evidence; source verification stays off the X11 event thread and teardown does not synchronously wait on the long-running World TV network workers.\n- Makes translucent rounded treatment a system-wide policy for transient player overlays rather than a World-TV-only exception.\n- Adds the top-level Mulberry Radio foundation with AM, FM, Shortwave, Weather, DAB/DAB+, DRM, Internet Radio, SDR, Favorites, and Recordings divisions. Radio is an independent root view and does not map the Video Player/resume child merely by opening Radio. Hardware-dependent modes stay unavailable without a real supporting provider/device.\n- Advances the LAN Web Viewer versioned endpoint foundation for health, catalog, history, artwork, media, HLS, Live TV, devices/session, pairing and browser UI while preserving LAN-only/no-cloud defaults.\n- Replaces the old Nougat brand mark with the owner-approved v0.0.51 artwork: the exact N crop is the executable/window/launcher/sidebar icon, and the exact N + cursive `Nougat Media Suite` lockup is scaled into the top application bar.\n- Corrects all current executable/diagnostic/header identity to v0.0.51, repairs the N alpha silhouette so both bottom corners outside the rounded badge are transparent, and makes successful promotion replace v50 rather than leaving old and new root executables side by side.\n- Repairs the top-level horizontal navigation structurally: the tab list is one source of truth, the maximum scroll is derived from the rendered final System tab, and narrow-width regression checks require the complete last tab to be reachable.\n\n## Controller roadmap locked by owner\n\nNougat will gain a unified Controller & Remote Input Framework for the entire app. Controller setup belongs in the System tab. D-pad/left-stick navigation, A/Cross Select, B/Circle Back/Cancel, tab/page actions, subtitles/audio/player controls, remapping, dead zones, sensitivity and controller testing feed a common action abstraction. UI, Video Player, Games and Drone Flight are separate contexts. Drone Flight owns flight axes exclusively while armed so those inputs cannot simultaneously navigate Nougat.\n\nNo Git commit/tag/GitHub push is part of candidate construction. Owner testing and acceptance come first.\n''',encoding='utf-8')
+    scope.write_text('''# Nougat Play Portal v0.0.51 Candidate Scope\n\nBase: accepted/published v0.0.50 commit `45f163752e5f1e0ed00f7d6d851bb6f6a5abf96e`.\n\n## Candidate work\n\n- Repairs the File Splitter around direct folder, normal file, and existing ZIP input; owner-selected output name; owner-selected piece count; mathematically derived minimum recommendation when an explicit maximum-piece setting requires it; `.zip.001` naming; SHA-256 verification; exact packaged reassembly.\n- Repairs HDHomeRun physical-device presentation so one FLEX-class unit is one device card with nested tuner resources, makes detection/status provider-neutral, and separates completed RF traversal from helper/cleanup status.\n- Rebuilds World TV around the Live-TV-style timeline guide geometry using World TV orange data/palette and improves direct-stream resolution tolerance/evidence; source verification stays off the X11 event thread and teardown does not synchronously wait on the long-running World TV network workers.\n- Makes translucent rounded treatment a system-wide policy for transient player overlays rather than a World-TV-only exception.\n- Adds the top-level Mulberry Radio foundation with AM, FM, Shortwave, Weather, DAB/DAB+, DRM, Internet Radio, SDR, Favorites, and Recordings divisions. Radio is an independent root view and does not map the Video Player/resume child merely by opening Radio. Hardware-dependent modes stay unavailable without a real supporting provider/device.\n- Advances the LAN Web Viewer versioned endpoint foundation for health, catalog, history, artwork, media, HLS, Live TV, devices/session, pairing and browser UI while preserving LAN-only/no-cloud defaults.\n- Replaces the old Nougat brand mark with the owner-approved v0.0.51 artwork: the exact N crop is the executable/window/launcher/sidebar icon, and the exact N + cursive `Nougat Play Portal` lockup is scaled into the top application bar.\n- Corrects all current executable/diagnostic/header identity to v0.0.51, repairs the N alpha silhouette so both bottom corners outside the rounded badge are transparent, and makes successful promotion replace v50 rather than leaving old and new root executables side by side.\n- Repairs the top-level horizontal navigation structurally: the tab list is one source of truth, the maximum scroll is derived from the rendered final System tab, and narrow-width regression checks require the complete last tab to be reachable.\n\n## Controller roadmap locked by owner\n\nNougat will gain a unified Controller & Remote Input Framework for the entire app. Controller setup belongs in the System tab. D-pad/left-stick navigation, A/Cross Select, B/Circle Back/Cancel, tab/page actions, subtitles/audio/player controls, remapping, dead zones, sensitivity and controller testing feed a common action abstraction. UI, Video Player, Games and Drone Flight are separate contexts. Drone Flight owns flight axes exclusively while armed so those inputs cannot simultaneously navigate Nougat.\n\nNo Git commit/tag/GitHub push is part of candidate construction. Owner testing and acceptance come first.\n''',encoding='utf-8')
     prepend_after_title(ROOT/'CHANGELOG.md','## v0.0.51 candidate','''
 - Repairs v0.0.50 File Splitter, HDHomeRun grouping/full-scan status, World TV guide/reliability, version identity and transient overlay clipping/opacity.
 - Keeps World TV source verification off the X11 event thread and prevents application teardown from blocking on long-running World TV resolver/guide/artwork network workers.

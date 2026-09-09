@@ -64,9 +64,9 @@ def embedded_icon_corner_alpha(header: str, size: int) -> tuple[int,int]:
 
 def alpha_at(rows,x,y): return rows[y][x*4+3]
 
-files=[ROOT/'assets/branding/nougat-media-suite-v51-master-N.png']
-files += [ROOT/f'assets/icons/nougat-media-suite-v51-{size}.png' for size in (16,32,48,64,128,256,512)]
-files += [ROOT/'assets/icons/nougat-media-suite-v51.png']
+files=[ROOT/'assets/branding/nougat-play-portal-v51-master-N.png']
+files += [ROOT/f'assets/icons/nougat-play-portal-v51-{size}.png' for size in (16,32,48,64,128,256,512)]
+files += [ROOT/'assets/icons/nougat-play-portal-v51.png']
 for path in files:
     need(path.is_file(),f'missing icon asset: {path.relative_to(ROOT)}')
     w,h,rows=rgba_png(path)
@@ -75,7 +75,7 @@ for path in files:
     need(bl==0 and br==0,
          f'bottom-corner alpha leak in {path.relative_to(ROOT)}: BL={bl} BR={br}')
     print(f'PASS: transparent bottom corners {path.relative_to(ROOT)}')
-header=(ROOT/'src/nougat_media_suite_icon_data.hpp').read_text(encoding='utf-8')
+header=(ROOT/'src/nougat_play_portal_icon_data.hpp').read_text(encoding='utf-8')
 for size in (16,32,64):
     bl,br=embedded_icon_corner_alpha(header,size)
     need(bl==0 and br==0,f'embedded kIcon{size} bottom-corner alpha leak: BL={bl} BR={br}')

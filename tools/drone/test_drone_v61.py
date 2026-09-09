@@ -19,7 +19,7 @@ def need(path, token):
     return text
 
 cmake = need("CMakeLists.txt", "VERSION 0.0.61")
-if "Nougat_Media_Suite_v61" not in cmake:
+if "Nougat_Play_Portal_v61" not in cmake:
     errors.append("CMakeLists.txt: v61 executable target missing")
 
 source = need("src/main.cpp", "NOUGAT_V61_DRONE_MISSION_CONTROL_UI")
@@ -29,7 +29,7 @@ for token in (
     "studioDroneWaypoints",
     "poll_drone_simulation();",
     "save_drone_director_shot",
-    "Nougat Media Suite v0.0.61",
+    "Nougat Play Portal v0.0.61",
     "Real-aircraft command transmission remains disabled",
 ):
     if token not in source:
@@ -43,13 +43,13 @@ for forbidden in (
     if forbidden in source:
         errors.append(f"src/main.cpp: real-aircraft command token unexpectedly present: {forbidden}")
 
-desktop = need("com.elderredsoftworks.NougatMediaSuite.desktop", "Nougat_Media_Suite_v61")
-if "Name=Nougat Media Suite" not in desktop:
+desktop = need("com.elderredsoftworks.NougatPlayPortal.desktop", "Nougat_Play_Portal_v61")
+if "Name=Nougat Play Portal" not in desktop:
     errors.append("desktop product name changed unexpectedly")
 
 readme = need("README.md", "## v0.0.61 candidate - Drone Lab Mission Control")
-if "Nougat Media Plus" not in readme:
-    errors.append("README: deferred Nougat Media Plus note missing")
+if "Nougat Play Portal" not in readme:
+    errors.append("README: deferred Nougat Play Portal note missing")
 if "owner-test candidate" not in readme:
     errors.append("README: candidate acceptance wording missing")
 
@@ -76,4 +76,4 @@ print("PASS: editable Director Shot waypoint path")
 print("PASS: functional trajectory simulation and telemetry")
 print("PASS: simulation camera/gimbal and payload controls")
 print("PASS: real-aircraft command transmission remains disabled")
-print("PASS: Nougat Media Suite branding and approved N identity preserved")
+print("PASS: Nougat Play Portal branding and approved N identity preserved")

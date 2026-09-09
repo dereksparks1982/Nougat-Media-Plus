@@ -1,14 +1,14 @@
-# Contributing to Nougat Media Suite
+# Contributing to Nougat Play Portal
 
-Nougat Media Suite is owner-controlled. Contributions are welcome only when they do not weaken the project's licensing, provenance, privacy, or release rules.
+Nougat Play Portal is owner-controlled. Contributions are welcome only when they do not weaken the project's licensing, provenance, privacy, or release rules.
 
 ## Contributor terms
 
-By intentionally submitting code, documentation, artwork, tests, patches, or other material for inclusion in Nougat Media Suite, you represent that you have the right to submit that material and you grant Elderred Softworks LLC a perpetual, worldwide, non-exclusive, irrevocable, royalty-free license to use, reproduce, modify, prepare derivative works from, distribute, publicly display, publicly perform, sublicense, and relicense the submitted contribution for any purpose, including commercial licensing and distribution.
+By intentionally submitting code, documentation, artwork, tests, patches, or other material for inclusion in Nougat Play Portal, you represent that you have the right to submit that material and you grant Elderred Softworks LLC a perpetual, worldwide, non-exclusive, irrevocable, royalty-free license to use, reproduce, modify, prepare derivative works from, distribute, publicly display, publicly perform, sublicense, and relicense the submitted contribution for any purpose, including commercial licensing and distribution.
 
-You keep whatever copyright you already own in your contribution. This inbound license is intentionally broader than the noncommercial license offered to ordinary recipients so that an outside contribution cannot prevent the project owner from maintaining, distributing, or commercially licensing Nougat Media Suite later.
+You keep whatever copyright you already own in your contribution. This inbound license is intentionally broader than the noncommercial license offered to ordinary recipients so that an outside contribution cannot prevent the project owner from maintaining, distributing, or commercially licensing Nougat Play Portal later.
 
-To the extent you control patent claims necessarily infringed by your contribution, you also grant Elderred Softworks LLC and recipients authorized by it a perpetual, worldwide, royalty-free patent license to make, use, sell, offer for sale, import, and otherwise exploit the contribution as incorporated into Nougat Media Suite.
+To the extent you control patent claims necessarily infringed by your contribution, you also grant Elderred Softworks LLC and recipients authorized by it a perpetual, worldwide, royalty-free patent license to make, use, sell, offer for sale, import, and otherwise exploit the contribution as incorporated into Nougat Play Portal.
 
 ## Contribution requirements
 

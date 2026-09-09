@@ -1,3 +1,20 @@
+# Nougat Play Portal Roadmap
+
+**Powered by NougatOS**
+
+## v0.0.69 - Nougat Play Portal / NougatOS Transition
+
+- Make **Nougat Play Portal** the canonical product, project, executable, desktop, documentation, asset, and GitHub identity.
+- Make **NougatOS** the underlying platform, runtime-management, hardware-integration, and system-services identity.
+- Rename the GitHub repository to `dereksparks1982/Nougat-Play-Portal` and align the SSH origin with it.
+- Remove superseded Nougat project names from current tracked project text, metadata, and filenames, while leaving protected third-party license files untouched unless separately approved.
+- Rewrite the maintained README introduction around the game-first console portal direction and keep `ExampleImages/Nougat_Play_Portal_v69_UI_Sheet.png` as the v0.0.69 interface authority.
+- Replace the retired military-HUD direction with the approved console-first interface organized around **Home, Games, Library, Network, Media, and System**.
+- Preserve the full accepted v0.0.68 functional foundation during the identity and interface transition.
+- Carry forward Games and emulation, Ultima Online T2A, Nougat Network, Nougat 3D planning, Media, Live TV, World TV, radio groundwork, streaming/YouTube compatibility, Jellyfin-backed services, Search/P2P/Security, Studio, Drone Production, and existing connected-hardware foundations.
+- Rename the local project root and produce the first true v0.0.69 executable only as part of the owner-approved v0.0.69 build, not this documentation/GitHub transition checkpoint.
+- Keep owner in-world Ultima Online playability as its separate acceptance gate before T2A world-bootstrap and era-purge work.
+
 ## v0.0.65 planned - Military UI Enhancement and Nougat Chat Scaffolding
 
 - Replace the Video Player seek control in regular/half-screen and fullscreen playback with the exact owner-approved military green-glass seek-bar design: square track, square ends, oversized square handle extending above and below the track, no old caramel palette, and no separate background panel.
@@ -75,7 +92,7 @@ v0.0.62 is the dedicated complete Games overhaul.
 
 ## v0.0.53 planned - Rejected v0.0.51 carry-forward and alerts
 
-The complete mandatory carry-forward list is recorded in `docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_CARRY_FORWARD.md`. v0.0.52 is Radio-only. v0.0.53 resumes the deferred File Splitter, HDHomeRun/full-scan, World TV, Games/emulator/artwork, navigation, identity, overlay/process, LAN and related repair work. AMBER Alerts and the broader official public-warning integration are also assigned to v0.0.53.
+The complete mandatory carry-forward list is recorded in `docs/builds/NOUGAT_PLAY_PORTAL_v0_0_53_CARRY_FORWARD.md`. v0.0.52 is Radio-only. v0.0.53 resumes the deferred File Splitter, HDHomeRun/full-scan, World TV, Games/emulator/artwork, navigation, identity, overlay/process, LAN and related repair work. AMBER Alerts and the broader official public-warning integration are also assigned to v0.0.53.
 
 ## v0.0.51 and forward: Controller, Radio, LAN Viewer, and Aerial Production
 
@@ -163,7 +180,7 @@ No Aerial Production implementation or LAN Web Viewer code is part of v0.0.50. v
 - Affected page-frame corner repair; Search and Video Player frame behavior preserved.
 - Known v0.0.34 issues carried into v0.0.35: seek/volume sheet-fidelity mismatch and validation that could pass the invented geometry instead of proving the approved component.
 
-# Nougat Media Suite Roadmap
+# Nougat Play Portal Roadmap
 
 ## v0.0.41 candidate — Housekeeping, Archives, IMDb, Live TV and Player Activity Repair
 - Add Search's `Archive` tab beside Network with direct browser links to the curated preservation/library directory, including Archive.org and Minerva Archive.
@@ -271,7 +288,7 @@ No Aerial Production implementation or LAN Web Viewer code is part of v0.0.50. v
 - Mouse side Button 8/9 navigate Back/Forward through Nougat internal history.
 - Library removes the redundant root “MEDIA LIBRARY” label and places List/Grid controls at the far left.
 - Clean the approved N icon perimeter app-wide so the tiny lower-edge light sliver is transparent.
-- Upgrade Debug into the Nougat Media Suite Diagnostic Center with evidence-backed app/system/Jellyfin/library/playback/Search/current-P2P/AI/TMDb/Stream checks plus TXT, JSON, and redacted support-bundle export.
+- Upgrade Debug into the Nougat Play Portal Diagnostic Center with evidence-backed app/system/Jellyfin/library/playback/Search/current-P2P/AI/TMDb/Stream checks plus TXT, JSON, and redacted support-bundle export.
 - Center the existing Volume label + 0-200% control + single correct percentage; remove the duplicate percentage and rejected speaker-square/triangle glyphs without changing the gain range.
 - Keep N/name, Server status/dot, and version fixed beneath the horizontally scrolling top tabs so tabs roll over them cleanly.
 - At natural TV episode end, resolve the actual next episode and show an Up Next overlay with a visible 10-second autoplay countdown, Play Next, Back to Series, and Replay. If resolution fails, show an explicit message rather than silently stopping.
@@ -401,7 +418,7 @@ No Aerial Production implementation or LAN Web Viewer code is part of v0.0.50. v
 ## v0.0.24 candidate - Search Page UI Polish
 
 - Preserve accepted v0.0.23 Search engine behavior; this release is visual polish only.
-- Put the approved square N emblem at the far-left header position with `NOUGAT MEDIA SUITE` immediately beside it.
+- Put the approved square N emblem at the far-left header position with `NOUGAT PLAY PORTAL` immediately beside it.
 - Remove the duplicate N beside the version while preserving server state and version on the far right.
 - Finish exact concept-sheet styling for Search, Crawler, and P2P sub-tabs, fields, buttons, result/log panels, and selected-tab point/notch.
 - Align `Network...` and `SEARCH` to the same right-side column with identical width and horizontal position.
@@ -415,15 +432,15 @@ No Aerial Production implementation or LAN Web Viewer code is part of v0.0.50. v
 - Keep PolyForm Noncommercial License 1.0.0 as the controlling recipient license for Elderred Softworks LLC Original Materials.
 - Correct the copyright/licensor identity and add explicit ownership, contribution, and licensing-policy records.
 - Preserve all third-party licenses and prevent project-level notices from relicensing upstream components.
-- Add an inbound contribution grant that preserves the owner's ability to maintain, sublicense, relicense, and commercially license Nougat Media Suite.
+- Add an inbound contribution grant that preserves the owner's ability to maintain, sublicense, relicense, and commercially license Nougat Play Portal.
 - Add deterministic license-boundary and rollback validation.
-- Advance the root executable to `Nougat_Media_Suite_v22` with no media/UI behavior change.
+- Advance the root executable to `Nougat_Play_Portal_v22` with no media/UI behavior change.
 - Move the previously planned UI-polish and Stream-service expansion work to v0.0.23.
 
 ## v0.0.21 accepted - Official Rename, Palette, and Navigation Repair
 
-- Official application identity changes from **ReddMedia** to **Nougat Media Suite**.
-- Versioned root executable becomes `Nougat_Media_Suite_v21`.
+- Official application identity changes from **ReddMedia** to **Nougat Play Portal**.
+- Versioned root executable becomes `Nougat_Play_Portal_v21`.
 - Top-level order becomes `Video Player | Library | Discover | Search | Stream | Debug`; the former top-level Nougat label becomes **Search**.
 - Search's ordinary internal sections are `Search | Crawler | P2P`; media/torrent P2P moves under Search and its former top-level tab is removed.
 - Decentralized search-network peer/node controls move behind a smaller **Network...** advanced surface inside Search instead of remaining a normal tab.

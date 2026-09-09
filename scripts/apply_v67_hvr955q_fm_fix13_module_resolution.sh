@@ -1,18 +1,18 @@
 #!/bin/bash
 
 main() {
-    PROJECT="/home/dereksparks1982/DKLab/Projects/Nougat Media Plus"
+    PROJECT="/home/dereksparks1982/DKLab/Projects/Nougat Play Portal"
     KREL="$(uname -r)"
     UPDATE_ROOT="/lib/modules/$KREL/updates"
     UPDATE_DIR="$UPDATE_ROOT/nougat-v67-fm"
-    ROOT_EXE="$PROJECT/Nougat_Media_Plus_v67"
-    ICON="$PROJECT/assets/branding/nougat-media-plus-dock-N.png"
-    DESKTOP_DST="$HOME/.local/share/applications/com.elderredsoftworks.NougatMediaPlus.desktop"
+    ROOT_EXE="$PROJECT/Nougat_Play_Portal_v67"
+    ICON="$PROJECT/assets/branding/nougat-play-portal-dock-N.png"
+    DESKTOP_DST="$HOME/.local/share/applications/com.elderredsoftworks.NougatPlayPortal.desktop"
     TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-    ARCHIVE="/home/dereksparks1982/DKLab/Archives/Nougat Media Plus/v67-fm-fix13-module-backups-$TIMESTAMP"
+    ARCHIVE="/home/dereksparks1982/DKLab/Archives/Nougat Play Portal/v67-fm-fix13-module-backups-$TIMESTAMP"
 
     echo "============================================================"
-    echo "Nougat Media Plus v0.0.67"
+    echo "Nougat Play Portal v0.0.67"
     echo "HVR-955Q FM FIX13 MODULE-RESOLUTION CONTINUATION"
     echo "Kernel: $KREL"
     echo "============================================================"
@@ -136,7 +136,7 @@ main() {
 
     if command -v gio >/dev/null 2>&1; then
         gio set "$ROOT_EXE" metadata::custom-icon \
-            "file:///home/dereksparks1982/DKLab/Projects/Nougat%20Media%20Plus/assets/branding/nougat-media-plus-dock-N.png" \
+            "file:///home/dereksparks1982/DKLab/Projects/Nougat%20Media%20Plus/assets/branding/nougat-play-portal-dock-N.png" \
             >/dev/null 2>&1 || true
     fi
 

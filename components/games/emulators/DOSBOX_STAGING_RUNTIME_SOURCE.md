@@ -1,4 +1,4 @@
-# DOSBox runtime source for Nougat Media Suite v0.0.48
+# DOSBox runtime source for Nougat Play Portal v0.0.48
 
 Nougat v0.0.48 supports DOS games through DOSBox Staging or compatible DOSBox.
 

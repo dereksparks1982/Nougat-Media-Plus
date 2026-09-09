@@ -27,9 +27,9 @@ def replace_all_exact(text: str, old: str, new: str, expected: int, label: str) 
 def patch_cmake(path: Path) -> None:
     text = path.read_text()
     text = replace_once(text,
-        "project(NougatMediaSuite VERSION 0.0.54 LANGUAGES CXX)",
-        "project(NougatMediaSuite VERSION 0.0.55 LANGUAGES CXX)", "cmake version")
-    text = replace_all_exact(text, "Nougat_Media_Suite_v54", "Nougat_Media_Suite_v55", 10, "cmake target")
+        "project(NougatPlayPortal VERSION 0.0.54 LANGUAGES CXX)",
+        "project(NougatPlayPortal VERSION 0.0.55 LANGUAGES CXX)", "cmake version")
+    text = replace_all_exact(text, "Nougat_Play_Portal_v54", "Nougat_Play_Portal_v55", 10, "cmake target")
     text = replace_once(text,
         "    src/games/emulator_host.cpp\n",
         "    src/games/emulator_host.cpp\n    src/games/emulator_registry.cpp\n    src/library/user_library_state.cpp\n    src/player/up_next_title.cpp\n",
@@ -39,7 +39,7 @@ def patch_cmake(path: Path) -> None:
 
 def patch_desktop(path: Path) -> None:
     text = path.read_text()
-    text = replace_once(text, "Nougat_Media_Suite_v54", "Nougat_Media_Suite_v55", f"{path.name} exec")
+    text = replace_once(text, "Nougat_Play_Portal_v54", "Nougat_Play_Portal_v55", f"{path.name} exec")
     path.write_text(text)
 
 
@@ -157,8 +157,8 @@ def patch_main(path: Path) -> None:
         'const std::string versionLabel = "v0.0.55";',
         "top-bar version")
     text = replace_all_exact(text,
-        'Nougat Media Suite v0.0.54',
-        'Nougat Media Suite v0.0.55', 2,
+        'Nougat Play Portal v0.0.54',
+        'Nougat Play Portal v0.0.55', 2,
         "diagnostic/CLI version")
 
     path.write_text(text)
@@ -186,8 +186,8 @@ def main() -> int:
     payload = args.payload.resolve()
 
     required = [repo / "src/main.cpp", repo / "src/media_server/jellyfin_api_client.cpp",
-                repo / "CMakeLists.txt", repo / "NougatMediaSuite.desktop",
-                repo / "com.elderredsoftworks.NougatMediaSuite.desktop"]
+                repo / "CMakeLists.txt", repo / "NougatPlayPortal.desktop",
+                repo / "com.elderredsoftworks.NougatPlayPortal.desktop"]
     missing = [str(p) for p in required if not p.is_file()]
     if missing:
         raise RuntimeError("missing required v54 files: " + ", ".join(missing))
@@ -196,8 +196,8 @@ def main() -> int:
     patch_main(repo / "src/main.cpp")
     patch_jellyfin(repo / "src/media_server/jellyfin_api_client.cpp")
     patch_cmake(repo / "CMakeLists.txt")
-    patch_desktop(repo / "NougatMediaSuite.desktop")
-    patch_desktop(repo / "com.elderredsoftworks.NougatMediaSuite.desktop")
+    patch_desktop(repo / "NougatPlayPortal.desktop")
+    patch_desktop(repo / "com.elderredsoftworks.NougatPlayPortal.desktop")
     print("Nougat v0.0.55 source integration applied.")
     return 0
 

@@ -168,27 +168,27 @@ def replace_icon_array(text: str, size: int, words):
 
 def main() -> int:
     project=Path(sys.argv[1] if len(sys.argv)>1 else '.').resolve()
-    master=project/'assets/branding/nougat-media-suite-v51-master-N.png'
+    master=project/'assets/branding/nougat-play-portal-v51-master-N.png'
     if not master.is_file():
         raise IconError(f"approved owner N master missing: {master}")
     sw,sh,rows=read_rgba(master)
     if sw != sh: raise IconError(f"approved owner N master is not square: {sw}x{sh}")
     changed=clear_rounded_exterior(sw,sh,rows)
     assets=project/'assets/icons'
-    cleaned_master=assets/'nougat-media-suite-v53-master-clean.png'
+    cleaned_master=assets/'nougat-play-portal-v53-master-clean.png'
     write_rgba(cleaned_master,sw,sh,rows)
     print(f"MASTER: cleared {changed} exterior alpha pixel(s) from approved v51 N master")
 
     generated={}
     for size in (16,32,48,64,128,256,512):
         scaled=resize_rgba(rows,sw,sh,size)
-        destination=assets/f'nougat-media-suite-v53-{size}.png'
+        destination=assets/f'nougat-play-portal-v53-{size}.png'
         write_rgba(destination,size,size,scaled)
         generated[size]=destination
         print(f"ICON {size}: regenerated from corrected approved master")
-    (assets/'nougat-media-suite-v53.png').write_bytes(generated[512].read_bytes())
+    (assets/'nougat-play-portal-v53.png').write_bytes(generated[512].read_bytes())
 
-    header=project/'src/nougat_media_suite_icon_data.hpp'
+    header=project/'src/nougat_play_portal_icon_data.hpp'
     text=header.read_text(encoding='utf-8')
     for size in (16,32,64):
         actual,words=argb_words(generated[size])

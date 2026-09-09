@@ -26,9 +26,9 @@ def main() -> int:
     art_worker = (root / 'components/games/artwork_cache_worker.py').read_text(encoding='utf-8')
 
     need('NOUGAT_V53_CANDIDATE' in main_cpp, 'v53 source marker missing')
-    need('Nougat Media Suite v0.0.53' in main_cpp, 'main version string is not v0.0.53')
-    need('VERSION 0.0.53' in cmake and 'Nougat_Media_Suite_v53' in cmake, 'CMake target/version not promoted')
-    need('Icon=nougat-media-suite' in (root/'NougatMediaSuite.desktop').read_text(), 'desktop icon identity not promoted')
+    need('Nougat Play Portal v0.0.53' in main_cpp, 'main version string is not v0.0.53')
+    need('VERSION 0.0.53' in cmake and 'Nougat_Play_Portal_v53' in cmake, 'CMake target/version not promoted')
+    need('Icon=nougat-play-portal' in (root/'NougatPlayPortal.desktop').read_text(), 'desktop icon identity not promoted')
 
     # Navigation must remain geometry-derived, not a newly hardcoded final-tab count.
     need('top_nav_left_bound()' in main_cpp and 'topNavClipRight' in main_cpp,
@@ -70,7 +70,7 @@ def main() -> int:
         need(token in art_worker, f'Games artwork expansion missing: {token}')
 
     # Process identity and transient-overlay contracts.
-    need('PR_SET_NAME' in main_cpp and 'NougatMediaSuite' in main_cpp, 'Linux process identity repair missing')
+    need('PR_SET_NAME' in main_cpp and 'NougatPlayPortal' in main_cpp, 'Linux process identity repair missing')
     need('apply_transient_window_style' in main_cpp and 'set_transient_opacity' in main_cpp and 'apply_rounded_transient_shape' in main_cpp,
          'rounded/translucent transient overlay path missing')
 
@@ -113,7 +113,7 @@ def main() -> int:
                                         text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                 need(result.returncode == 0, f'{rel} failed -Werror compile:\n{result.stdout}')
 
-    print('PASS: Nougat Media Suite v0.0.53 candidate static contracts verified.')
+    print('PASS: Nougat Play Portal v0.0.53 candidate static contracts verified.')
     return 0
 
 if __name__ == '__main__':

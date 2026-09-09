@@ -92,7 +92,7 @@ restore_app_source() {
 }
 
 main() {
-    PROJECT="/home/dereksparks1982/DKLab/Projects/Nougat Media Plus"
+    PROJECT="/home/dereksparks1982/DKLab/Projects/Nougat Play Portal"
     KREL="$(uname -r)"
     KBUILD="/lib/modules/$KREL/build"
     BUILDROOT="$PROJECT/build/v67-hvr955q-fm-$KREL"
@@ -106,11 +106,11 @@ main() {
     KERNEL_PATCHER="$PROJECT/components/radio/kernel/hvr955q-fm/patch_kernel_source_fix10.py"
     APP_PATCHER="$PROJECT/scripts/patch_nougat_radio_backend_fix10.py"
     TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-    ARCHIVE="/home/dereksparks1982/DKLab/Archives/Nougat Media Plus/v67-fm-fix10-before-$TIMESTAMP"
-    ROOT_EXE="$PROJECT/Nougat_Media_Plus_v67"
-    ICON="$PROJECT/assets/branding/nougat-media-plus-dock-N.png"
-    DESKTOP_SRC="$PROJECT/com.elderredsoftworks.NougatMediaPlus.desktop"
-    DESKTOP_DST="$HOME/.local/share/applications/com.elderredsoftworks.NougatMediaPlus.desktop"
+    ARCHIVE="/home/dereksparks1982/DKLab/Archives/Nougat Play Portal/v67-fm-fix10-before-$TIMESTAMP"
+    ROOT_EXE="$PROJECT/Nougat_Play_Portal_v67"
+    ICON="$PROJECT/assets/branding/nougat-play-portal-dock-N.png"
+    DESKTOP_SRC="$PROJECT/com.elderredsoftworks.NougatPlayPortal.desktop"
+    DESKTOP_DST="$HOME/.local/share/applications/com.elderredsoftworks.NougatPlayPortal.desktop"
 
     [[ -d "$PROJECT" ]] || { echo "FAIL: project not found: $PROJECT"; return 1; }
     [[ -d "$KBUILD" && -f "$KBUILD/Makefile" ]] || { echo "FAIL: running-kernel headers missing: $KBUILD"; return 1; }
@@ -120,7 +120,7 @@ main() {
     mkdir -p "$BUILDROOT" "$ARCHIVE/app" "$PROJECT/logs" || return 1
 
     echo "============================================================"
-    echo "Nougat Media Plus v0.0.67"
+    echo "Nougat Play Portal v0.0.67"
     echo "HVR-955Q FM RADIO END-TO-END DRIVER + APP + N DOCK ICON FIX10"
     echo "Kernel: $KREL"
     echo "============================================================"
@@ -237,7 +237,7 @@ EOF
     echo
     echo "=== BACK UP ONLY APP FILES FIX10 MAY CHANGE ==="
     local rel new_cpp=0 new_hpp=0
-    for rel in "CMakeLists.txt" "src/main.cpp" "src/radio/radio_backend.cpp" "src/radio/radio_backend.hpp" "com.elderredsoftworks.NougatMediaPlus.desktop"; do
+    for rel in "CMakeLists.txt" "src/main.cpp" "src/radio/radio_backend.cpp" "src/radio/radio_backend.hpp" "com.elderredsoftworks.NougatPlayPortal.desktop"; do
         if [[ -f "$PROJECT/$rel" ]]; then
             mkdir -p "$ARCHIVE/app/$(dirname "$rel")" || return 1
             cp -a "$PROJECT/$rel" "$ARCHIVE/app/$rel" || return 1
@@ -255,10 +255,10 @@ EOF
     rm -rf "$APP_BUILD" || { restore_app_source "$ARCHIVE" "$PROJECT" "$new_cpp" "$new_hpp"; return 1; }
     mkdir -p "$APP_BUILD" || { restore_app_source "$ARCHIVE" "$PROJECT" "$new_cpp" "$new_hpp"; return 1; }
     cmake -S "$PROJECT" -B "$APP_BUILD" || { restore_app_source "$ARCHIVE" "$PROJECT" "$new_cpp" "$new_hpp"; echo "FAIL: CMake configure failed; source restored."; return 1; }
-    nice -n 10 cmake --build "$APP_BUILD" --target Nougat_Media_Plus_v67 --parallel 2 || { restore_app_source "$ARCHIVE" "$PROJECT" "$new_cpp" "$new_hpp"; echo "FAIL: app build failed; source restored."; return 1; }
+    nice -n 10 cmake --build "$APP_BUILD" --target Nougat_Play_Portal_v67 --parallel 2 || { restore_app_source "$ARCHIVE" "$PROJECT" "$new_cpp" "$new_hpp"; echo "FAIL: app build failed; source restored."; return 1; }
 
     local BUILT VERSION
-    BUILT="$APP_BUILD/Nougat_Media_Plus_v67"
+    BUILT="$APP_BUILD/Nougat_Play_Portal_v67"
     [[ -x "$BUILT" ]] || { restore_app_source "$ARCHIVE" "$PROJECT" "$new_cpp" "$new_hpp"; echo "FAIL: v67 executable not produced."; return 1; }
     VERSION="$("$BUILT" --version 2>&1)"
     [[ "$VERSION" == *"v0.0.67"* ]] || { restore_app_source "$ARCHIVE" "$PROJECT" "$new_cpp" "$new_hpp"; echo "FAIL: wrong app identity: $VERSION"; return 1; }
@@ -268,13 +268,13 @@ EOF
     echo
     echo "=== FINAL INSTALL: DRIVER + ROOT APP + APPROVED N DOCK ICON ==="
     local pid exe
-    for pid in $(pgrep -f 'Nougat_Media_Plus_v67' 2>/dev/null); do
+    for pid in $(pgrep -f 'Nougat_Play_Portal_v67' 2>/dev/null); do
         exe="$(readlink -f "/proc/$pid/exe" 2>/dev/null)"
         [[ "$exe" == "$ROOT_EXE" ]] && kill "$pid" 2>/dev/null || true
     done
 
-    local ROOT_BACKUP="$ARCHIVE/Nougat_Media_Plus_v67.before"
-    local DESKTOP_BACKUP="$ARCHIVE/com.elderredsoftworks.NougatMediaPlus.desktop.before"
+    local ROOT_BACKUP="$ARCHIVE/Nougat_Play_Portal_v67.before"
+    local DESKTOP_BACKUP="$ARCHIVE/com.elderredsoftworks.NougatPlayPortal.desktop.before"
     [[ -f "$ROOT_EXE" ]] && cp -a "$ROOT_EXE" "$ROOT_BACKUP"
     [[ -f "$DESKTOP_DST" ]] && cp -a "$DESKTOP_DST" "$DESKTOP_BACKUP"
 
@@ -317,11 +317,11 @@ desktop = Path(sys.argv[1])
 project = Path(sys.argv[2])
 text = desktop.read_text()
 values = {
-    "Exec": f'Exec="{project}/Nougat_Media_Plus_v67"',
-    "Icon": f"Icon={project}/assets/branding/nougat-media-plus-dock-N.png",
-    "StartupWMClass": "StartupWMClass=NougatMediaPlus",
-    "X-GNOME-Application-ID": "X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaPlus",
-    "X-GNOME-WMClass": "X-GNOME-WMClass=NougatMediaPlus",
+    "Exec": f'Exec="{project}/Nougat_Play_Portal_v67"',
+    "Icon": f"Icon={project}/assets/branding/nougat-play-portal-dock-N.png",
+    "StartupWMClass": "StartupWMClass=NougatPlayPortal",
+    "X-GNOME-Application-ID": "X-GNOME-Application-ID=com.elderredsoftworks.NougatPlayPortal",
+    "X-GNOME-WMClass": "X-GNOME-WMClass=NougatPlayPortal",
 }
 for key, line in values.items():
     if re.search(rf"^{re.escape(key)}=", text, flags=re.M):
@@ -338,7 +338,7 @@ PY
         update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
     fi
     if command -v gio >/dev/null 2>&1; then
-        gio set "$ROOT_EXE" metadata::custom-icon "file:///home/dereksparks1982/DKLab/Projects/Nougat%20Media%20Plus/assets/branding/nougat-media-plus-dock-N.png" >/dev/null 2>&1 || true
+        gio set "$ROOT_EXE" metadata::custom-icon "file:///home/dereksparks1982/DKLab/Projects/Nougat%20Media%20Plus/assets/branding/nougat-play-portal-dock-N.png" >/dev/null 2>&1 || true
     fi
 
     echo

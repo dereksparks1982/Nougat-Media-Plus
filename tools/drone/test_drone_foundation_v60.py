@@ -4,12 +4,12 @@ import sys, json
 root=Path(sys.argv[1] if len(sys.argv)>1 else '.').resolve()
 main=(root/'src/main.cpp').read_text(encoding='utf-8')
 cmake=(root/'CMakeLists.txt').read_text(encoding='utf-8')
-desktop=(root/'com.elderredsoftworks.NougatMediaSuite.desktop').read_text(encoding='utf-8')
+desktop=(root/'com.elderredsoftworks.NougatPlayPortal.desktop').read_text(encoding='utf-8')
 gitignore=(root/'.gitignore').read_text(encoding='utf-8')
 lock=json.loads((root/'components/drone/DRONE_STACK_LOCK.json').read_text(encoding='utf-8'))
 checks={
- 'version':'Nougat Media Suite v0.0.60' in main and 'VERSION 0.0.60' in cmake,
- 'target':'Nougat_Media_Suite_v60' in cmake and 'Nougat_Media_Suite_v60' in desktop,
+ 'version':'Nougat Play Portal v0.0.60' in main and 'VERSION 0.0.60' in cmake,
+ 'target':'Nougat_Play_Portal_v60' in cmake and 'Nougat_Play_Portal_v60' in desktop,
  'tab':'NOUGAT_V60_DRONE_STUDIO_TAB' in main and 'button_on(target,studioDroneTab,"Drone")' in main,
  'simulation_only':'SIMULATION-ONLY FOUNDATION' in main,
  'director':'"DIRECTOR SHOT"' in main and 'Describe -> Path -> Preview -> Simulate -> Save -> Authorized Flight (later)' in main,

@@ -579,7 +579,7 @@ def reassemble(manifest: Path, output: Path | None = None) -> Path:
 
 def main() -> int:
     install_signal_handlers()
-    parser = argparse.ArgumentParser(description="Nougat Media Suite professional File Splitter worker")
+    parser = argparse.ArgumentParser(description="Nougat Play Portal professional File Splitter worker")
     sub = parser.add_subparsers(dest="command", required=True)
 
     a = sub.add_parser("analyze")

@@ -493,14 +493,14 @@ bool TmdbClient::save_credential(const std::string& credential_input, std::strin
     std::string json;
     if (!request_json("/3/configuration", json, error, &credential)) return false;
     if (!ensure_directory(parent_directory(credential_file_))) {
-        error = "Nougat Media Suite could not create its private TMDb settings folder.";
+        error = "Nougat Play Portal could not create its private TMDb settings folder.";
         return false;
     }
     const std::string temporary = credential_file_ + ".new";
     if (!write_private_file(temporary, credential + "\n") ||
         rename(temporary.c_str(), credential_file_.c_str()) != 0) {
         unlink(temporary.c_str());
-        error = "Nougat Media Suite could not store the validated TMDb credential.";
+        error = "Nougat Play Portal could not store the validated TMDb credential.";
         return false;
     }
     chmod(credential_file_.c_str(), 0600);
@@ -509,7 +509,7 @@ bool TmdbClient::save_credential(const std::string& credential_input, std::strin
 
 bool TmdbClient::clear_credential(std::string& error) {
     if (unlink(credential_file_.c_str()) != 0 && errno != ENOENT) {
-        error = "Nougat Media Suite could not clear the saved TMDb credential.";
+        error = "Nougat Play Portal could not clear the saved TMDb credential.";
         return false;
     }
     unlink((credential_file_ + ".new").c_str());

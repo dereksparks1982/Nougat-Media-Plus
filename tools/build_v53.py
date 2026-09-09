@@ -9,20 +9,20 @@ import subprocess
 import sys
 
 BASE = '8e346237928d4d358136b926f70e27729b6bd731'
-TARGET = 'Nougat_Media_Suite_v53'
-PREVIOUS = 'Nougat_Media_Suite_v52'
+TARGET = 'Nougat_Play_Portal_v53'
+PREVIOUS = 'Nougat_Play_Portal_v52'
 
 TRACKED_TARGETS = (
     'CMakeLists.txt',
-    'NougatMediaSuite.desktop',
-    'com.elderredsoftworks.NougatMediaSuite.desktop',
+    'NougatPlayPortal.desktop',
+    'com.elderredsoftworks.NougatPlayPortal.desktop',
     'src/main.cpp',
     'src/live_tv/hdhomerun_provider.cpp',
     'src/world_tv/world_tv_service.hpp',
     'src/world_tv/world_tv_service.cpp',
     'components/world_tv/nougat_world_tv_worker.py',
     'components/games/artwork_cache_worker.py',
-    'src/nougat_media_suite_icon_data.hpp',
+    'src/nougat_play_portal_icon_data.hpp',
 )
 
 class BuildError(RuntimeError):
@@ -59,7 +59,7 @@ def verify_baseline(root: Path) -> None:
 
 def backup_targets(root: Path) -> Path:
     stamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
-    archive = Path.home() / 'DKLab' / 'Archive' / 'Nougat Media Suite' / f'v0.0.53-preapply-{stamp}'
+    archive = Path.home() / 'DKLab' / 'Archive' / 'Nougat Play Portal' / f'v0.0.53-preapply-{stamp}'
     archive.mkdir(parents=True, exist_ok=False)
     for rel in TRACKED_TARGETS:
         dest = archive / rel
@@ -73,14 +73,14 @@ def backup_targets(root: Path) -> Path:
 def install_desktop_identity(root: Path) -> None:
     appdir = Path.home()/'.local/share/applications'
     appdir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(root/'com.elderredsoftworks.NougatMediaSuite.desktop', appdir/'com.elderredsoftworks.NougatMediaSuite.desktop')
+    shutil.copy2(root/'com.elderredsoftworks.NougatPlayPortal.desktop', appdir/'com.elderredsoftworks.NougatPlayPortal.desktop')
     for size in (16,32,48,64,128,256,512):
-        src = root/f'assets/icons/nougat-media-suite-v53-{size}.png'
+        src = root/f'assets/icons/nougat-play-portal-v53-{size}.png'
         if not src.is_file():
             raise BuildError(f'generated icon missing: {src}')
         destdir = Path.home()/f'.local/share/icons/hicolor/{size}x{size}/apps'
         destdir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, destdir/'nougat-media-suite.png')
+        shutil.copy2(src, destdir/'nougat-play-portal.png')
     for command in ('update-desktop-database','gtk-update-icon-cache'):
         exe=shutil.which(command)
         if not exe: continue
@@ -91,11 +91,11 @@ def install_desktop_identity(root: Path) -> None:
 
 def main() -> int:
     package = Path(__file__).resolve().parents[1]
-    root = Path(sys.argv[1] if len(sys.argv)>1 else Path.home()/'DKLab/Projects/Nougat Media Suite').resolve()
+    root = Path(sys.argv[1] if len(sys.argv)>1 else Path.home()/'DKLab/Projects/Nougat Play Portal').resolve()
     if not (root/'.git').exists():
         raise BuildError(f'Nougat Git project not found: {root}')
 
-    print('=== NOUGAT MEDIA SUITE v0.0.53 CANDIDATE BUILD ===')
+    print('=== NOUGAT PLAY PORTAL v0.0.53 CANDIDATE BUILD ===')
     print(f'Project: {root}')
     print('Preflight: exact accepted v0.0.52 target files...')
     verify_baseline(root)

@@ -2,11 +2,11 @@
 
 ## v0.0.64 - Network Center and Satellite Foundation
 
-Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accepted v0.0.63 baseline.
+Nougat Play Portal v0.0.64 is the owner-accepted checkpoint built from the accepted v0.0.63 baseline.
 
 ### Technical changes
 
-- Advances the active executable to `Nougat_Media_Plus_v64` and advances runtime/build reporting to v0.0.64.
+- Advances the active executable to `Nougat_Play_Portal_v64` and advances runtime/build reporting to v0.0.64.
 - Adds the top-level Nougat Network Center foundation.
 - Establishes dedicated network-center source architecture for connected network hardware and services.
 - Advances Search to the visible `Search | Crawler | P2P | Archive` structure.
@@ -24,7 +24,7 @@ Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accept
 - Expands Games with collapsible console groups, large artwork cards, Grid/List views, and Systems scrolling.
 - Adds the MesenCE NES/SNES runtime foundation.
 - Carries known NES, SNES, and Xbox 360 emulator regressions into v0.0.62.
-- Advances the root executable to Nougat_Media_Suite_v61.
+- Advances the root executable to Nougat_Play_Portal_v61.
 
 
 - Advances Drone Production into the native Mission Control workspace with editable paths, trajectory visualization, simulation telemetry, gimbal/camera controls and simulated production actions.
@@ -33,7 +33,7 @@ Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accept
 - Adds the MesenCE NES/SNES runtime foundation.
 - Closes v0.0.61 with known emulator regressions: NES/SNES currently present through external MesenCE fullscreen windows, while the restored Xbox 360 contained-window path does not currently run GTA IV.
 - Assigns v0.0.62 to a complete Games/emulator overhaul and validation pass.
-- Advances the active executable to Nougat_Media_Suite_v61.
+- Advances the active executable to Nougat_Play_Portal_v61.
 
 # v0.0.61 - OWNER-TEST CANDIDATE
 
@@ -44,8 +44,8 @@ Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accept
 - Added interactive simulation camera/gimbal controls.
 - Added simulation-only payload controls with no hardware transmission.
 - Preserved truthful integration/source detection and kept real-aircraft command transmission disabled.
-- Preserved Nougat Media Suite branding and the approved N icon.
-- Advanced the candidate root executable to Nougat_Media_Suite_v61.
+- Preserved Nougat Play Portal branding and the approved N icon.
+- Advanced the candidate root executable to Nougat_Play_Portal_v61.
 
 # v0.0.60 - OWNER-ACCEPTED RELEASE
 
@@ -58,7 +58,7 @@ Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accept
 - Added Director Shot schema.
 - Kept real-aircraft control disabled in the simulation-only foundation.
 - Added permanent approved Nougat N identity installation support.
-- Advanced the root executable to Nougat_Media_Suite_v60.
+- Advanced the root executable to Nougat_Play_Portal_v60.
 
 # v0.0.59 - OWNER-ACCEPTED RELEASE
 
@@ -70,7 +70,7 @@ Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accept
 - Manifest-or-numbered-part discovery, part verification, reconstruction, and final integrity verification.
 - Reassemble / Verify removed from File Splitter itself.
 - Stable independent round Player seek thumb across the full playback range in normal and fullscreen modes.
-- Root executable advanced to Nougat_Media_Suite_v59.
+- Root executable advanced to Nougat_Play_Portal_v59.
 
 # v0.0.58 - OWNER-ACCEPTED RELEASE
 
@@ -88,7 +88,7 @@ Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accept
 - Server-aware diagnostics.
 - Canonical GNOME/Resources application identity.
 - Exact restoration of the accepted stitched Server status indicator.
-- Root executable advanced to Nougat_Media_Suite_v58.
+- Root executable advanced to Nougat_Play_Portal_v58.
 
 v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-open Splitter layout repair, and a separate File Assembler Studio tool.
 
@@ -105,7 +105,7 @@ v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-o
 - Added the owner-approved Plex-class capability program to the long-term roadmap.
 - Repaired Live TV playback allocation/retry, World TV source recovery, Pro-only Radio layout, collapsible console-grouped Games, server health/startup state, and GNOME application identity.
 
-# Nougat Media Suite Change Log
+# Nougat Play Portal Change Log
 
 ## v0.0.55 candidate — First-Party LAN Web Player
 
@@ -308,7 +308,7 @@ v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-o
 - Added ATSC PSIP EIT guide refresh/cache plus the first classic channel-by-time guide grid and Now navigation.
 - Preserved accepted v0.0.36 Library/Search/collection behavior, P2P, security, diagnostics, licensing, and the validated ATSC scan.
 
-# Nougat Media Suite v0.0.36 - Library Hierarchy, Home Artwork, and Exact-Sheet Player/Header Repair
+# Nougat Play Portal v0.0.36 - Library Hierarchy, Home Artwork, and Exact-Sheet Player/Header Repair
 
 - Adds a sheet-exact Library `Search` input on its own row below the green actions with live local filtering.
 - Enforces collection-first Movie roots so BoxSet member films do not duplicate beside their collection card; collection children remain directly navigable/playable and are ordered by production year/name.
@@ -320,7 +320,7 @@ v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-o
 - Preserves the working v0.0.35 Linux DVB ATSC channel scan and puts persisted-channel native `Watch Live` tuning/playback on the next-build agenda.
 - Defers the requested lettering/font redesign to a dedicated future system-wide typography pass.
 
-# Nougat Media Suite v0.0.35 - Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
+# Nougat Play Portal v0.0.35 - Code + Bug Cleanup, UI Alignment, Live TV Scan, and Studio Foundation
 
 - Stabilization-first cleanup release on the accepted v0.0.34 line.
 - Fix App-owned Nougat Search/Crawler shutdown lifetime by joining workers instead of detaching them across owner destruction.
@@ -437,8 +437,8 @@ v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-o
 
 ### v0.0.27 same-version installer validation repair
 - First owner-machine v0.0.27 install attempt applied the candidate, then correctly rolled back to accepted v0.0.26 when the post-apply validation lane invoked the historical v0.0.26 release-identity test and reported `FAIL: CMake v26 identity missing`.
-- Removed only that contradictory post-apply `tools/test_nougat_media_suite_v26.py` invocation.
-- Kept `tools/test_nougat_media_suite_retained_v26.py` as the accepted-v26 compatibility gate under v0.0.27 identity.
+- Removed only that contradictory post-apply `tools/test_nougat_play_portal_v26.py` invocation.
+- Kept `tools/test_nougat_play_portal_retained_v26.py` as the accepted-v26 compatibility gate under v0.0.27 identity.
 - Added an installer regression guard that rejects reintroducing the old v26 identity contract into the v27 post-apply source-test lane.
 - No Home, player, Library, Discover, Search, Stream, Debug, diagnostics, P2P, licensing, media-server, or runtime feature code changed in this same-version repair.
 
@@ -455,7 +455,7 @@ v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-o
 - Added TV Up Next overlay with a visible 10-second countdown, Play Next, Back to Series, Replay, and explicit no-next/failure messaging.
 - P2P feature expansion remains deferred; v0.0.26 only reports current P2P evidence in diagnostics.
 
-# Nougat Media Suite Changelog
+# Nougat Play Portal Changelog
 
 ## v0.0.25 - Stream Provider Theme, Persistent Selection, and Discover Native Play
 
@@ -474,7 +474,7 @@ v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-o
 
 ## v0.0.24 same-version installer repair - Legacy v23 launcher accepted and replaced
 
-- Repaired the exact-N app-wide installer preflight after owner testing found an existing untracked `NougatMediaSuite_v23.desktop` legacy launcher in the rejected v0.0.24 working tree.
+- Repaired the exact-N app-wide installer preflight after owner testing found an existing untracked `NougatPlayPortal_v23.desktop` legacy launcher in the rejected v0.0.24 working tree.
 - The legacy v23 launcher is now an explicitly supported icon-identity surface: it is rollback-captured if present, overwritten with the same corrected exact-sheet N launcher identity, installed into the user applications directory, and restored on installer rollback.
 - No icon artwork, background/quilt, Search, playback, Library, Discover, Stream, diagnostic, or licensing behavior changed in this installer-only repair.
 
@@ -491,8 +491,8 @@ v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-o
 
 - Fixed the Crawler status/log overlap by moving the log panel below the status baseline with a visible gap.
 - Preserved Crawler text selection/highlight behavior unchanged.
-- Repaired Ubuntu/GNOME dock matching with canonical application ID `com.elderredsoftworks.NougatMediaSuite`, the accepted `WM_CLASS=NougatMediaSuite`, a canonical desktop-file hint, and the approved N icon-theme asset.
-- Installed `com.elderredsoftworks.NougatMediaSuite.desktop` while retaining the compatibility launcher.
+- Repaired Ubuntu/GNOME dock matching with canonical application ID `com.elderredsoftworks.NougatPlayPortal`, the accepted `WM_CLASS=NougatPlayPortal`, a canonical desktop-file hint, and the approved N icon-theme asset.
+- Installed `com.elderredsoftworks.NougatPlayPortal.desktop` while retaining the compatibility launcher.
 - Repaired TV next-episode autoplay so an episode can reconstruct its Jellyfin Series parent, natural EOF accepts libVLC Ended plus a guarded near-EOF Stopped fallback, local playback startup is checked, and a failed next-episode start is retried a bounded number of times. Manual Stop still cancels autoplay.
 - Reduced UI lag by throttling full-window concept-UI repaints during raw X11 pointer motion while preserving a final pending hover repaint and existing Crawler drag-selection behavior.
 - Search-engine behavior and protected licensing files remain unchanged.
@@ -500,7 +500,7 @@ v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-o
 
 ## v0.0.24 - Search Page UI Polish
 
-- Moved the approved N emblem to the far-left header and placed `NOUGAT MEDIA SUITE` immediately beside it.
+- Moved the approved N emblem to the far-left header and placed `NOUGAT PLAY PORTAL` immediately beside it.
 - Removed the duplicate right-side N badge while retaining server status and version on the right.
 - Restyled Search/Crawler/P2P sub-tabs with the approved stitched/beveled Nougat controls and active-tab point.
 - Converted Search inputs, action buttons, result cards, peer lists, crawl log, and embedded P2P fields/panels to the concept-sheet family.
@@ -530,19 +530,19 @@ v0.0.59 carries forward File Splitter live Target MiB recalculation, the first-o
 - Added `COPYRIGHT.md` to state the ownership boundary and preserve the owner's ungranted commercial/relicensing rights.
 - Added `CONTRIBUTING.md` and a pull-request confirmation template so outside contributions grant the project owner broad inbound rights without silently changing the recipient license.
 - Added `docs/LICENSING_POLICY.md` to separate Original Materials from third-party material and prohibit accidental relicensing.
-- Rewrote `THIRD_PARTY_NOTICES.md` under the Nougat Media Suite identity and clarified Jellyfin, FFmpeg, libVLC, libtorrent, yt-dlp, llama.cpp, Nomic, TMDb, and system-component boundaries.
+- Rewrote `THIRD_PARTY_NOTICES.md` under the Nougat Play Portal identity and clarified Jellyfin, FFmpeg, libVLC, libtorrent, yt-dlp, llama.cpp, Nomic, TMDb, and system-component boundaries.
 - Added deterministic license-protection and installer-rollback tests.
 - Same-version runtime-path repair: the installer now proves the accepted v0.0.21 executable against the relocated AI runtime after the project-directory rename, and v0.0.22 embeds a relocatable `$ORIGIN` llama.cpp RPATH instead of an absolute project path.
-- Advanced only release/version plumbing to `Nougat_Media_Suite_v22`; media/UI behavior remains the accepted v0.0.21 behavior.
+- Advanced only release/version plumbing to `Nougat_Play_Portal_v22`; media/UI behavior remains the accepted v0.0.21 behavior.
 - Moved the planned UI-polish/service-expansion lane to v0.0.23 so v0.0.22 remains a clean licensing release.
 
 ## v0.0.21 - Official Rename, Candy Palette, and Navigation Repair
 
-- Renamed the visible application identity from **ReddMedia** to **Nougat Media Suite**.
+- Renamed the visible application identity from **ReddMedia** to **Nougat Play Portal**.
 - Renamed the top-level **Nougat** tab to **Search** while preserving the integrated decentralized search engine and behavior.
 - Removed top-level **P2P** and moved media/torrent P2P under Search, giving the ordinary Search subnavigation exactly **Search | Crawler | P2P**.
 - Moved decentralized search peer/node administration behind a smaller **Network...** advanced surface instead of presenting Peers as a normal Search tab.
-- Changed the versioned root executable target to `Nougat_Media_Suite_v21` and the X11/window/launcher identity to Nougat Media Suite.
+- Changed the versioned root executable target to `Nougat_Play_Portal_v21` and the X11/window/launcher identity to Nougat Play Portal.
 - Replaced the red-tree icon system with the owner-approved rounded-square chocolate/nougat **N + play triangle** artwork.
 - Replaced common red navigation chrome with the candy-family identity and made the top-level tabs themselves carry their area colors.
 - Changed Video Player from the former cinema-red identity to **chocolate/cocoa/caramel**, while preserving Library forest/sage, Discover plum/lavender, Search nougat/caramel, and Debug graphite/amber.
@@ -800,7 +800,7 @@ Known limitations:
 - Owner rejected the preceding v0.0.24 icon result because the blurry screenshot-derived N remained active on application surfaces.
 - Replaced the complete active Nougat icon family again from the owner-uploaded full-resolution concept sheet, with a clean transparent silhouette and no cream/white exterior halo.
 - Regenerated the embedded top-bar and `_NET_WM_ICON` pixel data from the corrected master so the in-app header, running window, dock/app switcher, and executable all share the same artwork.
-- Changed active desktop launchers to a fresh `nougat-media-suite-exact-n` icon-theme key to bypass stale GNOME icon-cache identity while also overwriting legacy/current Nougat icon aliases with the same corrected artwork.
+- Changed active desktop launchers to a fresh `nougat-play-portal-exact-n` icon-theme key to bypass stale GNOME icon-cache identity while also overwriting legacy/current Nougat icon aliases with the same corrected artwork.
 - The installer refreshes installed icon-theme assets, desktop entries, GNOME favorites identity, Files/Nautilus metadata, and verifies old rejected blurry icon hashes are absent from every active Nougat icon surface it owns.
 - No Search-engine, quilt/background, playback, licensing, Library, Discover, Stream, or diagnostic behavior is changed by this repair.
 
@@ -810,8 +810,8 @@ Known limitations:
 - Owner rejected the preceding icon result because the in-app left header still visibly showed the old blurry screenshot-derived N and the dock identity was not reliably replaced.
 - The active icon family is regenerated from a literal crop of the N emblem in the owner-supplied full-resolution concept sheet; the surrounding sheet canvas and exterior cream/gray sheet shadow are removed to transparent alpha while the emblem pixels remain from the sheet.
 - The previous rejected 14/16/32/48/64/128/256/512 icon family is explicitly forbidden by hash.
-- `src/nougat_media_suite_icon_data.hpp` is regenerated from the new 14/16/32/64 assets, so the far-left in-app header badge and `_NET_WM_ICON` no longer use the old embedded pixels.
-- Every project launcher from unversioned through v22/v23/v24 plus the canonical reverse-DNS launcher uses the fresh cache-busting key `nougat-media-suite-concept-sheet-v24`.
+- `src/nougat_play_portal_icon_data.hpp` is regenerated from the new 14/16/32/64 assets, so the far-left in-app header badge and `_NET_WM_ICON` no longer use the old embedded pixels.
+- Every project launcher from unversioned through v22/v23/v24 plus the canonical reverse-DNS launcher uses the fresh cache-busting key `nougat-play-portal-concept-sheet-v24`.
 - The installer writes the exact same icon under the fresh key and every legacy/current Nougat icon alias used by GNOME, refreshes the dock favorite binding when present, refreshes desktop/icon caches, and reapplies raw executable custom-icon metadata only after the final v24 executable is written.
 - Existing concept-sheet quilt/background tinting and all non-icon behavior remain unchanged.
 

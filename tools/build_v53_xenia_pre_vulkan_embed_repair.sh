@@ -6,8 +6,8 @@ RUNTIME="$PROJECT/components/games/runtime/xenia"
 PATCHER="$PROJECT/tools/apply_v53_xenia_pre_vulkan_embed_repair.py"
 SHIM_SRC="$RUNTIME/nougat_xenia_embed_preload.c"
 SHIM_SO="$RUNTIME/libnougat_xenia_embed.so"
-TARGET="$PROJECT/build-v53/Nougat_Media_Suite_v53"
-ROOT_EXE="$PROJECT/Nougat_Media_Suite_v53"
+TARGET="$PROJECT/build-v53/Nougat_Play_Portal_v53"
+ROOT_EXE="$PROJECT/Nougat_Play_Portal_v53"
 
 cd "$PROJECT"
 
@@ -20,7 +20,7 @@ cc -shared -fPIC -O2 -Wall -Wextra \
 test -s "$SHIM_SO"
 chmod +x "$RUNTIME/xenia_canary"
 
-cmake --build build-v53 --target Nougat_Media_Suite_v53 -j4
+cmake --build build-v53 --target Nougat_Play_Portal_v53 -j4
 
 test -x "$TARGET"
 cp -f "$TARGET" "$ROOT_EXE"

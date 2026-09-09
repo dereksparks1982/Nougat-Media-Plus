@@ -26,7 +26,7 @@ from typing import Any
 
 RUNTIME_ROOT = Path(__file__).resolve().parent / "runtime"
 BUILTIN_RULES = Path(__file__).resolve().parent / "rules"
-USER_CONFIG = Path.home() / ".config" / "nougat-media-suite" / "security"
+USER_CONFIG = Path.home() / ".config" / "nougat-play-portal" / "security"
 USER_RULES = USER_CONFIG / "rules"
 AUTH_KEY = USER_CONFIG / "abusech.key"
 HISTORY = USER_CONFIG / "scan_history.jsonl"
@@ -223,7 +223,7 @@ def clamav_scan(path: Path) -> dict[str, Any]:
 
 
 def _post(url: str, key: str, body: bytes, content_type: str) -> dict[str, Any]:
-    req = urllib.request.Request(url, data=body, method="POST", headers={"Auth-Key": key, "Content-Type": content_type, "User-Agent": "Nougat-Media-Suite/0.0.33"})
+    req = urllib.request.Request(url, data=body, method="POST", headers={"Auth-Key": key, "Content-Type": content_type, "User-Agent": "Nougat-Play-Portal/0.0.33"})
     with urllib.request.urlopen(req, timeout=12) as resp:
         return json.loads(resp.read().decode("utf-8", "replace"))
 

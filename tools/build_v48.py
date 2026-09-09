@@ -8,8 +8,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
-TARGET = "Nougat_Media_Suite_v48"
-APPROVED_ICON = ROOT / "assets/icons/nougat-media-suite-concept-sheet-v24.png"
+TARGET = "Nougat_Play_Portal_v48"
+APPROVED_ICON = ROOT / "assets/icons/nougat-play-portal-concept-sheet-v24.png"
 APPROVED_SHA = "681ece987dd00d9958cf953939403bd71a5ad9d70d8ad284e133272a0204d804"
 
 
@@ -51,8 +51,8 @@ def install_gnome_identity():
     applications = home / ".local/share/applications"
     applications.mkdir(parents=True, exist_ok=True)
     sources = [
-        ROOT / "com.elderredsoftworks.NougatMediaSuite.desktop",
-        ROOT / "NougatMediaSuite.desktop",
+        ROOT / "com.elderredsoftworks.NougatPlayPortal.desktop",
+        ROOT / "NougatPlayPortal.desktop",
     ]
     for source in sources:
         need(source.is_file(), source.name + " is missing")
@@ -62,14 +62,14 @@ def install_gnome_identity():
 
     icon_root = home / ".local/share/icons"
     icon_root.mkdir(parents=True, exist_ok=True)
-    root_icon = icon_root / "nougat-media-suite-concept-sheet-v24.png"
+    root_icon = icon_root / "nougat-play-portal-concept-sheet-v24.png"
     shutil.copy2(APPROVED_ICON, root_icon)
 
     width, height = png_dimensions(APPROVED_ICON)
     need(width > 0 and height > 0, "approved Nougat N is not a readable PNG")
     themed_dir = icon_root / "hicolor" / (f"{width}x{height}" if width == height else "scalable") / "apps"
     themed_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(APPROVED_ICON, themed_dir / "nougat-media-suite-concept-sheet-v24.png")
+    shutil.copy2(APPROVED_ICON, themed_dir / "nougat-play-portal-concept-sheet-v24.png")
 
     desktop_db = shutil.which("update-desktop-database")
     if desktop_db:
@@ -88,7 +88,7 @@ def main():
         print(r.stdout, end="")
         need(r.returncode == 0, "v0.0.48 game runtime installation failed")
 
-        r = run([sys.executable, ROOT / "tools/test_nougat_media_suite_v48.py", ROOT], capture=True)
+        r = run([sys.executable, ROOT / "tools/test_nougat_play_portal_v48.py", ROOT], capture=True)
         print(r.stdout, end="")
         need(r.returncode == 0, "v0.0.48 pre-build contract failed")
 
@@ -118,7 +118,7 @@ def main():
 
         r = run([built, "--version"], capture=True, env=runtime_env)
         need(r.returncode == 0, "build-tree v48 could not start: " + r.stdout.strip())
-        need(r.stdout.strip() == "Nougat Media Suite v0.0.48",
+        need(r.stdout.strip() == "Nougat Play Portal v0.0.48",
              "build-tree v48 identity mismatch: " + repr(r.stdout.strip()))
         print("PASS: build-tree v48 identity")
 
@@ -129,7 +129,7 @@ def main():
                  f"retained baseline self-test failed: {flag}: {r.stdout.strip()}")
 
         # Promote only after all candidate checks pass.
-        for p in ROOT.glob("Nougat_Media_Suite_v*"):
+        for p in ROOT.glob("Nougat_Play_Portal_v*"):
             if p.is_file():
                 print("Removing obsolete root executable after successful v48 validation:", p.name)
                 p.unlink()
@@ -141,7 +141,7 @@ def main():
         clean_env = dict(os.environ)
         clean_env.pop("LD_LIBRARY_PATH", None)
         r = run([promoted, "--version"], capture=True, env=clean_env)
-        need(r.returncode == 0 and r.stdout.strip() == "Nougat Media Suite v0.0.48",
+        need(r.returncode == 0 and r.stdout.strip() == "Nougat Play Portal v0.0.48",
              "promoted v48 does not start from embedded project runtime")
 
         gio = shutil.which("gio")

@@ -42,7 +42,7 @@ def verify_payload() -> None:
     expected = {
         "emulator_host.cpp": NEW_HOST_SHA256,
         "artwork_cache_worker.py": NEW_WORKER_SHA256,
-        "test_nougat_media_suite_v49.py": NEW_TEST_SHA256,
+        "test_nougat_play_portal_v49.py": NEW_TEST_SHA256,
     }
     for name, digest in expected.items():
         path = PAYLOAD / name
@@ -60,15 +60,15 @@ def repair_main() -> bool:
     path = ROOT / "src/main.cpp"
     need(path.is_file(), "src/main.cpp is missing")
     text = path.read_text(encoding="utf-8")
-    need('printf("Nougat Media Suite v0.0.49\\n")' in text,
+    need('printf("Nougat Play Portal v0.0.49\\n")' in text,
          "src/main.cpp is not the built v0.0.49 candidate")
     need("poll_stella_top_options" in text and "filter_game_library_preferences" in text,
          "src/main.cpp is missing the rejected v0.0.49 Games implementation")
 
     old_header = 'const std::string versionLabel = "v0.0.48";'
     new_header = 'const std::string versionLabel = "v0.0.49";'
-    old_diag = 'input.app_version = "Nougat Media Suite v0.0.48";'
-    new_diag = 'input.app_version = "Nougat Media Suite v0.0.49";'
+    old_diag = 'input.app_version = "Nougat Play Portal v0.0.48";'
+    new_diag = 'input.app_version = "Nougat Play Portal v0.0.49";'
 
     changed = False
     if old_header in text:
@@ -106,7 +106,7 @@ def replace_verified(target: Path, payload_name: str,
 
 def main() -> int:
     try:
-        need((ROOT / ".git").exists(), "run this from the Nougat Media Suite project tree")
+        need((ROOT / ".git").exists(), "run this from the Nougat Play Portal project tree")
         head = command(["git", "rev-parse", "HEAD"])
         need(head.returncode == 0, "could not read Git HEAD")
         need(head.stdout.strip() == EXPECTED_HEAD,
@@ -126,12 +126,12 @@ def main() -> int:
             ROOT / "components/games/artwork_cache_worker.py", "artwork_cache_worker.py",
             OLD_WORKER_SHA256, NEW_WORKER_SHA256, "artwork worker")
         test_changed = replace_verified(
-            ROOT / "tools/test_nougat_media_suite_v49.py", "test_nougat_media_suite_v49.py",
+            ROOT / "tools/test_nougat_play_portal_v49.py", "test_nougat_play_portal_v49.py",
             OLD_TEST_SHA256, NEW_TEST_SHA256, "v49 static test")
         main_changed = repair_main()
 
         (ROOT / "components/games/artwork_cache_worker.py").chmod(0o755)
-        (ROOT / "tools/test_nougat_media_suite_v49.py").chmod(0o755)
+        (ROOT / "tools/test_nougat_play_portal_v49.py").chmod(0o755)
 
         changed = host_changed or worker_changed or test_changed or main_changed
         if not changed:

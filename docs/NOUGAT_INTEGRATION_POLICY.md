@@ -1,10 +1,10 @@
-# Nougat Media Suite Search Integration Policy
+# Nougat Play Portal Search Integration Policy
 
-Beginning with v0.0.21, **Nougat Media Suite** is the application identity and the former top-level **Nougat** tab is labeled **Search**. The underlying decentralized Nougat engine remains an integrated subsystem; the archived standalone Nougat v0.0.1 prototype remains historical reference only and is not a runtime dependency.
+Beginning with v0.0.21, **Nougat Play Portal** is the application identity and the former top-level **Nougat** tab is labeled **Search**. The underlying decentralized Nougat engine remains an integrated subsystem; the archived standalone Nougat v0.0.1 prototype remains historical reference only and is not a runtime dependency.
 
 ## Identity and layout
 
-- Application identity: **Nougat Media Suite**.
+- Application identity: **Nougat Play Portal**.
 - Top-level order: **Video Player | Library | Discover | Search | Stream | Debug**.
 - Search uses the suite's cocoa/chocolate/nougat-cream/caramel identity.
 - The owner-approved chocolate/nougat **N + play triangle** icon is the active application identity.
@@ -18,4 +18,4 @@ Integrated Search data remains under the existing backward-compatible `~/.local/
 
 ## License
 
-Original Nougat Media Suite code is governed by the repository `LICENSE`. Separately licensed dependencies retain their upstream licenses.
+Original Nougat Play Portal code is governed by the repository `LICENSE`. Separately licensed dependencies retain their upstream licenses.

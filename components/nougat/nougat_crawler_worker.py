@@ -15,7 +15,7 @@ from nougat_common import VERSION, hx, index_document
 
 USER_AGENT = (
     f"NougatSearchCrawler/{VERSION} "
-    "(+https://github.com/dereksparks1982/Nougat-Media-Suite; purpose=search-index)"
+    "(+https://github.com/dereksparks1982/Nougat-Play-Portal; purpose=search-index)"
 )
 
 

@@ -22,29 +22,29 @@ expected_icons = {
     512: '40ebef58a7cc86e3883de287b0ed887d4eb3a60b2c4550c84fbebcaa3310734f',
 }
 for size, expected in expected_icons.items():
-    p = root / f'assets/icons/nougat-media-suite-v53-{size}.png'
+    p = root / f'assets/icons/nougat-play-portal-v53-{size}.png'
     need(p.is_file(), f'accepted v53/v54 icon missing: {p.name}')
     need(sha(p) == expected, f'accepted v53/v54 icon changed: {p.name}')
 
-master = root / 'assets/icons/nougat-media-suite-v53.png'
+master = root / 'assets/icons/nougat-play-portal-v53.png'
 need(master.is_file(), 'accepted v53/v54 icon master missing')
 need(sha(master) == expected_icons[512], 'accepted v53/v54 icon master changed')
 
-exe = root / 'Nougat_Media_Suite_v55'
+exe = root / 'Nougat_Play_Portal_v55'
 need(exe.is_file(), 'v55 executable missing')
 need(sha(exe) == 'c5b8af9da5ec172aa791139e87e951079633c09ae96edb608d5b452f30c14784',
      'v55 executable bytes changed during identity/root replacement repair')
 
-for rel in ('NougatMediaSuite.desktop', 'com.elderredsoftworks.NougatMediaSuite.desktop'):
+for rel in ('NougatPlayPortal.desktop', 'com.elderredsoftworks.NougatPlayPortal.desktop'):
     text = (root / rel).read_text(encoding='utf-8')
-    need('Nougat_Media_Suite_v55' in text, rel + ' does not target v55')
-    need('Nougat_Media_Suite_v54' not in text, rel + ' still targets v54')
-    need('Icon=nougat-media-suite' in text, rel + ' lost canonical Nougat icon key')
-    need('StartupWMClass=NougatMediaSuite' in text, rel + ' lost WM class')
-    need('X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaSuite' in text,
+    need('Nougat_Play_Portal_v55' in text, rel + ' does not target v55')
+    need('Nougat_Play_Portal_v54' not in text, rel + ' still targets v54')
+    need('Icon=nougat-play-portal' in text, rel + ' lost canonical Nougat icon key')
+    need('StartupWMClass=NougatPlayPortal' in text, rel + ' lost WM class')
+    need('X-GNOME-Application-ID=com.elderredsoftworks.NougatPlayPortal' in text,
          rel + ' lost application ID')
 
 main = (root / 'src/main.cpp').read_text(errors='replace')
-need('nougat_media_suite_icon_data.hpp' in main, 'embedded X11 icon source include missing')
+need('nougat_play_portal_icon_data.hpp' in main, 'embedded X11 icon source include missing')
 
 print('PASS: v55 identity uses accepted v53/v54 icon family and v55 launch target')

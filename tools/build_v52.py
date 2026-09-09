@@ -12,8 +12,8 @@ import tempfile
 import time
 
 BASE = "bc682de962f19b3c80f4718539467eba2aa139cf"
-TARGET = "Nougat_Media_Suite_v52"
-PREVIOUS = "Nougat_Media_Suite_v51"
+TARGET = "Nougat_Play_Portal_v52"
+PREVIOUS = "Nougat_Play_Portal_v51"
 
 
 def need(condition: bool, message: str) -> None:
@@ -112,8 +112,8 @@ def safe_shutdown(root: Path) -> None:
             continue
         pid = int(proc.name)
         exe = proc_exe(pid)
-        if exe.startswith(prefix) and Path(exe).name.startswith("Nougat_Media_Suite"):
-            terminate(pid, "Nougat Media Suite")
+        if exe.startswith(prefix) and Path(exe).name.startswith("Nougat_Play_Portal"):
+            terminate(pid, "Nougat Play Portal")
 
     ownership = Path.home() / ".local/share/reddmedia/server/nougat-owned.pid"
     if ownership.is_file():
@@ -130,7 +130,7 @@ def safe_shutdown(root: Path) -> None:
             env = proc_bytes(pid, "environ")
             runtime_match = bool(runtime) and (exe == runtime or runtime.encode() in cmd)
             token_match = bool(token) and (("NOUGAT_MEDIA_SERVER_OWNER=" + token).encode() in env)
-            signature = runtime_match and b"Nougat Media Suite integrated Jellyfin" in cmd
+            signature = runtime_match and b"Nougat Play Portal integrated Jellyfin" in cmd
             need(runtime_match and (token_match or signature),
                  "Running server from ownership file could not be verified as Nougat-owned; it was left untouched.")
             terminate(pid, "verified Nougat-owned Jellyfin")
@@ -152,8 +152,8 @@ def copy_payload(package: Path, work: Path) -> None:
         "tools/apply_v52_radio.py", "tools/build_v52.py", "tools/vendor_radio_sources_v52.py",
         "tools/test_v52_radio_static.py",
         "components/radio/README.md", "components/radio/UPSTREAM_COMPONENTS.json",
-        "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_52_SCOPE.md",
-        "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_CARRY_FORWARD.md",
+        "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_52_SCOPE.md",
+        "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_53_CARRY_FORWARD.md",
     ]
     for rel in rels:
         src = package / rel
@@ -172,12 +172,12 @@ def copy_tree_contents(source: Path, target: Path) -> None:
 def install_identity(root: Path) -> None:
     # v0.0.52 is Radio-only. Reuse the current N artwork exactly as committed;
     # the known corner-alpha repair is intentionally deferred to v0.0.53.
-    icon = root / "assets/icons/nougat-media-suite-v51.png"
+    icon = root / "assets/icons/nougat-play-portal-v51.png"
     promoted = root / TARGET
     need(icon.is_file(), "current Nougat N icon asset missing")
     apps = Path.home() / ".local/share/applications"
     apps.mkdir(parents=True, exist_ok=True)
-    for name in ("NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop"):
+    for name in ("NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop"):
         source = root / name
         need(TARGET in source.read_text(encoding="utf-8"), f"{name} does not target v52")
         shutil.copy2(source, apps / name)
@@ -241,17 +241,17 @@ def main() -> int:
     promoted = False
     promotion_paths = [
         "CMakeLists.txt", "src/main.cpp", "src/radio", "components/radio",
-        "NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop",
+        "NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop",
         "CHANGELOG.md", "ROADMAP.md", "DEPENDENCIES.md", "THIRD_PARTY_NOTICES.md",
-        "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_52_SCOPE.md",
-        "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_CARRY_FORWARD.md",
+        "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_52_SCOPE.md",
+        "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_53_CARRY_FORWARD.md",
         "tools/apply_v52_radio.py", "tools/build_v52.py", "tools/vendor_radio_sources_v52.py",
         "tools/test_v52_radio_static.py", TARGET, PREVIOUS,
     ]
     existed: dict[str, bool] = {}
     try:
         package = Path(__file__).resolve().parents[1]
-        root = Path(sys.argv[1] if len(sys.argv) > 1 else Path.home() / "DKLab/Projects/Nougat Media Suite").resolve()
+        root = Path(sys.argv[1] if len(sys.argv) > 1 else Path.home() / "DKLab/Projects/Nougat Play Portal").resolve()
         need((root / ".git").exists() or bool(git(root, "rev-parse", "--git-dir")), f"Not a Git repo: {root}")
         need(Path(git(root, "rev-parse", "--show-toplevel")).resolve() == root, "Nougat repository root mismatch")
         head = git(root, "rev-parse", "HEAD")
@@ -266,9 +266,9 @@ def main() -> int:
         previous_sha = sha256(previous)
         print("Rejected historical v51 executable SHA-256:", previous_sha)
 
-        archive = Path.home() / "DKLab/Archive/Nougat Media Suite" / ("v0.0.52-prebuild-" + time.strftime("%Y%m%d-%H%M%S"))
+        archive = Path.home() / "DKLab/Archive/Nougat Play Portal" / ("v0.0.52-prebuild-" + time.strftime("%Y%m%d-%H%M%S"))
         archive.mkdir(parents=True, exist_ok=False)
-        snapshot = archive / "Nougat-Media-Suite-v0.0.51-committed-base.tar.gz"
+        snapshot = archive / "Nougat-Play-Portal-v0.0.51-committed-base.tar.gz"
         result = run(["git", "--no-pager", "archive", "--format=tar.gz", "-o", snapshot, BASE], cwd=root)
         need(result.returncode == 0 and snapshot.is_file() and snapshot.stat().st_size > 0, "prebuild snapshot failed")
         shutil.copy2(previous, archive / PREVIOUS)
@@ -320,7 +320,7 @@ def main() -> int:
             if libs:
                 env["LD_LIBRARY_PATH"] = ":".join(libs) + ((":" + env["LD_LIBRARY_PATH"]) if env.get("LD_LIBRARY_PATH") else "")
             result = run([built, "--version"], capture=True, env=env)
-            need(result.returncode == 0 and (result.stdout or "").strip() == "Nougat Media Suite v0.0.52",
+            need(result.returncode == 0 and (result.stdout or "").strip() == "Nougat Play Portal v0.0.52",
                  "build-tree v52 identity mismatch")
 
             for flag in ("--v49-games-self-test", "--v47-nav-self-test", "--v47-fullscreen-controls-self-test", "--v47-window-identity-self-test"):
@@ -332,10 +332,10 @@ def main() -> int:
             promoted = True
             file_paths = [
                 "CMakeLists.txt", "src/main.cpp",
-                "NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop",
+                "NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop",
                 "CHANGELOG.md", "ROADMAP.md", "DEPENDENCIES.md", "THIRD_PARTY_NOTICES.md",
-                "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_52_SCOPE.md",
-                "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_CARRY_FORWARD.md",
+                "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_52_SCOPE.md",
+                "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_53_CARRY_FORWARD.md",
                 "tools/apply_v52_radio.py", "tools/build_v52.py", "tools/vendor_radio_sources_v52.py",
                 "tools/test_v52_radio_static.py",
             ]
@@ -353,13 +353,13 @@ def main() -> int:
             clean_env = dict(os.environ)
             clean_env.pop("LD_LIBRARY_PATH", None)
             result = run([root / TARGET, "--version"], capture=True, env=clean_env)
-            need(result.returncode == 0 and (result.stdout or "").strip() == "Nougat Media Suite v0.0.52",
+            need(result.returncode == 0 and (result.stdout or "").strip() == "Nougat Play Portal v0.0.52",
                  "promoted v52 executable identity mismatch")
 
             # Only after the new executable is validated do we retire the old root executable.
             need(previous.is_file() and sha256(previous) == previous_sha, "v51 executable changed before retirement")
             previous.unlink()
-            versioned = sorted(p.name for p in root.glob("Nougat_Media_Suite_v*") if p.is_file())
+            versioned = sorted(p.name for p in root.glob("Nougat_Play_Portal_v*") if p.is_file())
             need(versioned == [TARGET], f"root executable gate failed; found: {versioned}")
 
             install_identity(root)
@@ -391,7 +391,7 @@ def main() -> int:
         print("FAIL:", exc)
         if promoted and archive is not None and existed:
             try:
-                root = Path(sys.argv[1] if len(sys.argv) > 1 else Path.home() / "DKLab/Projects/Nougat Media Suite").resolve()
+                root = Path(sys.argv[1] if len(sys.argv) > 1 else Path.home() / "DKLab/Projects/Nougat Play Portal").resolve()
                 restore_targets(root, archive, promotion_paths, existed)
                 print("ROLLBACK: pre-promotion tracked/candidate files restored.")
             except Exception as rollback_exc:

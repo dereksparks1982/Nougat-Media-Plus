@@ -1,13 +1,13 @@
 #!/bin/bash
 
 main() {
-    PROJECT="/home/dereksparks1982/DKLab/Projects/Nougat Media Plus"
+    PROJECT="/home/dereksparks1982/DKLab/Projects/Nougat Play Portal"
     KREL="$(uname -r)"
     UPDATE_DIR="/lib/modules/$KREL/updates/nougat-v67-fm"
     APP_PATCHER="$PROJECT/scripts/patch_nougat_radio_backend_v2.py"
     APP_BUILD="$PROJECT/build/app-v67"
     TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-    ARCHIVE="/home/dereksparks1982/DKLab/Archives/Nougat Media Plus/v67-fm-cmake-fix-$TIMESTAMP"
+    ARCHIVE="/home/dereksparks1982/DKLab/Archives/Nougat Play Portal/v67-fm-cmake-fix-$TIMESTAMP"
 
     [[ -d "$PROJECT" ]] || {
         echo "FAIL: Nougat project not found: $PROJECT"
@@ -20,7 +20,7 @@ main() {
     }
 
     echo "============================================================"
-    echo "Nougat Media Plus v0.0.67 FM CMake repair"
+    echo "Nougat Play Portal v0.0.67 FM CMake repair"
     echo "Kernel: $KREL"
     echo "============================================================"
 
@@ -57,9 +57,9 @@ main() {
     echo "=== STOP ONLY THE NOUGAT v67 ROOT EXECUTABLE ==="
 
     local pid exe
-    for pid in $(pgrep -f 'Nougat_Media_Plus_v67' 2>/dev/null); do
+    for pid in $(pgrep -f 'Nougat_Play_Portal_v67' 2>/dev/null); do
         exe="$(readlink -f "/proc/$pid/exe" 2>/dev/null)"
-        if [[ "$exe" == "$PROJECT/Nougat_Media_Plus_v67" ]]; then
+        if [[ "$exe" == "$PROJECT/Nougat_Play_Portal_v67" ]]; then
             kill "$pid" 2>/dev/null || true
         fi
     done
@@ -75,7 +75,7 @@ main() {
         "src/main.cpp" \
         "src/radio/radio_backend.cpp" \
         "src/radio/radio_backend.hpp" \
-        "com.elderredsoftworks.NougatMediaPlus.desktop"; do
+        "com.elderredsoftworks.NougatPlayPortal.desktop"; do
         if [[ -f "$PROJECT/$rel" ]]; then
             mkdir -p "$ARCHIVE/app/$(dirname "$rel")" || return 1
             cp -a "$PROJECT/$rel" "$ARCHIVE/app/$rel" || return 1
@@ -96,7 +96,7 @@ main() {
     echo "Application build: $APP_BUILD"
 
     # Never reuse PROJECT/build/CMakeCache.txt. That cache belongs to the old
-    # Nougat Media Suite path. Only this dedicated application build directory
+    # Nougat Play Portal path. Only this dedicated application build directory
     # is removed, leaving the v67 kernel build/source material untouched.
     rm -rf "$APP_BUILD" || {
         cp -a "$ARCHIVE/app/." "$PROJECT/" 2>/dev/null || true
@@ -109,7 +109,7 @@ main() {
     }
 
     echo
-    echo "=== CONFIGURE NOUGAT MEDIA PLUS v0.0.67 ==="
+    echo "=== CONFIGURE NOUGAT PLAY PORTAL v0.0.67 ==="
 
     cmake -S "$PROJECT" -B "$APP_BUILD" || {
         cp -a "$ARCHIVE/app/." "$PROJECT/" 2>/dev/null || true
@@ -118,10 +118,10 @@ main() {
     }
 
     echo
-    echo "=== BUILD NOUGAT MEDIA PLUS v0.0.67 ==="
+    echo "=== BUILD NOUGAT PLAY PORTAL v0.0.67 ==="
 
     nice -n 10 cmake --build "$APP_BUILD" \
-        --target Nougat_Media_Plus_v67 \
+        --target Nougat_Play_Portal_v67 \
         --parallel 2 || {
         cp -a "$ARCHIVE/app/." "$PROJECT/" 2>/dev/null || true
         echo "FAIL: v67 application build failed; app source restored."
@@ -129,8 +129,8 @@ main() {
     }
 
     local BUILT ROOT_EXE VERSION
-    BUILT="$APP_BUILD/Nougat_Media_Plus_v67"
-    ROOT_EXE="$PROJECT/Nougat_Media_Plus_v67"
+    BUILT="$APP_BUILD/Nougat_Play_Portal_v67"
+    ROOT_EXE="$PROJECT/Nougat_Play_Portal_v67"
 
     [[ -x "$BUILT" ]] || {
         cp -a "$ARCHIVE/app/." "$PROJECT/" 2>/dev/null || true
@@ -149,18 +149,18 @@ main() {
         return 1
     }
 
-    rm -f "$PROJECT/Nougat_Media_Plus_v66"
+    rm -f "$PROJECT/Nougat_Play_Portal_v66"
 
     if command -v gio >/dev/null 2>&1; then
         gio set \
             "$ROOT_EXE" \
             metadata::custom-icon \
-            "file:///home/dereksparks1982/DKLab/Projects/Nougat%20Media%20Plus/assets/branding/nougat-media-plus-dock-N.png" \
+            "file:///home/dereksparks1982/DKLab/Projects/Nougat%20Media%20Plus/assets/branding/nougat-play-portal-dock-N.png" \
             >/dev/null 2>&1 || true
         gio set -t string \
             "$ROOT_EXE" \
             metadata::custom-icon-name \
-            nougat-media-plus \
+            nougat-play-portal \
             >/dev/null 2>&1 || true
     fi
 

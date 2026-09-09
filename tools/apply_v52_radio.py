@@ -103,17 +103,17 @@ def copy_payload(rel: str) -> None:
 def patch_cmake() -> None:
     path = ROOT / "CMakeLists.txt"
     text = path.read_text(encoding="utf-8")
-    text = replace_once(text, "project(NougatMediaSuite VERSION 0.0.51 LANGUAGES CXX)",
-                        "project(NougatMediaSuite VERSION 0.0.52 LANGUAGES CXX)", "CMake version")
-    text = replace_once(text, "add_executable(Nougat_Media_Suite_v51\n    src/main.cpp",
-                        "add_executable(Nougat_Media_Suite_v52\n    src/main.cpp\n    src/radio/radio_backend.cpp", "CMake target/sources")
-    text = text.replace("target_compile_options(Nougat_Media_Suite_v51", "target_compile_options(Nougat_Media_Suite_v52")
-    text = text.replace("target_link_libraries(Nougat_Media_Suite_v51", "target_link_libraries(Nougat_Media_Suite_v52")
-    text = text.replace("target_compile_definitions(Nougat_Media_Suite_v51", "target_compile_definitions(Nougat_Media_Suite_v52")
-    text = text.replace("target_include_directories(Nougat_Media_Suite_v51", "target_include_directories(Nougat_Media_Suite_v52")
-    text = text.replace("target_link_options(Nougat_Media_Suite_v51", "target_link_options(Nougat_Media_Suite_v52")
-    text = text.replace("set_target_properties(Nougat_Media_Suite_v51", "set_target_properties(Nougat_Media_Suite_v52")
-    need("Nougat_Media_Suite_v51" not in text, "CMake still contains v51 target identity")
+    text = replace_once(text, "project(NougatPlayPortal VERSION 0.0.51 LANGUAGES CXX)",
+                        "project(NougatPlayPortal VERSION 0.0.52 LANGUAGES CXX)", "CMake version")
+    text = replace_once(text, "add_executable(Nougat_Play_Portal_v51\n    src/main.cpp",
+                        "add_executable(Nougat_Play_Portal_v52\n    src/main.cpp\n    src/radio/radio_backend.cpp", "CMake target/sources")
+    text = text.replace("target_compile_options(Nougat_Play_Portal_v51", "target_compile_options(Nougat_Play_Portal_v52")
+    text = text.replace("target_link_libraries(Nougat_Play_Portal_v51", "target_link_libraries(Nougat_Play_Portal_v52")
+    text = text.replace("target_compile_definitions(Nougat_Play_Portal_v51", "target_compile_definitions(Nougat_Play_Portal_v52")
+    text = text.replace("target_include_directories(Nougat_Play_Portal_v51", "target_include_directories(Nougat_Play_Portal_v52")
+    text = text.replace("target_link_options(Nougat_Play_Portal_v51", "target_link_options(Nougat_Play_Portal_v52")
+    text = text.replace("set_target_properties(Nougat_Play_Portal_v51", "set_target_properties(Nougat_Play_Portal_v52")
+    need("Nougat_Play_Portal_v51" not in text, "CMake still contains v51 target identity")
     path.write_text(text, encoding="utf-8")
 
 
@@ -487,14 +487,14 @@ def patch_main() -> None:
 
     text = replace_once(text, 'const std::string versionLabel = "v0.0.51";',
                         'const std::string versionLabel = "v0.0.52";', "visible version")
-    text = replace_once(text, 'input.app_version = "Nougat Media Suite v0.0.51";',
-                        'input.app_version = "Nougat Media Suite v0.0.52";', "diagnostic version")
-    cli_normal = 'printf("Nougat Media Suite v0.0.51\\n");'
-    cli_continuation = 'printf("Nougat Media Suite v0.0.51\\\n");'
+    text = replace_once(text, 'input.app_version = "Nougat Play Portal v0.0.51";',
+                        'input.app_version = "Nougat Play Portal v0.0.52";', "diagnostic version")
+    cli_normal = 'printf("Nougat Play Portal v0.0.51\\n");'
+    cli_continuation = 'printf("Nougat Play Portal v0.0.51\\\n");'
     if cli_normal in text:
-        text = replace_once(text, cli_normal, 'printf("Nougat Media Suite v0.0.52\\n");', "CLI version")
+        text = replace_once(text, cli_normal, 'printf("Nougat Play Portal v0.0.52\\n");', "CLI version")
     elif cli_continuation in text:
-        text = replace_once(text, cli_continuation, 'printf("Nougat Media Suite v0.0.52\\n");', "CLI version continuation")
+        text = replace_once(text, cli_continuation, 'printf("Nougat Play Portal v0.0.52\\n");', "CLI version continuation")
     else:
         need(False, "CLI version: v0.0.51 anchor not found")
 
@@ -502,10 +502,10 @@ def patch_main() -> None:
 
 
 def patch_launchers() -> None:
-    for rel in ("NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop"):
+    for rel in ("NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop"):
         path = ROOT / rel
         text = path.read_text(encoding="utf-8")
-        text = replace_once(text, "Nougat_Media_Suite_v51", "Nougat_Media_Suite_v52", f"{rel} executable")
+        text = replace_once(text, "Nougat_Play_Portal_v51", "Nougat_Play_Portal_v52", f"{rel} executable")
         path.write_text(text, encoding="utf-8")
 
 
@@ -523,7 +523,7 @@ def patch_docs() -> None:
 ''')
 
     prepend_after_title(ROOT / "ROADMAP.md", "## v0.0.53 planned - Rejected v0.0.51 carry-forward and alerts", '''
-The complete mandatory carry-forward list is recorded in `docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_CARRY_FORWARD.md`. v0.0.52 is Radio-only. v0.0.53 resumes the deferred File Splitter, HDHomeRun/full-scan, World TV, Games/emulator/artwork, navigation, identity, overlay/process, LAN and related repair work. AMBER Alerts and the broader official public-warning integration are also assigned to v0.0.53.
+The complete mandatory carry-forward list is recorded in `docs/builds/NOUGAT_PLAY_PORTAL_v0_0_53_CARRY_FORWARD.md`. v0.0.52 is Radio-only. v0.0.53 resumes the deferred File Splitter, HDHomeRun/full-scan, World TV, Games/emulator/artwork, navigation, identity, overlay/process, LAN and related repair work. AMBER Alerts and the broader official public-warning integration are also assigned to v0.0.53.
 ''')
 
     prepend_after_title(ROOT / "DEPENDENCIES.md", "## v0.0.52 Radio dependency boundary", '''
@@ -542,8 +542,8 @@ def main() -> int:
     try:
         need((ROOT / "src/main.cpp").is_file(), f"Not a Nougat source tree: {ROOT}")
         for rel in ("src/radio/radio_backend.hpp", "src/radio/radio_backend.cpp",
-                    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_52_SCOPE.md",
-                    "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_CARRY_FORWARD.md",
+                    "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_52_SCOPE.md",
+                    "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_53_CARRY_FORWARD.md",
                     "components/radio/README.md", "components/radio/UPSTREAM_COMPONENTS.json",
                     "tools/vendor_radio_sources_v52.py", "tools/test_v52_radio_static.py"):
             copy_payload(rel)

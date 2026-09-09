@@ -44,7 +44,7 @@ need('daemon' in runtime_text.lower() and 'components" / "security" / "runtime' 
 # UI + user-approved behavior.
 for token in ['NougatPanel { Search, Crawler, P2P, VirusScan }', '"Virus Scan"', '"Scan File"', '"Scan Folder"', '"Scan Again"', '"Community Key', '"History"']:
     need(token in main, 'Virus Scan UI missing: '+token)
-need('metadata::custom-icon' in (root/'INSTALL_NOUGAT_MEDIA_SUITE_v0_0_32.sh').read_text(encoding='utf-8'), 'installer icon identity contract disappeared')
+need('metadata::custom-icon' in (root/'INSTALL_NOUGAT_PLAY_PORTAL_v0_0_32.sh').read_text(encoding='utf-8'), 'installer icon identity contract disappeared')
 need('"Node "+node' not in main, 'stray ordinary Search Node identifier is still rendered')
 need('"Node ID: "+node' in main, 'Node ID not retained in Network/advanced location')
 need('text(target,28,174,status,searchPalette.text);' in main, 'Crawler status sentence was not moved to exact approved Y position')
@@ -69,7 +69,7 @@ with tempfile.TemporaryDirectory(prefix='nougat-security-v32-test-') as td:
     need('VERDICT=NO THREATS DETECTED' in proc.stdout, 'harmless scan verdict incorrect')
     need(hashlib.sha256(payload).hexdigest() in proc.stdout, 'SHA-256 evidence missing/incorrect')
     need(sample.read_bytes() == before, 'worker modified harmless file')
-    history = home/'.config/nougat-media-suite/security/scan_history.jsonl'
+    history = home/'.config/nougat-play-portal/security/scan_history.jsonl'
     need(history.is_file(), 'scan history not written')
     mode = stat.S_IMODE(history.stat().st_mode)
     need(mode == 0o600, f'scan history permissions are {oct(mode)}, expected 0600')

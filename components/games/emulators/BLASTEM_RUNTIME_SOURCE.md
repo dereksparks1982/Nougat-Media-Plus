@@ -1,4 +1,4 @@
-# BlastEm runtime source for Nougat Media Suite v0.0.49
+# BlastEm runtime source for Nougat Play Portal v0.0.49
 
 Nougat's Sega Genesis / Mega Drive, Sega Master System, and Sega Game Gear backend is BlastEm.
 

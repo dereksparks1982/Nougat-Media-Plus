@@ -197,7 +197,7 @@ PlayableLaunchResult launch_t2a_playable() {
     result.server_pid = started.pid;
 
     const std::filesystem::path state_root =
-        std::filesystem::path(home_dir()) / ".local/share/nougat-media-plus/games/ultima-online";
+        std::filesystem::path(home_dir()) / ".local/share/nougat-play-portal/games/ultima-online";
     std::error_code fs_error;
     std::filesystem::create_directories(state_root, fs_error);
     if (fs_error) {

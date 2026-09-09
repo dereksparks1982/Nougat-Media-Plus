@@ -1,14 +1,14 @@
 #!/bin/bash
 
 main() {
-    PROJECT="$HOME/DKLab/Projects/Nougat Media Suite"
+    PROJECT="$HOME/DKLab/Projects/Nougat Play Portal"
     # v67 HVR FM kernel build dependencies include libdw-dev
     KREL="$(uname -r)"
     KBASE="${KREL%%-*}"
     LOCALVERSION="${KREL#${KBASE}}"
     BUILDROOT="$HOME/DKLab/Build/Nougat_v67_hvr955q_fm_$KREL"
     KSRC="$BUILDROOT/linux-source-$KBASE"
-    ARCHIVE="$HOME/DKLab/Archives/Nougat Media Suite/v67-hvr955q-fm-preinstall-$(date +%Y%m%d-%H%M%S)"
+    ARCHIVE="$HOME/DKLab/Archives/Nougat Play Portal/v67-hvr955q-fm-preinstall-$(date +%Y%m%d-%H%M%S)"
     UPDATE_DIR="/lib/modules/$KREL/updates/nougat-v67-fm"
 
     [[ -d "$PROJECT" ]] || {
@@ -33,9 +33,9 @@ main() {
     fi
 
     echo "=== STOP ONLY NOUGAT v67 IF IT IS RUNNING ==="
-    for pid in $(pgrep -f 'Nougat_Media_Plus_v67' 2>/dev/null); do
+    for pid in $(pgrep -f 'Nougat_Play_Portal_v67' 2>/dev/null); do
         exe="$(readlink -f "/proc/$pid/exe" 2>/dev/null)"
-        if [[ "$exe" == "$PROJECT/Nougat_Media_Plus_v67" ]]; then
+        if [[ "$exe" == "$PROJECT/Nougat_Play_Portal_v67" ]]; then
             kill "$pid" 2>/dev/null || true
         fi
     done
@@ -265,14 +265,14 @@ EOF
         "$PROJECT" || return 1
 
     echo
-    echo "=== BUILD NOUGAT MEDIA PLUS v67 ==="
+    echo "=== BUILD NOUGAT PLAY PORTAL v67 ==="
     cmake -S "$PROJECT" -B "$PROJECT/build" || return 1
     cmake --build "$PROJECT/build" \
-        --target Nougat_Media_Plus_v67 \
+        --target Nougat_Play_Portal_v67 \
         -j"$(nproc)" || return 1
 
-    BUILT="$PROJECT/build/Nougat_Media_Plus_v67"
-    ROOT_EXE="$PROJECT/Nougat_Media_Plus_v67"
+    BUILT="$PROJECT/build/Nougat_Play_Portal_v67"
+    ROOT_EXE="$PROJECT/Nougat_Play_Portal_v67"
 
     [[ -x "$BUILT" ]] || {
         echo "FAIL: v67 application executable was not produced."
@@ -283,13 +283,13 @@ EOF
     chmod +x "$ROOT_EXE" || return 1
 
     # Rejected/old root executables do not belong beside the active v67 build.
-    rm -f "$PROJECT/Nougat_Media_Plus_v66"
+    rm -f "$PROJECT/Nougat_Play_Portal_v66"
 
     if command -v gio >/dev/null 2>&1; then
         gio set -t string \
             "$ROOT_EXE" \
             metadata::custom-icon-name \
-            nougat-media-plus || true
+            nougat-play-portal || true
     fi
 
     echo
@@ -317,7 +317,7 @@ EOF
     echo "PASS: v67 HVR-955Q FM DRIVER CANDIDATE BUILT AND APPLIED"
     echo "Radio node: $RADIO_NODE"
     echo "Executable: $ROOT_EXE"
-    echo "Approved icon: nougat-media-plus"
+    echo "Approved icon: nougat-play-portal"
     echo "Old v66 executable absent from project root."
     echo "Git/GitHub untouched."
     echo "Driver archive: $ARCHIVE"

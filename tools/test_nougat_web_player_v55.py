@@ -21,8 +21,8 @@ js = (ROOT / 'components/web_player/app.js').read_text()
 css = (ROOT / 'components/web_player/styles.css').read_text()
 
 expect('VERSION 0.0.55' in cmake, 'CMake project version is not 0.0.55.')
-expect('Nougat_Media_Suite_v55' in cmake, 'CMake target is not the v55 executable.')
-expect('Nougat Media Suite v0.0.55' in main, 'main.cpp does not expose v0.0.55 identity.')
+expect('Nougat_Play_Portal_v55' in cmake, 'CMake target is not the v55 executable.')
+expect('Nougat Play Portal v0.0.55' in main, 'main.cpp does not expose v0.0.55 identity.')
 expect('fullscreenPreviousRect' in main and 'fullscreenNextRect' in main,
        'Five-button fullscreen transport geometry is missing.')
 expect('draw_transport(fullscreenRewindRect,-2,0);' in main and
@@ -68,9 +68,9 @@ expected = 'ccb778246a9677a13dd9c71133b817b8d9138264fe1d8a0cd885edda4f271bef'
 actual = hashlib.sha256(emulator_host.read_bytes()).hexdigest()
 expect(actual == expected, f'Xbox emulator host changed: {actual}')
 
-for launcher in ['NougatMediaSuite.desktop', 'com.elderredsoftworks.NougatMediaSuite.desktop']:
+for launcher in ['NougatPlayPortal.desktop', 'com.elderredsoftworks.NougatPlayPortal.desktop']:
     text = (ROOT / launcher).read_text()
-    expect('Nougat_Media_Suite_v55' in text, f'{launcher} does not launch v55.')
+    expect('Nougat_Play_Portal_v55' in text, f'{launcher} does not launch v55.')
 
 if FAILURES:
     for failure in FAILURES:

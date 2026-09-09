@@ -1,4 +1,4 @@
-# Nougat Media Suite bundled game sources
+# Nougat Play Portal bundled game sources
 
 The v0.0.42 installer pins and verifies these legally redistributable NES assets before installation.
 

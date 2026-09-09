@@ -9,8 +9,8 @@ ROOT = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else pathlib.Path(__file__)
 BASE_BLOBS = {
     "src/main.cpp": "c2f84b860dc23d1e2703add68d39741fe8cfc27e",
     "CMakeLists.txt": "ff2d5de51d4331e597b03b36b6d30852fb7ba708",
-    "NougatMediaSuite.desktop": "67dad2694ea384d0eabfc54b464a10825018b109",
-    "com.elderredsoftworks.NougatMediaSuite.desktop": "67dad2694ea384d0eabfc54b464a10825018b109",
+    "NougatPlayPortal.desktop": "67dad2694ea384d0eabfc54b464a10825018b109",
+    "com.elderredsoftworks.NougatPlayPortal.desktop": "67dad2694ea384d0eabfc54b464a10825018b109",
     "src/diagnostics/diagnostic_engine.cpp": "26007ad75e68ae26fdcafac65436644ab9f63521",
     "CHANGELOG.md": "f68cb5fbd02b0f22a05dd0bcc9e686dae34167aa",
     "DEPENDENCIES.md": "1ee90dae53c189ba4ace59c7f242f61c729ae337",
@@ -441,12 +441,12 @@ def patch_main(path: pathlib.Path) -> None:
 '            snapshot.name = tuner.name; snapshot.frontend_path = tuner.frontend_path;\n            snapshot.backend = tuner.backend; snapshot.status = tuner.status; snapshot.readable = tuner.readable;\n            if (reddmedia::HdHomeRunProvider::is_hdhomerun_tuner(tuner)) {\n                reddmedia::HdHomeRunTunerStatus runtime;\n                std::string runtimeStatus;\n                snapshot.readable = hdHomeRunProvider.probe_runtime_status(tuner, runtime, runtimeStatus);\n                snapshot.status = runtimeStatus.empty() ? tuner.status : runtimeStatus;\n                snapshot.delivery_systems = "HDHomeRun LAN / ATSC 1.0 / 8VSB";\n                snapshot.demux_path.clear();\n                snapshot.dvr_path.clear();\n            } else {\n                snapshot.delivery_systems = tuner.frontend_path.empty() ? "V4L2 / unknown" : "ATSC 1.0 / 8VSB";\n                if (!tuner.frontend_path.empty()) {\n                    const std::size_t slash = tuner.frontend_path.rfind(\'/\');\n                    if (slash != std::string::npos) {\n                        const std::string base = tuner.frontend_path.substr(0, slash + 1U);\n                        snapshot.demux_path = base + "demux0"; snapshot.dvr_path = base + "dvr0";\n                    }\n                }\n            }\n',
         "HDHomeRun diagnostic snapshot")
 
-    need(text.count('input.app_version = "Nougat Media Suite v0.0.49";') == 1, "v49 diagnostic identity anchor mismatch")
-    text = text.replace('input.app_version = "Nougat Media Suite v0.0.49";',
-                        'input.app_version = "Nougat Media Suite v0.0.50";', 1)
-    need(text.count('printf("Nougat Media Suite v0.0.49\\n");') == 1, "v49 --version identity anchor mismatch")
-    text = text.replace('printf("Nougat Media Suite v0.0.49\\n");',
-                        'printf("Nougat Media Suite v0.0.50\\n");', 1)
+    need(text.count('input.app_version = "Nougat Play Portal v0.0.49";') == 1, "v49 diagnostic identity anchor mismatch")
+    text = text.replace('input.app_version = "Nougat Play Portal v0.0.49";',
+                        'input.app_version = "Nougat Play Portal v0.0.50";', 1)
+    need(text.count('printf("Nougat Play Portal v0.0.49\\n");') == 1, "v49 --version identity anchor mismatch")
+    text = text.replace('printf("Nougat Play Portal v0.0.49\\n");',
+                        'printf("Nougat Play Portal v0.0.50\\n");', 1)
     path.write_text(text, encoding="utf-8")
 
 
@@ -503,9 +503,9 @@ def patch_diagnostics(path: pathlib.Path) -> None:
     path.write_text(text, encoding="utf-8")
 def patch_cmake(path: pathlib.Path) -> None:
     text = path.read_text(encoding="utf-8")
-    text = replace_once(text, 'project(NougatMediaSuite VERSION 0.0.49 LANGUAGES CXX)',
-                        'project(NougatMediaSuite VERSION 0.0.50 LANGUAGES CXX)', "CMake version")
-    text = text.replace('Nougat_Media_Suite_v49', 'Nougat_Media_Suite_v50')
+    text = replace_once(text, 'project(NougatPlayPortal VERSION 0.0.49 LANGUAGES CXX)',
+                        'project(NougatPlayPortal VERSION 0.0.50 LANGUAGES CXX)', "CMake version")
+    text = text.replace('Nougat_Play_Portal_v49', 'Nougat_Play_Portal_v50')
     text = replace_once(text, '    src/live_tv/tuner_backend.cpp\n',
                         '    src/live_tv/tuner_backend.cpp\n    src/live_tv/hdhomerun_provider.cpp\n', "HDHomeRun source")
     path.write_text(text, encoding="utf-8")
@@ -513,8 +513,8 @@ def patch_cmake(path: pathlib.Path) -> None:
 
 def patch_desktop(path: pathlib.Path) -> None:
     text = path.read_text(encoding="utf-8")
-    need(text.count('Nougat_Media_Suite_v49') == 1, f"{path.name}: v49 Exec anchor mismatch")
-    path.write_text(text.replace('Nougat_Media_Suite_v49', 'Nougat_Media_Suite_v50'), encoding="utf-8")
+    need(text.count('Nougat_Play_Portal_v49') == 1, f"{path.name}: v49 Exec anchor mismatch")
+    path.write_text(text.replace('Nougat_Play_Portal_v49', 'Nougat_Play_Portal_v50'), encoding="utf-8")
 
 
 def prepend_section(path: pathlib.Path, heading: str, body: str) -> None:
@@ -538,8 +538,8 @@ def main() -> int:
         patch_main(ROOT / "src/main.cpp")
         patch_diagnostics(ROOT / "src/diagnostics/diagnostic_engine.cpp")
         patch_cmake(ROOT / "CMakeLists.txt")
-        patch_desktop(ROOT / "NougatMediaSuite.desktop")
-        patch_desktop(ROOT / "com.elderredsoftworks.NougatMediaSuite.desktop")
+        patch_desktop(ROOT / "NougatPlayPortal.desktop")
+        patch_desktop(ROOT / "com.elderredsoftworks.NougatPlayPortal.desktop")
 
         prepend_section(ROOT / "CHANGELOG.md", "## v0.0.50 - Studio File Splitter and Unified Tuners", '''
 - Adds the Studio File Splitter / Reassembler with configurable part sizes, per-part SHA-256 verification, byte-exact reconstruction, folder packaging, corruption refusal, and Zenity-backed Studio actions.
@@ -549,7 +549,7 @@ def main() -> int:
 - Merges HDHomeRun lineup/scan results into Nougat's existing Live TV channel model and sends HDHomeRun MPEG-TS streams through Nougat's embedded libVLC player.
 - Keeps all LAN Web Viewer code out of v0.0.50. v0.0.51 is assigned to remaining emulator support plus the LAN Web Viewer foundation/scaffolding.
 ''')
-        prepend_section(ROOT / "DEPENDENCIES.md", "## Nougat Media Suite v0.0.50 Studio splitter and HDHomeRun requirements", '''
+        prepend_section(ROOT / "DEPENDENCIES.md", "## Nougat Play Portal v0.0.50 Studio splitter and HDHomeRun requirements", '''
 v0.0.50 adds no new linked third-party library. HDHomeRun control/discovery uses the installed `hdhomerun_config` command from Ubuntu's `hdhomerun-config` package behind a Nougat-owned provider boundary. MPEG-TS playback is handed directly to the existing embedded libVLC player. `curl`, Python 3, and Zenity are already part of Nougat's accepted dependency stack and are reused by the HDHomeRun lineup path and Studio File Splitter dialogs. The File Splitter core uses Python standard-library modules only.
 ''')
         prepend_section(ROOT / "ROADMAP.md", "## Studio professional-production direction after v0.0.50", '''

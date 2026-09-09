@@ -27,7 +27,7 @@ GUIDES_API = f"{API_BASE}/guides.json"
 ALoula_CHANNELS = "https://aloula.faulio.com/api/v1/channels"
 ALoula_PLAYER = "https://aloula.faulio.com/api/v1.1/channels/{channel}/player"
 
-UA = "Mozilla/5.0 (X11; Linux x86_64) NougatMediaSuite/0.0.53"
+UA = "Mozilla/5.0 (X11; Linux x86_64) NougatPlayPortal/0.0.53"
 CACHE_ROOT = Path.home() / ".cache" / "reddmedia" / "world_tv"
 API_CACHE = CACHE_ROOT / "api"
 

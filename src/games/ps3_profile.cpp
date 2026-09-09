@@ -11,8 +11,8 @@ bool parse_bool(const std::string& v) { return v=="1"||v=="true"||v=="yes"||v=="
 }
 std::string profile_path() {
     if (const char* xdg=std::getenv("XDG_CONFIG_HOME"); xdg&&*xdg)
-        return (std::filesystem::path(xdg)/"nougat-media-plus"/"ps3-graphics.conf").string();
-    return (std::filesystem::path(home_dir())/".config"/"nougat-media-plus"/"ps3-graphics.conf").string();
+        return (std::filesystem::path(xdg)/"nougat-play-portal"/"ps3-graphics.conf").string();
+    return (std::filesystem::path(home_dir())/".config"/"nougat-play-portal"/"ps3-graphics.conf").string();
 }
 Profile load_profile() {
     Profile p; std::ifstream in(profile_path()); std::string line;
@@ -33,14 +33,14 @@ Profile load_profile() {
 }
 bool neural_bridge_available() {
     if (const char* e=std::getenv("NOUGAT_PS3_NEURAL_LAYER")) if (*e && std::filesystem::exists(e)) return true;
-    const auto r=std::filesystem::path(home_dir())/".local"/"share"/"nougat-media-plus"/"ps3-neural";
+    const auto r=std::filesystem::path(home_dir())/".local"/"share"/"nougat-play-portal"/"ps3-neural";
     return std::filesystem::exists(r/"libnougat_ps3_neural.so") || std::filesystem::exists(r/"VkLayer_nougat_ps3_neural.json");
 }
 bool save_profile(const Profile& input) {
     Profile p=input; p.render_scale=std::clamp(p.render_scale,25,800); p.anisotropic=std::clamp(p.anisotropic,0,16); p.neural_strength=std::clamp(p.neural_strength,0,100);
     if(!neural_bridge_available()){p.neural_enabled=false;p.frame_generation=false;}
     const std::filesystem::path path(profile_path()); std::error_code ec; std::filesystem::create_directories(path.parent_path(),ec); std::ofstream out(path,std::ios::trunc); if(!out)return false;
-    out<<"# Nougat Media Plus v0.0.66 PS3 graphics profile\n"<<"preset="<<p.preset<<'\n'<<"render_scale="<<p.render_scale<<'\n'<<"anisotropic="<<p.anisotropic<<'\n'<<"frame_limit="<<p.frame_limit<<'\n'<<"msaa="<<p.msaa<<'\n'<<"vsync="<<(p.vsync?1:0)<<'\n'<<"output_scaling="<<p.output_scaling<<'\n'<<"gpu_texture_scaling="<<(p.gpu_texture_scaling?1:0)<<'\n'<<"neural_enabled="<<(p.neural_enabled?1:0)<<'\n'<<"neural_strength="<<p.neural_strength<<'\n'<<"neural_quality="<<p.neural_quality<<'\n'<<"motion_reconstruction="<<p.motion_reconstruction<<'\n'<<"hud_protection="<<(p.hud_protection?1:0)<<'\n'<<"frame_generation="<<(p.frame_generation?1:0)<<'\n'; return static_cast<bool>(out);
+    out<<"# Nougat Play Portal v0.0.66 PS3 graphics profile\n"<<"preset="<<p.preset<<'\n'<<"render_scale="<<p.render_scale<<'\n'<<"anisotropic="<<p.anisotropic<<'\n'<<"frame_limit="<<p.frame_limit<<'\n'<<"msaa="<<p.msaa<<'\n'<<"vsync="<<(p.vsync?1:0)<<'\n'<<"output_scaling="<<p.output_scaling<<'\n'<<"gpu_texture_scaling="<<(p.gpu_texture_scaling?1:0)<<'\n'<<"neural_enabled="<<(p.neural_enabled?1:0)<<'\n'<<"neural_strength="<<p.neural_strength<<'\n'<<"neural_quality="<<p.neural_quality<<'\n'<<"motion_reconstruction="<<p.motion_reconstruction<<'\n'<<"hud_protection="<<(p.hud_protection?1:0)<<'\n'<<"frame_generation="<<(p.frame_generation?1:0)<<'\n'; return static_cast<bool>(out);
 }
 void apply_preset(Profile& p,const std::string& n){p.preset=n;
     if(n=="Original"){p.render_scale=100;p.anisotropic=0;p.frame_limit="Auto";p.msaa="Auto";p.vsync=false;p.output_scaling="Bilinear";p.gpu_texture_scaling=false;p.neural_enabled=false;p.neural_strength=0;p.frame_generation=false;}

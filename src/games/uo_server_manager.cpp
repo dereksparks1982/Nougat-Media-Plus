@@ -226,7 +226,7 @@ std::string ServerManager::state_directory() const {
         const std::string home = getenv_string("HOME");
         base = (home.empty() ? std::string{"."} : home) + "/.local/share";
     }
-    return base + "/nougat-media-plus/servers/ultima-online";
+    return base + "/nougat-play-portal/servers/ultima-online";
 }
 
 std::string ServerManager::state_file() const { return state_directory() + "/owner.state"; }

@@ -1,4 +1,4 @@
-Game artwork sources for Nougat Media Suite v0.0.44
+Game artwork sources for Nougat Play Portal v0.0.44
 ===================================================
 
 User-linked ROMs:

@@ -14,7 +14,7 @@ int main(int argc,char**argv){
  if(argc!=8) return 90;
  std::string root=argv[1],runtime=argv[2],model=argv[3],media=argv[4],log=argv[5],out=argv[6],mode=argv[7],error;
  reddmedia::DiagnosticInput in;
- in.app_version="Nougat Media Suite v0.0.26 retained regression";
+ in.app_version="Nougat Play Portal v0.0.26 retained regression";
  in.executable_path=argv[0]; in.project_root=root; in.current_view="System";
  in.server_state=reddmedia::MediaServerState::Ready; in.server_owned=true; in.server_api_ready=true;
  in.runtime_path=runtime; in.data_path=root+"/data"; in.config_path=root+"/config"; in.cache_path=root+"/cache"; in.log_path=log;
@@ -65,7 +65,7 @@ with tempfile.TemporaryDirectory(prefix='nougat-v26-diag-new-model-') as raw:
         logs=temp/'logs'; logs.mkdir(); (logs/'jellyfin.log').write_text('ordinary line\nAuthorization: Bearer super-secret-token\napi_key=private-value\n')
         out=temp/'out'; out.mkdir()
         subprocess.run([str(binary),str(temp),str(runtime),str(model),str(media),str(logs),str(out),'new-model'],check=True,timeout=30)
-        data=json.loads((out/'report.json').read_text()); need(data.get('report')=='Nougat Media Suite Diagnostic Report','JSON identity wrong')
+        data=json.loads((out/'report.json').read_text()); need(data.get('report')=='Nougat Play Portal Diagnostic Report','JSON identity wrong')
         need(data.get('counts',{}).get('problems')==0,'healthy retained fixture reported Problems')
         archive=out/'support.tar.gz'; need(archive.is_file(),'support bundle missing')
         with tarfile.open(archive,'r:gz') as tf:

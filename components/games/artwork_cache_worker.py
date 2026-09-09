@@ -248,7 +248,7 @@ def fetch_directory_index(collection: str, category: str) -> list[str]:
             return [line.rstrip("\n") for line in cache.read_text(encoding="utf-8").splitlines() if line.strip()]
         base = "https://thumbnails.libretro.com/" + urllib.parse.quote(collection, safe="") + "/" + category + "/"
         try:
-            request = urllib.request.Request(base, headers={"User-Agent": "Nougat-Media-Suite-v0.0.53"})
+            request = urllib.request.Request(base, headers={"User-Agent": "Nougat-Play-Portal-v0.0.53"})
             with urllib.request.urlopen(request, timeout=15) as response:
                 page = response.read().decode("utf-8", "replace")
             names = parse_directory_index(page)
@@ -280,7 +280,7 @@ def download_candidate(url: str, target: Path) -> bool:
     os.close(fd)
     temp = Path(temp_name)
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "Nougat-Media-Suite-v0.0.53"})
+        request = urllib.request.Request(url, headers={"User-Agent": "Nougat-Play-Portal-v0.0.53"})
         with urllib.request.urlopen(request, timeout=15) as response, temp.open("wb") as out:
             shutil.copyfileobj(response, out)
         if not valid_image(temp):

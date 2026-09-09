@@ -49,23 +49,23 @@ def png_rgba(path:pathlib.Path):
     return w,h,rows
 
 expected = {
-    'nougat-media-suite-14.png':'0225c7edfa314ef115236832e0b60ef03572137322a4a428dd99ef875f7c9bfd',
-    'nougat-media-suite-16.png':'c07c3788d7c6c64ef8defaf0e76cb763342088f5c3edc5f7fdaab7e830f4a275',
-    'nougat-media-suite-32.png':'d6f5b5d904906bb40bb75826311ad75fe03dd22ffa7a3cba681b5916637bf5fc',
-    'nougat-media-suite-48.png':'81814a957a68de71727bc603f1e1b15f2bb43349355e047aad42158ef7adbd6f',
-    'nougat-media-suite-64.png':'da727abe9d47d04566ca6df1beb8b061a1baa07faf0dc1a059980f658c14821d',
-    'nougat-media-suite-128.png':'ba44f81c668d7ab83a32ea7d6e1d719dcbc2fd1c695ab6ea72d42c4c228a8b81',
-    'nougat-media-suite-256.png':'081fa0a3dabb93dc6f9c94fddea2f78ce3b565a1f15501c58d8e2576badaeecc',
-    'nougat-media-suite-512.png':'5d0239c7999a091bb4b60384b2953444a8e40a7644ca6e18dddac1cb69b00e66',
-    'nougat-media-suite.png':'5d0239c7999a091bb4b60384b2953444a8e40a7644ca6e18dddac1cb69b00e66',
-    'nougat-media-suite-concept-sheet-v24.png':'5d0239c7999a091bb4b60384b2953444a8e40a7644ca6e18dddac1cb69b00e66',
+    'nougat-play-portal-14.png':'0225c7edfa314ef115236832e0b60ef03572137322a4a428dd99ef875f7c9bfd',
+    'nougat-play-portal-16.png':'c07c3788d7c6c64ef8defaf0e76cb763342088f5c3edc5f7fdaab7e830f4a275',
+    'nougat-play-portal-32.png':'d6f5b5d904906bb40bb75826311ad75fe03dd22ffa7a3cba681b5916637bf5fc',
+    'nougat-play-portal-48.png':'81814a957a68de71727bc603f1e1b15f2bb43349355e047aad42158ef7adbd6f',
+    'nougat-play-portal-64.png':'da727abe9d47d04566ca6df1beb8b061a1baa07faf0dc1a059980f658c14821d',
+    'nougat-play-portal-128.png':'ba44f81c668d7ab83a32ea7d6e1d719dcbc2fd1c695ab6ea72d42c4c228a8b81',
+    'nougat-play-portal-256.png':'081fa0a3dabb93dc6f9c94fddea2f78ce3b565a1f15501c58d8e2576badaeecc',
+    'nougat-play-portal-512.png':'5d0239c7999a091bb4b60384b2953444a8e40a7644ca6e18dddac1cb69b00e66',
+    'nougat-play-portal.png':'5d0239c7999a091bb4b60384b2953444a8e40a7644ca6e18dddac1cb69b00e66',
+    'nougat-play-portal-concept-sheet-v24.png':'5d0239c7999a091bb4b60384b2953444a8e40a7644ca6e18dddac1cb69b00e66',
 }
 for name,hx in expected.items():
     p=root/'assets/icons'/name
     need(p.is_file(), f'missing exact concept-sheet icon asset: {name}')
     need(sha(p)==hx, f'exact concept-sheet icon hash mismatch: {name}')
 
-master=root/'assets/icons/nougat-media-suite-concept-sheet-v24.png'
+master=root/'assets/icons/nougat-play-portal-concept-sheet-v24.png'
 w,h,rows=png_rgba(master)
 need((w,h)==(512,512),'exact concept-sheet master must be 512x512')
 need(rows[0][3]==0 and rows[0][(w-1)*4+3]==0 and rows[-1][3]==0 and rows[-1][(w-1)*4+3]==0,
@@ -80,14 +80,14 @@ for y,row in enumerate(rows):
                     nas.append(rows[ny][nx*4+3])
             need(not any(v==0 for v in nas),'white/cream concept-sheet background halo touches icon silhouette')
 
-header=(root/'src/nougat_media_suite_icon_data.hpp').read_text(encoding='utf-8')
-need(sha(root/'src/nougat_media_suite_icon_data.hpp')=='0fa96e1b4d79369732eedd4d8da472a8e5f72f99b44ace3885fa724834907809',
+header=(root/'src/nougat_play_portal_icon_data.hpp').read_text(encoding='utf-8')
+need(sha(root/'src/nougat_play_portal_icon_data.hpp')=='0fa96e1b4d79369732eedd4d8da472a8e5f72f99b44ace3885fa724834907809',
      'embedded icon-data header is not the exact concept-sheet replacement')
 for cname,size,filename in (
-    ('kTopBar14',14,'nougat-media-suite-14.png'),
-    ('kIcon16',16,'nougat-media-suite-16.png'),
-    ('kIcon32',32,'nougat-media-suite-32.png'),
-    ('kIcon64',64,'nougat-media-suite-64.png'),
+    ('kTopBar14',14,'nougat-play-portal-14.png'),
+    ('kIcon16',16,'nougat-play-portal-16.png'),
+    ('kIcon32',32,'nougat-play-portal-32.png'),
+    ('kIcon64',64,'nougat-play-portal-64.png'),
 ):
     m=re.search(rf'{cname}\[{size*size}\]\s*=\s*\{{(.*?)\}};',header,re.S)
     need(m is not None,f'embedded array missing: {cname}')
@@ -104,25 +104,25 @@ for cname,size,filename in (
 
 main=(root/'src/main.cpp').read_text(encoding='utf-8')
 need('draw_suite_badge(target, 8, 5' in main,'far-left in-app N badge is not drawn from embedded exact icon data')
-need('append_net_wm_icon(data, nougat_media_suite_icon::kIcon16Size' in main,'X11 icon 16 not sourced from embedded exact icon')
-need('append_net_wm_icon(data, nougat_media_suite_icon::kIcon32Size' in main,'X11 icon 32 not sourced from embedded exact icon')
-need('append_net_wm_icon(data, nougat_media_suite_icon::kIcon64Size' in main,'X11 icon 64 not sourced from embedded exact icon')
+need('append_net_wm_icon(data, nougat_play_portal_icon::kIcon16Size' in main,'X11 icon 16 not sourced from embedded exact icon')
+need('append_net_wm_icon(data, nougat_play_portal_icon::kIcon32Size' in main,'X11 icon 32 not sourced from embedded exact icon')
+need('append_net_wm_icon(data, nougat_play_portal_icon::kIcon64Size' in main,'X11 icon 64 not sourced from embedded exact icon')
 
-icon_key='nougat-media-suite-concept-sheet-v24'
+icon_key='nougat-play-portal-concept-sheet-v24'
 desktop_files=[
-    'NougatMediaSuite.desktop',
-    'NougatMediaSuite_v22.desktop',
-    'NougatMediaSuite_v23.desktop',
-    'NougatMediaSuite_v24.desktop',
-    'com.elderredsoftworks.NougatMediaSuite.desktop',
+    'NougatPlayPortal.desktop',
+    'NougatPlayPortal_v22.desktop',
+    'NougatPlayPortal_v23.desktop',
+    'NougatPlayPortal_v24.desktop',
+    'com.elderredsoftworks.NougatPlayPortal.desktop',
 ]
 for name in desktop_files:
     p=root/name
     need(p.is_file(),f'missing project launcher: {name}')
     s=p.read_text(encoding='utf-8')
     need(f'Icon={icon_key}' in s,f'project launcher still points to old/blurry icon key: {name}')
-    need('StartupWMClass=NougatMediaSuite' in s,f'WM_CLASS identity missing: {name}')
-    need('X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaSuite' in s,f'GNOME app ID missing: {name}')
+    need('StartupWMClass=NougatPlayPortal' in s,f'WM_CLASS identity missing: {name}')
+    need('X-GNOME-Application-ID=com.elderredsoftworks.NougatPlayPortal' in s,f'GNOME app ID missing: {name}')
 
 old_hashes={
 '01a0f7a0b9e1502407648b7fe1bf7415f623fda145599a7ced6fd668b07b361c',
@@ -160,7 +160,7 @@ old_hashes={
 'f548b9520b88ac78c76e106cfcbb08ab9a88eee7a5c9a6018c19d50cb4aab71e',
 'fdd45e2550cb915cb27355d0bb3afcb27e87fee7bf64aa86f6b114c7a9761f14',
 }
-for p in (root/'assets/icons').glob('nougat-media-suite*.png'):
+for p in (root/'assets/icons').glob('nougat-play-portal*.png'):
     need(sha(p) not in old_hashes,f'rejected old/blurry icon asset remains in project: {p.name}')
 
 quilt=root/'assets/ui/nougat-quilt-source.png'

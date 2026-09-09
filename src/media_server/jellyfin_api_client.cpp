@@ -577,12 +577,12 @@ bool JellyfinApiClient::load_state() {
 
 bool JellyfinApiClient::save_state(std::string& error) const {
     if (!ensure_directory(parent_directory(state_file_))) {
-        error = "Could not create Nougat Media Suite's private server settings folder.";
+        error = "Could not create Nougat Play Portal's private server settings folder.";
         return false;
     }
     const int file = open(state_file_.c_str(), O_CREAT | O_TRUNC | O_WRONLY, 0600);
     if (file < 0) {
-        error = "Could not save Nougat Media Suite's private server session.";
+        error = "Could not save Nougat Play Portal's private server session.";
         return false;
     }
     const std::string json = "{\n  \"Username\": \"" + json_escape(username_) +
@@ -593,13 +593,13 @@ bool JellyfinApiClient::save_state(std::string& error) const {
         const ssize_t amount = write(file, json.data() + written, json.size() - written);
         if (amount <= 0) {
             close(file);
-            error = "Could not save Nougat Media Suite's private server session.";
+            error = "Could not save Nougat Play Portal's private server session.";
             return false;
         }
         written += static_cast<std::size_t>(amount);
     }
     if (close(file) != 0) {
-        error = "Could not finish saving Nougat Media Suite's private server session.";
+        error = "Could not finish saving Nougat Play Portal's private server session.";
         return false;
     }
     return true;
@@ -616,13 +616,13 @@ bool JellyfinApiClient::validate_saved_token() {
 
 bool JellyfinApiClient::authenticate(std::string& error) {
     if (username_.empty()) {
-        error = "Nougat Media Suite could not identify its local media-library account.";
+        error = "Nougat Play Portal could not identify its local media-library account.";
         return false;
     }
     const std::string body = "{\"Username\":\"" + json_escape(username_) + "\",\"Pw\":\"\"}";
     const HttpResponse response = request("POST", "/Users/AuthenticateByName", body, false);
     if (response.status != 200) {
-        error = "Nougat Media Suite could not open its private local media-library session.";
+        error = "Nougat Play Portal could not open its private local media-library session.";
         return false;
     }
     access_token_ = json_string_value(response.body, "AccessToken");
@@ -652,7 +652,7 @@ bool JellyfinApiClient::query_media_folders(std::vector<MediaFolder>& folders,
                                                std::string& error) const {
     const HttpResponse response = request("GET", "/Library/VirtualFolders", "", true);
     if (response.status != 200) {
-        error = "Nougat Media Suite could not read its linked media folders.";
+        error = "Nougat Play Portal could not read its linked media folders.";
         return false;
     }
     std::vector<MediaFolder> loaded;
@@ -692,13 +692,13 @@ bool JellyfinApiClient::load_mapping_registry(std::vector<MediaFolder>& folders)
 bool JellyfinApiClient::save_mapping_registry(const std::vector<MediaFolder>& folders,
                                                std::string& error) const {
     if (!ensure_directory(parent_directory(mapping_state_file_))) {
-        error = "Could not create Nougat Media Suite's persistent library-mapping folder.";
+        error = "Could not create Nougat Play Portal's persistent library-mapping folder.";
         return false;
     }
     const std::string temporary = mapping_state_file_ + ".tmp";
     std::ofstream out(temporary, std::ios::trunc);
     if (!out) {
-        error = "Could not save Nougat Media Suite's persistent library mappings.";
+        error = "Could not save Nougat Play Portal's persistent library mappings.";
         return false;
     }
     std::vector<MediaFolder> unique;
@@ -721,12 +721,12 @@ bool JellyfinApiClient::save_mapping_registry(const std::vector<MediaFolder>& fo
     chmod(temporary.c_str(), 0600);
     if (!out) {
         unlink(temporary.c_str());
-        error = "Could not finish saving Nougat Media Suite's persistent library mappings.";
+        error = "Could not finish saving Nougat Play Portal's persistent library mappings.";
         return false;
     }
     if (rename(temporary.c_str(), mapping_state_file_.c_str()) != 0) {
         unlink(temporary.c_str());
-        error = "Could not replace Nougat Media Suite's persistent library mappings.";
+        error = "Could not replace Nougat Play Portal's persistent library mappings.";
         return false;
     }
     return true;
@@ -801,7 +801,7 @@ bool JellyfinApiClient::restore_mapping_registry(std::string& error) {
             added = request("POST", target, body, true, 30);
         }
         if (added.status != 204) {
-            error = "Nougat Media Suite remembered a library mapping, but Jellyfin could not restore it: " + saved.path;
+            error = "Nougat Play Portal remembered a library mapping, but Jellyfin could not restore it: " + saved.path;
             return false;
         }
         current.push_back(saved);
@@ -829,31 +829,31 @@ bool JellyfinApiClient::initialize(std::string& error) {
     }
     if (startup_user.status != 200 && startup_user.status != 401 &&
         startup_user.status != 403) {
-        error = "Nougat Media Suite's local media catalog is not ready yet.";
+        error = "Nougat Play Portal's local media catalog is not ready yet.";
         return false;
     }
 
     if (startup_user.status == 200) {
         const std::string configuration =
-            "{\"ServerName\":\"Nougat Media Suite\",\"UICulture\":\"en-US\","
+            "{\"ServerName\":\"Nougat Play Portal\",\"UICulture\":\"en-US\","
             "\"MetadataCountryCode\":\"US\",\"PreferredMetadataLanguage\":\"en\"}";
         if (request("POST", "/Startup/Configuration", configuration, false).status != 204) {
-            error = "Nougat Media Suite could not configure its local media catalog.";
+            error = "Nougat Play Portal could not configure its local media catalog.";
             return false;
         }
         const std::string remote =
             "{\"EnableRemoteAccess\":false,\"EnableAutomaticPortMapping\":false}";
         if (request("POST", "/Startup/RemoteAccess", remote, false).status != 204) {
-            error = "Nougat Media Suite could not lock the media catalog to local use.";
+            error = "Nougat Play Portal could not lock the media catalog to local use.";
             return false;
         }
         username_ = json_string_value(startup_user.body, "Name");
         if (username_.empty()) {
-            error = "Nougat Media Suite's local media-library account has no name.";
+            error = "Nougat Play Portal's local media-library account has no name.";
             return false;
         }
         if (request("POST", "/Startup/Complete", "{}", false).status != 204) {
-            error = "Nougat Media Suite could not finish local media-library setup.";
+            error = "Nougat Play Portal could not finish local media-library setup.";
             return false;
         }
     } else {
@@ -874,7 +874,7 @@ bool JellyfinApiClient::initialize(std::string& error) {
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
         }
         if (username_.empty()) {
-            error = "Nougat Media Suite found a preconfigured local catalog but no recoverable private session. "
+            error = "Nougat Play Portal found a preconfigured local catalog but no recoverable private session. "
                     "Its persistent server data was left untouched.";
             return false;
         }
@@ -892,7 +892,7 @@ bool JellyfinApiClient::initialize(std::string& error) {
     }
     if (!authenticated) {
         error = auth_error.empty()
-            ? "Nougat Media Suite could not open its private local media-library session."
+            ? "Nougat Play Portal could not open its private local media-library session."
             : auth_error;
         return false;
     }
@@ -965,7 +965,7 @@ bool JellyfinApiClient::add_media_folder(const std::string& path,
     // never touched.
     const HttpResponse legacy_response = request("GET", "/Library/VirtualFolders", "", true);
     if (legacy_response.status != 200) {
-        error = "Nougat Media Suite could not inspect its existing media-folder links.";
+        error = "Nougat Play Portal could not inspect its existing media-folder links.";
         return false;
     }
     for (const std::string& object : json_root_array_objects(legacy_response.body)) {
@@ -980,7 +980,7 @@ bool JellyfinApiClient::add_media_folder(const std::string& path,
             : "/Library/VirtualFolders/Paths?name=" + url_encode(name) +
               "&path=" + url_encode(path) + "&refreshLibrary=false";
         if (request("DELETE", target, "", true, 30).status != 204) {
-            error = "Nougat Media Suite could not migrate the existing legacy folder link.";
+            error = "Nougat Play Portal could not migrate the existing legacy folder link.";
             return false;
         }
     }
@@ -1017,7 +1017,7 @@ bool JellyfinApiClient::add_media_folder(const std::string& path,
         added = request("POST", target, body, true, 30);
     }
     if (added.status != 204) {
-        error = "Nougat Media Suite could not link that media folder.";
+        error = "Nougat Play Portal could not link that media folder.";
         return false;
     }
     if (!update_mapping_registry(path, media_type, true, error)) return false;
@@ -1063,7 +1063,7 @@ bool JellyfinApiClient::unlink_media_folder(const std::string& path,
           "&path=" + url_encode(path) + "&refreshLibrary=false";
     const HttpResponse response = request("DELETE", target, "", true, 30);
     if (response.status != 204) {
-        error = "Nougat Media Suite could not unlink that media folder.";
+        error = "Nougat Play Portal could not unlink that media folder.";
         return false;
     }
     if (!update_mapping_registry(path, media_type, false, error)) return false;
@@ -1084,7 +1084,7 @@ bool JellyfinApiClient::load_library_roots(LibraryMediaType media_type,
         "&sortBy=SortName&sortOrder=Ascending&enableImages=true" + collapse;
     const HttpResponse response = request("GET", target, "", true, 60);
     if (response.status != 200) {
-        error = "Nougat Media Suite could not read this media library.";
+        error = "Nougat Play Portal could not read this media library.";
         return false;
     }
     std::vector<LibraryNode> loaded;

@@ -12,8 +12,8 @@ EXPECTED_BLOBS = {
     "src/games/emulator_host.cpp": "a9d491f276e0873d9f1efd14d2428e4dd0ea4ef4",
     "src/games/emulator_host.hpp": "bdec1c3f560c412e40de3a7c36bedb1fce107ad2",
     "CMakeLists.txt": "358d2e50de16f1e6fdaa2c35d2d96292acbecf35",
-    "NougatMediaSuite.desktop": "a8eaacb6af2116f9e5596214d09375a91a9f5945",
-    "com.elderredsoftworks.NougatMediaSuite.desktop": "a8eaacb6af2116f9e5596214d09375a91a9f5945",
+    "NougatPlayPortal.desktop": "a8eaacb6af2116f9e5596214d09375a91a9f5945",
+    "com.elderredsoftworks.NougatPlayPortal.desktop": "a8eaacb6af2116f9e5596214d09375a91a9f5945",
 }
 
 
@@ -788,8 +788,8 @@ static std::vector<GameEntry> filter_game_library_preferences(std::vector<GameEn
     text = replace_once(text, old_shutdown_game, new_shutdown_game, "artwork worker shutdown")
 
     text = replace_once(text,
-                        'printf("Nougat Media Suite v0.0.48\\n");',
-                        'printf("Nougat Media Suite v0.0.49\\n");',
+                        'printf("Nougat Play Portal v0.0.48\\n");',
+                        'printf("Nougat Play Portal v0.0.49\\n");',
                         "v49 version identity")
 
     version_hook = '''    if (argc > 1 && std::string(argv[1]) == "--v47-fullscreen-controls-self-test") {
@@ -830,7 +830,7 @@ static std::vector<GameEntry> filter_game_library_preferences(std::vector<GameEn
                 mario, adventure, river, japan_only, preferred.size(), filtered);
             return 1;
         }
-        std::printf("Nougat Media Suite v0.0.49 Games preference PASS: USA first, English fallback, newest final revision, foreign-only fallback.\\n");
+        std::printf("Nougat Play Portal v0.0.49 Games preference PASS: USA first, English fallback, newest final revision, foreign-only fallback.\\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v47-fullscreen-controls-self-test") {
@@ -920,26 +920,26 @@ void EmulatorHost::stop() {
 def patch_cmake(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     text = text.replace("VERSION 0.0.48", "VERSION 0.0.49")
-    text = text.replace("Nougat_Media_Suite_v48", "Nougat_Media_Suite_v49")
-    need("0.0.48" not in text and "Nougat_Media_Suite_v48" not in text, "CMake v48 identity remained")
+    text = text.replace("Nougat_Play_Portal_v48", "Nougat_Play_Portal_v49")
+    need("0.0.48" not in text and "Nougat_Play_Portal_v48" not in text, "CMake v48 identity remained")
     path.write_text(text, encoding="utf-8")
 
 
 def patch_desktop(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    text = replace_once(text, "Nougat_Media_Suite_v48", "Nougat_Media_Suite_v49", path.name + " executable")
+    text = replace_once(text, "Nougat_Play_Portal_v48", "Nougat_Play_Portal_v49", path.name + " executable")
     path.write_text(text, encoding="utf-8")
 
 
 def already_applied() -> bool:
     cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8") if (ROOT / "CMakeLists.txt").is_file() else ""
     main = (ROOT / "src/main.cpp").read_text(encoding="utf-8") if (ROOT / "src/main.cpp").is_file() else ""
-    return "Nougat_Media_Suite_v49" in cmake and "--v49-games-self-test" in main and "artwork-prepared-v49" in main
+    return "Nougat_Play_Portal_v49" in cmake and "--v49-games-self-test" in main and "artwork-prepared-v49" in main
 
 
 def main() -> int:
     try:
-        need((ROOT / ".git").exists(), "run this from the Nougat Media Suite project tree")
+        need((ROOT / ".git").exists(), "run this from the Nougat Play Portal project tree")
         if already_applied():
             print("PASS: v0.0.49 Games repair is already applied.")
             return 0
@@ -961,13 +961,13 @@ def main() -> int:
         patch_host_header(ROOT / "src/games/emulator_host.hpp")
         patch_host_cpp(ROOT / "src/games/emulator_host.cpp")
         patch_cmake(ROOT / "CMakeLists.txt")
-        patch_desktop(ROOT / "NougatMediaSuite.desktop")
-        patch_desktop(ROOT / "com.elderredsoftworks.NougatMediaSuite.desktop")
+        patch_desktop(ROOT / "NougatPlayPortal.desktop")
+        patch_desktop(ROOT / "com.elderredsoftworks.NougatPlayPortal.desktop")
 
         for relative in (
             "tools/install_game_runtimes_v49.py",
             "tools/check_game_runtimes_v49.py",
-            "tools/test_nougat_media_suite_v49.py",
+            "tools/test_nougat_play_portal_v49.py",
             "tools/build_v49.py",
             "components/games/artwork_cache_worker.py",
         ):

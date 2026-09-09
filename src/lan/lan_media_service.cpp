@@ -562,7 +562,7 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
 
     if (path == "/nougat/v1/health") {
         send_response(client, 200, "OK", "application/json; charset=utf-8",
-                      "{\"ok\":true,\"product\":\"Nougat Media Suite\",\"version\":\"0.0.55\",\"service\":\"LAN Web Player\",\"lanOnly\":true}",
+                      "{\"ok\":true,\"product\":\"Nougat Play Portal\",\"version\":\"0.0.55\",\"service\":\"LAN Web Player\",\"lanOnly\":true}",
                       head_only);
     } else if (path == "/nougat/v1/catalog") {
         send_catalog(client, state, head_only);

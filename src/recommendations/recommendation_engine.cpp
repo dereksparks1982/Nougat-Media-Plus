@@ -291,7 +291,7 @@ bool RecommendationEngine::usual_recommendation(
     if (!history_.recent(request.media_type, history, error, 25)) return false;
     if (history.empty()) {
         error = std::string("Watch a ") + media_type_name(request.media_type) +
-            " in Nougat Media Suite before asking for a Usual recommendation.";
+            " in Nougat Play Portal before asking for a Usual recommendation.";
         return false;
     }
     std::vector<float> profile;
@@ -312,7 +312,7 @@ bool RecommendationEngine::usual_recommendation(
         total_weight += weight;
     }
     if (profile.empty() || total_weight <= 0.0) {
-        error = "Nougat Media Suite could not build a viewing profile from history.";
+        error = "Nougat Play Portal could not build a viewing profile from history.";
         return false;
     }
     for (float& value : profile) value /= static_cast<float>(total_weight);
@@ -346,7 +346,7 @@ bool RecommendationEngine::recommend(const RecommendationRequest& request,
         candidates = matching_local_items(request.media_type, local_items);
         if (candidates.empty()) {
             error = std::string("No Local ") + media_type_name(request.media_type) +
-                " titles are linked to Nougat Media Suite.";
+                " titles are linked to Nougat Play Portal.";
             return false;
         }
     } else if (request.source == RecommendationSource::External) {
@@ -373,14 +373,14 @@ bool RecommendationEngine::recommend(const RecommendationRequest& request,
         result.item = candidates[distribution(generator)];
         result.reason = "Random choice; viewing history was not used.";
         if (result.item.media_type != request.media_type) {
-            error = "Nougat Media Suite blocked a mismatched recommendation type.";
+            error = "Nougat Play Portal blocked a mismatched recommendation type.";
             return false;
         }
         return true;
     }
     if (!usual_recommendation(request, candidates, result, error)) return false;
     if (result.item.media_type != request.media_type) {
-        error = "Nougat Media Suite blocked a mismatched recommendation type.";
+        error = "Nougat Play Portal blocked a mismatched recommendation type.";
         return false;
     }
     return true;

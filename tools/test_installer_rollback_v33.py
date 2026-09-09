@@ -2,13 +2,13 @@
 from pathlib import Path
 import re, sys
 root=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else Path(__file__).resolve().parents[1]
-p=root/'INSTALL_NOUGAT_MEDIA_SUITE_v0_0_33.sh'; t=p.read_text()
+p=root/'INSTALL_NOUGAT_PLAY_PORTAL_v0_0_33.sh'; t=p.read_text()
 def need(x,m):
     if not x: raise SystemExit('FAIL: '+m)
 need('expected_head="084ee7ccd82be3a578f738b3bcb6ac8570a573dd"' in t,'accepted v32 commit gate missing')
-need('Nougat_Media_Suite_v32' in t and 'Nougat Media Suite v0.0.32' in t,'accepted v32 executable gate missing')
-need('Nougat_Media_Suite_v33' in t and 'Nougat Media Suite v0.0.33' in t,'v33 executable gate missing')
-for x in ['install_nougat_security_runtime_v33.py','--check','--v33-integration-self-test','verify_persistent_server','parent-death test READY','NOUGAT_MEDIA_SERVER_OWNER','complete Nougat-owned server process tree','test_nougat_security_analysis_v33.py','test_nougat_media_suite_ui_smoke_v33.py','pkg-config --exists libtorrent-rasterbar','apply_raw_icon','ensure_python_venv_support','python_venv_works','cleanup_generated_python_caches','__pycache__','*.pyc','python3-venv','-venv']:
+need('Nougat_Play_Portal_v32' in t and 'Nougat Play Portal v0.0.32' in t,'accepted v32 executable gate missing')
+need('Nougat_Play_Portal_v33' in t and 'Nougat Play Portal v0.0.33' in t,'v33 executable gate missing')
+for x in ['install_nougat_security_runtime_v33.py','--check','--v33-integration-self-test','verify_persistent_server','parent-death test READY','NOUGAT_MEDIA_SERVER_OWNER','complete Nougat-owned server process tree','test_nougat_security_analysis_v33.py','test_nougat_play_portal_ui_smoke_v33.py','pkg-config --exists libtorrent-rasterbar','apply_raw_icon','ensure_python_venv_support','python_venv_works','cleanup_generated_python_caches','__pycache__','*.pyc','python3-venv','-venv']:
     need(x in t,'installer gate missing: '+x)
 need(t.index('cleanup_generated_python_caches ||') < t.index('verify_git_state ||'), 'Python cache cleanup must run before Git preflight')
 for pat in [r'(^|[;\s])exit(?:\s+[0-9]+)?(?:[;\s]|$)',r'\|\|\s*exit\b',r'\bset\s+-e\b']:

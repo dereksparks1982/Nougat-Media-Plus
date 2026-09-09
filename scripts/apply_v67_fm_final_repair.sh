@@ -156,7 +156,7 @@ PY
 }
 
 main() {
-    PROJECT="$HOME/DKLab/Projects/Nougat Media Plus"
+    PROJECT="$HOME/DKLab/Projects/Nougat Play Portal"
     KREL="$(uname -r)"
     KBUILD="/lib/modules/$KREL/build"
 
@@ -171,7 +171,7 @@ main() {
     UPDATE_DIR="/lib/modules/$KREL/updates/nougat-v67-fm"
     TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 
-    ARCHIVE="$HOME/DKLab/Archives/Nougat Media Plus/v67-fm-final-before-$TIMESTAMP"
+    ARCHIVE="$HOME/DKLab/Archives/Nougat Play Portal/v67-fm-final-before-$TIMESTAMP"
     LOGDIR="$PROJECT/logs"
     DRIVER_LOG="$LOGDIR/v67-fm-driver-$TIMESTAMP.log"
 
@@ -219,7 +219,7 @@ main() {
     echo "Kbuild alias:   $BUILD_ALIAS (temporary bind view only)"
 
     echo "============================================================"
-    echo "Nougat Media Plus v0.0.67 HVR-955Q FM reboot-safe repair"
+    echo "Nougat Play Portal v0.0.67 HVR-955Q FM reboot-safe repair"
     echo "Kernel: $KREL"
     echo "============================================================"
 
@@ -227,9 +227,9 @@ main() {
     echo "=== STOP ONLY THE NOUGAT v67 ROOT EXECUTABLE ==="
 
     local pid exe
-    for pid in $(pgrep -f 'Nougat_Media_Plus_v67' 2>/dev/null); do
+    for pid in $(pgrep -f 'Nougat_Play_Portal_v67' 2>/dev/null); do
         exe="$(readlink -f "/proc/$pid/exe" 2>/dev/null)"
-        if [[ "$exe" == "$PROJECT/Nougat_Media_Plus_v67" ]]; then
+        if [[ "$exe" == "$PROJECT/Nougat_Play_Portal_v67" ]]; then
             kill "$pid" 2>/dev/null || true
         fi
     done
@@ -454,7 +454,7 @@ EOF
         "src/main.cpp" \
         "src/radio/radio_backend.cpp" \
         "src/radio/radio_backend.hpp" \
-        "com.elderredsoftworks.NougatMediaPlus.desktop"; do
+        "com.elderredsoftworks.NougatPlayPortal.desktop"; do
         if [[ -f "$PROJECT/$rel" ]]; then
             mkdir -p "$ARCHIVE/app/$(dirname "$rel")"
             cp -a "$PROJECT/$rel" "$ARCHIVE/app/$rel" || return 1
@@ -472,7 +472,7 @@ EOF
     }
 
     echo
-    echo "=== BUILD NOUGAT MEDIA PLUS v0.0.67 ==="
+    echo "=== BUILD NOUGAT PLAY PORTAL v0.0.67 ==="
 
     if ! cmake -S "$PROJECT" -B "$PROJECT/build"; then
         cp -a "$ARCHIVE/app/." "$PROJECT/" || true
@@ -481,7 +481,7 @@ EOF
     fi
 
     if ! nice -n 10 cmake --build "$PROJECT/build" \
-        --target Nougat_Media_Plus_v67 \
+        --target Nougat_Play_Portal_v67 \
         -j2; then
         cp -a "$ARCHIVE/app/." "$PROJECT/" || true
         echo "FAIL: v67 application build failed; app source restored. Running kernel driver was never touched."
@@ -489,8 +489,8 @@ EOF
     fi
 
     local BUILT ROOT_EXE VERSION
-    BUILT="$PROJECT/build/Nougat_Media_Plus_v67"
-    ROOT_EXE="$PROJECT/Nougat_Media_Plus_v67"
+    BUILT="$PROJECT/build/Nougat_Play_Portal_v67"
+    ROOT_EXE="$PROJECT/Nougat_Play_Portal_v67"
 
     [[ -x "$BUILT" ]] || {
         cp -a "$ARCHIVE/app/." "$PROJECT/" || true
@@ -509,18 +509,18 @@ EOF
         return 1
     fi
 
-    rm -f "$PROJECT/Nougat_Media_Plus_v66"
+    rm -f "$PROJECT/Nougat_Play_Portal_v66"
 
     if command -v gio >/dev/null 2>&1; then
         gio set \
             "$ROOT_EXE" \
             metadata::custom-icon \
-            "file:///home/dereksparks1982/DKLab/Projects/Nougat%20Media%20Plus/assets/branding/nougat-media-plus-dock-N.png" \
+            "file:///home/dereksparks1982/DKLab/Projects/Nougat%20Media%20Plus/assets/branding/nougat-play-portal-dock-N.png" \
             || true
         gio set -t string \
             "$ROOT_EXE" \
             metadata::custom-icon-name \
-            nougat-media-plus \
+            nougat-play-portal \
             || true
     fi
 

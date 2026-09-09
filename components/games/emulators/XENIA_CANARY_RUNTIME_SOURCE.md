@@ -1,4 +1,4 @@
-# Xenia Canary Runtime Source - Nougat Media Suite v0.0.53
+# Xenia Canary Runtime Source - Nougat Play Portal v0.0.53
 
 Nougat backend: Xbox 360 -> Xenia
 

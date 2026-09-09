@@ -75,7 +75,7 @@ std::string resolve_wine_executable() {
 std::string resolve_uo_data_path() {
     const std::string override_path = getenv_string("NOUGAT_UO_DATA");
     if (!override_path.empty()) return override_path;
-    return home_dir() + "/.local/share/nougat-media-plus/games/ultima-online/client-data";
+    return home_dir() + "/.local/share/nougat-play-portal/games/ultima-online/client-data";
 }
 
 std::string resolve_t2a_client_executable() {
@@ -85,7 +85,7 @@ std::string resolve_t2a_client_executable() {
 std::string resolve_t2a_wine_prefix() {
     const std::string override_path = getenv_string("NOUGAT_T2A_WINEPREFIX");
     if (!override_path.empty()) return override_path;
-    return home_dir() + "/.local/share/nougat-media-plus/runtimes/wine-t2a-1.25.35";
+    return home_dir() + "/.local/share/nougat-play-portal/runtimes/wine-t2a-1.25.35";
 }
 
 bool validate_t2a_data_path(const std::string& path, std::string& error) {
@@ -155,7 +155,7 @@ bool prepare_t2a_login_config(const std::string& path,
     const std::filesystem::path login = root / "login.cfg";
     const std::filesystem::path temporary = root / ".login.cfg.nougat.tmp";
     std::ostringstream wanted;
-    wanted << "; Nougat Media Plus managed local T2A shard\n"
+    wanted << "; Nougat Play Portal managed local T2A shard\n"
            << "LoginServer=" << host << ',' << port << "\n";
     const std::string content = wanted.str();
 

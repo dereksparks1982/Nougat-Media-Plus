@@ -24,23 +24,23 @@ def main() -> int:
         main_cpp = (ROOT / "src/main.cpp").read_text(encoding="utf-8")
         radio_hpp = (ROOT / "src/radio/radio_backend.hpp").read_text(encoding="utf-8")
         radio_cpp = (ROOT / "src/radio/radio_backend.cpp").read_text(encoding="utf-8")
-        scope = (ROOT / "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_52_SCOPE.md").read_text(encoding="utf-8")
-        carry = (ROOT / "docs/builds/NOUGAT_MEDIA_SUITE_v0_0_53_CARRY_FORWARD.md").read_text(encoding="utf-8")
+        scope = (ROOT / "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_52_SCOPE.md").read_text(encoding="utf-8")
+        carry = (ROOT / "docs/builds/NOUGAT_PLAY_PORTAL_v0_0_53_CARRY_FORWARD.md").read_text(encoding="utf-8")
         upstream = json.loads((ROOT / "components/radio/UPSTREAM_COMPONENTS.json").read_text(encoding="utf-8"))
 
         has_all(cmake, [
-            "project(NougatMediaSuite VERSION 0.0.52 LANGUAGES CXX)",
-            "add_executable(Nougat_Media_Suite_v52",
+            "project(NougatPlayPortal VERSION 0.0.52 LANGUAGES CXX)",
+            "add_executable(Nougat_Play_Portal_v52",
             "src/radio/radio_backend.cpp",
-            "target_compile_options(Nougat_Media_Suite_v52 PRIVATE -Wall -Wextra -Werror)",
+            "target_compile_options(Nougat_Play_Portal_v52 PRIVATE -Wall -Wextra -Werror)",
         ], "CMake")
-        need("Nougat_Media_Suite_v51" not in cmake, "CMake still targets v51")
+        need("Nougat_Play_Portal_v51" not in cmake, "CMake still targets v51")
 
         has_all(main_cpp, [
             '#include "radio/radio_backend.hpp"',
             'const std::string versionLabel = "v0.0.52";',
-            'input.app_version = "Nougat Media Suite v0.0.52";',
-            'printf("Nougat Media Suite v0.0.52\\n");',
+            'input.app_version = "Nougat Play Portal v0.0.52";',
+            'printf("Nougat Play Portal v0.0.52\\n");',
             "reddmedia::RadioBackend radioBackend;",
             "radioSimpleBtn", "radioProBtn", "radioEmergencyBtn", "radioSatelliteBtn",
             "radioFrequencyRect", "radioModeBtn", "radioStepBtn", "radioDeviceBtn",
@@ -81,10 +81,10 @@ def main() -> int:
         for required in {"soapysdr", "liquid-dsp", "op25", "gnuradio4-core", "kissfft"}:
             need(required in ids, f"upstream manifest missing owner-supplied project {required}")
 
-        for launcher in ("NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop"):
+        for launcher in ("NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop"):
             text = (ROOT / launcher).read_text(encoding="utf-8")
-            need("Nougat_Media_Suite_v52" in text, f"{launcher} does not target v52")
-            need("Nougat_Media_Suite_v51" not in text, f"{launcher} still targets v51")
+            need("Nougat_Play_Portal_v52" in text, f"{launcher} does not target v52")
+            need("Nougat_Play_Portal_v51" not in text, f"{launcher} still targets v51")
 
         print("PASS: v0.0.52 Radio static contracts verified.")
         return 0

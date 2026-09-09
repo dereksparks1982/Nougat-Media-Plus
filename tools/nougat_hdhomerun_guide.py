@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def fetch(url: str, timeout: float = 12.0) -> bytes:
-    req=urllib.request.Request(url,headers={"Accept-Encoding":"gzip","User-Agent":"Nougat-Media-Suite/0.0.58"})
+    req=urllib.request.Request(url,headers={"Accept-Encoding":"gzip","User-Agent":"Nougat-Play-Portal/0.0.58"})
     with urllib.request.urlopen(req,timeout=timeout) as response:
         data=response.read()
         if response.headers.get("Content-Encoding","").lower()=="gzip": data=gzip.decompress(data)

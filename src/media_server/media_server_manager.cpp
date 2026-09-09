@@ -270,7 +270,7 @@ bool MediaServerManager::process_matches_nougat_signature(pid_t pid) const {
     const bool runtime = process_matches_runtime(pid);
     const bool data = null_list_contains_value(cmdline, data_path_);
     const bool config = null_list_contains_value(cmdline, config_path_);
-    const bool package = null_list_contains_value(cmdline, "Nougat Media Suite integrated Jellyfin");
+    const bool package = null_list_contains_value(cmdline, "Nougat Play Portal integrated Jellyfin");
     return runtime && data && config && package;
 }
 
@@ -521,7 +521,7 @@ bool MediaServerManager::launch_runtime() {
               "--nowebclient",
               "--ffmpeg", "/usr/bin/ffmpeg",
               "--service",
-              "--package-name", "Nougat Media Suite integrated Jellyfin",
+              "--package-name", "Nougat Play Portal integrated Jellyfin",
               static_cast<char*>(nullptr));
         _exit(127);
     }

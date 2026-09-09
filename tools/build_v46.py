@@ -8,8 +8,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
-TARGET = "Nougat_Media_Suite_v46"
-APPROVED_ICON = ROOT / "assets/icons/nougat-media-suite-concept-sheet-v24.png"
+TARGET = "Nougat_Play_Portal_v46"
+APPROVED_ICON = ROOT / "assets/icons/nougat-play-portal-concept-sheet-v24.png"
 APPROVED_SHA = "681ece987dd00d9958cf953939403bd71a5ad9d70d8ad284e133272a0204d804"
 
 def run(args, **kwargs):
@@ -38,7 +38,7 @@ def main():
         # the visible project root and a reused CMake build directory.
         for base in (ROOT, BUILD):
             if base.is_dir():
-                for p in base.glob("Nougat_Media_Suite_v*"):
+                for p in base.glob("Nougat_Play_Portal_v*"):
                     if p.is_file():
                         print("Removing stale executable before build:", p)
                         p.unlink()
@@ -69,16 +69,16 @@ def main():
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         need(r.returncode == 0,
              "build-tree v46 could not start with Nougat AI runtime: " + r.stdout.strip())
-        need(r.stdout.strip() == "Nougat Media Suite v0.0.46",
+        need(r.stdout.strip() == "Nougat Play Portal v0.0.46",
              "build-tree v46 identity mismatch: " + repr(r.stdout.strip()))
         print("PASS: build-tree v46 starts with project AI runtime")
 
-        r = run([sys.executable, ROOT/"tools/test_nougat_media_suite_v46.py", ROOT, built],
+        r = run([sys.executable, ROOT/"tools/test_nougat_play_portal_v46.py", ROOT, built],
                 env=runtime_env)
         need(r.returncode == 0, "v0.0.46 contract validation failed")
 
         # Retain the v45 Secure Search privacy contract with a v46-specific\n        # validator. Do not run the old v45 release-identity validator against v46.\n        secure_v46 = ROOT/"tools/test_nougat_secure_search_v46.py"\n        need(secure_v46.is_file(), "v46 Secure Search retention validator is missing")\n        r = run([sys.executable, secure_v46, ROOT], env=runtime_env)\n        need(r.returncode == 0, "v0.0.46 Secure Search retention validation failed")\n\n        # HARD RELEASE GATE 1: no historical versioned root executable survives.
-        for p in ROOT.glob("Nougat_Media_Suite_v*"):
+        for p in ROOT.glob("Nougat_Play_Portal_v*"):
             if p.is_file():
                 print("Removing obsolete root executable:", p.name)
                 p.unlink()
@@ -103,9 +103,9 @@ def main():
              "final executable custom-icon readback did not match approved Nougat N")
 
         # HARD RELEASE GATE 3: exactly one versioned root executable, v46.
-        roots = sorted(p.name for p in ROOT.glob("Nougat_Media_Suite_v*") if p.is_file())
+        roots = sorted(p.name for p in ROOT.glob("Nougat_Play_Portal_v*") if p.is_file())
         need(roots == [TARGET], "obsolete/multiple root executables survived promotion: " + repr(roots))
-        built_versions = sorted(p.name for p in BUILD.glob("Nougat_Media_Suite_v*") if p.is_file())
+        built_versions = sorted(p.name for p in BUILD.glob("Nougat_Play_Portal_v*") if p.is_file())
         need(built_versions == [TARGET],
              "obsolete/multiple CMake-build executables survived: " + repr(built_versions))
 
@@ -116,14 +116,14 @@ def main():
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         need(r.returncode == 0,
              "final root executable could not start from embedded $ORIGIN runtime: " + r.stdout.strip())
-        need(r.stdout.strip() == "Nougat Media Suite v0.0.46",
+        need(r.stdout.strip() == "Nougat Play Portal v0.0.46",
              "final root executable identity failed: " + repr(r.stdout.strip()))
         print("PASS: final root v46 starts without LD_LIBRARY_PATH")
 
-        for name in ("NougatMediaSuite.desktop", "com.elderredsoftworks.NougatMediaSuite.desktop"):
+        for name in ("NougatPlayPortal.desktop", "com.elderredsoftworks.NougatPlayPortal.desktop"):
             text = (ROOT/name).read_text()
-            need("Nougat_Media_Suite_v46" in text, f"{name} does not target v46")
-            need("Icon=nougat-media-suite-concept-sheet-v24" in text, f"{name} lost approved icon key")
+            need("Nougat_Play_Portal_v46" in text, f"{name} does not target v46")
+            need("Icon=nougat-play-portal-concept-sheet-v24" in text, f"{name} lost approved icon key")
 
         print("=== v0.0.46 NATIVE BUILD + EXECUTABLE PROMOTION PASS ===")
         print("Root executable:", promoted)

@@ -5,7 +5,7 @@ import hashlib
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = ROOT / "src/main.cpp"
 HOST = ROOT / "src/games/emulator_host.cpp"
-BIN = ROOT / "Nougat_Media_Suite_v54"
+BIN = ROOT / "Nougat_Play_Portal_v54"
 
 
 def need(condition: bool, message: str) -> None:

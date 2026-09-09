@@ -1,7 +1,7 @@
 # Nougat Secure Search Architecture v1
 
-Nougat Media Suite v0.0.45 establishes a fail-closed security boundary for Search.
-Elderred Softworks LLC is the developer; Nougat Media Suite is the product.
+Nougat Play Portal v0.0.45 establishes a fail-closed security boundary for Search.
+Elderred Softworks LLC is the developer; Nougat Play Portal is the product.
 
 ## Privacy Law
 

@@ -1,6 +1,42 @@
-# Nougat Media Plus
+# Nougat Play Portal
 
-**Nougat Media Plus** is a native Linux entertainment, communications, production, networking, and media platform developed by **Elderred Softworks LLC**. It brings local and network media playback, television, radio, internet streaming, games and emulation, production tools, drones, cellular-lab foundations, satellite and network tooling, privacy-focused search, P2P media, security analysis, diagnostics, and connected hardware together inside one desktop application.
+**Powered by NougatOS**
+
+**ALL GAMES. ONE WORLD.**
+
+![Nougat Play Portal v0.0.69 UI Sheet](ExampleImages/Nougat_Play_Portal_v69_UI_Sheet.png)
+
+**Nougat Play Portal** is the game-first console, entertainment, networking, and media platform developed by **Elderred Softworks LLC**. Beginning with **v0.0.69**, Nougat Play Portal is the canonical product and project identity, while **NougatOS** is the underlying platform, runtime-management, hardware-integration, and system-services layer.
+
+Nougat Play Portal brings games, emulation, local media, streaming media, Live TV, radio, social and multiplayer networking, system controls, production tools, connected hardware, and Nougat-managed runtimes together inside one integrated environment.
+
+The approved v0.0.69 interface is organized around **Home, Games, Library, Network, Media, and System**. Games are the primary experience. The selected title becomes the visual focus while recent games, friends, network activity, media, and system controls remain immediately accessible.
+
+**Home** is the console-style landing experience, combining the selected-game hero presentation, Play and Game Details actions, Continue Playing, friends and network activity, and current Nougat information.
+
+**Games** is the primary game library and launch environment. It carries forward native titles, managed emulator runtimes, ROM and package discovery, controller support, artwork, metadata, game-host containment, console runtime management, and the managed **Ultima Online - The Second Age** integration.
+
+The managed Ultima Online path uses the actual October 1998 Ultima Online 1.25.35 client through Wine against the pinned local SphereServer X shard. The shard uses Felucca/map0 and the T2A-era foundation with later facets disabled. Machine validation of the client, Wine path, compile/link path, and Sphere boot/listen ownership is preserved, while owner in-world playability remains its own acceptance gate.
+
+**Nougat Network** is the multiplayer and social layer for friends, presence, parties, lobbies, server discovery, matchmaking, messages, leaderboards, events, and future compatibility services for supported legacy multiplayer systems.
+
+**Media** carries forward the native Player, Library, Continue Watching, Jellyfin-backed media-server foundation, Direct Watch and internet-streaming systems, YouTube playback/extraction compatibility handling, Live TV, World TV, radio, and local-media workflows.
+
+**Nougat 3D** is the planned classic-game scene-enhancement system built around mature emulator cores, game-state interpretation, automatic generic 3D presentation, and optional per-game enhancement profiles.
+
+The accepted functional baseline immediately before this transition is **v0.0.68**. **v0.0.69** begins the comprehensive Nougat Play Portal and NougatOS identity and interface transition while preserving the existing functional foundation.
+
+## v0.0.69 - Nougat Play Portal / NougatOS Transition
+
+- Establishes **Nougat Play Portal** as the canonical product and project identity.
+- Establishes **NougatOS** as the underlying platform and runtime identity.
+- Retires the previous military-HUD interface direction in favor of the approved console-style v0.0.69 interface.
+- Uses `ExampleImages/Nougat_Play_Portal_v69_UI_Sheet.png` as the authoritative visual reference for the v0.0.69 interface.
+- Rebrands current tracked documentation, source-visible names, metadata, paths, assets, and filenames away from superseded project identities.
+- Preserves the accepted v0.0.68 functional foundation while the v0.0.69 interface and identity transition proceeds.
+- Keeps **Games** as the primary portal experience with **Network** and **Media** integrated as first-class subsystems.
+- Carries forward the managed Ultima Online T2A path, console runtime-management foundation, current YouTube compatibility work, Live TV, radio groundwork, emulator support, Jellyfin-backed services, Search/P2P/Security, Studio, Drone Production, and the rest of the established feature set.
+- A newly compiled v0.0.69 executable remains a separate owner-approved build and acceptance gate.
 
 ## **Media & Playback**
 
@@ -10,7 +46,7 @@ The Player supports embedded audio-track selection, embedded and external subtit
 
 Television playback includes episode progression, Previous/Next episode behavior, **Up Next** with a countdown and direct next-episode action, while Live TV and other linear sources use the same native Player architecture for channel or station navigation.
 
-Beginning with **v0.0.65**, the Player is moving into the approved black/deep-green military HUD family with a chapter-marked seek surface, dedicated chapter and episode navigation, segmented tactical volume control, highly translucent information overlay, Fullscreen and Settings controls, and immediate retriggerable UI-click feedback.
+Beginning with **v0.0.69**, the previous military-HUD visual direction is retired. The Player is being carried forward into the approved **Nougat Play Portal** console interface while preserving native playback, chapter and episode navigation, seeking, volume, fullscreen, settings, overlays, resume state, playback history, and the existing native playback engine.
 
 ## **Home, Library & Discover**
 
@@ -132,9 +168,9 @@ Diagnostics distinguish healthy evidence from Needs Attention, Problems, Not Tes
 
 Nougat also includes persistent application state, local privacy infrastructure, hardware reporting, service health monitoring, security-scanning foundations, controller architecture, and replaceable interfaces intended to keep third-party tuner, emulator, security, server, and media engines from owning the application's user-facing behavior.
 
-## **Nougat Media Plus Interface**
+## **Nougat Play Portal Interface**
 
-Beginning with **v0.0.62**, Nougat Media Plus uses the approved black and deep-green tactical interface together with the metallic tactical-green **N** identity.
+Beginning with **v0.0.62**, Nougat Play Portal uses the approved black and deep-green tactical interface together with the metallic tactical-green **N** identity.
 
 The N is the required application identity across the in-app interface, versioned executable, X11 window identity, installed launcher, GNOME dock, and app switcher. Generic gear, executable, placeholder, or substitute artwork is not an acceptable active identity.
 
@@ -146,7 +182,7 @@ The same checkpoint advances the military Player HUD with chapter-marked seeking
 
 ## **Platform & Repository**
 
-Nougat Media Plus is developed primarily as a **native Linux desktop application**.
+Nougat Play Portal is developed primarily as a **native Linux desktop application**.
 
 The GitHub repository preserves the complete runnable project tree including source, assets, tools, bundled runtimes, emulator components, media-server infrastructure, AI components, security components, and required project dependencies.
 
@@ -154,11 +190,11 @@ Oversized project files are stored through **Git LFS** rather than intentionally
 
 ## **Educational, Professional, and Lawful Use Notice**
 
-Nougat Media Plus is developed by **Elderred Softworks LLC** for **educational, research, testing, development, and authorized professional or operational use**. It is intended for users including licensed radio operators, communications professionals, broadcast and satellite technicians, engineers, researchers, educators, government agencies, military personnel, public-safety professionals, and other technical users working with media, radio-frequency systems, satellites, drones, cellular systems, networks, communications equipment, and related technologies.
+Nougat Play Portal is developed by **Elderred Softworks LLC** for **educational, research, testing, development, and authorized professional or operational use**. It is intended for users including licensed radio operators, communications professionals, broadcast and satellite technicians, engineers, researchers, educators, government agencies, military personnel, public-safety professionals, and other technical users working with media, radio-frequency systems, satellites, drones, cellular systems, networks, communications equipment, and related technologies.
 
-Nougat Media Plus may provide access to capabilities involving radio reception and transmission, satellite communications, cellular systems, drones and aircraft, networks, connected hardware, signals, media, accounts, and data. Some capabilities may require licenses, certifications, spectrum or frequency authorization, equipment approval, operator privileges, organizational authority, regulatory approval, coordination with a satellite or communications operator, or other permission before lawful use.
+Nougat Play Portal may provide access to capabilities involving radio reception and transmission, satellite communications, cellular systems, drones and aircraft, networks, connected hardware, signals, media, accounts, and data. Some capabilities may require licenses, certifications, spectrum or frequency authorization, equipment approval, operator privileges, organizational authority, regulatory approval, coordination with a satellite or communications operator, or other permission before lawful use.
 
-**Nougat Media Plus does not determine, verify, grant, or imply that a user is licensed or otherwise authorized to perform any particular operation.** Users are solely responsible for determining and maintaining the licenses, permissions, approvals, qualifications, and other legal authority required for their activities and jurisdiction.
+**Nougat Play Portal does not determine, verify, grant, or imply that a user is licensed or otherwise authorized to perform any particular operation.** Users are solely responsible for determining and maintaining the licenses, permissions, approvals, qualifications, and other legal authority required for their activities and jurisdiction.
 
 Elderred Softworks LLC does not endorse or authorize unlawful activity, unauthorized access, interception, monitoring or surveillance, unauthorized circumvention of access controls or encryption, harmful interference with communications or services, invasion of privacy, property damage, intellectual-property infringement, harassment, or unauthorized operation of radio, satellite, cellular, drone, network, or other communications systems.
 
@@ -166,19 +202,19 @@ Features involving equipment, frequencies, networks, satellites, aircraft, accou
 
 **Transmission capabilities require particular care.** Radio-frequency and satellite transmission may be subject to national and international spectrum regulations, licensing requirements, frequency allocations, equipment rules, coordination requirements, and operator restrictions. In the United States, applicable requirements may include rules administered by the **Federal Communications Commission (FCC)**. Other jurisdictions have their own communications and spectrum authorities. Users are responsible for determining which rules apply before transmitting.
 
-Nothing in Nougat Media Plus, its documentation, source code, supported hardware, or availability of a technical capability grants permission to perform an act that would otherwise be unlawful or unauthorized. **Technical capability does not imply legal authorization.**
+Nothing in Nougat Play Portal, its documentation, source code, supported hardware, or availability of a technical capability grants permission to perform an act that would otherwise be unlawful or unauthorized. **Technical capability does not imply legal authorization.**
 
 The inclusion of professional, governmental, public-safety, military, satellite, aviation, cellular, or other regulated use cases does not imply endorsement, affiliation, certification, approval, sponsorship, or authorization by any government agency, military organization, regulator, communications authority, satellite operator, service provider, or equipment manufacturer.
 
-**Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
+**Use of Nougat Play Portal and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
 
 ## v0.0.68 - Accepted Checkpoint
 
-Nougat Media Plus v0.0.68 is the owner-accepted checkpoint advancing the active root executable to `Nougat_Media_Plus_v68`.
+Nougat Play Portal v0.0.68 is the owner-accepted checkpoint advancing the active root executable to `Nougat_Play_Portal_v68`.
 
 ### Technical changes
 
-- Advances project build and runtime reporting to v0.0.68 and replaces the retired v67 root executable with `Nougat_Media_Plus_v68`.
+- Advances project build and runtime reporting to v0.0.68 and replaces the retired v67 root executable with `Nougat_Play_Portal_v68`.
 - Adds the console runtime-management foundation under `src/console/`.
 - Adds the managed **Ultima Online - The Second Age** Games entry and dedicated UO runtime path.
 - Uses the actual October 1998 Ultima Online 1.25.35 `client.exe` through Wine as the active T2A client path rather than ClassicUO.
@@ -190,11 +226,11 @@ Nougat Media Plus v0.0.68 is the owner-accepted checkpoint advancing the active 
 
 ## v0.0.67 - HVR-955Q FM Radio Failure Checkpoint
 
-Nougat Media Plus v0.0.67 is the preserved development checkpoint for the Hauppauge WinTV-HVR-955Q native FM-radio integration. It is intentionally recorded as a **failed checkpoint**, not as an owner-accepted release. **v0.0.66 remains the most recent owner-accepted release.**
+Nougat Play Portal v0.0.67 is the preserved development checkpoint for the Hauppauge WinTV-HVR-955Q native FM-radio integration. It is intentionally recorded as a **failed checkpoint**, not as an owner-accepted release. **v0.0.66 remains the most recent owner-accepted release.**
 
 ### Technical changes
 
-- Advances the active application and root executable to `Nougat_Media_Plus_v67`.
+- Advances the active application and root executable to `Nougat_Play_Portal_v67`.
 - Adds the native Linux V4L2 radio provider in `src/radio/v4l2_radio_provider.cpp` and `.hpp`.
 - Adds native Hauppauge/V4L2 radio discovery ahead of the existing RTL-SDR/Soapy fallback.
 - Adds direct V4L2 FM frequency tuning.
@@ -209,12 +245,12 @@ Nougat Media Plus v0.0.67 is the preserved development checkpoint for the Hauppa
 - Builds a matched four-module stack consisting of `cx231xx`, `cx231xx-dvb`, `cx231xx-alsa`, and `si2157` for Ubuntu kernel `7.0.0-31-generic`.
 - Preserves the television restoration path while adding radio-mode handling.
 - Carries forward the complete v0.0.66 PlayStation 3/RPCS3 integration and approved UI-authority work.
-- Updates the v0.0.67 desktop launcher identity to the approved Nougat Media Plus N icon.
+- Updates the v0.0.67 desktop launcher identity to the approved Nougat Play Portal N icon.
 
 ### Failure status
 
 - The matched four-module HVR stack compiled successfully.
-- Nougat Media Plus v0.0.67 compiled successfully with the native HVR V4L2 radio provider.
+- Nougat Play Portal v0.0.67 compiled successfully with the native HVR V4L2 radio provider.
 - The installed modules resolved to the Nougat v0.0.67 driver directory.
 - The HVR-955Q was identified correctly and the driver temporarily registered `radio0`.
 - Kernel initialization then reported `cx25840 subdev registration failure`.
@@ -226,7 +262,7 @@ Nougat Media Plus v0.0.67 is the preserved development checkpoint for the Hauppa
 
 ## v0.0.66 - PlayStation 3 Integration and UI Authority Closeout
 
-Nougat Media Plus v0.0.66 is the owner-accepted closeout of the PlayStation 3/RPCS3 integration and the owner-approved UI-authority corrections built from the accepted v0.0.65 GitHub baseline.
+Nougat Play Portal v0.0.66 is the owner-accepted closeout of the PlayStation 3/RPCS3 integration and the owner-approved UI-authority corrections built from the accepted v0.0.65 GitHub baseline.
 
 ### Technical changes
 
@@ -247,13 +283,13 @@ Nougat Media Plus v0.0.66 is the owner-accepted closeout of the PlayStation 3/RP
 ### Validation and acceptance
 
 - The owner explicitly accepted v0.0.66 for GitHub closeout on 2026-09-05.
-- The accepted changed-files package is `Nougat_Media_Plus_v0.0.66_UI_AUTHORITY_CHANGED_FILES_REPAIR2.zip`, SHA-256 `06ff1f1da0fcde9bbcb9d65ed96a5d793119022a28e776001ecf2e6ebe70cdfa`.
+- The accepted changed-files package is `Nougat_Play_Portal_v0.0.66_UI_AUTHORITY_CHANGED_FILES_REPAIR2.zip`, SHA-256 `06ff1f1da0fcde9bbcb9d65ed96a5d793119022a28e776001ecf2e6ebe70cdfa`.
 - The preceding REPAIR1 owner-machine run compiled the full v0.0.66 target successfully with warnings treated as errors; its failure occurred afterward in the temporary-build UI self-test asset lookup. REPAIR2 corrects that validation path without changing the approved UI scope.
 - This record does not claim an owner-pasted successful RPCS3 gameplay-containment test or an active neural/DLSS backend.
 
 ## v0.0.65 - Military UI Consolidation Checkpoint
 
-Nougat Media Plus v0.0.65 is an owner-requested GitHub checkpoint of the current tactical-interface work. It is preserved as a recoverable development checkpoint and is **not represented as the final accepted UI**. Additional owner-directed UI correction remains expected after this checkpoint.
+Nougat Play Portal v0.0.65 is an owner-requested GitHub checkpoint of the current tactical-interface work. It is preserved as a recoverable development checkpoint and is **not represented as the final accepted UI**. Additional owner-directed UI correction remains expected after this checkpoint.
 
 ### Technical changes
 
@@ -282,11 +318,11 @@ Nougat Media Plus v0.0.65 is an owner-requested GitHub checkpoint of the current
 
 ## v0.0.64 - Network Center and Satellite Foundation
 
-Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accepted v0.0.63 baseline.
+Nougat Play Portal v0.0.64 is the owner-accepted checkpoint built from the accepted v0.0.63 baseline.
 
 ### Technical changes
 
-- Advances the active executable to `Nougat_Media_Plus_v64` and advances runtime/build reporting to v0.0.64.
+- Advances the active executable to `Nougat_Play_Portal_v64` and advances runtime/build reporting to v0.0.64.
 - Adds the top-level Nougat Network Center foundation.
 - Establishes dedicated network-center source architecture for connected network hardware and services.
 - Advances Search to the visible `Search | Crawler | P2P | Archive` structure.
@@ -298,13 +334,13 @@ Nougat Media Plus v0.0.64 is the owner-accepted checkpoint built from the accept
 
 ## v0.0.63 - Games, Emulator, Controller, and Tactical UI Repair
 
-Nougat Media Plus v0.0.63 is the owner-accepted checkpoint built from the accepted v0.0.62 baseline. The release advances Games and emulator integration, controller reporting, tactical-interface cleanup, desktop identity, and the active Nougat Media Plus executable while carrying unresolved emulator-containment work forward truthfully.
+Nougat Play Portal v0.0.63 is the owner-accepted checkpoint built from the accepted v0.0.62 baseline. The release advances Games and emulator integration, controller reporting, tactical-interface cleanup, desktop identity, and the active Nougat Play Portal executable while carrying unresolved emulator-containment work forward truthfully.
 
 ### Technical changes
 
-- Advances the active root executable to `Nougat_Media_Plus_v63` and advances build/runtime version reporting to v0.0.63.
-- Renames the active desktop launcher file to `com.elderredsoftworks.NougatMediaPlus.desktop` and strengthens the Nougat Media Plus GNOME/X11 application identity.
-- Adds the approved tactical-green Nougat Media Plus dock icon treatment.
+- Advances the active root executable to `Nougat_Play_Portal_v63` and advances build/runtime version reporting to v0.0.63.
+- Renames the active desktop launcher file to `com.elderredsoftworks.NougatPlayPortal.desktop` and strengthens the Nougat Play Portal GNOME/X11 application identity.
+- Adds the approved tactical-green Nougat Play Portal dock icon treatment.
 - Removes the v0.0.62 hover and button-activation UI sounds and removes their active playback path.
 - Removes active dashed/stitch-style field decoration and replaces remaining active quilt-style page backgrounds and legacy field presentation with the tactical interface treatment.
 - Adjusts the Games grid geometry to provide a real multi-row card layout in available space.
@@ -323,12 +359,12 @@ Nougat Media Plus v0.0.63 is the owner-accepted checkpoint built from the accept
 
 ## v0.0.63 - Games and Emulator Overhaul
 
-Nougat Media Plus v0.0.63 is the owner-accepted checkpoint built from v0.0.62.
+Nougat Play Portal v0.0.63 is the owner-accepted checkpoint built from v0.0.62.
 
 ### Technical changes
 
-- Advances the active executable to `Nougat_Media_Plus_v63` and runtime/build reporting to v0.0.63.
-- Advances the active desktop identity to Nougat Media Plus.
+- Advances the active executable to `Nougat_Play_Portal_v63` and runtime/build reporting to v0.0.63.
+- Advances the active desktop identity to Nougat Play Portal.
 - Removes the v0.0.62 hover and button-activation UI sounds.
 - Advances tactical UI cleanup, including removal of active stitched/dashed field decoration and legacy quilt-style presentation.
 - Improves the Games multi-row layout and controller reporting.
@@ -342,16 +378,16 @@ Nougat Media Plus v0.0.63 is the owner-accepted checkpoint built from v0.0.62.
 - PlayStation 2 BIOS firmware and commercial game content are not distributed with Nougat and remain user-supplied.
 - v0.0.63 is accepted with the remaining Mesen and PlayStation 2 containment defects carried forward to the next build.
 
-## v0.0.62 - Nougat Media Plus Tactical UI Conversion
+## v0.0.62 - Nougat Play Portal Tactical UI Conversion
 
-Nougat Media Plus v0.0.62 is the accepted tactical-interface and product-identity release built from the accepted v0.0.61 baseline.
+Nougat Play Portal v0.0.62 is the accepted tactical-interface and product-identity release built from the accepted v0.0.61 baseline.
 
 ### Technical changes
 
-- Renamed the active product from Nougat Media Suite to Nougat Media Plus.
-- Advanced the active root executable to `Nougat_Media_Plus_v62`.
+- Renamed the active product from Nougat Play Portal to Nougat Play Portal.
+- Advanced the active root executable to `Nougat_Play_Portal_v62`.
 - Advanced runtime and build version reporting to v0.0.62.
-- Updated `src/main.cpp`, `CMakeLists.txt`, launcher identity, and embedded X11 icon data for Nougat Media Plus.
+- Updated `src/main.cpp`, `CMakeLists.txt`, launcher identity, and embedded X11 icon data for Nougat Play Portal.
 - Installed the approved metallic tactical green N as the active application identity.
 - Applied the approved N to the in-app identity, raw executable, launcher, GNOME dock/app switcher, and X11 window identity.
 - Removed the retired legacy-name subtitle from the active application lockup.
@@ -365,12 +401,12 @@ Nougat Media Plus v0.0.62 is the accepted tactical-interface and product-identit
 - Activation audio plays once per actual activation.
 - Disabled controls remain silent.
 - Added the approved tactical UI authority artwork, tactical green N branding assets, icon assets, and UI audio assets.
-- Retired `Nougat_Media_Suite_v61` as the active root executable.
+- Retired `Nougat_Play_Portal_v61` as the active root executable.
 - Known NES/SNES and Xbox 360 emulator issues from v0.0.61 remain open and carry forward to the next Games/emulator overhaul.
 
 ## v0.0.61 - Drone Mission Control and Games Expansion
 
-Nougat Media Suite v0.0.61 is the owner-approved closeout release built from the accepted v0.0.60 baseline. All Drone Mission Control work, Games Library expansion, emulator-runtime work, and known Games regressions belong to this single v0.0.61 build.
+Nougat Play Portal v0.0.61 is the owner-approved closeout release built from the accepted v0.0.60 baseline. All Drone Mission Control work, Games Library expansion, emulator-runtime work, and known Games regressions belong to this single v0.0.61 build.
 
 ### Drone Mission Control
 
@@ -386,8 +422,8 @@ Nougat Media Suite v0.0.61 is the owner-approved closeout release built from the
 - Adds simulation-only payload ARM and RELEASE controls.
 - Keeps PX4, ArduPilot, MAVLink, MAVSDK, FFmpeg, and GStreamer integration/dependency discovery visible without falsely reporting hardware as connected.
 - Keeps real-aircraft arming and command transmission disabled.
-- Preserves the approved **Nougat N** identity and the **Nougat Media Suite** product name.
-- Keeps **Nougat Media Plus** only as a deferred future identity proposal and does not rename v0.0.61.
+- Preserves the approved **Nougat N** identity and the **Nougat Play Portal** product name.
+- Keeps **Nougat Play Portal** only as a deferred future identity proposal and does not rename v0.0.61.
 
 ### Games Library Expansion
 
@@ -398,7 +434,7 @@ Nougat Media Suite v0.0.61 is the owner-approved closeout release built from the
 - Preserves persistent ROM folders, system recognition, artwork, metadata, controller architecture, ZIP-aware discovery, and Nougat's emulator-host foundation.
 - Adds the pinned **MesenCE 2.2.1** runtime foundation for NES and SNES.
 - Preserves the existing Xbox 360 / Xenia runtime and Nougat embedding infrastructure for the complete v0.0.62 repair.
-- Advances the active executable to **Nougat_Media_Suite_v61**.
+- Advances the active executable to **Nougat_Play_Portal_v61**.
 
 ### Known Games Issues Carried Into v0.0.62
 
@@ -413,7 +449,7 @@ Nougat Media Suite v0.0.61 is the owner-approved closeout release built from the
 
 ## v0.0.60 - Drone Production Foundation
 
-Nougat Media Suite v0.0.60 is the **owner-accepted release** and frozen baseline from which v0.0.61 was developed.
+Nougat Play Portal v0.0.60 is the **owner-accepted release** and frozen baseline from which v0.0.61 was developed.
 
 - Adds a dedicated **Drone** interior tab beside Tools inside Studio.
 - Establishes the native **Drone Production** workspace for aerial cinematography and production planning.
@@ -430,11 +466,11 @@ Nougat Media Suite v0.0.60 is the **owner-accepted release** and frozen baseline
 - Adds a machine-readable Director Shot schema for future cinematic automation.
 - Keeps this foundation release **simulation-only**. Real-aircraft arming and command transmission remain disabled.
 - Preserves the approved **Nougat N** identity and includes reusable icon-identity installation support.
-- Advances the active executable to **Nougat_Media_Suite_v60**.
+- Advances the active executable to **Nougat_Play_Portal_v60**.
 
 ## v0.0.59 - File Assembler, Live Splitter Recalculation, and Stable Player Seek Control
 
-Nougat Media Suite v0.0.59 is the **owner-accepted release** and frozen baseline for the next build.
+Nougat Play Portal v0.0.59 is the **owner-accepted release** and frozen baseline for the next build.
 
 - Makes **Target MiB** live in File Splitter: valid numeric edits immediately recalculate Pieces, Recommended count, and estimated size per piece.
 - Uses `ceil(payload_bytes / target_bytes)` for the target recommendation.
@@ -447,11 +483,11 @@ Nougat Media Suite v0.0.59 is the **owner-accepted release** and frozen baseline
 - Verifies part completeness, ordering, and recorded hashes before reconstruction and verifies the final reconstructed payload/original afterward.
 - Replaces the deforming moving seek sprite with one stable independent round Nougat/Search-style seek thumb.
 - Keeps the seek thumb fully formed throughout playback, including **0%, intermediate positions, 100%, windowed playback, and fullscreen**.
-- Advances the active root executable to **Nougat_Media_Suite_v59**.
+- Advances the active root executable to **Nougat_Play_Portal_v59**.
 
 ## v0.0.58 - Reliability, Tuner Preference, Native Fix Match, Radio Expansion, and Studio Repair
 
-Nougat Media Suite v0.0.58 is the **owner-accepted release** and frozen baseline for v0.0.59.
+Nougat Play Portal v0.0.58 is the **owner-accepted release** and frozen baseline for v0.0.59.
 
 - Repairs Home and Library warm-start behavior so usable cached content appears before silent background refresh completes instead of rebuilding the visible interface during ordinary launches.
 - Preserves valid recent Continue Watching movies and television episodes across launches and improves migration of older resume records.
@@ -474,8 +510,8 @@ Nougat Media Suite v0.0.58 is the **owner-accepted release** and frozen baseline
 - Restores the header **Server** status indicator to the exact accepted v0.0.57 stitched Nougat-circle renderer. Its size, shape, stitching, bevel, border, depth, and position remain unchanged; only the green, yellow, or red face color changes according to server state.
 - Updates File Splitter to the **450 MiB** default target model with an editable Target MiB field and enforced maximum output-part sizing.
 - Improves diagnostics so server-internal catalog paths are distinguished from genuinely unavailable local media sources.
-- Advances GNOME/Resources application identity through the canonical **com.elderredsoftworks.NougatMediaSuite** identity and direct association with the real Nougat executable.
-- Advances the active root executable to **Nougat_Media_Suite_v58**.
+- Advances GNOME/Resources application identity through the canonical **com.elderredsoftworks.NougatPlayPortal** identity and direct association with the real Nougat executable.
+- Advances the active root executable to **Nougat_Play_Portal_v58**.
 
 ### Known work carried forward into v0.0.59
 
@@ -485,7 +521,7 @@ Nougat Media Suite v0.0.58 is the **owner-accepted release** and frozen baseline
 
 ## v0.0.57 - Media Identity, Live TV Recovery, World TV, Radio, and Games Repair
 
-Nougat Media Suite v0.0.57 is the owner-accepted release and frozen baseline for v0.0.58.
+Nougat Play Portal v0.0.57 is the owner-accepted release and frozen baseline for v0.0.58.
 
 - Strengthens Library filename normalization for real-world media names and adds persistent owner-controlled **Fix Match** metadata corrections.
 - Keeps Movies as the authoritative default Library root while preserving the existing movie and television architecture.
@@ -496,7 +532,7 @@ Nougat Media Suite v0.0.57 is the owner-accepted release and frozen baseline for
 - Expands World TV recovery using official broadcaster pages, direct stream candidates, and bounded alternate-source retries.
 - Consolidates Radio into one professional receiver interface with **Local, Internet, Emergency, Weather, Shortwave, and ISS / Sat** sources.
 - Rebuilds the Games Library around persistent collapsible console sections instead of one giant flat mixed list.
-- Advances GNOME/application identity and the active root executable to **Nougat_Media_Suite_v57**.
+- Advances GNOME/application identity and the active root executable to **Nougat_Play_Portal_v57**.
 
 Known issues carried forward into v0.0.58:
 
@@ -507,7 +543,7 @@ Known issues carried forward into v0.0.58:
 
 ## v0.0.56 - Player Identity and Fullscreen Playback Repair
 
-Nougat Media Suite v0.0.56 advances the native Player and fullscreen playback system while preserving the existing Games, Radio, Live TV, Web Player, server, Search, P2P, Studio, and media-library architecture.
+Nougat Play Portal v0.0.56 advances the native Player and fullscreen playback system while preserving the existing Games, Radio, Live TV, Web Player, server, Search, P2P, Studio, and media-library architecture.
 
 - Cleans television episode identity to the format **Series • SxxExx • Episode Title** without duplicate episode codes, redundant year information, raw filenames, or release metadata.
 - Applies the same clean identity to **Up Next**.
@@ -518,13 +554,13 @@ Nougat Media Suite v0.0.56 advances the native Player and fullscreen playback sy
 - Keeps fullscreen playback time updating while the activity controls are visible.
 - Preserves the additional Live TV timing information, including program start and end clock values.
 - Makes the main Nougat window disappear immediately when closed with the window-manager X while normal shutdown cleanup continues.
-- Advances the active root executable from **Nougat_Media_Suite_v55** to **Nougat_Media_Suite_v56**.
+- Advances the active root executable from **Nougat_Play_Portal_v55** to **Nougat_Play_Portal_v56**.
 
 Known carried-forward issue: the seekbar round-thumb edge/halo appearance remains visually incorrect and is deferred for repair in the next build.
 
 ## v0.0.55 - Background Web Player and Complete Runnable Project Checkpoint
 
-Nougat Media Suite v0.0.55 advances the private-LAN Web Player and complete-project distribution work while v0.0.54 remains the current owner-accepted release.
+Nougat Play Portal v0.0.55 advances the private-LAN Web Player and complete-project distribution work while v0.0.54 remains the current owner-accepted release.
 
 - Adds the Nougat-branded LAN Web Player for browser access from computers, phones, tablets, televisions, consoles, and other devices on the same private network.
 - Uses port **8096** for the public/LAN Nougat Web Player and **127.0.0.1:8098** for the hidden Jellyfin backend.
@@ -545,7 +581,7 @@ Known unresolved v0.0.55 issues are the desktop Server indicator remaining yello
 
 ## v0.0.54 - Professional File Splitter and Silver Screen Studio
 
-Nougat Media Suite v0.0.54 is the current owner-accepted release.
+Nougat Play Portal v0.0.54 is the current owner-accepted release.
 
 - Promotes File Splitter from a prototype into a professional Studio tool opened from **Studio -> Tools -> File Splitter**, rather than giving File Splitter its own top-level tab.
 - Adds in-page **Add File**, **Add Folder**, **Add ZIP / Manifest**, and **Choose Location** browsing controls. File Splitter routine workflow remains inside Nougat without external chooser or status popups.
@@ -554,11 +590,11 @@ Nougat Media Suite v0.0.54 is the current owner-accepted release.
 - Streams large files rather than loading them wholly into memory, records SHA-256 hashes for produced pieces, verifies reassembled data, cleans incomplete output after cancellation, and retains compatibility with earlier Nougat v2 split manifests.
 - Gives Studio its Silver Screen identity with a silver top-level Studio button, silver Studio/Tools/File Splitter treatment, and a film-strip header across the Studio page.
 - Preserves the accepted v0.0.53 Xbox 360 embedded-video path, native player geometry, real libtorrent P2P support, local llama.cpp AI runtime, and the rest of the accepted Nougat feature set.
-- Enforces the one-root-executable release gate: **Nougat_Media_Suite_v54** is the sole active versioned executable in the project root.
+- Enforces the one-root-executable release gate: **Nougat_Play_Portal_v54** is the sole active versioned executable in the project root.
 
 ## v0.0.53 - System Expansion and Xbox 360 Embedded Video
 
-Nougat Media Suite v0.0.53 is the accepted release immediately preceding v0.0.54, built on the accepted v0.0.52 base.
+Nougat Play Portal v0.0.53 is the accepted release immediately preceding v0.0.54, built on the accepted v0.0.52 base.
 
 - Aligns World TV with the Live TV Guide geometry while preserving World TV's own orange presentation and adds clearer dependency, resolver, provider, stream, and startup-timeout failure reporting.
 - Reworks HDHomeRun ATSC scanning around physical RF channels 2 through 51 with explicit lock/service evidence, phased scan progress, truthful guide availability, and improved import diagnostics.
@@ -577,9 +613,9 @@ The following v0.0.53 integration notes were previously stored as separate root 
 
 DIRECT OVERLAY - NO INSTALLER
 
-This package is rooted exactly like the Nougat Media Suite project.
+This package is rooted exactly like the Nougat Play Portal project.
 It does not contain or touch a build directory.
-It does not replace Nougat_Media_Suite_v53.
+It does not replace Nougat_Play_Portal_v53.
 
 Included:
 - Corrected COMPANY_BIBLE.md with NO INSTALLERS law.
@@ -615,7 +651,7 @@ cannot be identified, Xenia Edge is not launched as a detached window.
 
 Scope:
 - Runtime-only Xbox 360 embedding repair.
-- Does not rebuild or replace Nougat_Media_Suite_v53.
+- Does not rebuild or replace Nougat_Play_Portal_v53.
 - Uses the NOUGAT_EMBED_XID already supplied by local v53 EmulatorHost.
 - Creates one real X11 InputOutput child directly inside Nougat's Games/video viewport.
 - Xenia Edge's XCB/Vulkan surface is redirected to that child before swapchain creation.
@@ -628,11 +664,11 @@ The existing xenia_edge_linux.AppImage remains required in the same runtime dire
 
 ## v0.0.52 - Radio Receiver Expansion and Hardware Foundation
 
-Nougat Media Suite v0.0.52 expands the Radio receiver and hardware foundation, including the new Radio backend, hardware capability handling, receiver controls, component sources, provider-neutral tuner work, SDR foundations, receiver discovery, multi-device support, scanning, favorites, recordings, signal monitoring, and experimental Hauppauge WinTV-HVR-955Q / Silicon Labs Si2157 FM support work. Known Radio and UI issues remain carried forward for repair.
+Nougat Play Portal v0.0.52 expands the Radio receiver and hardware foundation, including the new Radio backend, hardware capability handling, receiver controls, component sources, provider-neutral tuner work, SDR foundations, receiver discovery, multi-device support, scanning, favorites, recordings, signal monitoring, and experimental Hauppauge WinTV-HVR-955Q / Silicon Labs Si2157 FM support work. Known Radio and UI issues remain carried forward for repair.
 
 ## v0.0.51 - Radio, Live TV, World TV, Games, File Splitter, and Nougat Identity
 
-v0.0.51 expands Nougat Media Suite across Radio, Live TV, World TV, Games, Studio tools, desktop identity, navigation, and local-network media foundations.
+v0.0.51 expands Nougat Play Portal across Radio, Live TV, World TV, Games, Studio tools, desktop identity, navigation, and local-network media foundations.
 
 - Adds the new top-level **Radio** area with AM, FM, Shortwave, Weather, DAB/DAB+, DRM, Internet Radio, SDR, Favorites, and Recordings architecture.
 - Advances **HDHomeRun FLEX DUO** support with physical-device grouping, two independent tuner resources, provider-neutral tuner status, expanded scan diagnostics, and continued full channel-scan pipeline work.
@@ -644,11 +680,11 @@ v0.0.51 expands Nougat Media Suite across Radio, Live TV, World TV, Games, Studi
 - Continues system-wide translucent floating-overlay and rounded-corner clipping work.
 - Carries forward the **LAN Web Viewer** foundation for local browser access to Nougat media, artwork, history, Live TV, sessions, pairing, and diagnostics without requiring a cloud login or automatic port forwarding.
 - Records the unified controller framework for Nougat UI navigation, Video Player, Games, and future Drone Flight contexts.
-- Carries forward all owner-tested v0.0.51 repair requirements documented in `docs/builds/NOUGAT_MEDIA_SUITE_v0_0_51_REJECTED_BUILD_LOG.md`.
+- Carries forward all owner-tested v0.0.51 repair requirements documented in `docs/builds/NOUGAT_PLAY_PORTAL_v0_0_51_REJECTED_BUILD_LOG.md`.
 
 ## v0.0.50 - File Splitter, Unified Tuners, and Studio Foundation
 
-v0.0.50 advances Nougat Media Suite with the first File Splitter implementation, unified HDHomeRun/WinTV tuner groundwork, and Studio naming/architecture work.
+v0.0.50 advances Nougat Play Portal with the first File Splitter implementation, unified HDHomeRun/WinTV tuner groundwork, and Studio naming/architecture work.
 
 - Adds the initial Nougat File Splitter implementation and its regression-test foundation.
 - Adds HDHomeRun discovery and tuner-provider support alongside the existing Linux DVB/WinTV path.
@@ -658,7 +694,7 @@ v0.0.50 advances Nougat Media Suite with the first File Splitter implementation,
 - Renames the production area to **Studio** as the foundation for Nougat's future filmmaking and production environment.
 - v0.0.50 is accepted with documented known issues carried forward to v0.0.51, including File Splitter workflow repair, HDHomeRun physical-device grouping and full-scan completion, provider-neutral Live TV status, visible version/icon identity, World TV guide presentation, World TV playback reliability, and World TV popup transparency/clipping.
 
-See `docs/builds/NOUGAT_MEDIA_SUITE_v0_0_50_ACCEPTED_KNOWN_ISSUES.md` for the complete accepted-known-issues record.
+See `docs/builds/NOUGAT_PLAY_PORTAL_v0_0_50_ACCEPTED_KNOWN_ISSUES.md` for the complete accepted-known-issues record.
 
 ## v0.0.49 - Games Runtime, Artwork, ZIP Library, and World TV Repair
 
@@ -717,7 +753,7 @@ v0.0.46 repairs owner-reported release and runtime failures while preserving the
 - Reworks collection/system scanning around one bulk ClamAV collection pass, broad fast checks, and deep capa/reputation analysis only when an indicator justifies it.
 - Adds the versioned LAN media-service foundation for catalog/history, direct media delivery, future HLS/transcoding, pairing, and a local web UI, with `nougat.local` reserved for friendly discovery and direct local-IP access retained as the fallback.
 - LAN architecture is WAN-independent by rule: no cloud account, cloud relay, automatic UPnP/port-forwarding, or Internet round trip is required for locally owned media.
-- Adds permanent release gates requiring exactly one root Nougat executable, the current `Nougat_Media_Suite_v46`, and the approved Nougat N custom icon on that final binary after the last copy/write.
+- Adds permanent release gates requiring exactly one root Nougat executable, the current `Nougat_Play_Portal_v46`, and the approved Nougat N custom icon on that final binary after the last copy/write.
 - Adds a README order gate: product heading and full suite introduction first, current version notes second, older version history afterward.
 - Preserves v0.0.45 Secure Search fail-closed behavior and accepted player, Library, Discover, Live TV, Stream, Studio, Games, P2P, diagnostics, and media-server behavior outside this repair scope.
 
@@ -727,7 +763,7 @@ Nougat Search now has a fail-closed privacy foundation. User queries are sent to
 
 The v0.0.45 architecture deliberately leaves production OHTTP/multi-relay transport, PIR/homomorphic private retrieval, mix/batching defenses, post-quantum transport, browser containment, and signed relay-directory work behind replaceable interfaces rather than hard-wiring today's mechanism into the application.
 
-Nougat Media Suite is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application. It also includes native Live TV, World TV, Studio, and an integrated Games library with persistent ROM folders, ZIP ROM discovery, automatic game-system and emulator selection, controller support, game artwork support, and expanded Nintendo and Atari system support. Nougat also includes responsive multi-row media-library browsing, security analysis, diagnostics, and integrated media-server controls. World TV is now a dedicated top-level international television area using direct non-YouTube broadcast feeds with a 1080p ceiling, and Games includes pinned MesenCE, RMG, and Atari800 emulator runtimes, Library-identical multi-row cards, automatic artwork retrieval, and right-click card actions shared across Nougat card surfaces.
+Nougat Play Portal is the new official identity of the Linux media application previously released as ReddMedia through accepted v0.0.20. It combines native local playback, a hidden local Jellyfin catalog foundation, local recommendation AI, optional TMDb discovery, decentralized Search, multi-platform Stream URL handling, and built-in P2P transfer/streaming in one desktop application. It also includes native Live TV, World TV, Studio, and an integrated Games library with persistent ROM folders, ZIP ROM discovery, automatic game-system and emulator selection, controller support, game artwork support, and expanded Nintendo and Atari system support. Nougat also includes responsive multi-row media-library browsing, security analysis, diagnostics, and integrated media-server controls. World TV is now a dedicated top-level international television area using direct non-YouTube broadcast feeds with a 1080p ceiling, and Games includes pinned MesenCE, RMG, and Atari800 emulator runtimes, Library-identical multi-row cards, automatic artwork retrieval, and right-click card actions shared across Nougat card surfaces.
 
 ## v0.0.44 - World TV, Playable Games, Artwork, and Global Card Actions
 
@@ -745,7 +781,7 @@ v0.0.44 turns the v0.0.43 foundations into directly testable television and game
 
 ## v0.0.43 - Games, World TV, and Responsive Grid Repair
 
-v0.0.43 builds on v0.0.42 and expands the current Nougat Media Suite feature set.
+v0.0.43 builds on v0.0.42 and expands the current Nougat Play Portal feature set.
 
 - Expands Games with Grid and List views.
 - Adds system and source badges to game entries.
@@ -898,7 +934,7 @@ v0.0.34 builds directly on accepted v0.0.33 commit `6763a42bf5c125974e5a2882234f
 
 ### Owner-approved v0.0.34 changes
 - Global top navigation uses the actual concept-sheet tab proportions and construction instead of thin pill buttons: squarer rounded body, double bevel/inset seam, tight inter-tab spacing, and the selected downward pointer. Existing per-page colors remain.
-- The entire scrollable top-tab lane is shifted left to sit close to `NOUGAT MEDIA SUITE`; the fixed right-side `Server / dot / version` area is deliberately unchanged.
+- The entire scrollable top-tab lane is shifted left to sit close to `NOUGAT PLAY PORTAL`; the fixed right-side `Server / dot / version` area is deliberately unchanged.
 - Video Player seek bar now follows the actual sheet seek component: slim cream track, caramel progress, round knob, timestamps below.
 - Video Player volume now follows the actual sheet volume component: compact cream housing, left/right speaker glyphs, inset track, round knob, and percentage readout. Existing 0-200% Nougat gain behavior is retained.
 - Home cards use fixed section geometry rather than media-type-driven heights. Continue Watching is a consistent landscape preview shelf; LOCAL recommendations use a consistent portrait-grid template.
@@ -997,7 +1033,7 @@ v0.0.26 builds on the owner-accepted v0.0.25 release. Mouse side buttons now nav
 
 The approved Nougat N artwork receives a perimeter cleanup that removes the tiny lower-edge light sliver while preserving the approved emblem itself across the icon family and embedded window/header icon data. The Video Player keeps its intentional 0-200% volume range, but the Volume label, existing slider, and single correct percentage are centered as one group; the duplicate percentage and rejected square/triangle speaker glyphs are removed.
 
-Debug becomes the **Nougat Media Suite Diagnostic Center**. It gathers evidence from Nougat, the host system, Jellyfin, Library metadata/paths, libVLC playback, Search, the existing P2P core, local AI/TMDb, and Stream. Reports can be copied or exported as human-readable TXT, structured JSON, or a redacted support bundle. Green is reserved for checks that returned healthy evidence; missing or unavailable evidence is kept explicit rather than invented.
+Debug becomes the **Nougat Play Portal Diagnostic Center**. It gathers evidence from Nougat, the host system, Jellyfin, Library metadata/paths, libVLC playback, Search, the existing P2P core, local AI/TMDb, and Stream. Reports can be copied or exported as human-readable TXT, structured JSON, or a redacted support bundle. Green is reserved for checks that returned healthy evidence; missing or unavailable evidence is kept explicit rather than invented.
 
 At natural TV episode completion, Nougat resolves the real next episode before presenting an **Up Next** overlay. The overlay shows a visible 10-second countdown and `Play Next`, `Back to Series`, and `Replay`; manual choices cancel the countdown, and an unresolved next episode produces an explicit message instead of silently dead-ending.
 
@@ -1018,11 +1054,11 @@ Discover now exposes its persistent state visually. `Usual | Random` is one sele
 
 ## v0.0.24 - Search Page UI Polish
 
-v0.0.24 is an owner-approved Search-page-only visual polish release on the accepted v0.0.23 base. It moves the approved N emblem and NOUGAT MEDIA SUITE identity to the far-left header position, removes the duplicate right-side N badge, finishes concept-sheet styling for Search/Crawler/P2P controls and panels, aligns Network... and SEARCH on the same right-side column, and strengthens GNOME launcher/window icon association so the approved N replaces the generic gear fallback. Search-engine behavior is intentionally unchanged in this release.
+v0.0.24 is an owner-approved Search-page-only visual polish release on the accepted v0.0.23 base. It moves the approved N emblem and NOUGAT PLAY PORTAL identity to the far-left header position, removes the duplicate right-side N badge, finishes concept-sheet styling for Search/Crawler/P2P controls and panels, aligns Network... and SEARCH on the same right-side column, and strengthens GNOME launcher/window icon association so the approved N replaces the generic gear fallback. Search-engine behavior is intentionally unchanged in this release.
 
 ## v0.0.23 - Exact Concept UI and Stream Direct Watch Repair
 
-v0.0.23 is the owner-approved post-license UI and Stream repair build. The uploaded Nougat Media Suite concept sheet is the visual authority for the application theme: rounded stitched/beveled candy-style controls, cream/caramel/chocolate materials, area-specific tab accents, the active-tab point, quilted page surfaces, concept-style seek/volume controls, and the exact square chocolate/caramel N emblem. Existing control order and media behavior are preserved unless explicitly listed below.
+v0.0.23 is the owner-approved post-license UI and Stream repair build. The uploaded Nougat Play Portal concept sheet is the visual authority for the application theme: rounded stitched/beveled candy-style controls, cream/caramel/chocolate materials, area-specific tab accents, the active-tab point, quilted page surfaces, concept-style seek/volume controls, and the exact square chocolate/caramel N emblem. Existing control order and media behavior are preserved unless explicitly listed below.
 
 - Top-level order remains `Video Player | Library | Discover | Search | Stream | Debug`.
 - The active top tab receives the concept-sheet downward point/notch; the navigation group centers when width permits and remains scrollable when narrow.
@@ -1038,7 +1074,7 @@ v0.0.23 is the owner-approved post-license UI and Stream repair build. The uploa
 
 v0.0.22 is a legal/release-infrastructure build over the owner-accepted v0.0.21 baseline. It does not add or redesign media behavior. It strengthens the project license boundary around Elderred Softworks LLC Original Materials, preserves third-party licensing, adds explicit copyright/ownership notices, establishes inbound contributor terms, and adds automated release checks intended to prevent accidental relicensing.
 
-The versioned root executable advances to `Nougat_Media_Suite_v22` only so the accepted legal release remains versioned consistently with Nougat Media Suite's release rules. The application's media, Search, Stream, Library, Discover, P2P, server, playback, and palette behavior is retained from v0.0.21.
+The versioned root executable advances to `Nougat_Play_Portal_v22` only so the accepted legal release remains versioned consistently with Nougat Play Portal's release rules. The application's media, Search, Stream, Library, Discover, P2P, server, playback, and palette behavior is retained from v0.0.21.
 
 ## v0.0.21 - Official Rename, Candy Palette, and Navigation Repair
 
@@ -1046,7 +1082,7 @@ v0.0.21 builds directly on the owner-accepted ReddMedia v0.0.20 baseline at comm
 
 The visible top-level order is **Video Player | Library | Discover | Search | Stream | Debug**. The former top-level **Nougat** label becomes **Search** because Nougat now names the entire suite. Search exposes **Search | Crawler | P2P** as its ordinary internal sections. Decentralized search-node peer controls are tucked behind **Network...** inside Search instead of occupying a normal user-facing tab.
 
-The application/window/launcher identity becomes **Nougat Media Suite**. The versioned root executable is `Nougat_Media_Suite_v21`. The approved rounded-square chocolate/nougat **N + play triangle** artwork replaces the former ReddMedia red-tree icon for the launcher, dock/app switcher, X11 window, raw executable metadata, and the in-app version badge.
+The application/window/launcher identity becomes **Nougat Play Portal**. The versioned root executable is `Nougat_Play_Portal_v21`. The approved rounded-square chocolate/nougat **N + play triangle** artwork replaces the former ReddMedia red-tree icon for the launcher, dock/app switcher, X11 window, raw executable metadata, and the in-app version badge.
 
 The suite-wide visual system is rebuilt around the candy identity. **Video Player is chocolate/cocoa/caramel**, Library is forest/sage, Discover is plum/lavender, Search is chocolate/nougat/caramel, and Debug is graphite/amber. The top navigation itself uses those area identities instead of one inherited ReddMedia-red strip. Stream is service-reactive: selecting **YouTube, Rumble, RuTube, VK, or OK** changes the Stream interior and its tab color to that service's recognizable palette.
 
@@ -1054,7 +1090,7 @@ In Library, the old `Grid [x]` / `List [x]` text buttons are removed. At the far
 
 Existing Stream services remain exactly **YouTube | Rumble | RuTube | VK | OK** in v0.0.21. Vimeo, Dailymotion, Twitch, Kick, TikTok, Bilibili, and Niconico are deferred to v0.0.23. The approved nougat-specific UI polish, poster/artwork overhaul, rounded-corner polish, top-navigation centering, volume-bar geometry changes, the optional local Web Player, and Plex integration are also deferred.
 
-The existing Git repository directory and backward-compatible user-data/config paths remain unchanged so the product rename does not silently become a filesystem/data migration. User-visible application identity is Nougat Media Suite.
+The existing Git repository directory and backward-compatible user-data/config paths remain unchanged so the product rename does not silently become a filesystem/data migration. User-visible application identity is Nougat Play Portal.
 
 ## v0.0.20
 
@@ -1491,7 +1527,7 @@ ReddMedia bundles its yt-dlp executable under `tools/yt-dlp/`. VLC/libVLC, FFmpe
 
 ## Licensing and third-party software
 
-Nougat Media Suite Original Materials are made available to recipients under the **PolyForm Noncommercial License 1.0.0**. Elderred Softworks LLC retains all rights not granted to recipients, including commercial use and separate commercial licensing of its own Original Materials. See [`LICENSE`](LICENSE), [`COPYRIGHT.md`](COPYRIGHT.md), and [`docs/LICENSING_POLICY.md`](docs/LICENSING_POLICY.md).
+Nougat Play Portal Original Materials are made available to recipients under the **PolyForm Noncommercial License 1.0.0**. Elderred Softworks LLC retains all rights not granted to recipients, including commercial use and separate commercial licensing of its own Original Materials. See [`LICENSE`](LICENSE), [`COPYRIGHT.md`](COPYRIGHT.md), and [`docs/LICENSING_POLICY.md`](docs/LICENSING_POLICY.md).
 
 Outside contributions are accepted only under [`CONTRIBUTING.md`](CONTRIBUTING.md), which grants the project owner sufficient rights to continue maintaining, sublicensing, relicensing, and commercially licensing the combined project.
 

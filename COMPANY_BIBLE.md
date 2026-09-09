@@ -1,14 +1,14 @@
-# Nougat Media Suite Company Bible
+# Nougat Play Portal Company Bible
 
-**Status:** Canonical project operating law  
-**Scope:** Nougat Media Suite only  
+**Status:** Canonical project operating law
+**Scope:** Nougat Play Portal only
 **Authority:** The owner has final authority over scope, acceptance, release state, and exceptions.
 
 ## 1. Purpose
 
-This is the one canonical project Bible for Nougat Media Suite. It defines how Nougat Media Suite is planned, changed, validated, packaged, explained, committed, published, and recovered. It must not contain rules, source, secrets, history, or identifying material from unrelated projects.
+This is the one canonical project Bible for Nougat Play Portal. It defines how Nougat Play Portal is planned, changed, validated, packaged, explained, committed, published, and recovered. It must not contain rules, source, secrets, history, or identifying material from unrelated projects.
 
-No second Nougat Media Suite Bible may be created. Amend this file in an owner-approved build when a durable Nougat Media Suite rule changes.
+No second Nougat Play Portal Bible may be created. Amend this file in an owner-approved build when a durable Nougat Play Portal rule changes.
 
 ## 2. Owner authority and stop law
 
@@ -32,7 +32,7 @@ No second Nougat Media Suite Bible may be created. Amend this file in an owner-a
 
 ## 3. Required reading order
 
-Before changing Nougat Media Suite, read:
+Before changing Nougat Play Portal, read:
 
 1. this Bible in full;
 2. the current roadmap;
@@ -45,7 +45,7 @@ The active Git commit, branch, worktree state, expected executable, rollback sna
 
 ## 3A. Mandatory Bible reading and README release law
 
-- Before every Nougat Media Plus build, repair, patch, validation, packaging operation, checkpoint closeout, acceptance closeout, local Git commit, release tag, or GitHub publication, the canonical `COMPANY_BIBLE.md` must be read in full. Memory, summaries, prior-chat recollection, and assumptions are not substitutes for reading the current file.
+- Before every Nougat Play Portal build, repair, patch, validation, packaging operation, checkpoint closeout, acceptance closeout, local Git commit, release tag, or GitHub publication, the canonical `COMPANY_BIBLE.md` must be read in full. Memory, summaries, prior-chat recollection, and assumptions are not substitutes for reading the current file.
 - The existing `README.md` introduction is persistent project documentation. It must remain intact unless the owner explicitly requests an introduction rewrite.
 - New owner-approved capabilities must be added to the existing README introduction using the smallest appropriate additions. Established introduction text must not be silently rewritten, condensed, reordered, or removed merely to document a new version.
 - Every accepted build, checkpoint closeout, or GitHub publication that changes current capabilities must update both the maintained `README.md` introduction and the newest version release notes. Adding only a version section does not satisfy the README requirement.
@@ -81,7 +81,7 @@ The active Git commit, branch, worktree state, expected executable, rollback sna
 
 ## 6. Source and privacy law
 
-- The repository contains Nougat Media Suite material and its own historical ReddMedia lineage only.
+- The repository contains Nougat Play Portal material and its own historical ReddMedia lineage only.
 - Do not place credentials, tokens, API keys, personal data, unrelated private-project material, generated runtime trees, caches, or build debris in Git.
 - Runtime state belongs under the user's standard config, data, and cache directories.
 - Credentials must be stored with owner-only permissions and must never be printed in logs, terminal commands, process arguments when avoidable, documentation, test output, commits, or packages.
@@ -97,11 +97,11 @@ The active Git commit, branch, worktree state, expected executable, rollback sna
 - No build may change `LICENSE`, `COPYRIGHT.md`, `CONTRIBUTING.md`, `THIRD_PARTY_NOTICES.md`, or `docs/LICENSING_POLICY.md` without explicit owner approval.
 - A release must run the current license-boundary regression test before handoff.
 
-## 7. Nougat Media Suite identity law
+## 7. Nougat Play Portal identity law
 
-The owner-approved rounded-square chocolate/caramel **N** emblem at the top center of `docs/design/NOUGAT_UI_COMPONENT_SHEET_APPROVED.png` is Nougat Media Suite's sole active icon source beginning with v0.0.21. The concept sheet itself is the authority. Do not redraw, regenerate, substitute, approximate, or replace the N with generic executable, gear, letter, or placeholder artwork.
+The owner-approved rounded-square chocolate/caramel **N** emblem at the top center of `docs/design/NOUGAT_UI_COMPONENT_SHEET_APPROVED.png` is Nougat Play Portal's sole active icon source beginning with v0.0.21. The concept sheet itself is the authority. Do not redraw, regenerate, substitute, approximate, or replace the N with generic executable, gear, letter, or placeholder artwork.
 
-**NO EXCEPTIONS RELEASE GATE:** every Nougat Media Suite build, patch, repair, hotfix, and version bump must preserve and verify that exact approved N on every active application identity surface before the candidate may be handed to the owner. This requirement is permanent and is not optional even when the build scope is unrelated to artwork.
+**NO EXCEPTIONS RELEASE GATE:** every Nougat Play Portal build, patch, repair, hotfix, and version bump must preserve and verify that exact approved N on every active application identity surface before the candidate may be handed to the owner. This requirement is permanent and is not optional even when the build scope is unrelated to artwork.
 
 The mandatory identity surfaces are:
 - the raw versioned root executable as shown by Files/Nautilus;
@@ -120,10 +120,10 @@ The accepted red-tree artwork remains historical ReddMedia identity through v0.0
 
 ## 8. Media-server ownership law
 
-- Nougat Media Suite may start and supervise its integrated Jellyfin process.
+- Nougat Play Portal may start and supervise its integrated Jellyfin process.
 - After **Start Server**, a Nougat-owned server is intentionally independent of the desktop UI and must remain running across normal UI close or UI crash until **Stop Server** is explicitly used.
 - Reopening Nougat must validate and adopt only the recorded Nougat-owned server; stale PID metadata must never authorize killing an unrelated process.
-- A separately started Jellyfin process must not be claimed or killed by Nougat Media Suite.
+- A separately started Jellyfin process must not be claimed or killed by Nougat Play Portal.
 - Start Server, Stop Server, and Refresh Server controls must report their real state.
 - Stop Server records the explicit stopped preference. Nougat must not add operating-system boot autostart unless the owner separately approves it.
 - Server data, config, cache, logs, ownership metadata, and the bundled runtime remain separate from Git-tracked source.
@@ -141,7 +141,7 @@ The accepted red-tree artwork remains historical ReddMedia identity through v0.0
 - The owner must be able to Test, Save/Replace, and Clear the TMDb credential.
 - A 401 response must be explained clearly without exposing the credential.
 - Random recommendations do not use viewing history. Usual recommendations may use private local viewing history and local embeddings.
-- Nougat Media Suite must never invent a title to hide an API, catalog, model, or network failure.
+- Nougat Play Portal must never invent a title to hide an API, catalog, model, or network failure.
 - Watch availability uses the exact owner-selected region and the complete provider categories returned through TMDb's JustWatch data. ReddMedia must show attribution, freshness, and an explicit no-listing state; it must not infer availability or bypass a provider's official playback path.
 
 ## 10. Diagnostic truth law
@@ -172,7 +172,7 @@ The accepted red-tree artwork remains historical ReddMedia identity through v0.0
 
 The normal handoff is one changed-files-only ZIP containing exactly the files required to move the verified base to the candidate.
 
-**NO INSTALLERS:** Nougat Media Suite handoff packages must not contain, generate, or require an installer. The owner receives the changed files and the final runnable versioned root executable directly.
+**NO INSTALLERS:** Nougat Play Portal handoff packages must not contain, generate, or require an installer. The owner receives the changed files and the final runnable versioned root executable directly.
 
 The package must include:
 
@@ -198,8 +198,8 @@ The package must not include generated runtime directories, caches, temporary bu
 
 When the owner must run a command:
 
-- every Nougat Media Suite **repair, build, validation, package-apply, or acceptance-preflight** terminal block must begin with a safe runtime-shutdown stage before build or filesystem work begins;
-- that shutdown stage must stop any running Nougat Media Suite application process and the **verified Nougat-owned integrated Jellyfin** process, then verify both are down before continuing;
+- every Nougat Play Portal **repair, build, validation, package-apply, or acceptance-preflight** terminal block must begin with a safe runtime-shutdown stage before build or filesystem work begins;
+- that shutdown stage must stop any running Nougat Play Portal application process and the **verified Nougat-owned integrated Jellyfin** process, then verify both are down before continuing;
 - never kill Jellyfin blindly by process name. Use Nougat ownership/runtime evidence (including the recorded ownership file/runtime path where available). If Jellyfin ownership is ambiguous, print a clear STOP/FAIL message with the relevant PID/process information and leave the unknown process running for owner review;
 - if the owner explicitly instructs that an independently started Jellyfin instance should also be stopped, that broader shutdown is allowed for that operation;
 - terminal command blocks must contain commands only: never include the shell prompt (for example `user@host:~$`) or copied/expected terminal output as executable lines;
@@ -235,7 +235,7 @@ Large tracked assets must be explained when GitHub reports size warnings. New la
 
 ## 17. Acceptance checklist
 
-A Nougat Media Suite candidate is ready for owner testing only when:
+A Nougat Play Portal candidate is ready for owner testing only when:
 
 - the approved scope is complete;
 - builds and automated validation pass;
@@ -246,19 +246,19 @@ A Nougat Media Suite candidate is ready for owner testing only when:
 - persistent owned-server survival across UI exit and explicit Stop Server shutdown are proven;
 - Movie/TV separation is proven;
 - TMDb credential lifecycle and poster paths are proven;
-- the final raw executable has the approved Nougat Media Suite icon metadata assignment read back;
+- the final raw executable has the approved Nougat Play Portal icon metadata assignment read back;
 - the owner receives the final runnable versioned root executable with the exact approved Nougat N icon verified, plus one clearly explained package-apply command only when filesystem changes beyond replacing the executable are required, and the explicit remaining visual checks.
 
 Only the owner decides whether the candidate is accepted.
 
-## 18. Search inside Nougat Media Suite
+## 18. Search inside Nougat Play Portal
 
-1. The decentralized Nougat engine is the integrated **Search** subsystem inside Nougat Media Suite.
+1. The decentralized Nougat engine is the integrated **Search** subsystem inside Nougat Play Portal.
 2. Beginning with v0.0.33, the owner-approved top-level order is `Home | Video Player | Library | Discover | Live TV | Search | Stream | Debug`. Media/torrent P2P and Virus Scan remain under Search, not as top-level areas.
 3. Accepted behavior remains preserved when identity/palette work changes unless functionality is explicitly approved.
 4. Search uses the approved cocoa/chocolate/nougat-cream/caramel palette. Its ordinary internal sections are `Search | Crawler | P2P | Virus Scan`; decentralized peer/node administration is available only through a smaller Network/Advanced surface.
 5. Read-only Search output remains selectable/copyable with normal mouse selection, Ctrl+C, Ctrl+A, and right-click Copy/Select All.
-6. Nougat Media Suite owner-created code is distributed to recipients for noncommercial use under the project license; third-party components retain upstream licenses; the owner retains all rights not granted.
+6. Nougat Play Portal owner-created code is distributed to recipients for noncommercial use under the project license; third-party components retain upstream licenses; the owner retains all rights not granted.
 7. Active Search data remains under the backward-compatible existing user-data tree.
 
 ### v0.0.32 Security Analysis law
@@ -271,8 +271,8 @@ Only the owner decides whether the candidate is accepted.
 
 ### v0.0.21 identity and palette rules
 
-- Official visible application identity is **Nougat Media Suite**; historical ReddMedia identity ended with accepted v0.0.20.
-- Root executable: `Nougat_Media_Suite_v21`.
+- Official visible application identity is **Nougat Play Portal**; historical ReddMedia identity ended with accepted v0.0.20.
+- Root executable: `Nougat_Play_Portal_v21`.
 - Former top-level Nougat tab label: **Search**.
 - Common suite chrome: chocolate/cocoa/cream/caramel with the approved N + play icon.
 - Video Player: chocolate/cocoa/caramel; Library: forest/sage; Discover: plum/lavender; Search: cocoa/nougat/caramel; Debug: graphite/amber. P2P may retain a navy/ice sub-surface inside Search.
@@ -292,11 +292,11 @@ Only the owner decides whether the candidate is accepted.
 - Compact bottom controls center when width permits and remain wheel-scrollable when narrow.
 - Movies and TV independently persist Grid/List Library preferences.
 - Custom editable text fields show focus/caret state.
-- Default Play remains the native Nougat Media Suite player.
+- Default Play remains the native Nougat Play Portal player.
 
 ### v0.0.23 exact concept UI rules
 
-- The owner-uploaded Nougat Media Suite concept sheet is the canonical visual authority for the v0.0.23 UI treatment. Approximate alternate themes are not substitutes.
+- The owner-uploaded Nougat Play Portal concept sheet is the canonical visual authority for the v0.0.23 UI treatment. Approximate alternate themes are not substitutes.
 - The established top-level layout remains `Video Player | Library | Discover | Search | Stream | Debug`; styling may not reorder or replace those tabs without explicit owner approval.
 - The selected top-level tab uses the integrated downward point/notch shown in the concept sheet.
 - The established Video Player control order remains `Open | Rewind 10s | Play/Pause | Stop | Fast Forward 10s | Fullscreen`.
@@ -309,7 +309,7 @@ Only the owner decides whether the candidate is accepted.
 ## 19. v0.0.24 Search-page polish law
 
 - Search-page polish is scoped to the existing Search area and must not change decentralized-search engine behavior without separate owner approval.
-- The suite header uses the approved N emblem at the far left with `NOUGAT MEDIA SUITE` immediately beside it; the version/server area does not carry a duplicate N.
+- The suite header uses the approved N emblem at the far left with `NOUGAT PLAY PORTAL` immediately beside it; the version/server area does not carry a duplicate N.
 - Search's internal `Search | Crawler | P2P | Virus Scan` tabs use the approved concept-sheet control family and selected-tab point/notch.
 - `Network...` and `SEARCH` share the same right-side alignment and width.
 - Search fields, results, peer lists, crawl logs, and embedded P2P surfaces use the approved cream/caramel/chocolate concept family rather than the legacy flat dark slab.
@@ -346,7 +346,7 @@ Only the owner decides whether the candidate is accepted.
 ### v0.0.34 exact-sheet navigation/player-control law
 - The owner-approved Nougat UI concept sheet is the literal authority for the global top tabs, seek bar, and volume control. Do not substitute pill-button approximations for the top tabs.
 - Top tabs retain page-specific colors but use the sheet's tab geometry, bevel/inset treatment, tight spacing, and selected downward pointer.
-- The scrollable top-tab lane begins close to the `NOUGAT MEDIA SUITE` brand; the fixed right Server/status/version block is not moved by this repair.
+- The scrollable top-tab lane begins close to the `NOUGAT PLAY PORTAL` brand; the fixed right Server/status/version block is not moved by this repair.
 - The sheet seek component governs track/knob/timestamp presentation. The sheet volume component governs the housed control, speaker glyphs, track/knob, and percentage placement while Nougat retains its functional 0-200% volume range.
 - Home card geometry is section-defined, never media-item-defined: Continue Watching uses one landscape template; LOCAL recommendations use one portrait template.
 - Discover source names must describe the actual backend. TMDb-backed discovery is labeled `TMDb Movie` and `TMDb TV`; Live TV is its own source selector.

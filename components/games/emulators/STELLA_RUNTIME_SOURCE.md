@@ -1,4 +1,4 @@
-# Stella runtime provenance for Nougat Media Suite v0.0.49
+# Stella runtime provenance for Nougat Play Portal v0.0.49
 
 Nougat v0.0.49 adds a managed Atari 2600 runtime based on **Stella 7.0**.
 

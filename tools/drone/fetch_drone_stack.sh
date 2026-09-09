@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -u
-PROJECT="${1:-$HOME/DKLab/Projects/Nougat Media Suite}"
+PROJECT="${1:-$HOME/DKLab/Projects/Nougat Play Portal}"
 VENDOR="${2:-$PROJECT/components/drone/vendor}"
 mkdir -p "$VENDOR"
 if ! command -v git >/dev/null 2>&1; then

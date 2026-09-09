@@ -26,9 +26,9 @@ def git_blob_sha(path: Path) -> str:
 
 
 need("// NOUGAT_V54_FILE_SPLITTER_PROFESSIONAL" in MAIN, "v54 source marker missing")
-need('printf("Nougat Media Suite v0.0.54\\n")' in MAIN, "v54 --version identity missing")
-need("project(NougatMediaSuite VERSION 0.0.54" in CMAKE, "CMake project version is not v54")
-need("add_executable(Nougat_Media_Suite_v54" in CMAKE, "v54 executable target missing")
+need('printf("Nougat Play Portal v0.0.54\\n")' in MAIN, "v54 --version identity missing")
+need("project(NougatPlayPortal VERSION 0.0.54" in CMAKE, "CMake project version is not v54")
+need("add_executable(Nougat_Play_Portal_v54" in CMAKE, "v54 executable target missing")
 need("enum class StudioPanel { Tools, FileSplitter };" in MAIN, "Studio Tools/FileSplitter panel model missing")
 need('button_on(target,studioFileSplitterToolBtn,"File Splitter")' in MAIN,
      "File Splitter must be a Tools button")

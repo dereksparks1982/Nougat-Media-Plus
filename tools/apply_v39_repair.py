@@ -21,10 +21,10 @@ def roots(start):
   except:continue
   for q in [p]+list(p.parents):
    if (q/'src/main.cpp').is_file():r.append(q)
- for tmp in Path('/tmp').glob('nougat-media-suite-v0_0_39-repair-*'):
+ for tmp in Path('/tmp').glob('nougat-play-portal-v0_0_39-repair-*'):
   try:r += [m.parent.parent for m in tmp.rglob('src/main.cpp')]
   except OSError:pass
- home=Path.home()/'DKLab/Projects/Nougat Media Suite'
+ home=Path.home()/'DKLab/Projects/Nougat Play Portal'
  if (home/'src/main.cpp').is_file():r.append(home)
  u=[];seen=set()
  for p in r:

@@ -1,6 +1,6 @@
 # RMG 0.9.0 runtime source record
 
-Nougat Media Suite v0.0.44 installs the unmodified upstream Rosalie's Mupen GUI (RMG) 0.9.0 Linux AppImage as an extracted portable runtime under `components/games/runtime/rmg/` at install time. Extraction avoids a FUSE dependency and does not modify the upstream program. The runtime directory is generated and Git-ignored.
+Nougat Play Portal v0.0.44 installs the unmodified upstream Rosalie's Mupen GUI (RMG) 0.9.0 Linux AppImage as an extracted portable runtime under `components/games/runtime/rmg/` at install time. Extraction avoids a FUSE dependency and does not modify the upstream program. The runtime directory is generated and Git-ignored.
 
 - Upstream project: https://github.com/Rosalie241/RMG
 - Upstream release/tag: v0.9.0
@@ -9,4 +9,4 @@ Nougat Media Suite v0.0.44 installs the unmodified upstream Rosalie's Mupen GUI 
 - License: GNU GPL v3
 - Corresponding source: https://github.com/Rosalie241/RMG/tree/v0.9.0
 
-RMG remains a separate third-party work and is not relicensed under Nougat Media Suite's project license. A GPL-3.0 license copy accompanies this record in the candidate package.
+RMG remains a separate third-party work and is not relicensed under Nougat Play Portal's project license. A GPL-3.0 license copy accompanies this record in the candidate package.

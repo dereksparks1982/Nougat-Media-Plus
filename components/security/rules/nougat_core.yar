@@ -1,6 +1,6 @@
-// Elderred Softworks / Nougat Media Suite test-and-sanity rule set.
+// Elderred Softworks / Nougat Play Portal test-and-sanity rule set.
 // These rules are intentionally conservative. Additional user rules may be
-// placed in ~/.config/nougat-media-suite/security/rules/.
+// placed in ~/.config/nougat-play-portal/security/rules/.
 rule Nougat_EICAR_Antivirus_Test_File
 {
     meta:

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/nougat-media-plus/ps3"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/nougat-play-portal/ps3"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-PROFILE="$CONFIG_HOME/nougat-media-plus/ps3-graphics.conf"
+PROFILE="$CONFIG_HOME/nougat-play-portal/ps3-graphics.conf"
 mkdir -p "$CACHE" "$HERE"
 find_real(){ local p; if [[ -n "${NOUGAT_RPCS3_REAL:-}" && -x "${NOUGAT_RPCS3_REAL}" ]]; then printf '%s\n' "$NOUGAT_RPCS3_REAL"; return; fi; for p in "$HERE/RPCS3.AppImage" "$HOME/Applications/rpcs3.AppImage" /usr/local/bin/rpcs3 /usr/bin/rpcs3; do [[ -x "$p" && "$p" != "$HERE/rpcs3" ]] && { printf '%s\n' "$p"; return; }; done; return 1; }
 install_official(){ command -v curl >/dev/null; command -v python3 >/dev/null; local meta="$CACHE/rpcs3-latest.json" tmp="$HERE/.RPCS3.AppImage.download" values url digest got; curl -fsSL --retry 2 --connect-timeout 15 https://api.github.com/repos/RPCS3/rpcs3-binaries-linux/releases/latest -o "$meta"; values="$(python3 - "$meta" <<'PY'
@@ -44,7 +44,7 @@ if inv:
         if not seen[k]: out.append(f'  {k}: {v}')
 dst.parent.mkdir(parents=True,exist_ok=True); dst.write_text('\n'.join(out)+'\n',encoding='utf-8')
 PY
-if grep -Eq '^neural_enabled=(1|true|yes|on)$' "$PROFILE"; then layer="${NOUGAT_PS3_NEURAL_LAYER:-}"; if [[ -n "$layer" && -e "$layer" ]] || [[ -e "$HOME/.local/share/nougat-media-plus/ps3-neural/libnougat_ps3_neural.so" ]] || [[ -e "$HOME/.local/share/nougat-media-plus/ps3-neural/VkLayer_nougat_ps3_neural.json" ]]; then export NOUGAT_PS3_NEURAL=1 NOUGAT_PS3_NEURAL_PROFILE="$PROFILE"; fi; fi
+if grep -Eq '^neural_enabled=(1|true|yes|on)$' "$PROFILE"; then layer="${NOUGAT_PS3_NEURAL_LAYER:-}"; if [[ -n "$layer" && -e "$layer" ]] || [[ -e "$HOME/.local/share/nougat-play-portal/ps3-neural/libnougat_ps3_neural.so" ]] || [[ -e "$HOME/.local/share/nougat-play-portal/ps3-neural/VkLayer_nougat_ps3_neural.json" ]]; then export NOUGAT_PS3_NEURAL=1 NOUGAT_PS3_NEURAL_PROFILE="$PROFILE"; fi; fi
 exec "$real" --no-gui --config "$override" "$@"
 fi
 exec "$real" --no-gui "$@"

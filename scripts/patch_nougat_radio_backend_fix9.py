@@ -25,7 +25,7 @@ def main():
     cpp_path = project / "src/radio/radio_backend.cpp"
     cmake_path = project / "CMakeLists.txt"
     main_path = project / "src/main.cpp"
-    desktop_path = project / "com.elderredsoftworks.NougatMediaPlus.desktop"
+    desktop_path = project / "com.elderredsoftworks.NougatPlayPortal.desktop"
 
     for p in (hpp_path, cpp_path, cmake_path, main_path):
         if not p.is_file():
@@ -370,7 +370,7 @@ std::string find_cx231xx_alsa_capture() {
 
     # Identity/build target.
     cmake = cmake.replace("VERSION 0.0.66", "VERSION 0.0.67")
-    cmake = cmake.replace("Nougat_Media_Plus_v66", "Nougat_Media_Plus_v67")
+    cmake = cmake.replace("Nougat_Play_Portal_v66", "Nougat_Play_Portal_v67")
     if "src/radio/v4l2_radio_provider.cpp" not in cmake:
         cmake = replace_once(
             cmake,
@@ -382,38 +382,38 @@ std::string find_cx231xx_alsa_capture() {
 
     if "v0.0.67" not in main_cpp and "v0.0.66" in main_cpp:
         main_cpp = main_cpp.replace("v0.0.66", "v0.0.67")
-    if "Nougat Media Plus v0.0.67" not in main_cpp and "Nougat Media Plus v0.0.66" in main_cpp:
-        main_cpp = main_cpp.replace("Nougat Media Plus v0.0.66", "Nougat Media Plus v0.0.67")
+    if "Nougat Play Portal v0.0.67" not in main_cpp and "Nougat Play Portal v0.0.66" in main_cpp:
+        main_cpp = main_cpp.replace("Nougat Play Portal v0.0.66", "Nougat Play Portal v0.0.67")
 
     if desktop is not None:
         desktop = re.sub(
             r'^Exec=.*$',
-            f'Exec="{project}/Nougat_Media_Plus_v67"',
+            f'Exec="{project}/Nougat_Play_Portal_v67"',
             desktop,
             flags=re.M,
         )
         if re.search(r'^Icon=', desktop, flags=re.M):
             desktop = re.sub(
                 r'^Icon=.*$',
-                f'Icon={project}/assets/branding/nougat-media-plus-dock-N.png',
+                f'Icon={project}/assets/branding/nougat-play-portal-dock-N.png',
                 desktop,
                 flags=re.M,
             )
         else:
-            desktop += f'\nIcon={project}/assets/branding/nougat-media-plus-dock-N.png\n'
+            desktop += f'\nIcon={project}/assets/branding/nougat-play-portal-dock-N.png\n'
         if re.search(r'^StartupWMClass=', desktop, flags=re.M):
             desktop = re.sub(
                 r'^StartupWMClass=.*$',
-                'StartupWMClass=NougatMediaPlus',
+                'StartupWMClass=NougatPlayPortal',
                 desktop,
                 flags=re.M,
             )
         else:
-            desktop += '\nStartupWMClass=NougatMediaPlus\n'
+            desktop += '\nStartupWMClass=NougatPlayPortal\n'
         if re.search(r'^X-GNOME-Application-ID=', desktop, flags=re.M):
             desktop = re.sub(
                 r'^X-GNOME-Application-ID=.*$',
-                'X-GNOME-Application-ID=com.elderredsoftworks.NougatMediaPlus',
+                'X-GNOME-Application-ID=com.elderredsoftworks.NougatPlayPortal',
                 desktop,
                 flags=re.M,
             )

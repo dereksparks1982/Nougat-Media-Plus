@@ -46,7 +46,7 @@
 #include "games/uo_playable_runtime.hpp"
 #include "p2p_stream_server.hpp"
 #include "ytdlp_stream_server.hpp"
-#include "nougat_media_suite_icon_data.hpp"
+#include "nougat_play_portal_icon_data.hpp"
 #include "nougat_quilt_texture_data.hpp"
 #include "nougat_ui_sheet_texture_data.hpp"
 #include "media_server/jellyfin_api_client.hpp"
@@ -168,7 +168,7 @@ struct VlcApi {
             handle = dlopen(names[i], RTLD_NOW);
             if (handle) break;
         }
-        if (!handle) { err = "VLC/libVLC was not found. Install VLC, then reopen Nougat Media Plus."; return false; }
+        if (!handle) { err = "VLC/libVLC was not found. Install VLC, then reopen Nougat Play Portal."; return false; }
 #define LOAD_SYM(field, name) do { field = (decltype(field))dlsym(handle, name); if (!field) { err = std::string("Missing libVLC symbol: ") + name; return false; } } while(0)
         LOAD_SYM(new_, "libvlc_new");
         LOAD_SYM(release, "libvlc_release");
@@ -854,13 +854,13 @@ static std::string choose_media_library_folder_dialog() {
 static std::string choose_tmdb_credential_dialog() {
     std::string credential = run_command_capture(
         "command -v zenity >/dev/null 2>&1 && "
-        "zenity --entry --hide-text --title='Nougat Media Plus External Recommendations' "
+        "zenity --entry --hide-text --title='Nougat Play Portal External Recommendations' "
         "--text='Enter a TMDb API key or read access token' 2>/dev/null");
     if (!credential.empty()) return credential;
     const std::string py =
         "python3 -c \"import tkinter as tk; from tkinter import simpledialog; "
         "root=tk.Tk(); root.withdraw(); "
-        "v=simpledialog.askstring('Nougat Media Plus External Recommendations',"
+        "v=simpledialog.askstring('Nougat Play Portal External Recommendations',"
         "'Enter a TMDb API key or read access token',show='*'); print(v if v else '')\" 2>/dev/null";
     return run_command_capture(py);
 }
@@ -1037,7 +1037,7 @@ struct DebugUiState {
     std::mutex mutex;
     reddmedia::DiagnosticInput input;
     reddmedia::DiagnosticReport report;
-    std::string status = "Run Checks to inspect Nougat Media Plus.";
+    std::string status = "Run Checks to inspect Nougat Play Portal.";
     bool busy = false;
     bool updated = false;
     bool hasReport = false;
@@ -3379,10 +3379,10 @@ public:
 
     void draw_suite_brand(Drawable target, int x0, int y0,
                           unsigned char bgR, unsigned char bgG, unsigned char bgB) {
-        for (int y = 0; y < nougat_media_suite_icon::kTopBarHeight; ++y) {
-            for (int x = 0; x < nougat_media_suite_icon::kTopBarWidth; ++x) {
-                const std::uint32_t argb = nougat_media_suite_icon::kTopBarLockup[
-                    y * nougat_media_suite_icon::kTopBarWidth + x];
+        for (int y = 0; y < nougat_play_portal_icon::kTopBarHeight; ++y) {
+            for (int x = 0; x < nougat_play_portal_icon::kTopBarWidth; ++x) {
+                const std::uint32_t argb = nougat_play_portal_icon::kTopBarLockup[
+                    y * nougat_play_portal_icon::kTopBarWidth + x];
                 const unsigned char a = static_cast<unsigned char>((argb >> 24) & 0xffU);
                 if (a == 0) continue;
                 const unsigned char sr = static_cast<unsigned char>((argb >> 16) & 0xffU);
@@ -3451,9 +3451,9 @@ public:
                 data.push_back(static_cast<unsigned long>(argb));
             }
         };
-        append_borderless_n(nougat_media_suite_icon::kIcon16Size, nougat_media_suite_icon::kIcon16);
-        append_borderless_n(nougat_media_suite_icon::kIcon32Size, nougat_media_suite_icon::kIcon32);
-        append_borderless_n(nougat_media_suite_icon::kIcon64Size, nougat_media_suite_icon::kIcon64);
+        append_borderless_n(nougat_play_portal_icon::kIcon16Size, nougat_play_portal_icon::kIcon16);
+        append_borderless_n(nougat_play_portal_icon::kIcon32Size, nougat_play_portal_icon::kIcon32);
+        append_borderless_n(nougat_play_portal_icon::kIcon64Size, nougat_play_portal_icon::kIcon64);
         Atom netWmIcon = XInternAtom(d, "_NET_WM_ICON", False);
         Atom cardinal = XInternAtom(d, "CARDINAL", False);
         XChangeProperty(d, win, netWmIcon, cardinal, 32, PropModeReplace,
@@ -3462,17 +3462,17 @@ public:
 
     void set_window_identity() {
         XClassHint classHint;
-        classHint.res_name = const_cast<char*>("nougat-media-plus");
-        classHint.res_class = const_cast<char*>("NougatMediaPlus");
+        classHint.res_name = const_cast<char*>("nougat-play-portal");
+        classHint.res_class = const_cast<char*>("NougatPlayPortal");
         XSetClassHint(d, win, &classHint);
 
         // GNOME Shell can associate a raw X11 window with the installed
-        // NougatMediaPlus.desktop entry through this stable application ID.
+        // NougatPlayPortal.desktop entry through this stable application ID.
         // This prevents the running application from falling back to the
         // generic gear icon when launched outside the desktop file.
         Atom gtkApplicationId = XInternAtom(d, "_GTK_APPLICATION_ID", False);
         Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
-        const char* appId = "com.elderredsoftworks.NougatMediaPlus";
+        const char* appId = "com.elderredsoftworks.NougatPlayPortal";
         XChangeProperty(d, win, gtkApplicationId, utf8, 8, PropModeReplace,
                         reinterpret_cast<const unsigned char*>(appId),
                         static_cast<int>(std::strlen(appId)));
@@ -3484,8 +3484,8 @@ public:
         Atom bamfDesktopFile = XInternAtom(d, "_BAMF_DESKTOP_FILE", False);
         const char* home = std::getenv("HOME");
         std::string desktopPath = home ? std::string(home) +
-            "/.local/share/applications/com.elderredsoftworks.NougatMediaPlus.desktop" :
-            "com.elderredsoftworks.NougatMediaPlus.desktop";
+            "/.local/share/applications/com.elderredsoftworks.NougatPlayPortal.desktop" :
+            "com.elderredsoftworks.NougatPlayPortal.desktop";
         XChangeProperty(d, win, bamfDesktopFile, utf8, 8, PropModeReplace,
                         reinterpret_cast<const unsigned char*>(desktopPath.c_str()),
                         static_cast<int>(desktopPath.size()));
@@ -3493,7 +3493,7 @@ public:
     }
 
     void set_window_title() {
-        const char* title = "Nougat Media Plus";
+        const char* title = "Nougat Play Portal";
         XStoreName(d, win, title);
         Atom netWmName = XInternAtom(d, "_NET_WM_NAME", False);
         Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
@@ -3573,7 +3573,7 @@ public:
         }
         if (mediaServer.persistent_enabled()) mediaServer.start();
         else mediaServer.refresh();
-        v53SystemStatus="Run Checks to inspect Nougat Media Plus."; // NOUGAT_V57_NO_CHILD_SAFE_SYSTEM
+        v53SystemStatus="Run Checks to inspect Nougat Play Portal."; // NOUGAT_V57_NO_CHILD_SAFE_SYSTEM
         if (const char* alertArea=std::getenv("NOUGAT_ALERT_AREA")) publicAlertArea=alertArea;
         liveTvChannels = tunerBackend.load_channels();
         liveTvPrograms = tunerBackend.load_guide();
@@ -3673,7 +3673,7 @@ public:
         // v0.0.34 owner-visual repair: the whole scrollable tab mechanism begins
         // immediately after the actual brand text, with only a tiny non-touching
         // separation. The fixed Server/version side remains unchanged.
-        return 4 + nougat_media_suite_icon::kTopBarWidth + 6;
+        return 4 + nougat_play_portal_icon::kTopBarWidth + 6;
     }
 
     void layout() {
@@ -5461,12 +5461,12 @@ public:
 
     void draw_embedded_nougat_icon(Drawable target, const Rect& dest) {
         if(dest.w<=0||dest.h<=0) return;
-        const int source=nougat_media_suite_icon::kIcon64Size;
+        const int source=nougat_play_portal_icon::kIcon64Size;
         for(int y=0;y<dest.h;++y){
             const int sy=std::max(0,std::min(source-1,y*source/std::max(1,dest.h)));
             for(int x=0;x<dest.w;++x){
                 const int sx=std::max(0,std::min(source-1,x*source/std::max(1,dest.w)));
-                std::uint32_t argb=nougat_media_suite_icon::kIcon64[sy*source+sx];
+                std::uint32_t argb=nougat_play_portal_icon::kIcon64[sy*source+sx];
                 const unsigned a=(argb>>24)&0xffU;
                 const unsigned r=(argb>>16)&0xffU, g=(argb>>8)&0xffU, b=argb&0xffU;
                 if(a<24U) continue;
@@ -5538,7 +5538,7 @@ public:
         fill(target, {0, 0, W, kTopBarH}, headerTan);
         line(target, 0, 1, W, 1, rgb8(66, 212, 118));
 
-        const int brandY = (kTopBarH - nougat_media_suite_icon::kTopBarHeight) / 2;
+        const int brandY = (kTopBarH - nougat_play_portal_icon::kTopBarHeight) / 2;
         const int headerBaseline = kTopBarH / 2 + 5;
         draw_suite_brand(target, 4, brandY, 2, 15, 11); // NOUGAT_V65_BRAND_GREEN_BACKGROUND
 
@@ -6585,7 +6585,7 @@ public:
         }
         sync_stream_platform_from_url();
         ytdlpStatus = std::string("Direct Watch: opening ") + stream_platform_name(streamPlatform) +
-                      " in Nougat Media Plus's native player...";
+                      " in Nougat Play Portal's native player...";
         redraw();
         start_ytdlp_play();
     }
@@ -12605,7 +12605,7 @@ public:
 
     reddmedia::DiagnosticInput diagnostic_input() {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Plus v0.0.59";
+        input.app_version = "Nougat Play Portal v0.0.59";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = current_view_name();
@@ -12976,7 +12976,7 @@ public:
         localtime_r(&now, &local);
         char stamp[32];
         std::strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", &local);
-        return home_dir() + "/Downloads/Nougat_Media_Suite_Diagnostic_" + stamp + suffix;
+        return home_dir() + "/Downloads/Nougat_Play_Portal_Diagnostic_" + stamp + suffix;
     }
 
     void export_debug_report(int mode) {
@@ -13364,13 +13364,13 @@ public:
     }
 
     std::string security_auth_key_path() const {
-        return home_dir() + "/.config/nougat-media-plus/security/abusech.key";
+        return home_dir() + "/.config/nougat-play-portal/security/abusech.key";
     }
     bool security_auth_key_configured() const {
         return exists_file(security_auth_key_path());
     }
     void save_security_auth_key(const std::string& key) {
-        const std::string configBase = home_dir() + "/.config/nougat-media-plus";
+        const std::string configBase = home_dir() + "/.config/nougat-play-portal";
         const std::string securityDir = configBase + "/security";
         mkdir((home_dir()+"/.config").c_str(),0755);
         mkdir(configBase.c_str(),0700);
@@ -16769,7 +16769,7 @@ public:
         draw_visible_vertical_scrollbar(target,discoverResultBox,discoverDetailsScroll,static_cast<int>(detail_lines.size()),visible_lines,palette);
         if (result.item.id.find("tmdb:") != 0U) {
             button_on(target, discoverOpenBtn,
-                      result.item.local_path.empty() ? "Open in Library" : "Play in Nougat Media Plus");
+                      result.item.local_path.empty() ? "Open in Library" : "Play in Nougat Play Portal");
         }
         if (result.item.local_path.empty() && has_availability &&
             availability.link.rfind("https://www.themoviedb.org/", 0U) == 0U) {
@@ -16797,7 +16797,7 @@ public:
         std::string error;
         p2p.prioritize_range(0,std::min<std::uint64_t>(16ULL*1024ULL*1024ULL,p2p.selected_file_size()));
         if (!p2pStream.start(error)) { p2pUiStatus=error; redraw(); return; }
-        p2pUiStatus="Streaming. Nougat Media Plus will prioritize pieces around playback and seeks.";
+        p2pUiStatus="Streaming. Nougat Play Portal will prioritize pieces around playback and seeks.";
         switch_view(ViewMode::VideoPlayer);
         if (!open_p2p_stream_location(p2pStream.url())) {
             p2pStream.stop();
@@ -17337,7 +17337,7 @@ public:
     void show_file_menu(int x, int y) {
         std::vector<MenuItem> items;
         items.push_back({"Open File", MenuAction::OpenFile, 0});
-        items.push_back({"Exit Nougat Media Plus", MenuAction::ExitApp, 0});
+        items.push_back({"Exit Nougat Play Portal", MenuAction::ExitApp, 0});
         show_menu(win, x, y, items);
     }
     void show_audio_menu(int x, int y) {
@@ -17975,9 +17975,9 @@ public:
 
         const Rect nougatBrandBadge{
             4,
-            (kTopBarH - nougat_media_suite_icon::kTopBarHeight) / 2,
-            nougat_media_suite_icon::kTopBarWidth,
-            nougat_media_suite_icon::kTopBarHeight
+            (kTopBarH - nougat_play_portal_icon::kTopBarHeight) / 2,
+            nougat_play_portal_icon::kTopBarWidth,
+            nougat_play_portal_icon::kTopBarHeight
         };
         if (target==win && y<kTopBarH && nougatBrandBadge.contains(x,y)) return;
         // NOUGAT_V66_UI_AUTHORITY_NO_TOP_NAV_HITBOX
@@ -18001,7 +18001,7 @@ public:
             items.push_back({"Delay -0.5s (earlier)", MenuAction::SubtitleDelayMinus, 0});
             items.push_back({"Delay +0.5s (later)", MenuAction::SubtitleDelayPlus, 0});
             items.push_back({"Reset Subtitle Delay", MenuAction::SubtitleDelayReset, 0});
-            items.push_back({"Exit Nougat Media Plus", MenuAction::ExitApp, 0});
+            items.push_back({"Exit Nougat Play Portal", MenuAction::ExitApp, 0});
             show_menu(win, 8, kTopBarH, items);
             return;
         }
@@ -18995,7 +18995,7 @@ public:
 
 // NOUGAT_V63_REPAIR4_GNOME_APP_SCOPE
 static void nougat_enter_gnome_app_scope(int argc, char** argv) {
-    if (std::getenv("NOUGAT_MEDIA_PLUS_APP_SCOPED")) return;
+    if (std::getenv("NOUGAT_PLAY_PORTAL_APP_SCOPED")) return;
     if (argc > 1 && argv[1] && std::string(argv[1]).rfind("--",0)==0) return;
     if (access("/usr/bin/systemd-run", X_OK) != 0 ||
         access("/usr/bin/env", X_OK) != 0) return;
@@ -19009,7 +19009,7 @@ static void nougat_enter_gnome_app_scope(int argc, char** argv) {
     self[length] = '\0';
 
     const std::string unit =
-        "app-com.elderredsoftworks.NougatMediaPlus-" +
+        "app-com.elderredsoftworks.NougatPlayPortal-" +
         std::to_string(static_cast<long long>(getpid())) + ".scope";
 
     std::vector<std::string> command = {
@@ -19019,10 +19019,10 @@ static void nougat_enter_gnome_app_scope(int argc, char** argv) {
         "--quiet",
         "--collect",
         "--slice=app.slice",
-        "--description=Nougat Media Plus",
+        "--description=Nougat Play Portal",
         "--unit=" + unit,
         "/usr/bin/env",
-        "NOUGAT_MEDIA_PLUS_APP_SCOPED=1",
+        "NOUGAT_PLAY_PORTAL_APP_SCOPED=1",
         self
     };
     for (int i=1; i<argc; ++i) command.emplace_back(argv[i] ? argv[i] : "");
@@ -19038,16 +19038,16 @@ static void nougat_enter_gnome_app_scope(int argc, char** argv) {
 int main(int argc, char** argv) {
     nougat_enter_gnome_app_scope(argc, argv);
     if (argc > 1 && std::string(argv[1]) == "--v66-media-plus-ui-self-test") {
-        const bool brand=nougat_media_suite_icon::kTopBarWidth>180 && nougat_media_suite_icon::kTopBarHeight==40 && nougat_media_suite_icon::kIcon64Size==64;
-        const bool authority=exists_file(exe_dir()+"/assets/ui/NOUGAT_MEDIA_PLUS_UI_AUTHORITY.png");
-        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.68 UI self-test FAIL.\n"); return 1; }
-        std::printf("Nougat Media Plus v0.0.68 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
+        const bool brand=nougat_play_portal_icon::kTopBarWidth>180 && nougat_play_portal_icon::kTopBarHeight==40 && nougat_play_portal_icon::kIcon64Size==64;
+        const bool authority=exists_file(exe_dir()+"/assets/ui/NOUGAT_PLAY_PORTAL_UI_AUTHORITY.png");
+        if (!brand || !authority) { std::fprintf(stderr,"Nougat Play Portal v0.0.68 UI self-test FAIL.\n"); return 1; }
+        std::printf("Nougat Play Portal v0.0.68 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
         return 0;
     }
 
-    prctl(PR_SET_NAME, "NougatMediaPlus", 0, 0, 0);
+    prctl(PR_SET_NAME, "NougatPlayPortal", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Plus v0.0.68\n");
+        printf("Nougat Play Portal v0.0.68\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {
@@ -19110,7 +19110,7 @@ int main(int argc, char** argv) {
                 sega_bin, sega_gen, sega_sms, sega_gg, zip_safe, dos_prince, dos_gta);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.49 Games PASS: USA/English/revision filtering, Sega ZIP recognition, and DOS ZIP package detection.\n");
+        std::printf("Nougat Play Portal v0.0.49 Games PASS: USA/English/revision filtering, Sega ZIP recognition, and DOS ZIP package detection.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v47-fullscreen-controls-self-test") {
@@ -19191,7 +19191,7 @@ int main(int argc, char** argv) {
         XSync(app.d,False);
         XClassHint hint{};
         const bool classOk=XGetClassHint(app.d,app.win,&hint)!=0 && hint.res_class &&
-                           std::string(hint.res_class)=="NougatMediaPlus";
+                           std::string(hint.res_class)=="NougatPlayPortal";
         if (hint.res_name) XFree(hint.res_name);
         if (hint.res_class) XFree(hint.res_class);
         auto prop=[&app](const char* name) {
@@ -19216,9 +19216,9 @@ int main(int argc, char** argv) {
                                              &actual,&fmt,&items,&after,&iconData)==Success &&
                           iconData && fmt==32 && items>=3;
         if (iconData) XFree(iconData);
-        const bool gtkOk=prop("_GTK_APPLICATION_ID")=="com.elderredsoftworks.NougatMediaPlus";
+        const bool gtkOk=prop("_GTK_APPLICATION_ID")=="com.elderredsoftworks.NougatPlayPortal";
         const std::string bamf=prop("_BAMF_DESKTOP_FILE");
-        const bool bamfOk=bamf.find("com.elderredsoftworks.NougatMediaPlus.desktop")!=std::string::npos;
+        const bool bamfOk=bamf.find("com.elderredsoftworks.NougatPlayPortal.desktop")!=std::string::npos;
         XDestroyWindow(app.d,app.win);
         XCloseDisplay(app.d);
         app.d=nullptr;
@@ -19261,10 +19261,10 @@ int main(int argc, char** argv) {
             !safe_zip_game_entry("/probe.nes") &&
             !safe_zip_game_entry("folder/readme.txt");
         if (grid_ok && games_layout_ok && world_tv_ok && formats_ok && zip_ok) {
-            printf("Nougat Media Plus v0.0.47 release self-test PASS\n");
+            printf("Nougat Play Portal v0.0.47 release self-test PASS\n");
             return 0;
         }
-        fprintf(stderr, "Nougat Media Plus v0.0.47 release self-test FAIL: grid=%d formats=%d zip=%d\n",
+        fprintf(stderr, "Nougat Play Portal v0.0.47 release self-test FAIL: grid=%d formats=%d zip=%d\n",
                 grid_ok ? 1 : 0, formats_ok ? 1 : 0, zip_ok ? 1 : 0);
         return 1;
     }
@@ -19300,7 +19300,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr,"Nougat v0.0.25 Discover dual-selection state FAIL.\n");
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.29 UI state PASS: provider quilts and dual Discover selectors.\n");
+        std::printf("Nougat Play Portal v0.0.29 UI state PASS: provider quilts and dual Discover selectors.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v28-ui-state-self-test") {
@@ -19344,7 +19344,7 @@ int main(int argc, char** argv) {
                 return 1;
             }
         }
-        std::printf("Nougat Media Plus v0.0.28 UI/artwork state PASS: palette, responsive grid, poster gate, metadata encoding.\n");
+        std::printf("Nougat Play Portal v0.0.28 UI/artwork state PASS: palette, responsive grid, poster gate, metadata encoding.\n");
         return 0;
     }
     if (argc > 3 && std::string(argv[1]) == "--discover-local-resolver-self-test") {
@@ -19362,7 +19362,7 @@ int main(int argc, char** argv) {
             watched.media_type = reddmedia::RecommendationMediaType::Television;
             std::string history_error;
             if (!app.recommendationEngine->record_started(watched,history_error)) {
-                std::fprintf(stderr,"Nougat Media Plus Discover resolver history setup FAIL: %s\n",history_error.c_str());
+                std::fprintf(stderr,"Nougat Play Portal Discover resolver history setup FAIL: %s\n",history_error.c_str());
                 return 1;
             }
         }
@@ -19370,10 +19370,10 @@ int main(int argc, char** argv) {
         std::string error;
         if (!app.resolve_discover_local_play_target(result,playable,error) ||
             playable.kind != reddmedia::LibraryNodeKind::Episode || playable.path != argv[3]) {
-            std::fprintf(stderr,"Nougat Media Plus Discover local-play resolver FAIL: %s\n",error.c_str());
+            std::fprintf(stderr,"Nougat Play Portal Discover local-play resolver FAIL: %s\n",error.c_str());
             return 1;
         }
-        std::printf("Nougat Media Plus Discover local-play resolver PASS: %s\n",playable.path.c_str());
+        std::printf("Nougat Play Portal Discover local-play resolver PASS: %s\n",playable.path.c_str());
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v29-tv-reliability-self-test") {
@@ -19446,7 +19446,7 @@ int main(int argc, char** argv) {
                          parse_ok, order_ok, series_ok, overlay_ok, natural_ok, vimeo_ok, art_ok);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.29 TV/UI reliability PASS: same-folder Up Next, 10-second overlay, natural fallback, Vimeo, and Home artwork.\n");
+        std::printf("Nougat Play Portal v0.0.29 TV/UI reliability PASS: same-folder Up Next, 10-second overlay, natural fallback, Vimeo, and Home artwork.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v30-ui-library-player-self-test") {
@@ -19527,7 +19527,7 @@ int main(int argc, char** argv) {
                 grid_ok, home_ratio_ok, nav_middle_ok, nav_first_ok, nav_last_ok, cache_ok);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.30 UI/Library/Player PASS: multi-row DVD grid, portrait Home posters, persistent cache, Previous/Next, and volume/panel polish contract.\n");
+        std::printf("Nougat Play Portal v0.0.30 UI/Library/Player PASS: multi-row DVD grid, portrait Home posters, persistent cache, Previous/Next, and volume/panel polish contract.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v31-ui-sheet-self-test") {
@@ -19551,7 +19551,7 @@ int main(int argc, char** argv) {
                 palette_ok, geometry_ok, state_ok, icon_ok);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.31 exact UI-sheet component PASS: page palettes retained; sheet buttons, tabs, fields, panels, tracks, knobs and checkboxes active.\n");
+        std::printf("Nougat Play Portal v0.0.31 exact UI-sheet component PASS: page palettes retained; sheet buttons, tabs, fields, panels, tracks, knobs and checkboxes active.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--embedding-model-test") {
@@ -19559,12 +19559,12 @@ int main(int argc, char** argv) {
             exe_dir() + "/components/ai/models/nomic-embed-text-v1.5-Q4_K_M.gguf");
         std::vector<float> embedding;
         std::string error;
-        if (!engine.embed_document("Nougat Media Plus offline embedding validation", embedding, error) ||
+        if (!engine.embed_document("Nougat Play Portal offline embedding validation", embedding, error) ||
             embedding.empty()) {
-            std::fprintf(stderr, "Nougat Media Plus embedding model FAIL: %s\n", error.c_str());
+            std::fprintf(stderr, "Nougat Play Portal embedding model FAIL: %s\n", error.c_str());
             return 1;
         }
-        std::printf("Nougat Media Plus embedding model PASS: %zu dimensions%s.\n",
+        std::printf("Nougat Play Portal embedding model PASS: %zu dimensions%s.\n",
                     embedding.size(), engine.using_real_model() ? " (llama.cpp)" : " (test stub)");
         return 0;
     }
@@ -19587,7 +19587,7 @@ int main(int argc, char** argv) {
         std::string error;
         if (!engine.record_started(watched_movie, error) ||
             !engine.record_started(watched_tv, error)) {
-            std::fprintf(stderr, "Nougat Media Plus Discover AI FAIL: %s\n", error.c_str());
+            std::fprintf(stderr, "Nougat Play Portal Discover AI FAIL: %s\n", error.c_str());
             unlink(history_path.c_str());
             return 1;
         }
@@ -19613,14 +19613,14 @@ int main(int argc, char** argv) {
                 request.mode = mode;
                 reddmedia::RecommendationResult result;
                 if (!engine.recommend(request, local_items, result, error) || result.item.id.empty()) {
-                    std::fprintf(stderr, "Nougat Media Plus Discover AI FAIL: %s\n", error.c_str());
+                    std::fprintf(stderr, "Nougat Play Portal Discover AI FAIL: %s\n", error.c_str());
                     unlink(history_path.c_str());
                     return 1;
                 }
             }
         }
         unlink(history_path.c_str());
-        std::printf("Nougat Media Plus Discover AI PASS: Local Usual/Random Movie/TV.\n");
+        std::printf("Nougat Play Portal Discover AI PASS: Local Usual/Random Movie/TV.\n");
         return 0;
     }
     if (argc > 1 &&
@@ -19638,21 +19638,21 @@ int main(int argc, char** argv) {
             usleep(200000);
         }
         if (!ready) {
-            std::fprintf(stderr, "Nougat Media Plus integrated server lifecycle FAIL: startup timeout.\n");
+            std::fprintf(stderr, "Nougat Play Portal integrated server lifecycle FAIL: startup timeout.\n");
             server.stop();
             return 1;
         }
         if (std::string(argv[1]) == "--media-server-parent-death-hold") {
-            std::printf("Nougat Media Plus integrated server parent-death test READY.\n");
+            std::printf("Nougat Play Portal integrated server parent-death test READY.\n");
             std::fflush(stdout);
             while (true) pause();
         }
         server.stop();
         if (server.state() != reddmedia::MediaServerState::Stopped || server.probe_health() || server.owns_server()) {
-            std::fprintf(stderr, "Nougat Media Plus integrated server lifecycle FAIL: owned process tree or port 8096 survived explicit stop.\n");
+            std::fprintf(stderr, "Nougat Play Portal integrated server lifecycle FAIL: owned process tree or port 8096 survived explicit stop.\n");
             return 1;
         }
-        std::printf("Nougat Media Plus integrated server graceful shutdown PASS: owned process tree stopped and port 8096 released.\n");
+        std::printf("Nougat Play Portal integrated server graceful shutdown PASS: owned process tree stopped and port 8096 released.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v32-p2p-player-repair-self-test") {
@@ -19673,7 +19673,7 @@ int main(int argc, char** argv) {
                          search_palette?1:0, volume_geometry?1:0, p2p_controls?1:0);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.32 P2P/player repair PASS: Search seam contrast, seek-style volume geometry, Home fixed-header clipping/scrollbar contract, P2P controls and streaming scheduler contract active.\n");
+        std::printf("Nougat Play Portal v0.0.32 P2P/player repair PASS: Search seam contrast, seek-style volume geometry, Home fixed-header clipping/scrollbar contract, P2P controls and streaming scheduler contract active.\n");
         return 0;
     }
 
@@ -19710,7 +19710,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "Nougat v0.0.34 tuner discovery self-test FAIL.\n");
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.34 integration PASS: clipped page/nav viewports, Library containment, P2P Plus controls, persistent-server architecture and Live TV discovery scaffold active.\n");
+        std::printf("Nougat Play Portal v0.0.34 integration PASS: clipped page/nav viewports, Library containment, P2P Plus controls, persistent-server architecture and Live TV discovery scaffold active.\n");
         return 0;
     }
 
@@ -19746,7 +19746,7 @@ int main(int argc, char** argv) {
                 navLeft?1:0,navRightPreserved?1:0,topTabs?1:0,sheetPlayerControls?1:0,liveHeaderClear?1:0,discoverLive?1:0,homeGeometry?1:0,frames?1:0);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.34 UI polish PASS: actual-sheet top tabs/seek/volume, left-shifted nav, direct scroll dragging, connected affected-page corners, Live TV header spacing, Discover Live TV/TMDb labels, and fixed Home card geometry active.\n");
+        std::printf("Nougat Play Portal v0.0.34 UI polish PASS: actual-sheet top tabs/seek/volume, left-shifted nav, direct scroll dragging, connected affected-page corners, Live TV header spacing, Discover Live TV/TMDb labels, and fixed Home card geometry active.\n");
         return 0;
     }
 
@@ -19801,7 +19801,7 @@ int main(int argc, char** argv) {
                 studioPalette?1:0, playerControlsCentered?1:0, scanGuard?1:0);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.35 cleanup PASS: app-wide top-row alignment, centered full-width player controls, one-row Library scrolling, exact-sheet VOLUME sprite geometry, full Debug/player action scrolling, enlarged active-tab pointer, Gold Studio identity, and native ATSC scan guard active.\n");
+        std::printf("Nougat Play Portal v0.0.35 cleanup PASS: app-wide top-row alignment, centered full-width player controls, one-row Library scrolling, exact-sheet VOLUME sprite geometry, full Debug/player action scrolling, enlarged active-tab pointer, Gold Studio identity, and native ATSC scan guard active.\n");
         return 0;
     }
 
@@ -19840,7 +19840,7 @@ int main(int argc, char** argv) {
                 headerStatus?1:0, searchFilter?1:0);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.36 PASS: Library Search row/filter, collection-ready navigation geometry, exact-sheet seek sprite geometry with side times, stable player stack, and sheet-style server status geometry active.\n");
+        std::printf("Nougat Play Portal v0.0.36 PASS: Library Search row/filter, collection-ready navigation geometry, exact-sheet seek sprite geometry with side times, stable player stack, and sheet-style server status geometry active.\n");
         return 0;
     }
 
@@ -19895,7 +19895,7 @@ int main(int argc, char** argv) {
                 librarySearchButton?1:0,librarySearchWorks?1:0,guideCache?1:0);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.37 PASS: System controls, working Library Search+button, full-size Continue Watching, wide exact-sheet seek, stitched Server state, logical Live TV controls, native ATSC Watch Live input, and persisted guide model active.\n");
+        std::printf("Nougat Play Portal v0.0.37 PASS: System controls, working Library Search+button, full-size Continue Watching, wide exact-sheet seek, stitched Server state, logical Live TV controls, native ATSC Watch Live input, and persisted guide model active.\n");
         return 0;
     }
 
@@ -19968,13 +19968,13 @@ int main(int argc, char** argv) {
                 liveProgram?1:0,lastChannel?1:0,liveTvTransportNav?1:0,liveTvTransportBounds?1:0);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.38 PASS: exact-sheet player/progress geometry, Guide-default Live TV, Live TV tuner administration, real network-logo mapping, remembered channel, Live TV Previous/Next channel navigation, Library title wrapping, unified player activity state, and Live TV program identity active.\n");
+        std::printf("Nougat Play Portal v0.0.38 PASS: exact-sheet player/progress geometry, Guide-default Live TV, Live TV tuner administration, real network-logo mapping, remembered channel, Live TV Previous/Next channel navigation, Library title wrapping, unified player activity state, and Live TV program identity active.\n");
         return 0;
     }
 
     if (argc > 1 && std::string(argv[1]) == "--v39-diagnostics-live-tv-self-test") {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Plus v0.0.41";
+        input.app_version = "Nougat Play Portal v0.0.41";
         input.executable_path = argv[0];
         input.project_root = "/tmp";
         input.current_view = "Debug";
@@ -20049,7 +20049,7 @@ int main(int argc, char** argv) {
                 metadataInfo?1:0, searchIdle?1:0, liveMux?1:0, queuedInfo?1:0, structured?1:0, saneOverall?1:0);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.41 PASS: subsystem diagnostics, sane severity, Search idle state, Live TV awareness, guide coverage, and current-multiplex harvesting active.\n");
+        std::printf("Nougat Play Portal v0.0.41 PASS: subsystem diagnostics, sane severity, Search idle state, Live TV awareness, guide coverage, and current-multiplex harvesting active.\n");
         return 0;
     }
 
@@ -20090,16 +20090,16 @@ int main(int argc, char** argv) {
             app.nougatArchivePanelTab.x+app.nougatArchivePanelTab.w<=app.W-28 &&
             app.nougatNetworkButtonsScrollX>0 && app.nougatPanelButtonsScrollX>0;
         if (!geometry || !hoverTransitions || !activityTimer || !imdb || !networkNarrow) {
-            std::printf("Nougat Media Plus v0.0.41 Library/IMDb repair FAIL\n");
+            std::printf("Nougat Play Portal v0.0.41 Library/IMDb repair FAIL\n");
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.41 Library/IMDb repair PASS: Movies+TV multi-row adaptive grid, card-hover clearing, three-second player activity, exact IMDb links, and narrow Network scrolling active\n");
+        std::printf("Nougat Play Portal v0.0.41 Library/IMDb repair PASS: Movies+TV multi-row adaptive grid, card-hover clearing, three-second player activity, exact IMDb links, and narrow Network scrolling active\n");
         return 0;
     }
 
     if (argc > 1 && std::string(argv[1]) == "--v39-diagnostic-self-test") {
         reddmedia::DiagnosticInput input;
-        input.app_version = "Nougat Media Plus v0.0.41";
+        input.app_version = "Nougat Play Portal v0.0.41";
         input.executable_path = resolved_executable_path();
         input.project_root = exe_dir();
         input.current_view = "System";
@@ -20120,7 +20120,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "Nougat v0.0.40 diagnostic self-test FAIL. search-idle=%d metadata-info=%d\n", search_idle?1:0, metadata_info?1:0);
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.41 diagnostic self-test PASS: Search idle is Not Tested and optional metadata is Information.\n");
+        std::printf("Nougat Play Portal v0.0.41 diagnostic self-test PASS: Search idle is Not Tested and optional metadata is Information.\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v39-channel-logo-audit") {
@@ -20142,7 +20142,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "Nougat v0.0.40 channel-logo audit FAIL: %d/%zu channel(s) do not resolve to real artwork.\n", unresolved, channels.size());
             return 1;
         }
-        std::printf("Nougat Media Plus v0.0.41 channel-logo audit PASS: %zu/%zu persisted channels resolve to real artwork.\n", channels.size(), channels.size());
+        std::printf("Nougat Play Portal v0.0.41 channel-logo audit PASS: %zu/%zu persisted channels resolve to real artwork.\n", channels.size(), channels.size());
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--p2p-engine-info") {
@@ -20155,12 +20155,12 @@ int main(int argc, char** argv) {
         reddmedia::JellyfinApiClient client;
         std::string error;
         if (!client.initialize(error) || !client.add_media_folder(argv[2], error)) {
-            fprintf(stderr, "Nougat Media Plus native library API FAIL: %s\n", error.c_str());
+            fprintf(stderr, "Nougat Play Portal native library API FAIL: %s\n", error.c_str());
             return 1;
         }
         std::vector<reddmedia::LibraryVideo> videos;
         if (!client.wait_for_video_in_folder(argv[2], videos, error, 180)) {
-            fprintf(stderr, "Nougat Media Plus native library API FAIL: %s\n", error.c_str());
+            fprintf(stderr, "Nougat Play Portal native library API FAIL: %s\n", error.c_str());
             return 1;
         }
         bool found = false;
@@ -20171,10 +20171,10 @@ int main(int argc, char** argv) {
             }
         }
         if (!found) {
-            fprintf(stderr, "Nougat Media Plus native library API FAIL: indexed test video not found.\n");
+            fprintf(stderr, "Nougat Play Portal native library API FAIL: indexed test video not found.\n");
             return 1;
         }
-        printf("Nougat Media Plus native library API PASS: %zu video(s) cataloged for direct playback.\n", videos.size());
+        printf("Nougat Play Portal native library API PASS: %zu video(s) cataloged for direct playback.\n", videos.size());
         return 0;
     }
     App app;

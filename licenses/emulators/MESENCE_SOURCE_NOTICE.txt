@@ -9,4 +9,4 @@ Corresponding source: https://github.com/nesdev-org/MesenCE/tree/2.2.1
 
 The installer downloads the unmodified upstream runtime after verifying this
 pinned SHA-256. MesenCE is a separate third-party work and is not relicensed
-under the Nougat Media Suite project license.
+under the Nougat Play Portal project license.

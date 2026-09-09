@@ -1,4 +1,4 @@
-# Nougat Media Suite
+# Nougat Play Portal
 #
 # The complete runnable project, including runtimes, belongs in Git.
 # Only obsolete packaging/checkpoint archives are excluded.
@@ -43,7 +43,7 @@ components/drone/vendor/
 /README_V*.txt
 /README.md.before-*
 # Patch-package records belong in archives/build records, not project root.
-/NOUGAT_MEDIA_SUITE_PATCH_MANIFEST_*.json
+/NOUGAT_PLAY_PORTAL_PATCH_MANIFEST_*.json
 # Accidental root scratch files.
 /tmp.txt
 /main

@@ -139,7 +139,7 @@ bool EmbeddingEngine::initialize(std::string& error) {
 #else
     std::ifstream input(model_path_, std::ios::binary);
     if (!input) {
-        error = "Nougat Media Suite's pinned offline embedding model is missing.";
+        error = "Nougat Play Portal's pinned offline embedding model is missing.";
         return false;
     }
     llama_backend_init();
@@ -147,7 +147,7 @@ bool EmbeddingEngine::initialize(std::string& error) {
     model_params.n_gpu_layers = 0;
     llama_model* model = llama_model_load_from_file(model_path_.c_str(), model_params);
     if (!model) {
-        error = "Nougat Media Suite could not load its pinned offline embedding model.";
+        error = "Nougat Play Portal could not load its pinned offline embedding model.";
         llama_backend_free();
         return false;
     }
@@ -166,7 +166,7 @@ bool EmbeddingEngine::initialize(std::string& error) {
     if (!context) {
         llama_model_free(model);
         llama_backend_free();
-        error = "Nougat Media Suite could not initialize offline embedding inference.";
+        error = "Nougat Play Portal could not initialize offline embedding inference.";
         return false;
     }
     model_ = model;

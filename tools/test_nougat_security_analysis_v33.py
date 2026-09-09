@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='nougat-sec-v33-') as td:
     if py.is_file(): need('VERDICT=NO THREATS DETECTED' in out,'verified full runtime did not produce clean offline verdict')
     else: need('VERDICT=ANALYSIS INCOMPLETE' in out,'missing runtime did not produce ANALYSIS INCOMPLETE')
     need(sample.read_bytes()==before,'scanner modified clean fixture')
-    hist=home/'.config/nougat-media-suite/security/scan_history.jsonl'; need(hist.is_file(),'scan history missing'); need(stat.S_IMODE(hist.stat().st_mode)==0o600,'history permissions not 0600')
+    hist=home/'.config/nougat-play-portal/security/scan_history.jsonl'; need(hist.is_file(),'scan history missing'); need(stat.S_IMODE(hist.stat().st_mode)==0o600,'history permissions not 0600')
     if py.is_file():
         e=td/'eicar.txt'; e.write_bytes(b'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'); e_before=e.read_bytes()
         eo=subprocess.check_output([runner,str(worker),'--file',str(e),'--offline'],env=env,text=True,stderr=subprocess.STDOUT,timeout=240)

@@ -82,11 +82,11 @@ bool X11ClassIsNougat(Display* display, ::Window window) {
 
   bool match = false;
   if (hint.res_name &&
-      std::string(hint.res_name) == "nougat-media-suite") {
+      std::string(hint.res_name) == "nougat-play-portal") {
     match = true;
   }
   if (hint.res_class &&
-      std::string(hint.res_class) == "NougatMediaSuite") {
+      std::string(hint.res_class) == "NougatPlayPortal") {
     match = true;
   }
 

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Nougat Play Portal
+Comment=Nougat Play Portal unified media, television, radio, games, Studio, Drone Production, Search, security, server, and system workstation
+Exec="/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/Nougat_Play_Portal_v67"
+Icon=/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/assets/branding/nougat-play-portal-dock-N.png
+StartupWMClass=NougatPlayPortal
+X-GNOME-Application-ID=com.elderredsoftworks.NougatPlayPortal
+X-GNOME-WMClass=NougatPlayPortal
+Terminal=false
+Categories=AudioVideo;Player;
+StartupNotify=true
+X-Nougat-Resources-DirectExec=true
