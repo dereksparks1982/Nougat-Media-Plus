@@ -43,6 +43,7 @@
 #include "p2p_engine.hpp"
 #include "games/emulator_host.hpp"
 #include "games/ps3_profile.hpp"
+#include "games/uo_playable_runtime.hpp"
 #include "p2p_stream_server.hpp"
 #include "ytdlp_stream_server.hpp"
 #include "nougat_media_suite_icon_data.hpp"
@@ -1237,6 +1238,8 @@ static std::string game_system_for_path(const std::string& path) {
 
 static std::string game_system_for_path_in_context(const std::string& path,
                                                    const std::string& container) {
+    if (ends_with_lower(path, ".nougat-uo")) return "Ultima Online";
+
     const std::string combined = container + "/" + path;
     if (ends_with_lower(path, ".bin") && game_path_has_sega_hint(combined))
         return "Sega Genesis";
@@ -5542,7 +5545,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.67";
+        const std::string versionLabel = "v0.0.68";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -14999,6 +15002,23 @@ public:
             selected = gameState->games[static_cast<std::size_t>(gamesSelected)];
         }
 
+        if (selected.system == "Ultima Online") {
+            const auto uoResult = nougat::games::uo::launch_t2a_playable();
+            {
+                std::lock_guard<std::mutex> lock(gameState->mutex);
+                if (uoResult.ok) {
+                    gameState->status = std::string("Ultima Online - The Second Age launched. Sphere ") +
+                        (uoResult.server_reused ? "reused." : "started.");
+                } else {
+                    gameState->status = uoResult.error.empty() ?
+                        "Ultima Online - The Second Age could not launch." : uoResult.error;
+                }
+                gameState->updated = true;
+            }
+            redraw();
+            return;
+        }
+
         GameEntry launchSelected = selected;
         std::string launchPath;
         if (selected.system == "DOS" && selected.directory_game) {
@@ -15367,7 +15387,7 @@ public:
         int y=gamesListBox.y+32;
         if (gamesPanel==GamesPanel::Systems) {
             // NOUGAT_V61_GAMES_SYSTEMS_PANEL_SCROLL
-            const std::vector<std::string> systems={"NES","SNES","Game Boy","Game Boy Color","Game Boy Advance","Nintendo 64","Sega Genesis","Sega Master System","Sega Game Gear","Atari 2600","Atari 5200","Atari 7800","Atari 8-bit","Atari Lynx","PlayStation","PlayStation 2","PlayStation Portable","PlayStation 3","Xbox 360","GameCube","Wii","Wii U","Arcade","Nintendo Switch","DOS"};
+            const std::vector<std::string> systems={"NES","SNES","Game Boy","Game Boy Color","Game Boy Advance","Nintendo 64","Sega Genesis","Sega Master System","Sega Game Gear","Atari 2600","Atari 5200","Atari 7800","Atari 8-bit","Atari Lynx","PlayStation","PlayStation 2","PlayStation Portable","PlayStation 3","Xbox 360","GameCube","Wii","Wii U","Arcade","Nintendo Switch","Ultima Online","DOS"};
             const int viewportTop=gamesListBox.y+6;
             const int viewportBottom=gamesListBox.y+gamesListBox.h-6;
             const int viewportHeight=std::max(1,viewportBottom-viewportTop);
@@ -19020,14 +19040,14 @@ int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--v66-media-plus-ui-self-test") {
         const bool brand=nougat_media_suite_icon::kTopBarWidth>180 && nougat_media_suite_icon::kTopBarHeight==40 && nougat_media_suite_icon::kIcon64Size==64;
         const bool authority=exists_file(exe_dir()+"/assets/ui/NOUGAT_MEDIA_PLUS_UI_AUTHORITY.png");
-        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.67 UI self-test FAIL.\n"); return 1; }
-        std::printf("Nougat Media Plus v0.0.67 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
+        if (!brand || !authority) { std::fprintf(stderr,"Nougat Media Plus v0.0.68 UI self-test FAIL.\n"); return 1; }
+        std::printf("Nougat Media Plus v0.0.68 UI self-test PASS: new lockup/icon data and UI authority are active; UI audio is disabled.\n");
         return 0;
     }
 
     prctl(PR_SET_NAME, "NougatMediaPlus", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Media Plus v0.0.67\n");
+        printf("Nougat Media Plus v0.0.68\n");
         return 0;
     }
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {

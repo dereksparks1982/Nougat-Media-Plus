@@ -86,6 +86,8 @@ Xbox 360/Xenia has an owner-tested Nougat-contained rendering path. Other emulat
 
 PlayStation 3/RPCS3 in **v0.0.66** adds a managed RPCS3 runtime wrapper and native Games settings with **Original, Performance, Balanced, Quality, Ultra, and Custom** profiles. Nougat exposes render scale, anisotropic filtering, MSAA, output scaling, frame limit, VSync, and GPU texture scaling. Neural controls are capability-gated and do not claim an active DLSS or neural-rendering backend when a compatible Linux bridge is absent. RPCS3 launches through the existing Nougat game-host/Video Player containment path; PlayStation 3 game content and console firmware are not bundled.
 
+Beginning with **v0.0.68**, Games adds a Nougat-managed **Ultima Online - The Second Age** path together with the console runtime-management foundation. The T2A entry launches the actual October 1998 Ultima Online 1.25.35 `client.exe` through Wine against the pinned local SphereServer X shard. The managed shard uses the original Felucca/map0 dimensions and T2A era limits with Trammel and later facets disabled. Client-data identity is locked, account and password data stay out of process arguments, and the compile/link, data, Wine-path, and Sphere boot/listen ownership gates are machine-validated. Owner in-world playability remains a separate acceptance gate.
+
 ## **Studio & Production Tools**
 
 **Studio** provides integrated media-production, file-production, and planning tools.
@@ -107,6 +109,8 @@ Nougat also detects or plans integration around MAVLink, MAVSDK, PX4, ArduPilot,
 **Stream** provides a shared Direct Watch workflow for supported internet-video sources and webpages. The established service family includes **YouTube, Rumble, RuTube, VK, and OK**.
 
 YouTube integration uses Nougat's bundled yt-dlp/FFmpeg pipeline for direct playback and download workflows, with native-player playback, seek-aware temporary caching/bridge behavior, and the established default 1080p ceiling.
+
+Beginning with **v0.0.68**, the YouTube playback/extraction path adds compatibility handling for current yt-dlp challenge solving. Nougat detects supported JavaScript runtimes already available on the host, including Deno, Node 22+, or QuickJS, passes the supported runtime to yt-dlp, uses the current YouTube extractor-client compatibility path, and prefers directly consumable HLS or progressive formats up to the established 1080p ceiling before falling back to combined streams.
 
 Nougat includes a **Jellyfin-backed media-server foundation** and a Nougat-branded **Web Player** for browsers and devices on the private LAN. Jellyfin remains backend/catalog infrastructure rather than replacing Nougat with the stock Jellyfin interface.
 
@@ -167,6 +171,22 @@ Nothing in Nougat Media Plus, its documentation, source code, supported hardware
 The inclusion of professional, governmental, public-safety, military, satellite, aviation, cellular, or other regulated use cases does not imply endorsement, affiliation, certification, approval, sponsorship, or authorization by any government agency, military organization, regulator, communications authority, satellite operator, service provider, or equipment manufacturer.
 
 **Use of Nougat Media Plus and connected equipment remains the responsibility of the user. Elderred Softworks LLC assumes no responsibility for unlawful, unauthorized, improper, or harmful actions performed by users of the software.**
+
+## v0.0.68 - Accepted Checkpoint
+
+Nougat Media Plus v0.0.68 is the owner-accepted checkpoint advancing the active root executable to `Nougat_Media_Plus_v68`.
+
+### Technical changes
+
+- Advances project build and runtime reporting to v0.0.68 and replaces the retired v67 root executable with `Nougat_Media_Plus_v68`.
+- Adds the console runtime-management foundation under `src/console/`.
+- Adds the managed **Ultima Online - The Second Age** Games entry and dedicated UO runtime path.
+- Uses the actual October 1998 Ultima Online 1.25.35 `client.exe` through Wine as the active T2A client path rather than ClassicUO.
+- Reuses the pinned SphereServer X runtime for the local T2A shard with localhost login routing, encrypted-client support, original Felucca/map0 dimensions, T2A era limits, and later facets disabled.
+- Preserves the T2A client-data identity lock and keeps account and password data out of process arguments.
+- Adds the current YouTube compatibility source used by the streaming and download integration.
+- UO compile, linkage, data, Wine-path, and Sphere boot/listen ownership gates are machine-validated without falsely claiming an owner in-world playability test that has not been separately confirmed.
+- The Hauppauge WinTV-HVR-955Q FM work remains unresolved and is not claimed fixed by v0.0.68.
 
 ## v0.0.67 - HVR-955Q FM Radio Failure Checkpoint
 

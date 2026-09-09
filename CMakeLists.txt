@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(NougatMediaPlus VERSION 0.0.67 LANGUAGES C CXX)
+project(NougatMediaPlus VERSION 0.0.68 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,7 +15,7 @@ set(NMP_RPCS3_RUNTIME_DIR "${CMAKE_SOURCE_DIR}/components/games/runtime/rpcs3")
 file(MAKE_DIRECTORY "${NMP_RPCS3_RUNTIME_DIR}")
 configure_file("${CMAKE_SOURCE_DIR}/src/games/rpcs3_runtime_wrapper.sh" "${NMP_RPCS3_RUNTIME_DIR}/rpcs3" COPYONLY)
 
-add_executable(Nougat_Media_Plus_v67
+add_executable(Nougat_Media_Plus_v68
     src/main.cpp
     src/network_center.cpp
     src/satellite_center.cpp
@@ -25,6 +25,11 @@ add_executable(Nougat_Media_Plus_v67
     src/chat/nougat_chat.cpp
     src/games/emulator_host.cpp
     src/games/ps3_profile.cpp
+    src/console/runtime_manager.cpp
+    src/games/uo_client.cpp
+    src/games/uo_playable_runtime.cpp
+    src/games/uo_server_manager.cpp
+    src/youtube_compat.cpp
     src/nougat/nougat_bridge.cpp
     src/search/secure_search.cpp
     src/privacy/privacy_policy.cpp
@@ -55,11 +60,12 @@ add_executable(Nougat_Media_Plus_v67
     src/ytdlp_stream_server.cpp
 )
 
-target_compile_options(Nougat_Media_Plus_v67 PRIVATE -Wall -Wextra -Werror)
-target_link_libraries(Nougat_Media_Plus_v67 PRIVATE X11 dl Threads::Threads m)
+target_include_directories(Nougat_Media_Plus_v68 PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_options(Nougat_Media_Plus_v68 PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(Nougat_Media_Plus_v68 PRIVATE X11 dl Threads::Threads m)
 
 if(REDDMEDIA_AI_STUB)
-    target_compile_definitions(Nougat_Media_Plus_v67 PRIVATE REDDMEDIA_AI_STUB=1)
+    target_compile_definitions(Nougat_Media_Plus_v68 PRIVATE REDDMEDIA_AI_STUB=1)
 else()
     set(REDDMEDIA_AI_RUNTIME "${CMAKE_SOURCE_DIR}/components/ai/runtime" CACHE PATH
         "Installed llama.cpp runtime used by Nougat Media Suite")
@@ -69,24 +75,24 @@ else()
     find_library(LLAMA_LIBRARY llama
         PATHS "${REDDMEDIA_AI_RUNTIME}/lib" "${REDDMEDIA_AI_RUNTIME}/lib64"
         NO_DEFAULT_PATH REQUIRED)
-    target_include_directories(Nougat_Media_Plus_v67 PRIVATE "${LLAMA_INCLUDE_DIR}")
-    target_link_libraries(Nougat_Media_Plus_v67 PRIVATE "${LLAMA_LIBRARY}")
-    target_link_options(Nougat_Media_Plus_v67 PRIVATE
+    target_include_directories(Nougat_Media_Plus_v68 PRIVATE "${LLAMA_INCLUDE_DIR}")
+    target_link_libraries(Nougat_Media_Plus_v68 PRIVATE "${LLAMA_LIBRARY}")
+    target_link_options(Nougat_Media_Plus_v68 PRIVATE
         "-Wl,--disable-new-dtags"
         "-Wl,-rpath-link,${REDDMEDIA_AI_RUNTIME}/lib"
         "-Wl,-rpath-link,${REDDMEDIA_AI_RUNTIME}/lib64")
-    set_target_properties(Nougat_Media_Plus_v67 PROPERTIES
+    set_target_properties(Nougat_Media_Plus_v68 PROPERTIES
         BUILD_WITH_INSTALL_RPATH TRUE
         INSTALL_RPATH "\$ORIGIN/components/ai/runtime/lib;\$ORIGIN/components/ai/runtime/lib64"
         INSTALL_RPATH_USE_LINK_PATH FALSE)
 endif()
 
 if(REDDMEDIA_P2P_STUB)
-    target_compile_definitions(Nougat_Media_Plus_v67 PRIVATE REDDMEDIA_P2P_STUB=1)
+    target_compile_definitions(Nougat_Media_Plus_v68 PRIVATE REDDMEDIA_P2P_STUB=1)
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(LIBTORRENT REQUIRED IMPORTED_TARGET libtorrent-rasterbar)
-    target_link_libraries(Nougat_Media_Plus_v67 PRIVATE PkgConfig::LIBTORRENT)
+    target_link_libraries(Nougat_Media_Plus_v68 PRIVATE PkgConfig::LIBTORRENT)
 endif()
 
 add_executable(nougat_web_service_v55
@@ -98,3 +104,5 @@ add_executable(nougat_web_service_v55
 target_compile_options(nougat_web_service_v55 PRIVATE -Wall -Wextra -Werror)
 target_link_libraries(nougat_web_service_v55 PRIVATE Threads::Threads)
 set_target_properties(nougat_web_service_v55 PROPERTIES OUTPUT_NAME "nougat-web-service")
+
+

@@ -18,6 +18,18 @@ No second Nougat Media Suite Bible may be created. Amend this file in an owner-a
 - No unapproved feature, cleanup, redesign, dependency, icon, launcher behavior, or workflow change may be slipped into a build.
 - A real scope conflict must be reported before work continues. Ordinary implementation details inside approved scope do not require repeated approval.
 
+## 2A. Literal owner-direction and uninterrupted-execution law
+
+- The owners explicit instruction defines the exact scope. Do not broaden, reinterpret, substitute, rename, improve, or add adjacent or future work that was not requested.
+- Follow the owners stated workflow instead of replacing it with an assistant-preferred workflow, prerequisite, package, download, inspection step, or alternate deliverable.
+- When the owner requests one terminal command, provide one complete copy-and-paste command for the entire requested operation. Do not split it into multiple commands unless explicitly requested.
+- Do not substitute verification, explanation, inspection, or a progress report for the action the owner requested. Required checks should be included inside the requested operation when practical.
+- Once an operation is authorized, continue through the complete approved scope without pausing to narrate progress, announce checks, ask for intermediate permission, or provide status updates unless the owner explicitly asks for a progress report.
+- An authorized operation stops only when the owner explicitly says stop or when a concrete blocker materially prevents continuation. If a direct fix exists inside the approved scope, apply it and continue.
+- Do not repeat a command style, package, workflow, or method the owner has rejected unless the owner explicitly requests it again.
+- When GitHub publication is requested, use the established local Git and SSH GitHub publication workflow. Do not substitute a downloadable package or unrelated handoff.
+- Do not introduce a future version number, future build label, rename, roadmap item, or other unrequested material when the owner instructed that only the current version be documented.
+
 ## 3. Required reading order
 
 Before changing Nougat Media Suite, read:
@@ -36,6 +48,7 @@ The active Git commit, branch, worktree state, expected executable, rollback sna
 - Before every Nougat Media Plus build, repair, patch, validation, packaging operation, checkpoint closeout, acceptance closeout, local Git commit, release tag, or GitHub publication, the canonical `COMPANY_BIBLE.md` must be read in full. Memory, summaries, prior-chat recollection, and assumptions are not substitutes for reading the current file.
 - The existing `README.md` introduction is persistent project documentation. It must remain intact unless the owner explicitly requests an introduction rewrite.
 - New owner-approved capabilities must be added to the existing README introduction using the smallest appropriate additions. Established introduction text must not be silently rewritten, condensed, reordered, or removed merely to document a new version.
+- Every accepted build, checkpoint closeout, or GitHub publication that changes current capabilities must update both the maintained `README.md` introduction and the newest version release notes. Adding only a version section does not satisfy the README requirement.
 - Before updating the README introduction for a build, repair, checkpoint, or release, the complete current `README.md` must be read, including the full historical release record. Reading only the existing introduction or newest release notes is not sufficient.
 - The README introduction must represent the complete current user-visible Nougat feature set established across the release history, while excluding features that newer releases explicitly removed, superseded, rejected, or leave only as future roadmap work.
 - New capabilities must be integrated into their appropriate readable introduction sections. Do not satisfy the README-update requirement by attaching one catch-all paragraph for the newest version while established current features remain buried only in release history.
@@ -193,6 +206,7 @@ When the owner must run a command:
 - first state exactly what the command does and whether it is snapshot, Git, GitHub, package-apply, validation, or another operation;
 - provide one complete copy-and-paste command block for that operation;
 - ensure all quoting and multiline messages terminate correctly;
+- A terminal command is rejected if it leaves the owner at a shell continuation prompt such as `>`. When one command is requested, it must be one syntactically complete physical command line with no heredoc, dangling quote, trailing continuation backslash, or other construct requiring the owner to type additional input;
 - do not leave the shell at a continuation prompt;
 - Nougat terminal commands must be non-interactive by default. They must not open `less`, `more`, `vim`, `nano`, another editor, a Git pager, or any other interactive viewer unless the owner explicitly requests that behavior.
 - Git output intended only for inspection must use non-interactive output such as `git --no-pager`, `GIT_PAGER=cat`, or an equivalent method.

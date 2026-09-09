@@ -259,8 +259,16 @@ bool YtDlpStreamServer::start_feeder(std::string& error) {
     }
 
     std::vector<std::string> args = {
-        engine_, "--ignore-config", "--no-playlist", "--downloader", "ffmpeg"
+        engine_, "--ignore-config", "--no-playlist"
     };
+    // YouTube signed media requests must remain owned by yt-dlp. Forcing
+    // FFmpeg as the downloader causes the external reopen path that can
+    // receive HTTP 403 from YouTube. Keep the legacy FFmpeg downloader only
+    // for non-YouTube sources.
+    if (!youtube_url(source_url_)) {
+        args.push_back("--downloader");
+        args.push_back("ffmpeg");
+    }
     append_youtube_compatibility_args(args, source_url_);
     args.push_back("-f");
     args.push_back(youtube_url(source_url_)
