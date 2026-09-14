@@ -10,9 +10,9 @@
 
 Nougat Play Portal brings games, emulation, local media, streaming media, Live TV, radio, social and multiplayer networking, system controls, production tools, connected hardware, and Nougat-managed runtimes together inside one integrated environment.
 
-The approved v0.0.69 interface is organized around **Home, Games, Library, Network, Media, and System**. Games are the primary experience. The selected title becomes the visual focus while recent games, friends, network activity, media, and system controls remain immediately accessible.
+Beginning with **v0.0.70**, the owner-approved Console OS shell is organized in the exact order **Home, Games, Media, Network, and System**. **Library is part of Media rather than a separate top-level category.** Games and media share the same console presentation.
 
-**Home** is the console-style landing experience, combining the selected-game hero presentation, Play and Game Details actions, Continue Playing, friends and network activity, and current Nougat information.
+**Home** is the unified console landing experience. It combines the selected-game hero with **Continue Playing**, **Continue Watching**, games, movies, television, radio/streaming activity, and other media suggestions.
 
 **Games** is the primary game library and launch environment. It carries forward native titles, managed emulator runtimes, ROM and package discovery, controller support, artwork, metadata, game-host containment, console runtime management, and the managed **Ultima Online - The Second Age** integration.
 
@@ -25,6 +25,16 @@ The managed Ultima Online path uses the actual October 1998 Ultima Online 1.25.3
 **Nougat 3D** is the planned classic-game scene-enhancement system built around mature emulator cores, game-state interpretation, automatic generic 3D presentation, and optional per-game enhancement profiles.
 
 The accepted functional baseline immediately before this transition is **v0.0.68**. **v0.0.69** begins the comprehensive Nougat Play Portal and NougatOS identity and interface transition while preserving the existing functional foundation.
+
+## v0.0.70 - Console OS UI Authority Candidate
+
+- Officially begins Nougat's Console OS UI phase.
+- Uses the owner-supplied approved artwork as the literal visual authority: owner-approved silver/graphite/cyan N and black/bronze/cream console presentation.
+- Top-level order is exactly **Home / Games / Media / Network / System**.
+- Library is folded into Media.
+- Home represents Games and Media together.
+- This candidate is deliberately UI-first; backend integration resumes after owner visual approval.
+- No GitHub publication is part of this candidate.
 
 ## v0.0.69 - Nougat Play Portal / NougatOS Transition
 
@@ -1537,3 +1547,12 @@ Third-party components keep their upstream licenses and terms. See [`THIRD_PARTY
 
 See [`ROADMAP.md`](ROADMAP.md) for the next planned ReddMedia milestones.
 
+
+## v0.0.70 accepted game-card checkpoint — 2026-09-14
+
+- Accepted the blue Nougat Play Portal / Nougat Console Games surface.
+- Restored the five current White House Arcade cards using the approved artwork in `assets/game_cards`.
+- Game titles and `White House Arcade` labels sit below the artwork instead of covering it.
+- Supply Line and Trump Savings Tycoon now fill their artwork slots without the rejected side gaps.
+- The five working game executables and their launch/Escape behavior were left unchanged.
+- The approved Nougat N branding asset remains the executable/launcher icon source.

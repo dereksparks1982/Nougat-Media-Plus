@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Rio Run - Offline Archive
+Comment=Offline preserved arcade game
+Exec=Rio_Run
+Terminal=false
+Categories=Game;ArcadeGame;

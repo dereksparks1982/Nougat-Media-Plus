@@ -23,8 +23,12 @@ struct LaunchRequest {
     std::string backend;
     std::string title;
     std::string log_path;
-    // NOUGAT_V61_EMBED_WORKDIR_REMOVED: preserve accepted emulator cwd behavior.
+    // Optional per-title working directory. Ordinary emulators leave this empty
+    // so their accepted launch behavior is unchanged; bundled native games may
+    // use their own directory for relative assets.
+    std::string working_directory;
     int window_timeout_ms = 45000;
+    bool overlay_window = false;
 };
 
 struct HostEvent {
@@ -58,6 +62,7 @@ public:
 
     bool active() const;
     bool embedded() const;
+    bool owns_window(Window window) const;
     HostState state() const;
 
 private:

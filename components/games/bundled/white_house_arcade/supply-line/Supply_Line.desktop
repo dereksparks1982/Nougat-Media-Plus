@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Supply Line
+Comment=Offline preserved arcade game
+Exec=Supply_Line
+Terminal=false
+Categories=Game;ArcadeGame;

@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cctype>
 #include <csignal>
+#include <cstring>
 #include <cstdlib>
 #include <fcntl.h>
 #include <fstream>
@@ -123,6 +124,10 @@ bool pcsx2_backend_family(const std::string& value) {
     return normalized_window_token(value).find("pcsx2") != std::string::npos;
 }
 
+bool nougat_arcade_backend_family(const std::string& value) {
+    return normalized_window_token(value).find("nougatarcade") != std::string::npos;
+}
+
 std::set<Window> ewmh_client_windows(Display* display, Window root) {
     std::set<Window> out;
     if (!display || !root) return out;
@@ -188,6 +193,34 @@ bool mark_private_emulator_window(Display* display, Window window, Window shell,
                     reinterpret_cast<const unsigned char*>(states), 2);
     if (set_transient && shell) XSetTransientForHint(display, window, shell);
     return trap.sync_ok();
+}
+
+struct MotifWmHints {
+    unsigned long flags = 0;
+    unsigned long functions = 0;
+    unsigned long decorations = 0;
+    long input_mode = 0;
+    unsigned long status = 0;
+};
+
+bool remove_window_decorations(Display* display, Window window) {
+    if (!display || !window) return false;
+    const Atom motif = XInternAtom(display, "_MOTIF_WM_HINTS", False);
+    MotifWmHints hints{};
+    hints.flags = 1UL << 1U;
+    hints.decorations = 0;
+    XErrorTrap trap(display);
+    XChangeProperty(display, window, motif, motif, 32, PropModeReplace,
+                    reinterpret_cast<const unsigned char*>(&hints), 5);
+    return trap.sync_ok();
+}
+
+bool translate_parent_to_root(Display* display, Window parent, Window root, int& x, int& y) {
+    if (!display || !parent || !root) return false;
+    Window child = None;
+    XErrorTrap trap(display);
+    const Bool ok = XTranslateCoordinates(display, parent, root, 0, 0, &x, &y, &child);
+    return ok != False && trap.sync_ok();
 }
 
 std::vector<Window> root_candidates(Display* display, Window root) {
@@ -387,6 +420,7 @@ struct EmulatorHost::Impl {
     long long last_scan_ms = 0;
     long long last_geometry_ms = 0;
     int timeout_ms = 45000;
+    bool overlay_mode = false;
     std::set<Window> preexisting;
 
     void clear_runtime_state() {
@@ -397,6 +431,7 @@ struct EmulatorHost::Impl {
         started_ms = 0;
         last_scan_ms = 0;
         last_geometry_ms = 0;
+        overlay_mode = false;
     }
 
     bool window_still_exists(Window window) const {
@@ -411,15 +446,20 @@ bool force_geometry() {
 
         const int target_width = std::max(1, width);
         const int target_height = std::max(1, height);
-        if (attrs.x == 0 && attrs.y == 0 &&
-            attrs.width == target_width && attrs.height == target_height) {
+        int target_x = 0;
+        int target_y = 0;
+        if (overlay_mode) {
+            if (!translate_parent_to_root(display, parent, root, target_x, target_y)) return false;
+        } else if (attrs.x == 0 && attrs.y == 0 &&
+                   attrs.width == target_width && attrs.height == target_height) {
             return true;
         }
 
         XErrorTrap trap(display);
-        XMoveResizeWindow(display, embedded_window, 0, 0,
+        XMoveResizeWindow(display, embedded_window, target_x, target_y,
                           static_cast<unsigned int>(target_width),
                           static_cast<unsigned int>(target_height));
+        XRaiseWindow(display, embedded_window);
         return trap.sync_ok();
     }
 
@@ -429,7 +469,31 @@ bool force_geometry() {
         XWindowAttributes attrs{};
         if (!safe_window_attributes(display, window, attrs)) return false;
 
-        // A cooperating runtime may already have attached itself to Nougat
+                if (overlay_mode) {
+            if (!mark_private_emulator_window(display, window, shell, true)) return false;
+            if (!remove_window_decorations(display, window)) return false;
+            {
+                XErrorTrap trap(display);
+                XSelectInput(display, window, ButtonPressMask | KeyPressMask | StructureNotifyMask);
+                if (!trap.sync_ok()) return false;
+            }
+            embedded_window = window;
+            last_geometry_ms = monotonic_ms();
+            if (!force_geometry()) {
+                embedded_window = 0;
+                return false;
+            }
+            {
+                XErrorTrap trap(display);
+                XMapRaised(display, window);
+                XSetInputFocus(display, window, RevertToParent, CurrentTime);
+                (void)trap.sync_ok();
+            }
+            state = HostState::Embedded;
+            return true;
+        }
+
+// A cooperating runtime may already have attached itself to Nougat
         // before its first map / swapchain creation. Adopt it without a second
         // XReparentWindow transaction.
         if (is_descendant_window(display, window, parent)) {
@@ -454,9 +518,10 @@ bool force_geometry() {
         const bool xenia_backend = xenia_backend_family(backend);
         const bool mesen_backend = mesen_backend_family(backend);
         const bool pcsx2_backend = pcsx2_backend_family(backend);
-        // NOUGAT_V63_REPAIR5_THREE_BACKEND_EMBED
+        const bool arcade_backend = nougat_arcade_backend_family(backend);
+        // NOUGAT_V70_REPAIR9_ARCADE_EMBED
         const bool direct_embed_backend =
-            xenia_backend || mesen_backend || pcsx2_backend;
+            xenia_backend || mesen_backend || pcsx2_backend || arcade_backend;
         if (!mark_private_emulator_window(display, window, shell, !direct_embed_backend)) return false;
 
         // Perform the structural move first and synchronize it before focus.
@@ -496,9 +561,11 @@ bool force_geometry() {
 
         const std::string backend_hint = lower_ascii(backend);
         const std::string backend_token = normalized_window_token(backend_hint);
+        const std::string title_token = normalized_window_token(title);
         const bool xenia_backend = xenia_backend_family(backend_hint);
         const bool mesen_backend = mesen_backend_family(backend_hint);
         const bool pcsx2_backend = pcsx2_backend_family(backend_hint);
+        const bool arcade_backend = nougat_arcade_backend_family(backend_hint);
         const std::set<Window> managed_clients =
             xenia_backend ? ewmh_client_windows(display, root) : std::set<Window>{};
         const long long age = monotonic_ms() - started_ms;
@@ -531,6 +598,10 @@ bool force_geometry() {
             const bool xenia_family_match =
                 xenia_backend &&
                 identity_token.find("xenia") != std::string::npos;
+            const bool arcade_identity_match =
+                arcade_backend && (
+                    identity_token.find("nougatarcaderenderer") != std::string::npos ||
+                    (!title_token.empty() && identity_token.find(title_token) != std::string::npos));
             // NOUGAT_V63_REPAIR5_FRESH_RENDER_CAPTURE
             // These three backends were owner-tested as launching successfully.
             // Once forced onto X11, any new suitably sized client created after
@@ -541,12 +612,16 @@ bool force_geometry() {
                 preexisting.count(window) == 0U &&
                 age >= 0 && age < 30000;
             const bool backend_owned =
-                direct_backend_match || xenia_family_match || fresh_strict_backend_window;
+                direct_backend_match || xenia_family_match || arcade_identity_match || fresh_strict_backend_window;
 
             // NOUGAT_V63_REPAIR5C_XENIA_POST_OWNERSHIP_GATE
             if (xenia_backend && !managed_clients.empty() &&
                 managed_clients.count(window) == 0U && !preembedded &&
                 !process_owned && !fresh_strict_backend_window) {
+                continue;
+            }
+
+            if (arcade_backend && !preembedded && !process_owned && !arcade_identity_match) {
                 continue;
             }
 
@@ -612,6 +687,7 @@ bool EmulatorHost::start(Display* display,
     impl_->backend = request.backend;
     impl_->title = request.title;
     impl_->timeout_ms = std::max(5000, request.window_timeout_ms);
+    impl_->overlay_mode = request.overlay_window;
     impl_->preexisting.clear();
     for (Window window : window_tree_candidates(display, impl_->root)) impl_->preexisting.insert(window);
 
@@ -636,10 +712,6 @@ bool EmulatorHost::start(Display* display,
             if (!entry.first.empty()) setenv(entry.first.c_str(), entry.second.c_str(), 1);
         }
 
-        // NOUGAT_V61_EMBED_WORKDIR_REMOVED
-        // Preserve the accepted emulator cwd behavior used by the owner-tested
-        // Mesen and Xenia player-embedding paths.
-
         if (!request.log_path.empty()) {
             const int fd = open(request.log_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
             if (fd >= 0) {
@@ -647,6 +719,17 @@ bool EmulatorHost::start(Display* display,
                 dup2(fd, STDERR_FILENO);
                 if (fd > STDERR_FILENO) close(fd);
             }
+        }
+
+        // Keep the accepted emulator cwd behavior by default. Bundled native
+        // games can explicitly request their own directory so relative assets,
+        // configs and shared objects resolve exactly as they do when launched
+        // directly from that game folder.
+        if (!request.working_directory.empty() &&
+            chdir(request.working_directory.c_str()) != 0) {
+            dprintf(STDERR_FILENO, "Nougat: chdir(%s) failed: %s\n",
+                    request.working_directory.c_str(), std::strerror(errno));
+            _exit(126);
         }
 
         std::vector<char*> argv;
@@ -840,7 +923,7 @@ void EmulatorHost::stop() {
     if (impl_->display && impl_->embedded_window) {
         XErrorTrap trap(impl_->display);
         XUnmapWindow(impl_->display, impl_->embedded_window);
-        XRemoveFromSaveSet(impl_->display, impl_->embedded_window);
+        if (!impl_->overlay_mode) XRemoveFromSaveSet(impl_->display, impl_->embedded_window);
         (void)trap.sync_ok();
     }
 
@@ -855,6 +938,10 @@ bool EmulatorHost::active() const {
 
 bool EmulatorHost::embedded() const {
     return impl_->state == HostState::Embedded && impl_->embedded_window != 0;
+}
+
+bool EmulatorHost::owns_window(Window window) const {
+    return impl_ && window != 0 && impl_->embedded_window == window;
 }
 
 HostState EmulatorHost::state() const {

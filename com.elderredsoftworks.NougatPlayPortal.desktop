@@ -2,7 +2,7 @@
 Type=Application
 Name=Nougat Play Portal
 Comment=Nougat Play Portal unified media, television, radio, games, Studio, Drone Production, Search, security, server, and system workstation
-Exec="/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/Nougat_Play_Portal_v67"
+Exec="/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/Nougat_Play_Portal_v70"
 Icon=/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/assets/branding/nougat-play-portal-dock-N.png
 StartupWMClass=NougatPlayPortal
 X-GNOME-Application-ID=com.elderredsoftworks.NougatPlayPortal

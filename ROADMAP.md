@@ -2,6 +2,15 @@
 
 **Powered by NougatOS**
 
+## v0.0.70 - Console OS UI Authority Build
+
+- UI fidelity is the acceptance gate before new integrations.
+- Approved top-level order: **Home / Games / Media / Network / System**.
+- Fold Library into Media.
+- Home surfaces games plus movies, television and other media activity/suggestions.
+- The owner-approved silver / graphite / cyan console N is the active v0.0.70 icon authority.
+- Preserve existing functionality underneath the shell; integrate it after UI approval.
+
 ## v0.0.69 - Nougat Play Portal / NougatOS Transition
 
 - Make **Nougat Play Portal** the canonical product, project, executable, desktop, documentation, asset, and GitHub identity.
@@ -26,6 +35,24 @@
 - Future Chat expansion may grow toward Discord-style channels, replies, reactions, private messages, groups, roles, voice, video, screen sharing, and file sharing.
 
 ## Future feature roadmap
+
+### Classic Winamp-Style Music Player
+- Roadmap only until separately authorized.
+- Target the recognizable classic compact Winamp main player, equalizer, playlist, visualizations, skin workflow and music library.
+- Investigate open-source foundations and Winamp-compatible formats. Audacious's normal UI is not fulfillment of this item.
+
+### Next-Generation Search / Crawler Privacy and Trust Architecture
+- Roadmap only until separately authorized.
+- Intent-aware Search / Agent / Training crawler policy handling.
+- Web Bot Auth compatibility.
+- Pay-per-crawl / HTTP 402 states with no automatic spending.
+- Age/identity separation from VPN, ISP, DNS, relay and other network-privacy transports.
+- Agentic prompt-injection defenses treating remote content as untrusted data.
+- Trusted-code authorization outside the model/agent boundary.
+- Provenance and C2PA / Content Credentials support.
+- Replaceable OHTTP, ODoH/ECH, relay/mix and ISP-visibility-reduction techniques.
+- Truthful policy-denial, authentication, rate-limit, payment and temporary-unavailability states.
+
 
 ### Nougat Weather
 - Full weather environment including forecasts, radar, satellite weather imagery, severe-weather information, storm tracking, and appropriate integration with received weather-radio information.

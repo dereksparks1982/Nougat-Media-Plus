@@ -949,6 +949,7 @@ enum class MenuAction {
     CardPlay, CardOpenSource, CardInfo, CardRefresh, CardFixMatch, CardClearMatch, CardOpenOfficial, CardRefreshArtwork, CardOpenArtwork
 };
 enum class ViewMode { Home, VideoPlayer, Library, Discover, LiveTV, WorldTV, Radio, Nougat, Stream, Studio, Games, P2P, Network, Debug };
+enum class V70ConsoleCategory { Home, Games, Media, Network, System };
 enum class NetworkPanel { Overview, Connections, Devices, Security, Satellite, Diagnostics, Logs };
 enum class SatellitePanel { Track, Passes, Receive, Decode, Transmit, Imagery, Antenna, Hardware, Logs };
 enum class NougatPanel { Search, Crawler, P2P, VirusScan, Archive };
@@ -1538,6 +1539,36 @@ static bool safe_zip_game_entry(const std::string& entry,
 }
 
 static std::string game_sidecar_artwork(const std::string& path) {
+    // NOUGAT_V70_DIRECT_APPROVED_GAME_CARD_ASSETS
+    // The five current bundled games use Derek's approved card art directly
+    // from the canonical internal project asset directory.
+    const std::string nougatApprovedGamePath = lower_copy(path);
+
+    if (nougatApprovedGamePath.find("build_the_wall") != std::string::npos ||
+        nougatApprovedGamePath.find("build-the-wall") != std::string::npos ||
+        nougatApprovedGamePath.find("build the wall") != std::string::npos)
+        return "/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/assets/game_cards/buildthewall.png";
+
+    if (nougatApprovedGamePath.find("flappy_bill") != std::string::npos ||
+        nougatApprovedGamePath.find("flappy-bill") != std::string::npos ||
+        nougatApprovedGamePath.find("flappy bill") != std::string::npos)
+        return "/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/assets/game_cards/flappybill.png";
+
+    if (nougatApprovedGamePath.find("rio_run") != std::string::npos ||
+        nougatApprovedGamePath.find("rio-run") != std::string::npos ||
+        nougatApprovedGamePath.find("rio run") != std::string::npos)
+        return "/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/assets/game_cards/riorun.png";
+
+    if (nougatApprovedGamePath.find("supply_line") != std::string::npos ||
+        nougatApprovedGamePath.find("supply-line") != std::string::npos ||
+        nougatApprovedGamePath.find("supply line") != std::string::npos)
+        return "/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/assets/game_cards/supplyline.png";
+
+    if (nougatApprovedGamePath.find("trump_savings_tycoon") != std::string::npos ||
+        nougatApprovedGamePath.find("trump-savings-tycoon") != std::string::npos ||
+        nougatApprovedGamePath.find("trump savings tycoon") != std::string::npos)
+        return "/home/dereksparks1982/DKLab/Projects/Nougat Play Portal/assets/game_cards/trumpsavingstycoon.png";
+
     const std::filesystem::path source(path);
     const std::filesystem::path folder = source.parent_path();
     const std::string stem = source.stem().string();
@@ -2046,8 +2077,26 @@ public:
     Display* d=nullptr; int screen=0; Window win=0, video=0, videoActivityOverlayWindow=0, fullscreenTransportWindow=0, fullscreenSeekWindow=0, seekPreviewWindow=0; GC gc=0; XFontStruct* fontInfo=nullptr; XFontStruct* boldFontInfo=nullptr; XFontStruct* sectionFontInfo=nullptr; XFontStruct* metadataFontInfo=nullptr;
     Pixmap quiltTiles[13] = {};
     Pixmap streamQuiltTiles[6] = {};
-    int W=1000,H=650;
-    int videoW=980, videoH=530;
+    int W=1280,H=720;
+    int videoW=1260, videoH=600;
+    V70ConsoleCategory v70Category=V70ConsoleCategory::Home;
+    bool v70LegacyMode=false;
+    int v70GamesFilter=0, v70MediaSection=0, v70NetworkSection=0, v70SystemSection=0;
+    bool v70AssetsAttempted=false, v70AssetsReady=false;
+    bool v70ArcadePlayerMode=false;
+    reddmedia::LibraryPoster v70BrandAsset,v70HomeBackdrop,v70GamesBackdrop,v70NetworkBackdrop,v70MediaBackdrop,v70QuickMenu;
+    // NOUGAT_V70_BUNDLED_ARCADE_APPROVED_CARD_ART
+    reddmedia::LibraryPoster v70BundledGameArt[5];
+    bool v70BundledGameArtReady[5] = {};
+    Rect v70HomeNav,v70GamesNav,v70MediaNav,v70NetworkNav,v70SystemNav;
+    Rect v70ArcadeBackBtn;
+    Rect v70GameCloseBtn;
+    Rect v70GameFullscreenBtn;
+    Time v70GameLastClickTime=0;
+    int v70GameLastClickX=0, v70GameLastClickY=0;
+    Rect v70HomePlay,v70HomeDetails,v70HomeMore;
+    Rect v70GamesFilterRects[7],v70BundledGameRects[5],v70MediaRows[8],v70StreamAppRects[6],v70NetworkRows[7],v70SystemRows[8];
+    std::vector<std::pair<Rect,int>> v70GameEntryRects;
     Rect openBtn, rewindBtn, previousBtn, previousChapterBtn, playBtn, nextChapterBtn, nextBtn, forwardBtn, stopBtn, fsBtn, settingsBtn, seekRect, volRect, volumeHousingRect, resumeBtn, loadBtn;
     Rect videoResumeBtn, videoLoadBtn, videoRestartBtn, videoCancelBtn, videoBackLibraryBtn;
     Rect videoUpNextPlayBtn, videoUpNextSeriesBtn, videoUpNextReplayBtn;
@@ -2202,6 +2251,7 @@ public:
     VlcApi api; std::string vlcErr;
     libvlc_instance_t* inst=nullptr; libvlc_media_player_t* mp=nullptr;
     bool running=true, paused=false, fullscreen=false, hasMedia=false, needResumePrompt=false;
+    bool gameExitHotkeysGrabbed=false;
     bool shuttingDown=false;
     bool playbackCacheValid=false;
     long long cachedPlaybackTimeMs=0;
@@ -2994,10 +3044,10 @@ public:
         // One system-wide dark instrument-console family. Page identity survives
         // through content, icons and state accents rather than unrelated skins.
         return {
-            rgb8(4,18,14), rgb8(6,28,20), rgb8(8,36,26),
-            rgb8(2,10,8), rgb8(225,239,232), rgb8(129,165,147),
-            rgb8(20,120,72), rgb8(10,72,44), rgb8(1,13,9),
-            rgb8(74,230,129), rgb8(231,245,236), rgb8(49,255,121)};
+            rgb8(5,9,15), rgb8(10,17,25), rgb8(15,24,34),
+            rgb8(40,60,79), rgb8(231,239,247), rgb8(137,157,177),
+            rgb8(17,90,145), rgb8(18,48,72), rgb8(5,15,24),
+            rgb8(45,146,211), rgb8(241,247,252), rgb8(0,184,255)};
     }
 
 
@@ -3663,10 +3713,13 @@ public:
         // NOUGAT_V62_PAGE_FRAME_OUTLINE_ONLY
         // This function is intentionally called after page content. It must NEVER
         // fill the page rectangle or it erases every already-rendered tab/page.
-        const Rect frame=page_content_frame(view); (void)view;
-        outline_tactical_polygon(target,frame,rgb8(22,132,77),11);
+        const Rect frame=page_content_frame(view);
+        const bool v70BlueStream = v70LegacyMode && view == ViewMode::Stream;
+        outline_tactical_polygon(target,frame,
+            v70BlueStream ? rgb8(0,112,184) : rgb8(22,132,77),11);
         Rect inner{frame.x+4,frame.y+4,std::max(1,frame.w-8),std::max(1,frame.h-8)};
-        outline_tactical_polygon(target,inner,rgb8(7,54,34),7);
+        outline_tactical_polygon(target,inner,
+            v70BlueStream ? rgb8(18,58,88) : rgb8(7,54,34),7);
     }
 
     int top_nav_left_bound() {
@@ -3885,12 +3938,14 @@ public:
         radioSquelchUpBtn = {consoleX+254,proY,84,28};
         radioTxTestBtn = {consoleX+348,proY,128,28};
 
+        // v70 Console header occupies the first 76 px. Keep every Stream control
+        // below it so the provider row and command buttons are fully visible.
         layout_button_row({&streamYoutubeTab,&streamVimeoTab,&streamRumbleTab,&streamRutubeTab,&streamVkTab,&streamOkTab},
-                          kPageControlY, streamSourceScrollX);
-        ytdlpUrlRect = {kPageLeft, 120, std::max(240, W-kPageLeft-kPageRightPad), 28};
-        ytdlpOutputRect = {kPageLeft, 160, std::max(240, W-kPageLeft-kPageRightPad), 28};
+                          86, streamSourceScrollX);
+        ytdlpUrlRect = {kPageLeft, 128, std::max(240, W-kPageLeft-kPageRightPad), 30};
+        ytdlpOutputRect = {kPageLeft, 170, std::max(240, W-kPageLeft-kPageRightPad), 30};
         layout_button_row({&ytdlpDownloadBtn,&ytdlpDirectWatchBtn,&ytdlpWebpageBtn,&ytdlpClearBtn},
-                          202, ytdlpButtonsScrollX);
+                          214, ytdlpButtonsScrollX);
         ytdlpFolderBtn = {0,0,0,0};
 
         p2pMagnetRect = {kPageLeft, 148, std::max(240, W-kPageLeft-kPageRightPad), 28};
@@ -4052,6 +4107,27 @@ public:
     }
     void apply_video_layout() {
         if (!video) return;
+        if (currentView == ViewMode::Games && currentMediaIsGame && v70ArcadePlayerMode) {
+            if (fullscreen) {
+                videoW = std::max(100, W);
+                videoH = std::max(100, H);
+                XMoveResizeWindow(d, video, 0, 0,
+                                  static_cast<unsigned int>(videoW),
+                                  static_cast<unsigned int>(videoH));
+            } else {
+                const int top=76, foot=72, controlsH=40;
+                const int vx=28;
+                const int vy=top+66;
+                videoW=std::max(220,W-56);
+                videoH=std::max(160,H-foot-vy-controlsH-18);
+                XMoveResizeWindow(d,video,vx,vy,
+                                  static_cast<unsigned int>(videoW),
+                                  static_cast<unsigned int>(videoH));
+            }
+            XMapWindow(d, video);
+            if (gameHost.active()) gameHost.resize(videoW, videoH);
+            return;
+        }
         if (currentView == ViewMode::Home || currentView == ViewMode::Library || currentView == ViewMode::Discover ||
             currentView == ViewMode::Radio || currentView == ViewMode::Nougat || currentView == ViewMode::Stream || currentView == ViewMode::Studio || currentView == ViewMode::Games || currentView == ViewMode::P2P || currentView == ViewMode::Network ||
             currentView == ViewMode::Debug || currentView == ViewMode::LiveTV || currentView == ViewMode::WorldTV) {
@@ -5545,7 +5621,7 @@ public:
         // Fixed brand and server/version areas never scroll. The tab row is
         // hard-clipped to the center lane, so a tab disappears at either edge
         // instead of painting over the Nougat identity or the version block.
-        const std::string versionLabel = "v0.0.68";
+        const std::string versionLabel = "v0.0.70";
         const int versionWidth = text_width(versionLabel);
         const int versionX = W - 10 - versionWidth;
         bool serverBusy = false;
@@ -6591,16 +6667,14 @@ public:
     }
 
     void draw_stream_screen(Drawable target) {
-        const ViewPalette palette = stream_palette_for(streamPlatform);
-        draw_quilted_background(target, {0,32,W,H-32}, ViewMode::Stream);
+        // v70 Stream lives inside the Console OS visual language.  Keep the
+        // service choice, URL workflow and yt-dlp backend, but retire the old
+        // green/cream skin on this page.
+        fill(target, {0,76,W,std::max(1,H-76)}, v70_bg());
+
         const auto source_button = [&](const Rect& r, const char* label, StreamPlatform platform) {
             const bool selected = streamPlatform == platform;
-            const bool hover = r.contains(pointerWindowX, pointerWindowY);
-            const ViewPalette own = stream_palette_for(platform);
-            draw_sheet_tab_surface(target, r, own, selected, hover);
-            const Rect visual{r.x+2,r.y+1,std::max(1,r.w-4),std::max(1,r.h-4)};
-            text(target, visual.x + std::max(6,(visual.w-text_width(label))/2),
-                 visual.y + visual.h / 2 + 5, label, own.buttonText);
+            v70_button(target, r, label, selected, false);
         };
         source_button(streamYoutubeTab,"YouTube",StreamPlatform::YouTube);
         source_button(streamVimeoTab,"Vimeo",StreamPlatform::Vimeo);
@@ -6609,55 +6683,60 @@ public:
         source_button(streamVkTab,"VK",StreamPlatform::VK);
         source_button(streamOkTab,"OK",StreamPlatform::OK);
 
-        const unsigned long focusBorder = urlFocused ? palette.accent : palette.border;
-        draw_concept_field(target, ytdlpUrlRect, palette.field, focusBorder, urlFocused);
-        int urlTextMax = std::max(24, ytdlpUrlRect.w - 18);
-        std::string visibleUrl = ytdlpUrl.empty() ? std::string("") : tail_to_width(ytdlpUrl, urlTextMax);
+        const auto blue_field = [&](const Rect& r, bool focused) {
+            fill_round(target, r, 6, v70_panel2());
+            outline_round(target, r, 6, focused ? v70_bronze_hi() : v70_border());
+            Rect inner{r.x+2,r.y+2,std::max(1,r.w-4),std::max(1,r.h-4)};
+            outline_round(target, inner, 4, focused ? rgb8(34,118,176) : rgb8(24,38,51));
+        };
+
+        blue_field(ytdlpUrlRect, urlFocused);
+        const int urlTextMax = std::max(24, ytdlpUrlRect.w - 18);
+        const std::string visibleUrl = ytdlpUrl.empty() ? std::string("") : tail_to_width(ytdlpUrl, urlTextMax);
         XRectangle urlClip{(short)(ytdlpUrlRect.x+5),(short)(ytdlpUrlRect.y+2),
                            (unsigned short)std::max(1,ytdlpUrlRect.w-10),(unsigned short)std::max(1,ytdlpUrlRect.h-4)};
         XSetClipRectangles(d, gc, 0, 0, &urlClip, 1, Unsorted);
-        const unsigned long fieldInk = col(0x1717,0x1111,0x0b0b);
         if (visibleUrl.empty() && !urlFocused) {
-            text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+18,
-                 "Paste URL Then Press Direct Watch / Vimeo / Rumble / RuTube / VK / OK", palette.muted);
+            text(target, ytdlpUrlRect.x+8, ytdlpUrlRect.y+20,
+                 "Paste video URL here", v70_muted());
         } else if (urlSelectAll && !visibleUrl.empty()) {
-            int selectedW = std::min(text_width(visibleUrl)+4,std::max(1,ytdlpUrlRect.w-12));
-            fill(target,{ytdlpUrlRect.x+6,ytdlpUrlRect.y+4,selectedW,ytdlpUrlRect.h-8},palette.selection);
-            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+18,visibleUrl,palette.buttonText);
+            const int selectedW = std::min(text_width(visibleUrl)+4,std::max(1,ytdlpUrlRect.w-12));
+            fill(target,{ytdlpUrlRect.x+6,ytdlpUrlRect.y+4,selectedW,ytdlpUrlRect.h-8},v70_primary());
+            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+20,visibleUrl,v70_primary_text());
         } else {
-            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+18,visibleUrl,fieldInk);
+            text(target,ytdlpUrlRect.x+8,ytdlpUrlRect.y+20,visibleUrl,v70_cream());
         }
         if (urlFocused && !urlSelectAll) {
             int cx=ytdlpUrlRect.x+8+text_width(visibleUrl);
             cx=std::min(cx,ytdlpUrlRect.x+ytdlpUrlRect.w-8);
-            line(target,cx,ytdlpUrlRect.y+5,cx,ytdlpUrlRect.y+23,fieldInk);
+            line(target,cx,ytdlpUrlRect.y+5,cx,ytdlpUrlRect.y+24,v70_bronze_hi());
         }
         apply_page_clip(ViewMode::Stream);
 
-        draw_concept_field(target,ytdlpOutputRect,palette.field,palette.border,false);
-        text(target,ytdlpOutputRect.x+8,ytdlpOutputRect.y+18,
-             tail_to_width("Output folder: "+ytdlpOutputFolder,ytdlpOutputRect.w-16),fieldInk);
-        button_on(target,ytdlpDownloadBtn,"Download");
-        button_on(target,ytdlpDirectWatchBtn,"Direct Watch");
-        button_on(target,ytdlpWebpageBtn,"Open Webpage");
-        button_on(target,ytdlpClearBtn,"Clear Log");
-        text(target,kPageLeft,246,head_to_width("Status: "+ytdlpStatus,W-kPageLeft-kPageRightPad),palette.text);
+        blue_field(ytdlpOutputRect, false);
+        text(target,ytdlpOutputRect.x+8,ytdlpOutputRect.y+20,
+             tail_to_width("Output folder: "+ytdlpOutputFolder,ytdlpOutputRect.w-16),v70_cream());
 
-        Rect logBox={kPageLeft,264,std::max(240,W-kPageLeft-kPageRightPad),std::max(100,H-289)};
-        // Match Discover's clean panel silhouette: the provider palette remains in
-        // the sheet-style panel/bottom bevel, but no vertical accent strip climbs
-        // the left edge. This applies uniformly to YouTube, Vimeo, Rumble, RuTube, VK and OK.
-        draw_primary_panel(target, logBox, palette);
-        text(target,logBox.x+14,logBox.y+20,std::string(stream_platform_name(streamPlatform))+" activity log",palette.text);
-        int lineY=logBox.y+44;
+        v70_button(target,ytdlpDownloadBtn,"Download",false,true);
+        v70_button(target,ytdlpDirectWatchBtn,"Direct Watch",false,true);
+        v70_button(target,ytdlpWebpageBtn,"Open Webpage");
+        v70_button(target,ytdlpClearBtn,"Clear Log");
+
+        text(target,kPageLeft,258,head_to_width("Status: "+ytdlpStatus,W-kPageLeft-kPageRightPad),v70_cream());
+        Rect logBox={kPageLeft,278,std::max(240,W-kPageLeft-kPageRightPad),std::max(100,H-304)};
+        v70_panel_box(target, logBox);
+        text_with_font(target,logBox.x+14,logBox.y+22,
+                       std::string(stream_platform_name(streamPlatform))+" activity log",
+                       v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        int lineY=logBox.y+48;
         std::istringstream iss(ytdlpLog);
         std::string lineText;
         std::vector<std::string> lines;
         while(std::getline(iss,lineText)) lines.push_back(lineText);
-        int maxLines=std::max(1,(logBox.h-52)/18);
-        int first=std::max(0,(int)lines.size()-maxLines);
+        const int maxLines=std::max(1,(logBox.h-56)/18);
+        const int first=std::max(0,(int)lines.size()-maxLines);
         for(int i=first;i<(int)lines.size() && lineY<logBox.y+logBox.h-8;++i) {
-            text(target,logBox.x+14,lineY,head_to_width(lines[(size_t)i],logBox.w-24),palette.muted);
+            text(target,logBox.x+14,lineY,head_to_width(lines[(size_t)i],logBox.w-24),v70_muted());
             lineY+=18;
         }
     }
@@ -9744,6 +9823,648 @@ public:
         std::string error;
         return reddmedia::decode_library_poster_bmp(bytes.str(),poster,error);
     }
+
+    // NOUGAT_V70_CONSOLE_OS_UI_BEGIN
+    bool v70_load_console_assets() {
+        if (v70AssetsAttempted) return v70AssetsReady;
+        v70AssetsAttempted = true;
+        const std::string ui = exe_dir() + "/assets/ui/";
+        const bool brand = load_bmp_file(ui + "nougat-v70-brand-lockup.bmp", v70BrandAsset);
+        const bool home = load_bmp_file(ui + "nougat-v70-home-backdrop.bmp", v70HomeBackdrop);
+        const bool games = load_bmp_file(ui + "nougat-v70-games-backdrop.bmp", v70GamesBackdrop);
+        const bool network = load_bmp_file(ui + "nougat-v70-network-backdrop.bmp", v70NetworkBackdrop);
+        const bool media = load_bmp_file(ui + "nougat-v70-media-backdrop.bmp", v70MediaBackdrop);
+        const bool quick = load_bmp_file(ui + "nougat-v70-quick-menu.bmp", v70QuickMenu);
+
+        const std::string gameCards = exe_dir() + "/assets/game_cards/";
+        static const char* bundledCardFiles[5] = {
+            "buildthewall.bmp",
+            "flappybill.bmp",
+            "riorun.bmp",
+            "supplyline.bmp",
+            "trumpsavingstycoon.bmp"
+        };
+        for (int i = 0; i < 5; ++i) {
+            v70BundledGameArtReady[i] =
+                load_bmp_file(gameCards + bundledCardFiles[i], v70BundledGameArt[i]);
+        }
+
+        v70AssetsReady = brand && home && games && network && media && quick;
+        return v70AssetsReady;
+    }
+
+    unsigned long v70_bg() { return rgb8(5,9,15); }
+    unsigned long v70_panel() { return rgb8(10,17,25); }
+    unsigned long v70_panel2() { return rgb8(15,24,34); }
+    unsigned long v70_cream() { return rgb8(231,239,247); }
+    unsigned long v70_muted() { return rgb8(137,157,177); }
+    unsigned long v70_bronze() { return rgb8(0,112,184); }
+    unsigned long v70_bronze_hi() { return rgb8(0,184,255); }
+    unsigned long v70_border() { return rgb8(40,60,79); }
+    unsigned long v70_primary() { return rgb8(34,118,176); }
+    unsigned long v70_primary_text() { return rgb8(240,248,255); }
+
+    void v70_button(Drawable target, const Rect& r, const std::string& label,
+                    bool selected=false, bool primary=false) {
+        const bool hover=r.contains(pointerWindowX,pointerWindowY);
+        if(primary) {
+            fill_round(target,{r.x-2,r.y-2,r.w+4,r.h+5},8,rgb8(5,24,39));
+            fill_round(target,r,7,hover?rgb8(64,164,224):v70_primary());
+            outline_round(target,r,7,v70_bronze_hi());
+            text_with_font(target,r.x+std::max(7,(r.w-text_width_for_font(label,boldFontInfo))/2),
+                           r.y+r.h/2+5,label,v70_primary_text(),boldFontInfo?boldFontInfo:fontInfo);
+            return;
+        }
+        if(selected||hover) {
+            fill_round(target,r,7,hover?rgb8(18,37,53):rgb8(12,30,45));
+            outline_round(target,r,7,selected?v70_bronze():rgb8(58,88,112));
+            if(selected) line(target,r.x+10,r.y+2,r.x+r.w-11,r.y+2,v70_bronze_hi());
+        }
+        text(target,r.x+std::max(7,(r.w-text_width(label))/2),r.y+r.h/2+5,label,v70_cream());
+    }
+
+    void v70_panel_box(Drawable target,const Rect& r) {
+        fill_round(target,r,7,v70_panel());
+        outline_round(target,r,7,v70_border());
+        Rect inner{r.x+2,r.y+2,std::max(1,r.w-4),std::max(1,r.h-4)};
+        outline_round(target,inner,5,rgb8(24,38,51));
+    }
+
+    void v70_header(Drawable target) {
+        const int h=76;
+        fill(target,{0,0,W,h},rgb8(5,9,15));
+        draw_embedded_nougat_icon(target,{18,8,56,56});
+        text_with_font(target,86,27,"NOUGAT",v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        text(target,86,47,"PLAY PORTAL",v70_muted());
+
+        const int tw=88,g=7,y=13,th=46;
+        const int sx=std::max(315,(W-(tw*5+g*4))/2);
+        v70HomeNav={sx,y,tw,th}; v70GamesNav={sx+tw+g,y,tw,th};
+        v70MediaNav={sx+2*(tw+g),y,tw,th}; v70NetworkNav={sx+3*(tw+g),y,tw,th};
+        v70SystemNav={sx+4*(tw+g),y,tw,th};
+        v70_button(target,v70HomeNav,"Home",v70Category==V70ConsoleCategory::Home);
+        v70_button(target,v70GamesNav,"Games",v70Category==V70ConsoleCategory::Games);
+        v70_button(target,v70MediaNav,"Media",v70Category==V70ConsoleCategory::Media);
+        v70_button(target,v70NetworkNav,"Network",v70Category==V70ConsoleCategory::Network);
+        v70_button(target,v70SystemNav,"System",v70Category==V70ConsoleCategory::System);
+        if(W>1030) {
+            text(target,W-200,27,"Derek",v70_cream());
+            fill_circle(target,W-200,38,7,rgb8(39,214,119));
+            text(target,W-187,44,"Online",v70_muted());
+        }
+        line(target,0,h-1,W,h-1,rgb8(29,52,70));
+    }
+
+    void v70_footer(Drawable target) {
+        const int h=72;
+        Rect r{0,H-h,W,h};
+        fill(target,r,rgb8(5,10,16));
+        if(v70AssetsReady&&v70QuickMenu.width>0) draw_poster_pixels(target,r,v70QuickMenu);
+        else {
+            line(target,0,r.y,W,r.y,v70_border());
+            text(target,32,r.y+38,"Navigate     Select     Back     Options     Search",v70_muted());
+            text(target,W/2-38,r.y+24,"Quick Menu",v70_cream());
+        }
+    }
+
+    void v70_backdrop(Drawable target,const reddmedia::LibraryPoster& art,const Rect& r) {
+        if(v70AssetsReady&&art.width>0) draw_poster_pixels(target,r,art);
+        else fill(target,r,rgb8(6,12,19));
+        fill(target,{r.x,r.y,std::max(130,r.w/4),r.h},v70_bg());
+    }
+
+    void v70_card(Drawable target,const Rect& r,const std::string& title,
+                  const std::string& subtitle,bool selected=false) {
+        fill_round(target,r,7,v70_panel2());
+        outline_round(target,r,7,selected?v70_bronze_hi():v70_border());
+        if(selected) outline_round(target,{r.x-2,r.y-2,r.w+4,r.h+4},8,rgb8(0,121,194));
+        text_with_font(target,r.x+9,r.y+r.h-26,head_to_width(title,r.w-18),
+                       v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        if(!subtitle.empty()) metadata_text(target,r.x+9,r.y+r.h-9,
+                                            head_to_width(subtitle,r.w-18),v70_muted());
+    }
+
+    void v70_home(Drawable target) {
+        const int top=76,foot=72,bottom=H-foot,heroH=258;
+        fill(target,{0,top,W,bottom-top},v70_bg());
+        v70_backdrop(target,v70HomeBackdrop,{340,top,W-340,heroH});
+        text_with_font(target,60,top+40,"Continue Your Adventure",v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        text_with_font(target,60,top+84,"ULTIMA ONLINE",v70_cream(),sectionFontInfo?sectionFontInfo:fontInfo);
+        text(target,62,top+107,"T H E   S E C O N D   A G E",v70_cream());
+        text(target,62,top+142,"A living world. A real community.",v70_cream());
+        text(target,62,top+161,"Now and always.",v70_cream());
+        v70HomePlay={60,top+178,132,40}; v70HomeDetails={204,top+178,132,40}; v70HomeMore={348,top+178,44,40};
+        v70_button(target,v70HomePlay,"Play",false,true); v70_button(target,v70HomeDetails,"Game Details"); v70_button(target,v70HomeMore,"...");
+
+        int y=top+heroH+26;
+        text_with_font(target,60,y,"Continue Playing",v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        std::vector<GameEntry> games;
+        { std::lock_guard<std::mutex> lock(gameState->mutex); games=gameState->games; }
+        int x=56,shown=0; const int cw=138,ch=82,gap=10;
+        for(const auto& game:games) {
+            if(shown>=7||x+cw>W-48) break;
+            v70_card(target,{x,y+12,cw,ch},game.title.empty()?game_clean_display_title(game):game.title,
+                     game.system,shown==0);
+            x+=cw+gap; ++shown;
+        }
+        if(shown==0) {
+            v70_card(target,{x,y+12,170,ch},"Ultima Online T2A","Games",true);
+            x+=180; v70_card(target,{x,y+12,170,ch},"Recent Games","Library");
+        }
+
+        const int wy=y+ch+40;
+        if(wy+72<bottom) {
+            text_with_font(target,60,wy,"Continue Watching",v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+            std::vector<ResumeRecord> recs;
+            { std::lock_guard<std::mutex> lock(homeState->mutex); recs=homeState->continue_watching; }
+            x=56; shown=0;
+            for(const auto& rec:recs) {
+                if(shown>=6||x+175>W-48) break;
+                const std::string title=!rec.series_name.empty()?rec.series_name:(!rec.title.empty()?rec.title:basename_only(rec.path));
+                v70_card(target,{x,wy+12,165,58},title,"Resume",false);
+                x+=175; ++shown;
+            }
+            if(shown==0) v70_card(target,{56,wy+12,230,58},"Media suggestions","Movies, TV and more");
+        }
+    }
+
+    void v70_games(Drawable target) {
+        const int top=76,foot=72;
+        fill(target,{0,top,W,H-top-foot},v70_bg());
+        v70_backdrop(target,v70GamesBackdrop,{W/2,top,W-W/2,170});
+        text_with_font(target,30,top+42,"Games",v70_cream(),sectionFontInfo?sectionFontInfo:fontInfo);
+        text(target,30,top+66,"Every generation. One place.",v70_cream());
+
+        const char* filters[]={"All Games","Systems","Categories","Favorites","Recently Added","Multiplayer","Nougat 3D"};
+        int x=28;
+        for(int i=0;i<7;++i) {
+            int w=i==4?116:92;
+            v70GamesFilterRects[i]={x,top+84,w,32};
+            v70_button(target,v70GamesFilterRects[i],filters[i],i==v70GamesFilter,i==v70GamesFilter);
+            x+=w+7;
+        }
+
+        text_with_font(target,30,top+139,"Bundled Arcade",v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        static const char* builtTitles[]={
+            "Build the Wall","Flappy Bill","Rio Run","Supply Line","Trump Savings Tycoon"
+        };
+        const int bGap=10;
+        const int bCols=5;
+        const int bW=std::max(120,(W-56-bGap*(bCols-1))/bCols);
+        const int bH=112;
+        int bx=28;
+        for(int i=0;i<5;++i) {
+            // NOUGAT_V70_BUNDLED_CARD_ART_FULL_SLOT_LABELS_BELOW
+            // The clickable card rectangle is artwork only. Labels live below it.
+            v70BundledGameRects[i]={bx,top+154,bW,bH};
+            const Rect art = v70BundledGameRects[i];
+
+            fill_round(target,art,7,v70_panel2());
+            if (v70BundledGameArtReady[i] &&
+                v70BundledGameArt[i].width > 0 &&
+                v70BundledGameArt[i].height > 0) {
+                if (i == 3 || i == 4) {
+                    // NOUGAT_V70_SUPPLY_TRUMP_NO_SIDE_GAPS
+                    // Fill the full artwork slot edge-to-edge horizontally.
+                    // Keep the whole approved image visible instead of cover-cropping it.
+                    Pixmap cardArt = XCreatePixmap(
+                        d, win,
+                        static_cast<unsigned int>(art.w),
+                        static_cast<unsigned int>(art.h),
+                        DefaultDepth(d, screen));
+                    if (cardArt) {
+                        GC windowGc = gc;
+                        GC imageGc = XCreateGC(d, cardArt, 0, nullptr);
+                        if (imageGc) {
+                            gc = imageGc;
+                            draw_poster_pixels(
+                                cardArt, {0,0,art.w,art.h},
+                                v70BundledGameArt[i]);
+                            gc = windowGc;
+                            XFreeGC(d, imageGc);
+                            copy_pixmap_top_rounded(cardArt, target, art, 7);
+                        } else {
+                            gc = windowGc;
+                            draw_poster_pixels(target, art, v70BundledGameArt[i]);
+                        }
+                        XFreePixmap(d, cardArt);
+                    } else {
+                        draw_poster_pixels(target, art, v70BundledGameArt[i]);
+                    }
+                } else {
+                    draw_cover_pixels_top_rounded(target,art,v70BundledGameArt[i],7);
+                }
+            }
+            outline_round(target,art,7,v70_border());
+
+            text_with_font(target,art.x+4,art.y+art.h+18,
+                           head_to_width(builtTitles[i],art.w-8),
+                           v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+            metadata_text(target,art.x+4,art.y+art.h+34,
+                          head_to_width("White House Arcade",art.w-8),
+                          v70_muted());
+
+            bx+=bW+bGap;
+        }
+
+        // v0.0.70 Repair 6: the blue Console OS Games surface must not leak
+        // the legacy linked-folder/Game Library panel into this page.
+        v70GameEntryRects.clear();
+        Rect info{28,top+330,W-56,std::max(92,H-foot-(top+344))};
+        v70_panel_box(target,info);
+        text_with_font(target,info.x+20,info.y+31,"White House Arcade",v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        text(target,info.x+20,info.y+58,
+             "Five preserved offline arcade games are bundled directly with Nougat.",v70_muted());
+        text(target,info.x+20,info.y+81,
+             "Select a game above to play it inside the Nougat Player surface.",v70_muted());
+    }
+
+    void v70_media(Drawable target) {
+        const int top=76,foot=72;
+        fill(target,{0,top,W,H-top-foot},v70_bg());
+        v70_backdrop(target,v70MediaBackdrop,{W/2,top,W-W/2,190});
+        text_with_font(target,30,top+52,"Media",v70_cream(),sectionFontInfo?sectionFontInfo:fontInfo);
+        text(target,30,top+76,"More than games. All in one place.",v70_cream());
+        const char* items[]={"Home","Live TV","Streaming","Movies","TV Shows","Music","Radio","My Media"};
+        const int mx=28,my=top+98,mw=176,rh=31;
+        v70_panel_box(target,{mx,my,mw,rh*8+18});
+        for(int i=0;i<8;++i) {
+            Rect row{mx+8,my+8+i*rh,mw-16,rh-3}; v70MediaRows[i]=row;
+            if(i==v70MediaSection){fill_round(target,row,5,v70_primary());outline_round(target,row,5,v70_bronze_hi());text(target,row.x+12,row.y+19,items[i],v70_primary_text());}
+            else text(target,row.x+12,row.y+19,items[i],v70_cream());
+        }
+        const int cx=mx+mw+18;
+        text_with_font(target,cx,my+20,"Continue Watching",v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        std::vector<ResumeRecord> recs;
+        { std::lock_guard<std::mutex> lock(homeState->mutex); recs=homeState->continue_watching; }
+        int x=cx,shown=0;
+        for(const auto& rec:recs) {
+            if(shown>=3||x+220>W-28) break;
+            const std::string title=!rec.series_name.empty()?rec.series_name:(!rec.title.empty()?rec.title:basename_only(rec.path));
+            v70_card(target,{x,my+34,210,86},title,"Continue",false); x+=220; ++shown;
+        }
+        if(shown==0) v70_card(target,{cx,my+34,260,86},"Continue Watching","Your media history appears here");
+        text_with_font(target,cx,my+148,"Apps",v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        const char* apps[]={"YouTube","Rumble","RuTube","VK","OK","Internet"};
+        x=cx;
+        for(int i=0;i<6;++i) v70StreamAppRects[i]={};
+        for(int i=0;i<6&&x+116<W-22;++i){
+            Rect r{x,my+160,110,42};
+            v70StreamAppRects[i]=r;
+            v70_button(target,r,apps[i]);
+            x+=118;
+        }
+        Rect info{cx,my+222,W-cx-28,std::max(80,H-foot-(my+234))}; v70_panel_box(target,info);
+        text_with_font(target,info.x+18,info.y+28,items[v70MediaSection],v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        text(target,info.x+18,info.y+54,"Library, Player, Live TV, World TV, Radio, Stream and other media systems live under Media.",v70_muted());
+    }
+
+    void v70_network(Drawable target) {
+        const int top=76,foot=72;
+        fill(target,{0,top,W,H-top-foot},v70_bg());
+        v70_backdrop(target,v70NetworkBackdrop,{W/2,top,W-W/2,190});
+        text_with_font(target,30,top+52,"Network",v70_cream(),sectionFontInfo?sectionFontInfo:fontInfo);
+        text(target,30,top+76,"Play together. Anytime. Anywhere.",v70_cream());
+        const char* items[]={"Friends","Parties","Server Browser","Looking for Game","Messages","Leaderboards","Events"};
+        const int mx=28,my=top+98,mw=166,rh=33;
+        v70_panel_box(target,{mx,my,mw,rh*7+18});
+        for(int i=0;i<7;++i){Rect row{mx+8,my+8+i*rh,mw-16,rh-4};v70NetworkRows[i]=row;
+            if(i==v70NetworkSection){fill_round(target,row,5,v70_primary());outline_round(target,row,5,v70_bronze_hi());text(target,row.x+12,row.y+20,items[i],v70_primary_text());}
+            else text(target,row.x+12,row.y+20,items[i],v70_cream());
+        }
+        const int x0=mx+mw+14,w=(W-x0-42)/2;
+        Rect a{x0,my,w,H-foot-my-16},b{x0+w+14,my,w,H-foot-my-16};v70_panel_box(target,a);v70_panel_box(target,b);
+        text_with_font(target,a.x+16,a.y+28,items[v70NetworkSection],v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        text(target,a.x+16,a.y+54,"Nougat Network integration follows UI approval.",v70_muted());
+        text_with_font(target,b.x+16,b.y+28,"Featured Servers",v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        text(target,b.x+16,b.y+54,"Existing network/server systems remain preserved.",v70_muted());
+    }
+
+    void v70_system(Drawable target) {
+        const int top=76,foot=72;
+        fill(target,{0,top,W,H-top-foot},v70_bg());
+        v70_backdrop(target,v70NetworkBackdrop,{W/2,top,W-W/2,190});
+        text_with_font(target,30,top+52,"System",v70_cream(),sectionFontInfo?sectionFontInfo:fontInfo);
+        text(target,30,top+76,"NougatOS controls, security, hardware, and diagnostics.",v70_cream());
+        const char* items[]={"Overview","Virus Scan","Diagnostics","Controllers","Storage","Display & Audio","Network","Devices"};
+        const int mx=28,my=top+98,mw=180,rh=33;
+        v70_panel_box(target,{mx,my,mw,rh*8+18});
+        for(int i=0;i<8;++i){Rect row{mx+8,my+8+i*rh,mw-16,rh-4};v70SystemRows[i]=row;
+            if(i==v70SystemSection){fill_round(target,row,5,v70_primary());outline_round(target,row,5,v70_bronze_hi());text(target,row.x+12,row.y+20,items[i],v70_primary_text());}
+            else text(target,row.x+12,row.y+20,items[i],v70_cream());
+        }
+        Rect p{mx+mw+16,my,W-(mx+mw+44),H-foot-my-16};v70_panel_box(target,p);
+        text_with_font(target,p.x+18,p.y+30,items[v70SystemSection],v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        if(v70SystemSection==1){text(target,p.x+18,p.y+58,"Virus Scan: YARA-X / capa / Magika / optional ClamAV.",v70_muted());text(target,p.x+18,p.y+80,"WARN ME FIRST behavior remains unchanged.",v70_muted());}
+        else if(v70SystemSection==2) text(target,p.x+18,p.y+58,"Evidence-based diagnostics remain under System.",v70_muted());
+        else text(target,p.x+18,p.y+58,"Existing Nougat system functions remain preserved for the integration pass.",v70_muted());
+    }
+
+
+    void v70_draw_game_player(Drawable target) {
+        const int top=76,foot=72;
+        if (fullscreen) {
+            fill(target,{0,0,W,H},rgb8(0,0,0));
+            v70ArcadeBackBtn={0,0,0,0};
+            v70GameCloseBtn={0,0,0,0};
+            v70GameFullscreenBtn={0,0,0,0};
+            if(video) {
+                videoW=std::max(100,W);
+                videoH=std::max(100,H);
+                XMoveResizeWindow(d,video,0,0,
+                                  static_cast<unsigned int>(videoW),
+                                  static_cast<unsigned int>(videoH));
+                XMapWindow(d,video);
+                if(gameHost.active()) gameHost.resize(videoW,videoH);
+            }
+            return;
+        }
+
+        fill(target,{0,top,W,H-top-foot},v70_bg());
+        v70_header(target);
+
+        const std::string title=activeGameTitle.empty()?"Game":activeGameTitle;
+        text_with_font(target,28,top+30,title,v70_cream(),boldFontInfo?boldFontInfo:fontInfo);
+        text(target,28,top+51,"Nougat Games",v70_muted());
+
+        v70ArcadeBackBtn={W-166,top+14,138,34};
+        v70_button(target,v70ArcadeBackBtn,"Back to Games",false,true);
+
+        const int vx=28;
+        const int vy=top+66;
+        const int vw=std::max(220,W-56);
+        const int controlsH=40;
+        const int vh=std::max(160,H-foot-vy-controlsH-18);
+        Rect frame{vx-2,vy-2,vw+4,vh+4};
+        fill_round(target,frame,7,rgb8(1,5,9));
+        outline_round(target,frame,7,v70_border());
+
+        const int controlsY=vy+vh+8;
+        Rect controls{vx,controlsY,vw,controlsH};
+        v70_panel_box(target,controls);
+        text(target,controls.x+12,controls.y+25,"GAME",v70_muted());
+        text(target,controls.x+66,controls.y+25,head_to_width(title,std::max(80,controls.w-270)),v70_cream());
+
+        v70GameCloseBtn={controls.x+controls.w-158,controls.y+5,100,30};
+        v70_button(target,v70GameCloseBtn,"Close Game",false,false);
+
+        v70GameFullscreenBtn={controls.x+controls.w-46,controls.y+5,34,30};
+        v70_button(target,v70GameFullscreenBtn,"",false,true);
+        outline(target,{v70GameFullscreenBtn.x+9,v70GameFullscreenBtn.y+7,16,14},v70_cream());
+        line(target,v70GameFullscreenBtn.x+9,v70GameFullscreenBtn.y+12,
+             v70GameFullscreenBtn.x+9,v70GameFullscreenBtn.y+7,v70_cream());
+        line(target,v70GameFullscreenBtn.x+9,v70GameFullscreenBtn.y+7,
+             v70GameFullscreenBtn.x+14,v70GameFullscreenBtn.y+7,v70_cream());
+        line(target,v70GameFullscreenBtn.x+25,v70GameFullscreenBtn.y+16,
+             v70GameFullscreenBtn.x+25,v70GameFullscreenBtn.y+21,v70_cream());
+        line(target,v70GameFullscreenBtn.x+20,v70GameFullscreenBtn.y+21,
+             v70GameFullscreenBtn.x+25,v70GameFullscreenBtn.y+21,v70_cream());
+
+        if(video) {
+            videoW=vw;
+            videoH=vh;
+            XMoveResizeWindow(d,video,vx,vy,
+                              static_cast<unsigned int>(videoW),
+                              static_cast<unsigned int>(videoH));
+            XMapWindow(d,video);
+            if(gameHost.active()) gameHost.resize(videoW,videoH);
+        }
+
+        v70_footer(target);
+    }
+
+
+    void v70_prepare_game_surface() {
+        // Games own the child rendering surface. Tear down any media engine,
+        // then clear only transient media-player UI state so an old movie
+        // resume/stop overlay can never appear inside Games.
+        cleanup_player();
+        resumePromptVisible = false;
+        stoppedPlaybackVisible = false;
+        needResumePrompt = false;
+        upNextVisible = false;
+        playerActivityOverlayVisible = false;
+        pendingSeek = false;
+        hide_player_activity_overlay_window();
+
+        v70LegacyMode = false;
+        v70ArcadePlayerMode = true;
+        v70Category = V70ConsoleCategory::Games;
+        currentView = ViewMode::Games;
+        currentMediaIsGame = true;
+
+        const int gameTop = 76;
+        const int gameFoot = 72;
+        const int gameVx = 28;
+        const int gameVy = gameTop + 66;
+        videoW = std::max(220, W - 56);
+        videoH = std::max(160, H - gameFoot - gameVy - 58);
+        if (video) {
+            XMoveResizeWindow(d, video, gameVx, gameVy,
+                              static_cast<unsigned int>(videoW),
+                              static_cast<unsigned int>(videoH));
+            XMapWindow(d, video);
+        }
+    }
+
+    bool v70_launch_bundled_arcade(int index) {
+        static const char* titles[] = {
+            "Build the Wall",
+            "Flappy Bill",
+            "Rio Run",
+            "Supply Line",
+            "Trump Savings Tycoon"
+        };
+        static const char* rels[] = {
+            "components/games/bundled/white_house_arcade/build-the-wall/Build_The_Wall",
+            "components/games/bundled/white_house_arcade/flappy-bill/Flappy_Bill",
+            "components/games/bundled/white_house_arcade/rio-run/Rio_Run",
+            "components/games/bundled/white_house_arcade/supply-line/Supply_Line",
+            "components/games/bundled/white_house_arcade/trump-savings-tycoon/Trump_Savings_Tycoon"
+        };
+        if(index < 0 || index >= 5) return false;
+        const std::string gamePath = exe_dir() + "/" + rels[index];
+        if(!exists_file(gamePath)) {
+            std::lock_guard<std::mutex> lock(gameState->mutex);
+            gameState->status = std::string("Bundled game missing: ") + titles[index];
+            gameState->updated = true;
+            redraw();
+            return false;
+        }
+
+        if (access(gamePath.c_str(), X_OK) != 0) {
+            std::lock_guard<std::mutex> lock(gameState->mutex);
+            gameState->status = std::string("Bundled game is not executable: ") + titles[index];
+            gameState->updated = true;
+            redraw();
+            return false;
+        }
+
+        v70_prepare_game_surface();
+        activeGameTitle = titles[index];
+        activeGameSystem = "White House Arcade";
+
+        nougat::games::LaunchRequest request;
+        request.argv = {gamePath};
+        const std::string bridgeDir = exe_dir() + "/components/games/runtime/nougat-arcade/browser-bridge";
+        const char* currentPath = std::getenv("PATH");
+        request.environment = {
+            {"PATH", bridgeDir + ":" + (currentPath ? currentPath : "/usr/bin:/bin")},
+            {"NOUGAT_ARCADE_TITLE", titles[index]},
+            {"GDK_BACKEND", "x11"}
+        };
+        request.backend = "Nougat Arcade";
+        request.title = titles[index];
+        request.log_path = home_dir() + "/.config/nougat-play-portal/games-white-house-arcade.log";
+        request.working_directory = std::filesystem::path(gamePath).parent_path().string();
+        request.window_timeout_ms = 45000;
+        request.overlay_window = true;
+
+        std::string error;
+        if(!gameHost.start(d, win, video, videoW, videoH, request, error)) {
+            currentMediaIsGame = false;
+            v70ArcadePlayerMode = false;
+            activeGameTitle.clear();
+            activeGameSystem.clear();
+            currentView = ViewMode::Games;
+            std::lock_guard<std::mutex> lock(gameState->mutex);
+            gameState->status = error.empty() ? "Bundled arcade game failed to start." : error;
+            gameState->updated = true;
+            redraw();
+            return false;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(gameState->mutex);
+            gameState->status = std::string("Starting ") + titles[index] + " inside Nougat Games...";
+            gameState->updated = true;
+        }
+        redraw();
+        return true;
+    }
+
+    void draw_v70_console_os_ui(Drawable target) {
+        v70_load_console_assets();
+        if(v70ArcadePlayerMode && currentMediaIsGame) {
+            v70_draw_game_player(target);
+            return;
+        }
+        v70_header(target);
+        switch(v70Category){
+            case V70ConsoleCategory::Home:v70_home(target);break;
+            case V70ConsoleCategory::Games:v70_games(target);break;
+            case V70ConsoleCategory::Media:v70_media(target);break;
+            case V70ConsoleCategory::Network:v70_network(target);break;
+            case V70ConsoleCategory::System:v70_system(target);break;
+        }
+        v70_footer(target);
+    }
+
+    bool v70_handle_console_click(int x,int y) {
+        if(v70ArcadePlayerMode && currentMediaIsGame && !fullscreen && v70GameCloseBtn.contains(x,y)) {
+            stop_game_session(true);
+            return true;
+        }
+        if(v70ArcadePlayerMode && currentMediaIsGame && !fullscreen && v70GameFullscreenBtn.contains(x,y)) {
+            toggle_fullscreen();
+            return true;
+        }
+        if(v70ArcadePlayerMode && currentMediaIsGame && v70ArcadeBackBtn.contains(x,y)) {
+            stop_game_session(true);
+            return true;
+        }
+        if(v70HomeNav.contains(x,y)){v70LegacyMode=false;v70Category=V70ConsoleCategory::Home;currentView=ViewMode::Home;start_home_task();redraw();return true;}
+        if(v70GamesNav.contains(x,y)){v70LegacyMode=false;v70Category=V70ConsoleCategory::Games;currentView=ViewMode::Games;redraw();return true;}
+        if(v70MediaNav.contains(x,y)){v70LegacyMode=false;v70Category=V70ConsoleCategory::Media;redraw();return true;}
+        if(v70NetworkNav.contains(x,y)){v70LegacyMode=false;v70Category=V70ConsoleCategory::Network;redraw();return true;}
+        if(v70SystemNav.contains(x,y)){v70LegacyMode=false;v70Category=V70ConsoleCategory::System;redraw();return true;}
+
+        // Legacy subsystem pages still use the v70 header, but their own page
+        // controls must receive clicks.  Do not let stale console-page hitboxes
+        // consume Stream/Library/Live TV/etc. input after entering a subsystem.
+        if(v70LegacyMode) return false;
+
+        if(v70Category==V70ConsoleCategory::Home) {
+            if(v70HomePlay.contains(x,y)){v70LegacyMode=true;v70Category=V70ConsoleCategory::Games;currentView=ViewMode::Games;redraw();return true;}
+            if(v70HomeDetails.contains(x,y)){v70LegacyMode=false;v70Category=V70ConsoleCategory::Games;redraw();return true;}
+        }
+
+        if(v70Category==V70ConsoleCategory::Games) {
+            for(int i=0;i<5;++i) {
+                if(v70BundledGameRects[i].contains(x,y)) {
+                    v70_launch_bundled_arcade(i);
+                    return true;
+                }
+            }
+            for(const auto& hit:v70GameEntryRects) {
+                if(hit.first.contains(x,y)) {
+                    gamesSelected=hit.second;
+                    launch_selected_game();
+                    return true;
+                }
+            }
+            for(int i=0;i<7;++i) if(v70GamesFilterRects[i].contains(x,y)) {
+                v70GamesFilter=i;
+                v70LegacyMode=false;
+                currentView=ViewMode::Games;
+                redraw();return true;
+            }
+        }
+
+        if(v70Category==V70ConsoleCategory::Media) {
+            for(int i=0;i<8;++i) if(v70MediaRows[i].contains(x,y)) {
+                v70MediaSection=i;v70LegacyMode=true;
+                if(i==0){v70LegacyMode=false;}
+                else if(i==1){currentView=ViewMode::LiveTV;}
+                else if(i==2){currentView=ViewMode::Stream;}
+                else if(i==3){currentView=ViewMode::Library;libraryMediaType=reddmedia::LibraryMediaType::Movies;libraryTypeChosen=true;start_library_task(0);}
+                else if(i==4){currentView=ViewMode::Library;libraryMediaType=reddmedia::LibraryMediaType::Television;libraryTypeChosen=true;start_library_task(0);}
+                else if(i==5){currentView=ViewMode::Studio;}
+                else if(i==6){currentView=ViewMode::Radio;radioBackend.refresh();}
+                else if(i==7){currentView=ViewMode::Library;if(!libraryTypeChosen){libraryMediaType=reddmedia::LibraryMediaType::Movies;libraryTypeChosen=true;}start_library_task(0);}
+                redraw();return true;
+            }
+            for(int i=0;i<6;++i) if(v70StreamAppRects[i].contains(x,y)) {
+                v70MediaSection=2;
+                v70LegacyMode=true;
+                currentView=ViewMode::Stream;
+                if(i==0) streamPlatform=StreamPlatform::YouTube;
+                else if(i==1) streamPlatform=StreamPlatform::Rumble;
+                else if(i==2) streamPlatform=StreamPlatform::RuTube;
+                else if(i==3) streamPlatform=StreamPlatform::VK;
+                else if(i==4) streamPlatform=StreamPlatform::OK;
+                urlFocused=false;
+                urlSelectAll=false;
+                ytdlpStatus = i==5 ? "Stream ready. Paste a supported video URL."
+                                   : std::string(stream_platform_name(streamPlatform)) + " selected. Paste a URL for Direct Watch or Download.";
+                redraw();
+                return true;
+            }
+        }
+
+        if(v70Category==V70ConsoleCategory::Network) {
+            for(int i=0;i<7;++i) if(v70NetworkRows[i].contains(x,y)) {
+                v70NetworkSection=i;v70LegacyMode=true;currentView=ViewMode::Network;
+                if(!networkSnapshotReady) refresh_network_center();
+                redraw();return true;
+            }
+        }
+
+        if(v70Category==V70ConsoleCategory::System) {
+            for(int i=0;i<8;++i) if(v70SystemRows[i].contains(x,y)) {
+                v70SystemSection=i;v70LegacyMode=true;
+                if(i==1){currentView=ViewMode::Nougat;nougatPanel=NougatPanel::VirusScan;}
+                else if(i==2){currentView=ViewMode::Debug;}
+                else if(i==3){currentView=ViewMode::Games;gamesPanel=GamesPanel::Controllers;}
+                else if(i==6){currentView=ViewMode::Network;}
+                else {currentView=ViewMode::Debug;}
+                redraw();return true;
+            }
+        }
+        return true;
+    }
+    // NOUGAT_V70_CONSOLE_OS_UI_END
+
 
     bool cached_live_tv_logo(const reddmedia::LiveTvChannel& channel, reddmedia::LibraryPoster& poster) {
         const std::string key=live_tv_logo_key(channel);
@@ -14580,6 +15301,71 @@ public:
     }
 
     bool cached_game_artwork(const GameEntry& game, reddmedia::LibraryPoster& poster) {
+        // NOUGAT_V70_APPROVED_FIVE_DIRECT_CARD_ART
+        std::string approvedCard;
+        const std::string approvedIdentity =
+            lower_copy(game.title + "|" + basename_only(game.path));
+        const std::filesystem::path approvedDir =
+            std::filesystem::path(exe_dir()) / "assets" / "game_cards";
+
+        if (approvedIdentity.find("build the wall") != std::string::npos ||
+            approvedIdentity.find("build_the_wall") != std::string::npos ||
+            approvedIdentity.find("build-the-wall") != std::string::npos)
+            approvedCard = (approvedDir / "buildthewall.png").string();
+        else if (approvedIdentity.find("flappy bill") != std::string::npos ||
+                 approvedIdentity.find("flappy_bill") != std::string::npos ||
+                 approvedIdentity.find("flappy-bill") != std::string::npos)
+            approvedCard = (approvedDir / "flappybill.png").string();
+        else if (approvedIdentity.find("rio run") != std::string::npos ||
+                 approvedIdentity.find("rio_run") != std::string::npos ||
+                 approvedIdentity.find("rio-run") != std::string::npos)
+            approvedCard = (approvedDir / "riorun.png").string();
+        else if (approvedIdentity.find("supply line") != std::string::npos ||
+                 approvedIdentity.find("supply_line") != std::string::npos ||
+                 approvedIdentity.find("supply-line") != std::string::npos)
+            approvedCard = (approvedDir / "supplyline.png").string();
+        else if (approvedIdentity.find("trump savings tycoon") != std::string::npos ||
+                 approvedIdentity.find("trump_savings_tycoon") != std::string::npos ||
+                 approvedIdentity.find("trump-savings-tycoon") != std::string::npos)
+            approvedCard = (approvedDir / "trumpsavingstycoon.png").string();
+
+        if (!approvedCard.empty()) {
+            if (!exists_file(approvedCard)) {
+                gameArtworkFailed.insert(approvedCard);
+                return false;
+            }
+
+            const auto approvedCached = gameArtworkCache.find(approvedCard);
+            if (approvedCached != gameArtworkCache.end()) {
+                poster = approvedCached->second;
+                return true;
+            }
+
+            gameArtworkFailed.erase(approvedCard);
+
+            std::ifstream approvedInput(approvedCard, std::ios::binary);
+            if (!approvedInput) {
+                gameArtworkFailed.insert(approvedCard);
+                return false;
+            }
+
+            std::ostringstream approvedBytes;
+            approvedBytes << approvedInput.rdbuf();
+
+            std::string approvedBmp;
+            std::string approvedError;
+            if (!reddmedia::normalize_library_poster_bmp(
+                    approvedBytes.str(), approvedBmp, approvedError) ||
+                !reddmedia::decode_library_poster_bmp(
+                    approvedBmp, poster, approvedError)) {
+                gameArtworkFailed.insert(approvedCard);
+                return false;
+            }
+
+            gameArtworkCache[approvedCard] = poster;
+            return true;
+        }
+
         const std::string artwork_path = game_prepared_artwork_path(game);
         if (!exists_file(artwork_path)) return false;
         const auto cached = gameArtworkCache.find(artwork_path);
@@ -14928,19 +15714,86 @@ public:
         return true;
     }
 
+    unsigned int game_num_lock_mask() const {
+        if (!d) return 0;
+        unsigned int mask = 0;
+        XModifierKeymap* map = XGetModifierMapping(d);
+        if (!map) return 0;
+        const KeyCode num = XKeysymToKeycode(d, XK_Num_Lock);
+        if (num != 0) {
+            for (int mod = 0; mod < 8; ++mod) {
+                for (int key = 0; key < map->max_keypermod; ++key) {
+                    const int index = mod * map->max_keypermod + key;
+                    if (map->modifiermap[index] == num) {
+                        mask = (1U << mod);
+                    }
+                }
+            }
+        }
+        XFreeModifiermap(map);
+        return mask;
+    }
+
+    void grab_game_exit_hotkeys() {
+        if (!d || gameExitHotkeysGrabbed) return;
+        const Window root = DefaultRootWindow(d);
+        const KeyCode esc = XKeysymToKeycode(d, XK_Escape);
+        const KeyCode q = XKeysymToKeycode(d, XK_q);
+        if (esc == 0 || q == 0) return;
+
+        XGrabKey(d, static_cast<int>(esc), AnyModifier, root, False,
+                 GrabModeAsync, GrabModeAsync);
+
+        const unsigned int num = game_num_lock_mask();
+        const unsigned int extras[4] = {
+            0U,
+            static_cast<unsigned int>(LockMask),
+            num,
+            static_cast<unsigned int>(LockMask) | num
+        };
+        for (const unsigned int extra : extras) {
+            XGrabKey(d, static_cast<int>(q),
+                     static_cast<unsigned int>(ControlMask) | extra,
+                     root, False, GrabModeAsync, GrabModeAsync);
+        }
+        XSync(d, False);
+        gameExitHotkeysGrabbed = true;
+    }
+
+    void ungrab_game_exit_hotkeys() {
+        if (!d || !gameExitHotkeysGrabbed) return;
+        const Window root = DefaultRootWindow(d);
+        const KeyCode esc = XKeysymToKeycode(d, XK_Escape);
+        const KeyCode q = XKeysymToKeycode(d, XK_q);
+        if (esc != 0) XUngrabKey(d, static_cast<int>(esc), AnyModifier, root);
+        if (q != 0) XUngrabKey(d, static_cast<int>(q), AnyModifier, root);
+        XSync(d, False);
+        gameExitHotkeysGrabbed = false;
+    }
+
     void stop_game_session(bool returnToGames) {
+        ungrab_game_exit_hotkeys();
         gameHost.stop();
         currentMediaIsGame = false;
         activeGameTitle.clear();
         activeGameSystem.clear();
-        if (returnToGames && currentView == ViewMode::VideoPlayer) {
-            switch_view(ViewMode::Games);
+        if (fullscreen) exit_fullscreen();
+        if (returnToGames) {
+            v70ArcadePlayerMode = false;
+            v70LegacyMode = false;
+            v70Category = V70ConsoleCategory::Games;
+            currentView = ViewMode::Games;
             gamesPanel = GamesPanel::Library;
+            v70GameCloseBtn = {0,0,0,0};
+            v70GameFullscreenBtn = {0,0,0,0};
+            v70ArcadeBackBtn = {0,0,0,0};
+            if (video) XUnmapWindow(d, video);
         }
         if (d) redraw();
     }
 
     void poll_game_session() {
+        if (currentMediaIsGame && gameHost.active() && !gameExitHotkeysGrabbed) grab_game_exit_hotkeys();
         if (!currentMediaIsGame && !gameHost.active()) return;
         const nougat::games::HostEvent event = gameHost.poll();
         if (!event.changed) return;
@@ -14953,13 +15806,17 @@ public:
 
         if (event.state == nougat::games::HostState::Failed ||
             event.state == nougat::games::HostState::Exited) {
+            ungrab_game_exit_hotkeys();
             currentMediaIsGame = false;
+            v70ArcadePlayerMode = false;
             activeGameTitle.clear();
             activeGameSystem.clear();
-            if (currentView == ViewMode::VideoPlayer) {
-                switch_view(ViewMode::Games);
-                gamesPanel = GamesPanel::Library;
-            }
+            if (fullscreen) exit_fullscreen();
+            if (video) XUnmapWindow(d, video);
+            v70LegacyMode = false;
+            v70Category = V70ConsoleCategory::Games;
+            currentView = ViewMode::Games;
+            gamesPanel = GamesPanel::Library;
             redraw();
             return;
         }
@@ -15055,19 +15912,24 @@ public:
             return;
         }
 
-        cleanup_player();
-        switch_view(ViewMode::VideoPlayer);
-        currentMediaIsGame = true;
+        // Games never enter the media VideoPlayer view. They own the dedicated
+        // Games rendering surface and the emulator host is embedded there.
+        v70_prepare_game_surface();
         activeGameTitle = selected.title;
         activeGameSystem = selected.system;
 
+        request.overlay_window = true;
         if (!gameHost.start(d, win, video, videoW, videoH, request, error)) {
             currentMediaIsGame = false;
+            v70ArcadePlayerMode = false;
             activeGameTitle.clear();
             activeGameSystem.clear();
-            switch_view(ViewMode::Games);
+            if (video) XUnmapWindow(d, video);
+            v70LegacyMode = false;
+            v70Category = V70ConsoleCategory::Games;
+            currentView = ViewMode::Games;
             std::lock_guard<std::mutex> lock(gameState->mutex);
-            gameState->status = error;
+            gameState->status = error.empty() ? "Nougat could not start that game." : error;
             gameState->updated = true;
             redraw();
             return;
@@ -15075,7 +15937,7 @@ public:
 
         {
             std::lock_guard<std::mutex> lock(gameState->mutex);
-            gameState->status = "Starting " + selected.title + " inside Nougat Video Player...";
+            gameState->status = "Starting " + selected.title + " inside Nougat Games...";
             gameState->updated = true;
         }
         redraw();
@@ -16840,7 +17702,15 @@ public:
             return;
         }
         Pixmap buffer = XCreatePixmap(d, win, W, H, DefaultDepth(d, screen));
-        fill(buffer, {0,0,W,H}, col(0xdede,0xdede,0xdede));
+        fill(buffer,{0,0,W,H},rgb8(5,9,15));
+        if(!v70LegacyMode) {
+            draw_v70_console_os_ui(buffer);
+            XCopyArea(d,buffer,win,gc,0,0,W,H,0,0);
+            XFreePixmap(d,buffer);
+            if(contextMenuOpen) draw_context_menu();
+            XFlush(d);
+            return;
+        }
         draw_controls(buffer);
         if (currentView != ViewMode::VideoPlayer) apply_page_clip(currentView);
         if (currentView == ViewMode::Home) draw_home_screen(buffer);
@@ -16857,11 +17727,12 @@ public:
         if (currentView == ViewMode::Games) draw_games_screen(buffer);
         XSetClipMask(d,gc,None);
         draw_page_frame(buffer,currentView);
-        draw_module_rail(buffer);
+        if(!v70LegacyMode) draw_module_rail(buffer);
         draw_loading_bar(buffer);
         // Final chrome overlay: page backgrounds and loading strips must never
         // erase the larger selected-tab pointer.
         draw_active_top_tab_pointer(buffer);
+        if(v70LegacyMode) v70_header(buffer);
         if (fixMatchVisible) draw_fix_match_overlay(buffer); // NOUGAT_V58_NATIVE_FIX_MATCH_DRAW
         XCopyArea(d, buffer, win, gc, 0, 0, W, H, 0, 0);
         XFreePixmap(d, buffer);
@@ -17214,6 +18085,7 @@ public:
     }
 
     void switch_view(ViewMode v) {
+        if (currentMediaIsGame && v != ViewMode::Games) stop_game_session(false);
         if (v == ViewMode::LiveTV) liveTvWorldMode = false;
 
         if (currentView == v) return;
@@ -17901,6 +18773,21 @@ public:
             nougatOutputFocused=true; nougatInputFocus=NougatInputFocus::NoFocus;
             redraw(); show_nougat_output_context_menu(x,y); return;
         }
+        if (currentMediaIsGame && gameHost.owns_window(target)) {
+            if (button == Button1) {
+                if (v70GameLastClickTime != 0 && eventTime >= v70GameLastClickTime &&
+                    eventTime - v70GameLastClickTime <= 350 &&
+                    std::abs(x-v70GameLastClickX) < 12 && std::abs(y-v70GameLastClickY) < 12) {
+                    v70GameLastClickTime = 0;
+                    toggle_fullscreen();
+                    return;
+                }
+                v70GameLastClickTime = eventTime;
+                v70GameLastClickX = x;
+                v70GameLastClickY = y;
+            }
+            return;
+        }
         if (target == video) {
             if (button == Button3) { show_context_menu(target, x, y); return; }
             if (button != Button1 && !(currentView == ViewMode::Stream && ytdlpUrlRect.contains(x,y) && button == Button3)) return;
@@ -17953,6 +18840,13 @@ public:
         if (button == Button3 && target == win && show_card_context_menu(x,y)) return;
         if (button != Button1) return;
         play_ui_click();
+        if(target==win) {
+            if(v70_handle_console_click(x,y)) return;
+            // The Console OS shell owns otherwise-unhandled clicks only while
+            // it is actually visible.  Legacy subsystem pages must continue
+            // into their established control handlers below.
+            if(!v70LegacyMode) return;
+        }
 
         // New module rail is a parallel navigation path.  Existing top tabs are
         // deliberately left untouched until the owner verifies this rail.
@@ -18589,7 +19483,24 @@ public:
                 else if (e.type == LeaveNotify && e.xcrossing.window == video && e.xcrossing.detail != NotifyInferior) { pointerInVideo=false; show_pointer(); }
                 else if (e.type == KeyPress) {
                     KeySym ks = XLookupKeysym(&e.xkey, 0);
-                    if (fixMatchVisible) { handle_fix_match_key(e.xkey); }
+                    if (currentMediaIsGame && gameExitHotkeysGrabbed && ks == XK_Escape) {
+                        if (fullscreen) exit_fullscreen();
+                        else stop_game_session(true);
+                    }
+                    else if (currentMediaIsGame && gameExitHotkeysGrabbed &&
+                             (e.xkey.state & ControlMask) && (ks == XK_q || ks == XK_Q)) {
+                        stop_game_session(true);
+                    }
+                    else if (fixMatchVisible) { handle_fix_match_key(e.xkey); }
+                    else if (currentMediaIsGame &&
+                             (gameHost.owns_window(e.xkey.window) || e.xkey.window == win)) {
+                        if (ks == XK_Escape) {
+                            if (fullscreen) exit_fullscreen();
+                            else stop_game_session(true);
+                        } else if ((e.xkey.state & ControlMask) && (ks == XK_q || ks == XK_Q)) {
+                            stop_game_session(true);
+                        }
+                    }
                     else if (currentView == ViewMode::Radio && radioFrequencyFocused) { // NOUGAT_V58_NATIVE_FIX_MATCH_KEYS
                         if (ks == XK_Escape) { radioFrequencyFocused=false; redraw(); }
                         else if (ks == XK_Return || ks == XK_KP_Enter) {
@@ -18637,6 +19548,12 @@ public:
                         if (ks == XK_Escape) { urlFocused=false; urlSelectAll=false; redraw(); }
                         else if (ks == XK_Return || ks == XK_KP_Enter) { start_ytdlp_download(); }
                         else if ((e.xkey.state & ControlMask) && (ks == XK_a || ks == XK_A)) { urlSelectAll = !ytdlpUrl.empty(); redraw(); }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_c || ks == XK_C)) {
+                            if (!ytdlpUrl.empty()) { urlSelectAll=true; copy_url_selection(); }
+                        }
+                        else if ((e.xkey.state & ControlMask) && (ks == XK_x || ks == XK_X)) {
+                            if (!ytdlpUrl.empty()) { urlSelectAll=true; cut_url_selection(); }
+                        }
                         else if (ks == XK_BackSpace) {
                             if (urlSelectAll) { ytdlpUrl.clear(); urlSelectAll=false; }
                             else if (!ytdlpUrl.empty()) ytdlpUrl.pop_back();
@@ -19047,9 +19964,26 @@ int main(int argc, char** argv) {
 
     prctl(PR_SET_NAME, "NougatPlayPortal", 0, 0, 0);
     if (argc > 1 && std::string(argv[1]) == "--version") {
-        printf("Nougat Play Portal v0.0.68\n");
+        printf("Nougat Play Portal v0.0.70\n");
         return 0;
     }
+    if (argc > 1 && std::string(argv[1]) == "--v70-console-ui-self-test") {
+        const bool ok =
+            exists_file(exe_dir()+"/assets/ui/nougat-v70-home-backdrop.bmp") &&
+            exists_file(exe_dir()+"/assets/ui/nougat-v70-games-backdrop.bmp") &&
+            exists_file(exe_dir()+"/assets/ui/nougat-v70-network-backdrop.bmp") &&
+            exists_file(exe_dir()+"/assets/ui/nougat-v70-media-backdrop.bmp") &&
+            exists_file(exe_dir()+"/assets/ui/nougat-v70-quick-menu.bmp") &&
+            exists_file(exe_dir()+"/components/games/bundled/white_house_arcade/build-the-wall/Build_The_Wall") &&
+            exists_file(exe_dir()+"/components/games/bundled/white_house_arcade/flappy-bill/Flappy_Bill") &&
+            exists_file(exe_dir()+"/components/games/bundled/white_house_arcade/rio-run/Rio_Run") &&
+            exists_file(exe_dir()+"/components/games/bundled/white_house_arcade/supply-line/Supply_Line") &&
+            exists_file(exe_dir()+"/components/games/bundled/white_house_arcade/trump-savings-tycoon/Trump_Savings_Tycoon");
+        if(!ok){std::fprintf(stderr,"Nougat Play Portal v0.0.70 UI self-test FAIL.\n");return 1;}
+        std::printf("Nougat Play Portal v0.0.70 UI self-test PASS: HOME / GAMES / MEDIA / NETWORK / SYSTEM.\n");
+        return 0;
+    }
+
     if (argc > 1 && std::string(argv[1]) == "--v49-games-self-test") {
         std::vector<GameEntry> games;
         const auto add = [&games](const char* path) {

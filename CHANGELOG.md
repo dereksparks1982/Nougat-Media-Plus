@@ -1,3 +1,12 @@
+## v0.0.70 - CONSOLE OS UI AUTHORITY CANDIDATE
+
+- Begins the Console OS UI phase.
+- Converts the visible shell to the approved black/bronze/cream console presentation and the new silver/graphite/cyan N identity.
+- Uses exactly **Home / Games / Media / Network / System**.
+- Folds Library into Media and expands Home across Games and Media.
+- Keeps this candidate UI-first; integrations follow owner visual approval.
+- Performs no GitHub publication.
+
 ## v0.0.61 - Drone Mission Control and Games Library Expansion
 
 ## v0.0.64 - Network Center and Satellite Foundation
@@ -817,3 +826,10 @@ Known limitations:
 
 - v0.0.33 repair: libtorrent 2.0.12 tracker compatibility repair.
 - v0.0.33 server-stop repair: persistent Nougat-owned Jellyfin sessions carry a per-session ownership token; Stop Server terminates the complete owned process tree and verifies port 8096 is released without killing Jellyfin by name.
+
+## v0.0.70 accepted game-card checkpoint — 2026-09-14
+
+- Accepted five-card Bundled Arcade artwork restoration in the v70 Console Games UI.
+- Card labels moved below artwork.
+- Supply Line and Trump Savings Tycoon finalized edge-to-edge with no side gaps.
+- Game executables and launch behavior unchanged.

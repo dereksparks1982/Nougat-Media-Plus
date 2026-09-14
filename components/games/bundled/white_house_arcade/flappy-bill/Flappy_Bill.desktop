@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Flappy Bill
+Comment=Offline preserved arcade game
+Exec=Flappy_Bill
+Terminal=false
+Categories=Game;
+StartupWMClass=FlappyBill
