@@ -12,6 +12,13 @@
   let hostRef=null;
 
   function base(){return hostRef?.baseUrl?hostRef.baseUrl():'';}
+  function absoluteNougatUrl(value){
+    const url=String(value||'').trim();
+    if(!url)return '';
+    if(/^https?:\/\//i.test(url))return url;
+    if(url.startsWith('/'))return `${base()}${url}`;
+    return url;
+  }
   async function resolveHost(url){
     const response=await fetch(`${base()}/nougat/v1/stream?action=resolve&platform=${encodeURIComponent(platform)}&url=${encodeURIComponent(url)}`,{cache:'no-store'});
     let data={};try{data=await response.json();}catch(_){data={};}
@@ -27,7 +34,7 @@
 
   function renderStream(host){
     hostRef=host;
-    shell(`<div class="module-toolbar stream-platforms">${platforms.map((p,i)=>button(p,`streamCompletePlatform${i}`,p===platform)).join('')}</div><h2 class="module-heading">STREAM • ${esc(platform.toUpperCase())}</h2><div class="module-field"><span>URL</span><input id="streamCompleteUrl" type="url" autocomplete="off" spellcheck="false" placeholder="Paste a ${esc(platform)} URL"></div><div class="module-toolbar">${button('Watch','streamCompleteWatch')}${button('Stop','streamCompleteStop')}${button('Webpage','streamCompleteWeb')}${button('Clear','streamCompleteClear')}</div><div class="module-output" id="streamCompleteOutput">Ready. Nougat will ask the host extractor first, then try direct browser playback only when the URL itself is a media source.</div>`);
+    shell(`<div class="module-toolbar stream-platforms">${platforms.map((p,i)=>button(p,`streamCompletePlatform${i}`,p===platform)).join('')}</div><h2 class="module-heading">STREAM • ${esc(platform.toUpperCase())}</h2><div class="module-field"><span>URL</span><input id="streamCompleteUrl" type="url" autocomplete="off" spellcheck="false" placeholder="Paste a ${esc(platform)} URL"></div><div class="module-toolbar">${button('Watch','streamCompleteWatch')}${button('Stop','streamCompleteStop')}${button('Webpage','streamCompleteWeb')}${button('Clear','streamCompleteClear')}</div><div class="module-output" id="streamCompleteOutput">Ready. Watch uses Nougat's standalone yt-dlp engine and browser compatibility bridge.</div>`);
     platforms.forEach((p,i)=>bind(`streamCompletePlatform${i}`,()=>{platform=p;renderStream(hostRef);}));
     bind('streamCompleteClear',()=>{document.getElementById('streamCompleteUrl').value='';document.getElementById('streamCompleteOutput').textContent='Ready.';});
     bind('streamCompleteStop',()=>{stopPlayer();document.getElementById('streamCompleteOutput').textContent='Stream stopped.';});
@@ -37,10 +44,24 @@
       if(!url){out.textContent='Enter a stream URL.';return;}
       let parsed;try{parsed=new URL(url);}catch(_){out.textContent='That is not a valid URL.';return;}
       if(!/^https?:$/.test(parsed.protocol)){out.textContent='Only HTTP/HTTPS stream URLs are accepted.';return;}
-      out.textContent=platformMatch(url)?`Resolving ${platform} through the Nougat host...`:`URL does not look like ${platform}; trying the Nougat host resolver anyway...`;
-      try{const data=await resolveHost(url);const resolved=String(data.url||data.streamUrl||'').trim();if(resolved){hostRef?.playUrl&&hostRef.playUrl(resolved,data.title||`${platform} Stream`);out.textContent=data.status||'Resolved by Nougat host.';return;}out.textContent=data.status||'Nougat host returned no playable stream URL.';return;}catch(err){
-        if(/\.(m3u8|mp4|webm|ogg|ogv)(?:$|[?#])/i.test(url)){hostRef?.playUrl&&hostRef.playUrl(url,`${platform} Stream`);out.textContent='Host extractor unavailable; direct media URL sent to the browser player.';return;}
-        out.textContent=`Host extractor unavailable: ${err.message||err}\n\nThis page will not pretend a normal ${platform} webpage URL is a direct video file. Use Webpage to open it normally.`;
+      out.textContent=platformMatch(url)?`Starting ${platform} through the Nougat Stream engine...`:`URL does not look like ${platform}; asking the Nougat Stream engine anyway...`;
+      try{
+        const data=await resolveHost(url);
+        const resolved=absoluteNougatUrl(data.url||data.streamUrl||data.stream||'');
+        if(resolved){
+          hostRef?.playUrl&&hostRef.playUrl(resolved,data.title||`${platform} Stream`);
+          out.textContent=data.status||'Nougat Stream bridge started.';
+          return;
+        }
+        out.textContent=data.status||'Nougat host returned no playable stream URL.';
+        return;
+      }catch(err){
+        if(/\.(m3u8|mp4|webm|ogg|ogv)(?:$|[?#])/i.test(url)){
+          hostRef?.playUrl&&hostRef.playUrl(url,`${platform} Stream`);
+          out.textContent='Nougat Stream engine unavailable; direct media URL sent to the browser player.';
+          return;
+        }
+        out.textContent=`Nougat Stream engine unavailable: ${err.message||err}\n\nUse Webpage to open the source normally.`;
       }
     });
     document.getElementById('streamCompleteUrl').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('streamCompleteWatch').click();});
