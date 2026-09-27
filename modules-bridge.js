@@ -3,6 +3,8 @@
 
   let catalog = [];
   let catalogPromise = null;
+  let cardArtworkObserver = null;
+  let cardArtworkQueued = false;
 
   const baseUrl = () => {
     const cfg = window.NOUGAT_WEB_PLAYER || {};
@@ -114,6 +116,7 @@
     const button = document.getElementById('refreshButton');
     if (button) button.click();
     await ensureCatalog(true);
+    queueMediaCardArtwork();
   }
 
   function hydrateDiscoverPoster() {
@@ -137,6 +140,47 @@
     poster.appendChild(image);
   }
 
+  function hydrateMediaCardArtwork() {
+    cardArtworkQueued = false;
+    if (!catalog.length) return;
+    const byName = new Map(catalog.map((item) => [item.name, item]));
+    document.querySelectorAll('.media-card').forEach((card) => {
+      const label = String(card.getAttribute('aria-label') || '');
+      const name = label.startsWith('Play ') ? label.slice(5) : '';
+      const item = byName.get(name);
+      const art = card.querySelector('.media-art');
+      if (!item || !item.poster || !art || art.querySelector('img') || art.dataset.nougatArtwork === item.poster) return;
+
+      art.dataset.nougatArtwork = item.poster;
+      art.textContent = '';
+      const image = document.createElement('img');
+      image.src = item.poster;
+      image.alt = '';
+      image.loading = 'lazy';
+      image.addEventListener('error', () => {
+        image.remove();
+        art.textContent = '';
+        const fallback = document.createElement('span');
+        fallback.className = 'fallback-mark';
+        fallback.textContent = item.type === 'Episode' ? 'TV' : 'MOVIE';
+        art.appendChild(fallback);
+      }, { once: true });
+      art.appendChild(image);
+    });
+  }
+
+  function queueMediaCardArtwork() {
+    if (cardArtworkQueued) return;
+    cardArtworkQueued = true;
+    requestAnimationFrame(hydrateMediaCardArtwork);
+  }
+
+  function observeMediaCards() {
+    if (cardArtworkObserver || !document.body) return;
+    cardArtworkObserver = new MutationObserver(() => queueMediaCardArtwork());
+    cardArtworkObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
   const host = {
     getItems: () => catalog.slice(),
     getResume,
@@ -157,16 +201,20 @@
   document.querySelectorAll('.rail-button').forEach((button) => {
     button.addEventListener('click', () => {
       const view = button.dataset.view;
+      if (['home','library'].includes(view)) queueMicrotask(queueMediaCardArtwork);
       if (!['home','player','library'].includes(view)) queueMicrotask(() => activate(view));
     });
   });
 
   window.addEventListener('popstate', () => {
     const view = location.hash.replace(/^#/, '').trim().toLowerCase();
+    if (['home','library'].includes(view)) setTimeout(queueMediaCardArtwork, 0);
     if (view && !['home','player','library'].includes(view)) setTimeout(() => activate(view), 0);
   });
 
   ensureCatalog(false).then(() => {
+    observeMediaCards();
+    queueMediaCardArtwork();
     const initial = location.hash.replace(/^#/, '').trim().toLowerCase();
     if (initial && !['home','player','library'].includes(initial)) activate(initial);
   });
