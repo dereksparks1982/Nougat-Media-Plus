@@ -98,9 +98,9 @@
     ['NES','Mesen / FCEUX / Nestopia'],['SNES','Mesen / Snes9x'],['Game Boy','SameBoy / mGBA / Mesen'],['Game Boy Color','SameBoy / mGBA / Mesen'],['Game Boy Advance','mGBA / Mesen'],['Nintendo 64','RMG / Mupen64Plus'],['Sega Genesis','BlastEm'],['Sega Master System','BlastEm'],['Sega Game Gear','BlastEm'],['Atari 2600','Stella'],['Atari 5200','Atari800'],['Atari 7800','A7800'],['Atari 8-bit','Atari800'],['Atari Lynx','Mednafen'],['PlayStation','DuckStation'],['PlayStation 2','PCSX2'],['PlayStation Portable','PPSSPP'],['PlayStation 3','RPCS3'],['GameCube','Dolphin'],['Wii','Dolphin'],['Wii U','Cemu'],['Arcade','MAME'],['Nintendo Switch','Ryujinx / Suyu / Yuzu'],['DOS','DOSBox'],['Xbox 360','Xenia Canary']
   ];
   const bundledGames=[
-    {title:'2048',system:'NES',art:'./games/artwork/2048.png',file:'./games/2048.nes'},
-    {title:'Waveforms',system:'NES',art:'./games/artwork/Waveforms.png',file:'./games/Waveforms.nes'},
-    {title:'Ultima Online - The Second Age',system:'Nougat UO',art:'',file:'./games/Ultima Online - The Second Age.nougat-uo',meta:'T2A • Client 1.25.35 • SphereServer-X'}
+    {title:'2048',system:'NES',art:'./components/games/bundled/artwork/2048.png',file:'./components/games/bundled/2048.nes'},
+    {title:'Waveforms',system:'NES',art:'./components/games/bundled/artwork/Waveforms.png',file:'./components/games/bundled/Waveforms.nes'},
+    {title:'Ultima Online - The Second Age',system:'Nougat UO',art:'',file:'./components/games/bundled/Ultima%20Online%20-%20The%20Second%20Age/Ultima%20Online%20-%20The%20Second%20Age.nougat-uo',meta:'T2A • Client 1.25.35 • SphereServer-X'}
   ];
   function renderGames(host){
     shell(`<div class="module-toolbar">${button('Library','gamesLibrary',gamesPanel==='Library')}${button('Systems','gamesSystems',gamesPanel==='Systems')}</div><div id="gamesPane"></div>`);
@@ -109,7 +109,7 @@
   }
   function renderGameLibrary(){
     const pane=document.getElementById('gamesPane');if(!pane)return;
-    pane.innerHTML=`<h2 class="module-heading">GAMES • LIBRARY</h2><div class="game-card-grid">${bundledGames.map((g)=>`<article class="game-card"><div class="game-art">${g.art?`<img src="${g.art}" alt="">`:'<span>UO</span>'}</div><div class="game-body"><strong>${esc(g.title)}</strong><span>${esc(g.meta||g.system)}</span><a class="sheet-button game-action" href="${g.file}" download>Download / Open File</a></div></article>`).join('')}</div><div class="web-only-note">The web Library exposes the actual bundled Nougat game files. Native emulator launching still belongs to the host runtime, so this page does not fake a browser emulator.</div>`;
+    pane.innerHTML=`<h2 class="module-heading">GAMES • LIBRARY</h2><div class="game-card-grid">${bundledGames.map((g)=>`<article class="game-card"><div class="game-art">${g.art?`<img src="${g.art}" alt="">`:'<span>UO</span>'}</div><div class="game-body"><strong>${esc(g.title)}</strong><span>${esc(g.meta||g.system)}</span><a class="sheet-button game-action" href="${g.file}" download>Download / Open File</a></div></article>`).join('')}</div><div class="web-only-note">These are the actual bundled Nougat game files from the standalone project. Native emulator launching remains a host-runtime job; the browser does not pretend to run a native emulator.</div>`;
   }
   function renderGameSystems(){
     const pane=document.getElementById('gamesPane');if(!pane)return;
