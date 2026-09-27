@@ -9,6 +9,14 @@
     return String(cfg.baseUrl || '').trim().replace(/\/+$/, '');
   };
 
+  const normalizePoster = (raw) => {
+    const value = String(raw.poster || raw.posterUrl || raw.image || raw.imageUrl || '').trim();
+    if (!value) return '';
+    if (/^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:')) return value;
+    if (value.startsWith('/')) return `${baseUrl()}${value}`;
+    return value;
+  };
+
   const normalize = (raw) => {
     const kind = String(raw.kind || raw.type || '').toLowerCase();
     const episode = kind === 'tv' || kind === 'episode' || kind === 'television';
@@ -19,7 +27,8 @@
       type: episode ? 'Episode' : 'Movie',
       year: Number(raw.year || raw.production_year) || 0,
       ready: raw.ready !== false,
-      directPreferred: typeof raw.directPreferred === 'boolean' ? raw.directPreferred : true
+      directPreferred: typeof raw.directPreferred === 'boolean' ? raw.directPreferred : true,
+      poster: normalizePoster(raw)
     };
   };
 
@@ -104,6 +113,27 @@
     await ensureCatalog(true);
   }
 
+  function hydrateDiscoverPoster() {
+    const poster = document.querySelector('.discover-result .discover-poster');
+    const heading = document.querySelector('.discover-result .discover-info h3');
+    if (!poster || !heading) return;
+    const item = catalog.find((entry) => entry.name === heading.textContent);
+    if (!item || !item.poster) return;
+    poster.textContent = '';
+    const image = document.createElement('img');
+    image.src = item.poster;
+    image.alt = '';
+    image.loading = 'lazy';
+    image.style.width = '100%';
+    image.style.height = '100%';
+    image.style.objectFit = 'cover';
+    image.addEventListener('error', () => {
+      image.remove();
+      poster.textContent = item.type === 'Episode' ? 'TV' : 'MOVIE';
+    }, { once: true });
+    poster.appendChild(image);
+  }
+
   const host = {
     getItems: () => catalog.slice(),
     getResume,
@@ -118,6 +148,7 @@
     if (!window.NougatWebModules || !view || ['home','player','library'].includes(view)) return;
     await ensureCatalog(false);
     window.NougatWebModules.activate(view, host);
+    if (view === 'discover') requestAnimationFrame(hydrateDiscoverPoster);
   }
 
   document.querySelectorAll('.rail-button').forEach((button) => {
