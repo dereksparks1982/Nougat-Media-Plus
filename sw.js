@@ -1,11 +1,16 @@
-const CACHE = 'nougat-web-player-v2';
+const CACHE = 'nougat-web-player-v3';
 const SHELL = [
   './',
   './index.html',
   './styles.css',
+  './modules.css',
   './config.js',
+  './modules.js',
   './app.js',
-  './manifest.webmanifest'
+  './modules-bridge.js',
+  './manifest.webmanifest',
+  './assets/branding/nougat-media-plus-dock-N.png',
+  './assets/branding/nougat-media-plus-topbar-lockup.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -25,18 +30,16 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
-
   const url = new URL(request.url);
   if (url.pathname.startsWith('/nougat/v1/')) return;
   if (url.origin !== self.location.origin) return;
-
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+    fetch(request).then((response) => {
       if (response && response.ok && response.type === 'basic') {
         const copy = response.clone();
         caches.open(CACHE).then((cache) => cache.put(request, copy));
       }
       return response;
-    }))
+    }).catch(() => caches.match(request))
   );
 });
