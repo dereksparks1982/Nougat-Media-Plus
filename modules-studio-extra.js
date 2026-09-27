@@ -1,0 +1,76 @@
+(() => {
+  'use strict';
+  if(!window.NougatWebModules)return;
+  const previous=window.NougatWebModules.activate.bind(window.NougatWebModules);
+  const root=()=>document.getElementById('moduleView');
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const button=(label,id,active=false,extra='')=>`<button type="button" class="sheet-button${active?' active-tool':''}" id="${id}" ${extra}>${esc(label)}</button>`;
+  const bind=(id,fn)=>{const el=document.getElementById(id);if(el)el.addEventListener('click',fn);};
+  let observer=null;
+  let activeExtra='';
+  let simFrame=0;
+  let simProgress=0;
+  let simRunning=false;
+  let splitterFile=null;
+  let splitterParts=[];
+  let splitterManifest=null;
+  let assemblerFiles=[];
+  let assemblerManifest=null;
+
+  function waypoints(){try{return JSON.parse(localStorage.getItem('nougat-web-studio-waypoints')||'[]')||[];}catch(_){return [];}}
+  function downloadBlob(name,blob){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);}
+  function downloadText(name,text,type='application/json'){downloadBlob(name,new Blob([text],{type}));}
+  function human(n){n=Number(n)||0;if(n>=1073741824)return `${(n/1073741824).toFixed(2)} GiB`;if(n>=1048576)return `${(n/1048576).toFixed(1)} MiB`;if(n>=1024)return `${(n/1024).toFixed(1)} KiB`;return `${n} B`;}
+  async function sha256(blob){const hash=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer());return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');}
+  function studioPane(){return document.getElementById('studioPane');}
+  function setActiveLabels(){root()?.querySelectorAll('.studio-nav .sheet-button').forEach(b=>b.classList.remove('active-tool'));const id=activeExtra==='SIMULATION'?'studioExtraSimulation':activeExtra==='FILE SPLITTER'?'studioExtraSplitter':'studioExtraAssembler';document.getElementById(id)?.classList.add('active-tool');}
+
+  function augment(){
+    const nav=root()?.querySelector('.studio-nav');if(!nav)return;
+    if(!document.getElementById('studioExtraSimulation'))nav.insertAdjacentHTML('beforeend',button('SIMULATION','studioExtraSimulation',activeExtra==='SIMULATION'));
+    if(!document.getElementById('studioExtraSplitter'))nav.insertAdjacentHTML('beforeend',button('FILE SPLITTER','studioExtraSplitter',activeExtra==='FILE SPLITTER'));
+    if(!document.getElementById('studioExtraAssembler'))nav.insertAdjacentHTML('beforeend',button('FILE ASSEMBLER','studioExtraAssembler',activeExtra==='FILE ASSEMBLER'));
+    bind('studioExtraSimulation',()=>{activeExtra='SIMULATION';renderSimulation();setActiveLabels();});
+    bind('studioExtraSplitter',()=>{activeExtra='FILE SPLITTER';renderSplitter();setActiveLabels();});
+    bind('studioExtraAssembler',()=>{activeExtra='FILE ASSEMBLER';renderAssembler();setActiveLabels();});
+    if(activeExtra){if(activeExtra==='SIMULATION')renderSimulation();else if(activeExtra==='FILE SPLITTER')renderSplitter();else renderAssembler();setActiveLabels();}
+  }
+  function watch(){if(observer)observer.disconnect();observer=new MutationObserver(()=>{if(root()?.querySelector('.studio-nav'))augment();});observer.observe(root(),{childList:true,subtree:true});augment();}
+
+  function pathGeometry(points,w=720,h=360,pad=32){
+    if(!points.length)return {coords:[],view:`0 0 ${w} ${h}`};
+    let minLat=Math.min(...points.map(p=>Number(p.lat))),maxLat=Math.max(...points.map(p=>Number(p.lat))),minLon=Math.min(...points.map(p=>Number(p.lon))),maxLon=Math.max(...points.map(p=>Number(p.lon)));
+    if(maxLat===minLat){maxLat+=.001;minLat-=.001;}if(maxLon===minLon){maxLon+=.001;minLon-=.001;}
+    const coords=points.map(p=>({x:pad+(Number(p.lon)-minLon)/(maxLon-minLon)*(w-pad*2),y:pad+(maxLat-Number(p.lat))/(maxLat-minLat)*(h-pad*2),lat:Number(p.lat),lon:Number(p.lon),alt:Number(p.alt)||0}));return {coords,view:`0 0 ${w} ${h}`};
+  }
+  function interpolated(points,t){
+    if(!points.length)return null;if(points.length===1)return {...points[0]};const scaled=Math.max(0,Math.min(.999999,t))*(points.length-1),i=Math.floor(scaled),f=scaled-i,a=points[i],b=points[Math.min(points.length-1,i+1)];return {x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f,lat:a.lat+(b.lat-a.lat)*f,lon:a.lon+(b.lon-a.lon)*f,alt:a.alt+(b.alt-a.alt)*f,index:i+1};
+  }
+  function cancelSim(){simRunning=false;if(simFrame)cancelAnimationFrame(simFrame);simFrame=0;}
+  function renderSimulation(){
+    cancelSim();const pane=studioPane();if(!pane)return;const pts=waypoints();const geo=pathGeometry(pts);const poly=geo.coords.map(p=>`${p.x},${p.y}`).join(' ');
+    pane.innerHTML=`<h2 class="module-heading">SIMULATION</h2><p class="module-copy">Local browser trajectory simulation only. No command is transmitted to aircraft hardware.</p><div class="studio-simulation-frame"><svg id="studioSimSvg" viewBox="${geo.view}" role="img" aria-label="Mission trajectory">${geo.coords.length?`<polyline class="studio-sim-path" points="${poly}" fill="none"/><g>${geo.coords.map((p,i)=>`<circle class="studio-sim-waypoint" cx="${p.x}" cy="${p.y}" r="5"/><text class="studio-sim-label" x="${p.x+7}" y="${p.y-7}">WP${i+1}</text>`).join('')}</g><circle id="studioSimCraft" class="studio-sim-craft" cx="${geo.coords[0].x}" cy="${geo.coords[0].y}" r="8"/>`:'<text x="32" y="55" class="studio-sim-label">Add at least one waypoint in Flight Plan.</text>'}</svg></div><div class="module-toolbar">${button('Start Simulation','simStart',false,pts.length?'':'disabled')}${button('Pause','simPause',false,pts.length?'':'disabled')}${button('Reset','simReset',false,pts.length?'':'disabled')}</div><div class="module-field"><span>SPEED</span><select id="simSpeed"><option value=".03">Slow</option><option value=".08" selected>Normal</option><option value=".2">Fast</option></select></div><table class="diagnostic-table"><tbody><tr><th>Waypoint leg</th><td id="simLeg">-</td></tr><tr><th>Latitude</th><td id="simLat">-</td></tr><tr><th>Longitude</th><td id="simLon">-</td></tr><tr><th>Altitude</th><td id="simAlt">-</td></tr><tr><th>Progress</th><td id="simPct">0%</td></tr></tbody></table>`;
+    const draw=()=>{const p=interpolated(geo.coords,simProgress);if(!p)return;const craft=document.getElementById('studioSimCraft');if(craft){craft.setAttribute('cx',String(p.x));craft.setAttribute('cy',String(p.y));}document.getElementById('simLeg').textContent=String(p.index||1);document.getElementById('simLat').textContent=p.lat.toFixed(6);document.getElementById('simLon').textContent=p.lon.toFixed(6);document.getElementById('simAlt').textContent=p.alt.toFixed(1);document.getElementById('simPct').textContent=`${Math.round(simProgress*100)}%`;};
+    const tick=(now)=>{if(!simRunning)return;if(!tick.last)tick.last=now;const dt=Math.min(100,now-tick.last);tick.last=now;const speed=Number(document.getElementById('simSpeed')?.value)||.08;simProgress+=dt/1000*speed;if(simProgress>=1){simProgress=1;simRunning=false;}draw();if(simRunning)simFrame=requestAnimationFrame(tick);else tick.last=0;};
+    bind('simStart',()=>{if(simProgress>=1)simProgress=0;simRunning=true;simFrame=requestAnimationFrame(tick);});bind('simPause',()=>{simRunning=false;if(simFrame)cancelAnimationFrame(simFrame);simFrame=0;tick.last=0;});bind('simReset',()=>{simRunning=false;if(simFrame)cancelAnimationFrame(simFrame);simProgress=0;tick.last=0;draw();});draw();
+  }
+
+  function splitterAnalyze(){
+    const pane=studioPane();if(!pane||!splitterFile)return;const target=Math.max(1,Math.min(476,Number(document.getElementById('splitTarget').value)||450)),bytes=Math.floor(target*1024*1024),count=Math.max(1,Math.ceil(splitterFile.size/bytes));splitterParts=[];for(let i=0;i<count;i++){const start=i*bytes,end=Math.min(splitterFile.size,start+bytes);splitterParts.push({number:i+1,start,end,size:end-start,name:`${splitterFile.name}.part${String(i+1).padStart(3,'0')}`,sha256:''});}splitterManifest=null;document.getElementById('splitSummary').textContent=`${splitterFile.name} • ${human(splitterFile.size)} • ${count} part${count===1?'':'s'} at target ${target} MiB`;renderSplitParts();
+  }
+  function renderSplitParts(){const list=document.getElementById('splitParts');if(!list)return;list.innerHTML=splitterParts.length?splitterParts.map((p,i)=>`<div class="module-result-row"><span>${esc(p.name)}</span><span>${human(p.size)}${p.sha256?` • ${esc(p.sha256.slice(0,12))}…`:''}</span><button type="button" class="sheet-button" data-split-download="${i}">Download</button></div>`).join(''):'<div class="module-empty">Select a file and Analyze.</div>';list.querySelectorAll('[data-split-download]').forEach(b=>b.addEventListener('click',()=>{const p=splitterParts[Number(b.dataset.splitDownload)];if(p&&splitterFile)downloadBlob(p.name,splitterFile.slice(p.start,p.end));}));}
+  function renderSplitter(){
+    cancelSim();const pane=studioPane();if(!pane)return;pane.innerHTML=`<h2 class="module-heading">FILE SPLITTER</h2><p class="module-copy">Browser implementation of the standalone splitter. Target MiB recalculates the exact part recommendation. The accepted safe ceiling is 476 MiB.</p><div class="module-field"><span>SOURCE FILE</span><input id="splitFile" type="file"></div><div class="module-field"><span>TARGET MiB</span><input id="splitTarget" type="number" min="1" max="476" step="1" value="450"></div><div class="module-toolbar">${button('Analyze','splitAnalyze')}${button('Build SHA-256 Manifest','splitHash')}${button('Download Manifest','splitManifest',false,'disabled')}</div><div class="module-output" id="splitSummary">Choose a source file.</div><div class="module-result-list" id="splitParts"></div>`;
+    document.getElementById('splitFile').addEventListener('change',e=>{splitterFile=e.target.files?.[0]||null;if(splitterFile)splitterAnalyze();});document.getElementById('splitTarget').addEventListener('input',()=>{if(splitterFile)splitterAnalyze();});bind('splitAnalyze',splitterAnalyze);bind('splitHash',async()=>{if(!splitterFile||!splitterParts.length)return;const summary=document.getElementById('splitSummary');for(let i=0;i<splitterParts.length;i++){const p=splitterParts[i];summary.textContent=`Hashing part ${i+1} of ${splitterParts.length}...`;p.sha256=await sha256(splitterFile.slice(p.start,p.end));renderSplitParts();}splitterManifest={format:'Nougat File Splitter Manifest',version:1,original_name:splitterFile.name,original_size:splitterFile.size,target_mib:Number(document.getElementById('splitTarget').value),parts:splitterParts.map(p=>({name:p.name,size:p.size,sha256:p.sha256}))};document.getElementById('splitManifest').disabled=false;summary.textContent=`Manifest ready • ${splitterParts.length} part(s) • per-part SHA-256 complete.`;});bind('splitManifest',()=>{if(splitterManifest)downloadText(`${splitterFile.name}.nougat-split.json`,JSON.stringify(splitterManifest,null,2));});if(splitterFile){splitterAnalyze();}
+  }
+
+  function sortParts(files){return [...files].sort((a,b)=>{const ma=a.name.match(/\.part(\d+)$/i),mb=b.name.match(/\.part(\d+)$/i);if(ma&&mb)return Number(ma[1])-Number(mb[1]);return a.name.localeCompare(b.name,undefined,{numeric:true});});}
+  async function verifyAssembler(){const out=document.getElementById('assembleStatus');if(!assemblerFiles.length){out.textContent='Select part files first.';return false;}if(!assemblerManifest?.parts){out.textContent='No manifest loaded. Part names/order are available, but cryptographic verification cannot be claimed.';return true;}const expected=assemblerManifest.parts;if(expected.length!==assemblerFiles.length){out.textContent=`Manifest expects ${expected.length} parts but ${assemblerFiles.length} were selected.`;return false;}for(let i=0;i<assemblerFiles.length;i++){const f=assemblerFiles[i],e=expected[i];out.textContent=`Verifying ${i+1}/${assemblerFiles.length}: ${f.name}`;if(e.name&&e.name!==f.name){out.textContent=`Name mismatch at part ${i+1}: expected ${e.name}, selected ${f.name}`;return false;}if(Number(e.size)!==f.size){out.textContent=`Size mismatch for ${f.name}.`;return false;}if(e.sha256){const hash=await sha256(f);if(hash.toLowerCase()!==String(e.sha256).toLowerCase()){out.textContent=`SHA-256 mismatch for ${f.name}. Assembly refused.`;return false;}}}out.textContent='All selected parts match the manifest.';return true;}
+  function renderAssembler(){
+    cancelSim();const pane=studioPane();if(!pane)return;pane.innerHTML=`<h2 class="module-heading">FILE ASSEMBLER</h2><p class="module-copy">Select all numbered parts. A Nougat split manifest enables per-part size and SHA-256 verification before assembly.</p><div class="module-field"><span>PART FILES</span><input id="assembleParts" type="file" multiple></div><div class="module-field"><span>MANIFEST (OPTIONAL)</span><input id="assembleManifestFile" type="file" accept="application/json,.json"></div><div class="module-field"><span>OUTPUT NAME</span><input id="assembleName" type="text" placeholder="reassembled-file.bin"></div><div class="module-toolbar">${button('Verify Parts','assembleVerify')}${button('Assemble / Download','assembleRun')}</div><div class="module-output" id="assembleStatus">Select numbered parts.</div><div class="module-result-list" id="assembleList"></div>`;
+    const list=()=>{const el=document.getElementById('assembleList');if(el)el.innerHTML=assemblerFiles.length?assemblerFiles.map((f,i)=>`<div class="module-result-row"><span>PART ${i+1}</span><span>${esc(f.name)}</span><span>${human(f.size)}</span></div>`).join(''):'<div class="module-empty">No parts selected.</div>';};
+    document.getElementById('assembleParts').addEventListener('change',e=>{assemblerFiles=sortParts(e.target.files||[]);list();if(!document.getElementById('assembleName').value&&assemblerFiles[0])document.getElementById('assembleName').value=assemblerFiles[0].name.replace(/\.part\d+$/i,'');});document.getElementById('assembleManifestFile').addEventListener('change',async e=>{const f=e.target.files?.[0];assemblerManifest=null;if(!f)return;try{assemblerManifest=JSON.parse(await f.text());document.getElementById('assembleStatus').textContent=`Loaded manifest for ${assemblerManifest.original_name||'split file'}.`;if(assemblerManifest.original_name)document.getElementById('assembleName').value=assemblerManifest.original_name;}catch(err){document.getElementById('assembleStatus').textContent=`Manifest parse failed: ${err.message||err}`;}});bind('assembleVerify',verifyAssembler);bind('assembleRun',async()=>{if(!(await verifyAssembler()))return;const name=document.getElementById('assembleName').value.trim()||assemblerManifest?.original_name||'reassembled-file.bin';downloadBlob(name,new Blob(assemblerFiles));document.getElementById('assembleStatus').textContent=`Assembly created from ${assemblerFiles.length} part(s). Browser download started.`;});list();
+  }
+
+  window.NougatWebModules.activate=function(name,host){if(name!=='studio'){if(observer){observer.disconnect();observer=null;}activeExtra='';cancelSim();return previous(name,host);}const result=previous(name,host);queueMicrotask(watch);return result;};
+})();
