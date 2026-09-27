@@ -11,7 +11,10 @@
 
   const normalizePoster = (raw) => {
     const value = String(raw.poster || raw.posterUrl || raw.image || raw.imageUrl || '').trim();
-    if (!value) return '';
+    if (!value) {
+      const id = String(raw.id || '').trim();
+      return id ? `${baseUrl()}/nougat/v1/artwork?id=${encodeURIComponent(id)}` : '';
+    }
     if (/^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:')) return value;
     if (value.startsWith('/')) return `${baseUrl()}${value}`;
     return value;
