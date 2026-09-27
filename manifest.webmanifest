@@ -1,0 +1,10 @@
+{
+  "name": "Nougat Media Plus Web Player",
+  "short_name": "Nougat",
+  "description": "Phone and browser access to movies and TV from your Nougat Media Plus server.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4ead8",
+  "theme_color": "#ddc7a6"
+}
