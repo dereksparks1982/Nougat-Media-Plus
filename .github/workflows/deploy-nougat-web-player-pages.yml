@@ -7,8 +7,10 @@ on:
       - "index.html"
       - "styles.css"
       - "modules.css"
+      - "enhancements.css"
       - "config.js"
       - "app.js"
+      - "player-enhancements.js"
       - "modules.js"
       - "modules-bridge.js"
       - "modules-*.js"
@@ -59,6 +61,7 @@ jobs:
           set -euo pipefail
           node --check config.js
           node --check app.js
+          node --check player-enhancements.js
           node --check modules.js
           node --check modules-bridge.js
           for f in modules-*.js; do node --check "$f"; done
@@ -67,7 +70,9 @@ jobs:
           grep -q 'https://97-201-65-144.sslip.io' config.js
           grep -q './styles.css' index.html
           grep -q './modules.css' index.html
+          grep -q './enhancements.css' index.html
           grep -q './app.js' index.html
+          grep -q './player-enhancements.js' index.html
           grep -q './modules.js' index.html
           grep -q './modules-bridge.js' index.html
           grep -q './assets/branding/nougat-media-plus-topbar-lockup.png' index.html
@@ -85,8 +90,10 @@ jobs:
           cp index.html _site/index.html
           cp styles.css _site/styles.css
           cp modules.css _site/modules.css
+          cp enhancements.css _site/enhancements.css
           cp config.js _site/config.js
           cp app.js _site/app.js
+          cp player-enhancements.js _site/player-enhancements.js
           cp modules.js _site/modules.js
           cp modules-bridge.js _site/modules-bridge.js
           for f in modules-*.js; do cp "$f" "_site/$f"; done
