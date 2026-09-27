@@ -6,8 +6,12 @@ on:
     paths:
       - "index.html"
       - "styles.css"
+      - "modules.css"
       - "config.js"
       - "app.js"
+      - "modules.js"
+      - "modules-bridge.js"
+      - "modules-*.js"
       - "sw.js"
       - "manifest.webmanifest"
       - "assets/branding/nougat-media-plus-dock-N.png"
@@ -54,28 +58,38 @@ jobs:
           set -euo pipefail
           node --check config.js
           node --check app.js
+          node --check modules.js
+          node --check modules-bridge.js
+          for f in modules-*.js; do node --check "$f"; done
           node --check sw.js
           python3 -m json.tool manifest.webmanifest >/dev/null
           grep -q 'https://97-201-65-144.sslip.io' config.js
           grep -q './styles.css' index.html
+          grep -q './modules.css' index.html
           grep -q './app.js' index.html
-          grep -q './nougat-media-plus-topbar-lockup.png' index.html
-          grep -q './nougat-media-plus-dock-N.png' index.html
+          grep -q './modules.js' index.html
+          grep -q './modules-bridge.js' index.html
+          grep -q './assets/branding/nougat-media-plus-topbar-lockup.png' index.html
+          grep -q './assets/branding/nougat-media-plus-dock-N.png' index.html
 
       - name: Build Pages site
         shell: bash
         run: |
           set -euo pipefail
           rm -rf _site
-          mkdir -p _site
+          mkdir -p _site/assets/branding
           cp index.html _site/index.html
           cp styles.css _site/styles.css
+          cp modules.css _site/modules.css
           cp config.js _site/config.js
           cp app.js _site/app.js
+          cp modules.js _site/modules.js
+          cp modules-bridge.js _site/modules-bridge.js
+          for f in modules-*.js; do cp "$f" "_site/$f"; done
           cp sw.js _site/sw.js
           cp manifest.webmanifest _site/manifest.webmanifest
-          cp assets/branding/nougat-media-plus-dock-N.png _site/nougat-media-plus-dock-N.png
-          cp assets/branding/nougat-media-plus-topbar-lockup.png _site/nougat-media-plus-topbar-lockup.png
+          cp assets/branding/nougat-media-plus-dock-N.png _site/assets/branding/nougat-media-plus-dock-N.png
+          cp assets/branding/nougat-media-plus-topbar-lockup.png _site/assets/branding/nougat-media-plus-topbar-lockup.png
           touch _site/.nojekyll
 
       - name: Configure Pages from main build
