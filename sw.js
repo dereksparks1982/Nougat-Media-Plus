@@ -1,13 +1,14 @@
-const CACHE = 'nougat-web-player-v4';
+const CACHE = 'nougat-web-player-v5';
 const SHELL = [
   './',
   './index.html',
   './styles.css',
   './modules.css',
   './config.js',
+  './app.js',
   './modules.js',
   './modules-broadcast.js',
-  './app.js',
+  './modules-studio-games.js',
   './modules-bridge.js',
   './manifest.webmanifest',
   './assets/branding/nougat-media-plus-dock-N.png',
