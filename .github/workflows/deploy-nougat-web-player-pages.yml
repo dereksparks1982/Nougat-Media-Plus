@@ -4,8 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "components/web_player/**"
+      - "index.html"
+      - "styles.css"
+      - "config.js"
+      - "app.js"
+      - "sw.js"
+      - "manifest.webmanifest"
       - "assets/branding/nougat-media-plus-dock-N.png"
+      - "assets/branding/nougat-media-plus-topbar-lockup.png"
       - ".github/workflows/deploy-nougat-web-player-pages.yml"
   workflow_dispatch:
 
@@ -46,13 +52,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --check components/web_player/config.js
-          node --check components/web_player/app.js
-          node --check components/web_player/sw.js
-          python3 -m json.tool components/web_player/manifest.webmanifest >/dev/null
-          grep -q 'https://97-201-65-144.sslip.io' components/web_player/config.js
-          grep -q './styles.css' components/web_player/index.html
-          grep -q './app.js' components/web_player/index.html
+          node --check config.js
+          node --check app.js
+          node --check sw.js
+          python3 -m json.tool manifest.webmanifest >/dev/null
+          grep -q 'https://97-201-65-144.sslip.io' config.js
+          grep -q './styles.css' index.html
+          grep -q './app.js' index.html
+          grep -q './nougat-media-plus-topbar-lockup.png' index.html
+          grep -q './nougat-media-plus-dock-N.png' index.html
 
       - name: Build Pages site
         shell: bash
@@ -60,13 +68,14 @@ jobs:
           set -euo pipefail
           rm -rf _site
           mkdir -p _site
-          cp components/web_player/index.html _site/index.html
-          cp components/web_player/styles.css _site/styles.css
-          cp components/web_player/config.js _site/config.js
-          cp components/web_player/app.js _site/app.js
-          cp components/web_player/sw.js _site/sw.js
-          cp components/web_player/manifest.webmanifest _site/manifest.webmanifest
-          cp assets/branding/nougat-media-plus-dock-N.png _site/nougat-icon.png
+          cp index.html _site/index.html
+          cp styles.css _site/styles.css
+          cp config.js _site/config.js
+          cp app.js _site/app.js
+          cp sw.js _site/sw.js
+          cp manifest.webmanifest _site/manifest.webmanifest
+          cp assets/branding/nougat-media-plus-dock-N.png _site/nougat-media-plus-dock-N.png
+          cp assets/branding/nougat-media-plus-topbar-lockup.png _site/nougat-media-plus-topbar-lockup.png
           touch _site/.nojekyll
 
       - name: Configure Pages from main build
