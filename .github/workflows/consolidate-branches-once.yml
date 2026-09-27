@@ -1,0 +1,38 @@
+name: Remove Consolidated Branches Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/consolidate-branches-once.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete historical branches now merged into main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branches=(
+            "candidate/v0.0.65"
+            "nougat-play-portal-identity-migration"
+            "v0.0.67-failed-hvr955q-fm-radio-checkpoint"
+            "v62-closeout-stage-20260904"
+            "validation/v0.0.50-ci"
+            "validation/v0.0.50-ci2"
+            "validation/v0.0.50-ci3"
+            "validation/v0.0.50-current"
+            "validation/v0.0.50-final"
+            "gh-pages"
+          )
+          for branch in "${branches[@]}"; do
+            echo "Deleting ${branch} if present"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" || true
+          done
