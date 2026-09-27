@@ -1,0 +1,52 @@
+name: Apply Nougat Web Artwork Client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/web-front-artwork-patch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Wire artwork URL into app catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app.js')
+          s = p.read_text()
+          old = "      poster: String(raw.poster || raw.posterUrl || raw.image || raw.imageUrl || '')"
+          new = "      poster: String(raw.poster || raw.posterUrl || raw.image || raw.imageUrl || '') || (String(raw.id || '').trim() ? apiUrl('/nougat/v1/artwork', String(raw.id || '').trim()) : '')"
+          if new not in s:
+              if old not in s:
+                  raise SystemExit('poster normalization anchor not found')
+              s = s.replace(old, new, 1)
+              p.write_text(s)
+          PY
+          node --check app.js
+
+      - name: Commit validated artwork client and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Nougat Web Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/web-front-artwork-patch.yml
+          git add app.js
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Use Nougat artwork bridge for Home and Library posters"
+          git push origin HEAD:main
