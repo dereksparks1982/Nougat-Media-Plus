@@ -16,6 +16,7 @@ on:
       - "manifest.webmanifest"
       - "assets/branding/nougat-media-plus-dock-N.png"
       - "assets/branding/nougat-media-plus-topbar-lockup.png"
+      - "components/games/bundled/**"
       - ".github/workflows/deploy-nougat-web-player-pages.yml"
   workflow_dispatch:
 
@@ -71,13 +72,16 @@ jobs:
           grep -q './modules-bridge.js' index.html
           grep -q './assets/branding/nougat-media-plus-topbar-lockup.png' index.html
           grep -q './assets/branding/nougat-media-plus-dock-N.png' index.html
+          test -f components/games/bundled/2048.nes
+          test -f components/games/bundled/Waveforms.nes
+          test -f "components/games/bundled/Ultima Online - The Second Age/Ultima Online - The Second Age.nougat-uo"
 
       - name: Build Pages site
         shell: bash
         run: |
           set -euo pipefail
           rm -rf _site
-          mkdir -p _site/assets/branding
+          mkdir -p _site/assets/branding _site/components/games
           cp index.html _site/index.html
           cp styles.css _site/styles.css
           cp modules.css _site/modules.css
@@ -90,6 +94,7 @@ jobs:
           cp manifest.webmanifest _site/manifest.webmanifest
           cp assets/branding/nougat-media-plus-dock-N.png _site/assets/branding/nougat-media-plus-dock-N.png
           cp assets/branding/nougat-media-plus-topbar-lockup.png _site/assets/branding/nougat-media-plus-topbar-lockup.png
+          cp -R components/games/bundled _site/components/games/bundled
           touch _site/.nojekyll
 
       - name: Configure Pages from main build
