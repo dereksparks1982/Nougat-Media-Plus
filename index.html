@@ -11,6 +11,7 @@
   <title>Nougat Media Plus</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./modules.css">
 </head>
 <body>
   <header class="topbar">
@@ -44,9 +45,7 @@
     <section class="view active" id="homeView" data-view-panel="home" aria-label="Nougat Home">
       <div class="view-scroll">
         <h2 class="section-title">CONTINUE WATCHING</h2>
-        <div class="continue-shell">
-          <div class="card-row" id="continueRow"></div>
-        </div>
+        <div class="continue-shell"><div class="card-row" id="continueRow"></div></div>
         <h2 class="section-title local-title">LOCAL</h2>
         <div class="home-grid" id="homeGrid"></div>
       </div>
@@ -56,13 +55,9 @@
       <div class="player-page">
         <div class="video-frame">
           <video id="player" playsinline preload="metadata"></video>
-          <div class="empty-player" id="emptyPlayer">
-            <strong>NO MEDIA LOADED</strong>
-            <span>Select a movie or episode from Home or Library.</span>
-          </div>
+          <div class="empty-player" id="emptyPlayer"><strong>NO MEDIA LOADED</strong><span>Select a movie or episode from Home or Library.</span></div>
           <div class="player-title-hud" id="playerTitleHud" hidden>Nothing selected</div>
         </div>
-
         <div class="player-hud">
           <div class="seek-row">
             <span class="time-label" id="currentTime">0:00</span>
@@ -99,16 +94,11 @@
       <div class="library-list" id="libraryList" hidden></div>
     </section>
 
-    <section class="view" id="moduleView" data-view-panel="module" aria-label="Nougat module">
-      <div class="module-panel">
-        <div class="module-panel-kicker">NOUGAT MEDIA PLUS</div>
-        <h2 id="moduleTitle">MODULE</h2>
-        <p id="moduleMessage">This web player mirrors the standalone Nougat shell. Media playback modules are live here; the remaining modules stay in the standalone application.</p>
-      </div>
-    </section>
+    <section class="view" id="moduleView" data-view-panel="module" aria-label="Nougat module"></section>
   </main>
 
   <script src="./config.js"></script>
+  <script src="./modules.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
