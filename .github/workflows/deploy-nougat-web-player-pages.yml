@@ -19,21 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Use workflow-based GitHub Pages
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/gh-pages" || true
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow || \
-            gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow || true
-
   deploy:
-    needs: prepare
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -70,8 +56,10 @@ jobs:
           cp assets/branding/nougat-media-plus-dock-N.png _site/nougat-icon.png
           touch _site/.nojekyll
 
-      - name: Configure Pages
+      - name: Configure and enable Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
