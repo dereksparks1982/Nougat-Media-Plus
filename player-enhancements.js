@@ -4,9 +4,10 @@
   const frame=document.querySelector('.video-frame');
   const page=document.querySelector('.player-page');
   const hud=document.getElementById('playerTitleHud');
+  const prevButton=document.getElementById('prevItem');
   const nextButton=document.getElementById('nextItem');
   const fullscreenButton=document.getElementById('fullscreenButton');
-  if(!player||!frame||!page||!hud||!nextButton)return;
+  if(!player||!frame||!page||!hud||!prevButton||!nextButton)return;
 
   let catalog=[];
   let timer=null;
@@ -39,11 +40,13 @@
   function ensureFullscreenOverlay(){
     let controls=document.getElementById('fullscreenTransport');if(controls)return controls;
     controls=document.createElement('div');controls.id='fullscreenTransport';controls.className='fullscreen-transport';controls.hidden=true;
-    controls.innerHTML='<button type="button" class="sheet-button fullscreen-square" id="fullscreenBack" aria-label="Rewind 10 seconds">&lt;</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenPlay" aria-label="Play or pause">^</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenForward" aria-label="Forward 10 seconds">&gt;</button>';
+    controls.innerHTML='<button type="button" class="sheet-button fullscreen-square" id="fullscreenRewind" aria-label="Rewind 10 seconds">&lt;&lt;</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenPrevious" aria-label="Previous item">&lt;</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenPlay" aria-label="Play or pause">^</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenNext" aria-label="Next item">&gt;</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenForward" aria-label="Forward 10 seconds">&gt;&gt;</button>';
     frame.appendChild(controls);
-    document.getElementById('fullscreenBack').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.max(0,player.currentTime-10);});
-    document.getElementById('fullscreenForward').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.min(player.duration,player.currentTime+10);});
-    document.getElementById('fullscreenPlay').addEventListener('click',()=>{if(player.paused)player.play().catch(()=>{});else player.pause();});
+    document.getElementById('fullscreenRewind').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.max(0,player.currentTime-10);showFullscreenControls();});
+    document.getElementById('fullscreenPrevious').addEventListener('click',()=>{prevButton.click();showFullscreenControls();});
+    document.getElementById('fullscreenPlay').addEventListener('click',()=>{if(player.paused)player.play().catch(()=>{});else player.pause();showFullscreenControls();});
+    document.getElementById('fullscreenNext').addEventListener('click',()=>{nextButton.click();showFullscreenControls();});
+    document.getElementById('fullscreenForward').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.min(player.duration,player.currentTime+10);showFullscreenControls();});
     return controls;
   }
   function showFullscreenControls(){
