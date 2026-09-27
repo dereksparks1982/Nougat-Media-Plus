@@ -3,7 +3,7 @@
   if(!window.NougatWebModules)return;
   const previous=window.NougatWebModules.activate.bind(window.NougatWebModules);
   const root=()=>document.getElementById('moduleView');
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   const button=(label,id,active=false,extra='')=>`<button type="button" class="sheet-button${active?' active-tool':''}" id="${id}" ${extra}>${esc(label)}</button>`;
   const bind=(id,fn)=>{const el=document.getElementById(id);if(el)el.addEventListener('click',fn);};
   const shell=html=>{const r=root();if(!r)return null;r.innerHTML=`<div class="module-workspace">${html}</div>`;return r.querySelector('.module-workspace');};
@@ -29,12 +29,24 @@
     body.innerHTML=`<h2 class="module-heading">LIVE TV GUIDE</h2>${tunerTable()}<div class="status-line" id="liveTvFullStatus">${esc(message||`${channels.length} CHANNEL${channels.length===1?'':'S'} • ${programs.length} GUIDE EVENT${programs.length===1?'':'S'}`)}</div><div class="module-result-list live-tv-guide" id="liveTvGuideRows">${guideRows()}</div>`;
     body.querySelectorAll('[data-live-guide-id]').forEach(row=>row.addEventListener('click',()=>{selectedId=row.dataset.liveGuideId;renderBody(`Selected ${channelName(channels.find(c=>channelId(c)===selectedId)||{})}`);}));
   }
+  function focusNow(){
+    const current=channels.find(c=>nowProgram(channelId(c)));
+    if(!current){renderBody('No current guide event is available to focus.');return;}
+    selectedId=channelId(current);
+    const program=nowProgram(selectedId);
+    renderBody(`NOW • ${channelName(current)}${program?.title?` • ${program.title}`:''}`);
+    requestAnimationFrame(()=>{
+      const rows=[...document.querySelectorAll('[data-live-guide-id]')];
+      const row=rows.find(x=>x.dataset.liveGuideId===selectedId);
+      row?.scrollIntoView({block:'center',behavior:'smooth'});
+    });
+  }
   function absorb(data){if(Array.isArray(data.channels))channels=data.channels;if(Array.isArray(data.programs))programs=data.programs;if(data.tuner)tuner=data.tuner;else if(Array.isArray(data.tuners)&&data.tuners[0])tuner=data.tuners[0];remember();}
   async function run(action,extra={}){const status=document.getElementById('liveTvFullStatus');if(status)status.textContent=`LIVE TV • ${action.toUpperCase()}...`;try{const data=await call(action,extra);absorb(data);renderBody(data.status||`${action} complete.`);return data;}catch(err){renderBody(`Live TV host bridge unavailable: ${err.message||err}`);return null;}}
   async function renderLiveTv(host){
     hostRef=host;restore();
     shell(`<div class="module-toolbar">${button('Guide','liveGuide',true)}${button('Now','liveNow')}${button('Detect Tuner','liveDetect')}${button('Refresh Tuner','liveRefreshTuner')}${button('Scan Channels','liveScan')}${button('Watch Live','liveWatch')}${button('Stop Live','liveStop')}${button('Refresh Guide','liveRefreshGuide')}${button('Record','liveRecord')}</div><div id="liveTvFullBody"></div>`);
-    bind('liveGuide',()=>run('guide'));bind('liveNow',()=>{const rows=document.getElementById('liveTvGuideRows');if(rows)rows.scrollTop=0;renderBody('Guide positioned at current time.');});bind('liveDetect',()=>run('detect'));bind('liveRefreshTuner',()=>run('refresh'));bind('liveScan',()=>run('scan'));bind('liveRefreshGuide',()=>run('refresh-guide'));bind('liveStop',()=>run('stop'));bind('liveRecord',()=>selectedId?run('record',{id:selectedId}):renderBody('Select a channel before recording.'));
+    bind('liveGuide',()=>run('guide'));bind('liveNow',focusNow);bind('liveDetect',()=>run('detect'));bind('liveRefreshTuner',()=>run('refresh'));bind('liveScan',()=>run('scan'));bind('liveRefreshGuide',()=>run('refresh-guide'));bind('liveStop',()=>run('stop'));bind('liveRecord',()=>selectedId?run('record',{id:selectedId}):renderBody('Select a channel before recording.'));
     bind('liveWatch',async()=>{if(!selectedId){renderBody('Select a channel first.');return;}const data=await run('watch',{id:selectedId});if(data&&(data.url||data.streamUrl)&&hostRef?.playUrl)hostRef.playUrl(data.url||data.streamUrl,channelName(channels.find(c=>channelId(c)===selectedId)||{}));});
     renderBody();
     const data=await run('guide');if(!data&&channels.length)renderBody('Showing last saved Live TV guide because the host bridge is currently unavailable.');
