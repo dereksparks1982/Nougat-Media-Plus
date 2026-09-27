@@ -1,0 +1,84 @@
+name: Apply Nougat Web Artwork Bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/web-bridge-artwork-patch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add artwork endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/lan/lan_media_service.cpp')
+          s=p.read_text()
+          if 'bool send_artwork(' not in s:
+              marker='''bool send_direct_media(int client,\n                       const std::shared_ptr<SharedState>& state,'''
+              if marker not in s:
+                  raise SystemExit('send_direct_media anchor not found')
+              code=r'''bool send_artwork(int client,
+                  const std::shared_ptr<SharedState>& state,
+                  const std::string& id,
+                  bool head_only) {
+    if (id.empty())
+        return send_json_error(client, 400, "Bad Request", "Missing media id.");
+    std::string bytes;
+    std::string error;
+    {
+        std::lock_guard<std::mutex> lock(state->catalog_mutex);
+        if (!state->jellyfin.load_primary_image_bmp(id, std::string{}, 360, 540, bytes, error)) {
+            return send_json_error(client, 404, "Not Found",
+                                   error.empty() ? "No poster is available for this media item." : error);
+        }
+    }
+    return send_response(client, 200, "OK", "image/bmp", bytes, head_only,
+                         {{"Cache-Control", "private, max-age=86400"},
+                          {"X-Nougat-Artwork", "jellyfin-primary"}});
+}
+
+'''
+              s=s.replace(marker,code+marker,1)
+          route='''    } else if (path == "/nougat/v1/media") {\n        const auto id = query_map.find("id");'''
+          if 'path == "/nougat/v1/artwork"' not in s:
+              if route not in s:
+                  raise SystemExit('media route anchor not found')
+              replacement='''    } else if (path == "/nougat/v1/artwork") {\n        const auto id = query_map.find("id");\n        send_artwork(client, state, id == query_map.end() ? std::string{} : id->second, head_only);\n    } else if (path == "/nougat/v1/media") {\n        const auto id = query_map.find("id");'''
+              s=s.replace(route,replacement,1)
+          p.write_text(s)
+          PY
+
+      - name: Compile web service with warnings as errors
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B /tmp/nougat-web-artwork-build -DREDDMEDIA_AI_STUB=ON -DREDDMEDIA_P2P_STUB=ON
+          cmake --build /tmp/nougat-web-artwork-build --target nougat_web_service_v55 --parallel 2
+
+      - name: Commit validated bridge change
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/lan/lan_media_service.cpp; then
+            echo "Artwork bridge already present."
+            exit 0
+          fi
+          git config user.name "Nougat Web Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/lan/lan_media_service.cpp
+          git commit -m "Expose Jellyfin artwork through Nougat web bridge"
+          git push origin HEAD:main
