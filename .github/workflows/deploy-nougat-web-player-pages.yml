@@ -19,7 +19,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove obsolete gh-pages branch and force workflow Pages mode
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/gh-pages" || true
+          gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow || true
+
   deploy:
+    needs: cleanup
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -56,10 +69,8 @@ jobs:
           cp assets/branding/nougat-media-plus-dock-N.png _site/nougat-icon.png
           touch _site/.nojekyll
 
-      - name: Configure and enable Pages
+      - name: Configure Pages from main build
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
