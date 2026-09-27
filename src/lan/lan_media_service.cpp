@@ -1,4 +1,5 @@
 #include "lan_media_service.hpp"
+#include "web_stream_bridge.hpp"
 #include "../media_server/jellyfin_api_client.hpp"
 
 #include <arpa/inet.h>
@@ -596,6 +597,14 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
     } else if (path == "/nougat/v1/transcode") {
         const auto id = query_map.find("id");
         send_transcoded_media(client, state, id == query_map.end() ? std::string{} : id->second, head_only);
+    } else if (path == "/nougat/v1/stream") {
+        const auto action = query_map.find("action");
+        const auto url = query_map.find("url");
+        web_stream_bridge::handle_request(
+            client, state->application_dir, state->stopping,
+            action == query_map.end() ? std::string{} : action->second,
+            url == query_map.end() ? std::string{} : url->second,
+            head_only);
     } else if (path == "/robots.txt") {
         send_response(client, 200, "OK", "text/plain; charset=utf-8", "User-agent: *\nDisallow: /\n", head_only);
     } else {
@@ -665,6 +674,7 @@ LanMediaService::LanMediaService() : impl_(std::make_unique<Impl>()) {
         {"artwork", "/nougat/v1/artwork", "Reserved local artwork contract"},
         {"media", "/nougat/v1/media", "Direct byte-range delivery of locally owned media"},
         {"transcode", "/nougat/v1/transcode", "FFmpeg browser-compatibility stream for unsupported media"},
+        {"stream", "/nougat/v1/stream", "Standalone yt-dlp engine bridged to browser-compatible playback"},
         {"hls", "/nougat/v1/hls", "Reserved versioned HLS surface"},
         {"livetv", "/nougat/v1/live-tv", "Reserved local Live TV channel, guide and stream contract"},
         {"devices", "/nougat/v1/devices", "Reserved LAN device/session inventory"},
