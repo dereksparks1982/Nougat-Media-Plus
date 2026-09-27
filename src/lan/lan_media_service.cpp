@@ -331,6 +331,26 @@ bool send_catalog(int client, const std::shared_ptr<SharedState>& state, bool he
     return send_response(client, 200, "OK", "application/json; charset=utf-8", json.str(), head_only);
 }
 
+bool send_artwork(int client,
+                  const std::shared_ptr<SharedState>& state,
+                  const std::string& id,
+                  bool head_only) {
+    if (id.empty())
+        return send_json_error(client, 400, "Bad Request", "Missing media id.");
+    std::string bytes;
+    std::string error;
+    {
+        std::lock_guard<std::mutex> lock(state->catalog_mutex);
+        if (!state->jellyfin.load_primary_image_bmp(id, std::string{}, 360, 540, bytes, error)) {
+            return send_json_error(client, 404, "Not Found",
+                                   error.empty() ? "No poster is available for this media item." : error);
+        }
+    }
+    return send_response(client, 200, "OK", "image/bmp", bytes, head_only,
+                         {{"Cache-Control", "private, max-age=86400"},
+                          {"X-Nougat-Artwork", "jellyfin-primary"}});
+}
+
 bool send_direct_media(int client,
                        const std::shared_ptr<SharedState>& state,
                        const std::string& id,
@@ -566,6 +586,9 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
                       head_only);
     } else if (path == "/nougat/v1/catalog") {
         send_catalog(client, state, head_only);
+    } else if (path == "/nougat/v1/artwork") {
+        const auto id = query_map.find("id");
+        send_artwork(client, state, id == query_map.end() ? std::string{} : id->second, head_only);
     } else if (path == "/nougat/v1/media") {
         const auto id = query_map.find("id");
         send_direct_media(client, state, id == query_map.end() ? std::string{} : id->second,
