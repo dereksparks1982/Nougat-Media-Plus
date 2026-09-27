@@ -3,14 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ddc7a6">
   <meta name="color-scheme" content="light">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Nougat">
   <title>Nougat Web Player</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./nougat-icon.png">
+  <link rel="apple-touch-icon" href="./nougat-icon.png">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <header class="topbar">
     <div>
-      <div class="eyebrow">NOUGAT MEDIA SUITE</div>
+      <div class="eyebrow">NOUGAT MEDIA PLUS</div>
       <h1>Web Player</h1>
     </div>
     <div class="lan-badge" id="healthBadge">Connecting…</div>
@@ -22,7 +29,7 @@
         <video id="player" controls playsinline preload="metadata"></video>
         <div class="empty-player" id="emptyPlayer">
           <strong>Select something from your Nougat Library.</strong>
-          <span>Playback stays on your private LAN.</span>
+          <span>Movies and TV stream from your Nougat server to this device.</span>
         </div>
       </div>
       <div class="now-playing">
@@ -39,7 +46,7 @@
     <section class="library-shell" aria-label="Nougat Library">
       <div class="library-heading">
         <div>
-          <div class="eyebrow">LOCAL LIBRARY</div>
+          <div class="eyebrow">NOUGAT LIBRARY</div>
           <h2>Your media</h2>
         </div>
         <div class="library-actions">
@@ -54,9 +61,10 @@
   </main>
 
   <footer>
-    Nougat Web Player v0.0.55 · First-party LAN player · No cloud login · No automatic Internet exposure
+    Nougat Web Player · Phone and browser access · GitHub Pages front end · Media stays on your Nougat server
   </footer>
 
-  <script src="/app.js"></script>
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
