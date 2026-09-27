@@ -4,6 +4,10 @@
 
 It brings local media playback, movies and television libraries, Live TV, radio, internet media, games and emulation, search, P2P, production tools, diagnostics, security tooling, connected hardware, and a browser-based media player into one project.
 
+🌐 **Nougat Web Viewer:** [https://dereksparks1982.github.io/Nougat-Media-Plus/](https://dereksparks1982.github.io/Nougat-Media-Plus/)
+
+Use the web viewer from a phone, tablet, or desktop browser to access the Nougat media interface remotely while the Nougat media host is running.
+
 ## Web Player
 
 ### **[Open the Nougat Web Player](https://dereksparks1982.github.io/Nougat-Media-Plus/)**
