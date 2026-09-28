@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v14';
+const CACHE = 'nougat-web-player-v15';
 const SHELL = [
   './',
   './index.html',
