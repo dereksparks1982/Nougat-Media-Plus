@@ -60,16 +60,27 @@
     if(activityTimer)clearTimeout(activityTimer);
     activityTimer=setTimeout(hideActivity,ACTIVITY_MS);
   }
+  async function toggleFullscreen(){
+    if(document.fullscreenElement){
+      if(document.exitFullscreen)await document.exitFullscreen();
+      return;
+    }
+    if(page.requestFullscreen){await page.requestFullscreen();return;}
+    if(player.webkitEnterFullscreen){player.webkitEnterFullscreen();return;}
+    if(player.webkitRequestFullscreen){player.webkitRequestFullscreen();return;}
+    throw new Error('Fullscreen is not available in this browser.');
+  }
 
   if(fullscreenButton){fullscreenButton.addEventListener('click',async(event)=>{
-    if(!page.requestFullscreen)return;
     event.preventDefault();event.stopImmediatePropagation();
-    try{if(document.fullscreenElement)await document.exitFullscreen();else await page.requestFullscreen();}catch(_){if(player.webkitEnterFullscreen)player.webkitEnterFullscreen();}
+    try{await toggleFullscreen();}catch(_){showActivity();}
   },true);}
   document.addEventListener('fullscreenchange',()=>{
     const controls=ensureFullscreenOverlay();controls.hidden=!document.fullscreenElement;
     showActivity();
   });
+  player.addEventListener('webkitbeginfullscreen',showActivity);
+  player.addEventListener('webkitendfullscreen',showActivity);
   ['pointermove','pointerdown','touchstart'].forEach(type=>page.addEventListener(type,showActivity,{passive:true}));
   page.addEventListener('keydown',showActivity);
 
