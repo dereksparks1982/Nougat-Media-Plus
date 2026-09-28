@@ -14,12 +14,14 @@ on:
       - "config.js"
       - "app.js"
       - "player-*.js"
+      - "connection-monitor.js"
       - "modules.js"
       - "modules-bridge.js"
       - "modules-*.js"
       - "sw.js"
       - "manifest.webmanifest"
       - "assets/branding/nougat-media-plus-dock-N.png"
+      - "assets/branding/nougat-media-plus-master-N.png"
       - "assets/branding/nougat-media-plus-topbar-lockup.png"
       - "assets/channel_logos/builtin/**"
       - "components/games/bundled/**"
@@ -65,6 +67,7 @@ jobs:
           set -euo pipefail
           node --check config.js
           node --check app.js
+          node --check connection-monitor.js
           node --check modules.js
           node --check modules-bridge.js
           for f in modules-*.js player-*.js; do
@@ -82,6 +85,7 @@ jobs:
           grep -q './modules-bridge.js' index.html
           grep -q './assets/branding/nougat-media-plus-topbar-lockup.png' index.html
           grep -q './assets/branding/nougat-media-plus-dock-N.png' index.html
+          test -f assets/branding/nougat-media-plus-master-N.png
           test -f components/games/bundled/2048.nes
           test -f components/games/bundled/Waveforms.nes
           test -f "components/games/bundled/Ultima Online - The Second Age/Ultima Online - The Second Age.nougat-uo"
@@ -97,6 +101,7 @@ jobs:
           cp modules.css _site/modules.css
           cp enhancements.css _site/enhancements.css
           cp config.js _site/config.js
+          cp connection-monitor.js _site/connection-monitor.js
           cp app.js _site/app.js
           cp modules.js _site/modules.js
           cp modules-bridge.js _site/modules-bridge.js
@@ -109,6 +114,7 @@ jobs:
           cp sw.js _site/sw.js
           cp manifest.webmanifest _site/manifest.webmanifest
           cp assets/branding/nougat-media-plus-dock-N.png _site/assets/branding/nougat-media-plus-dock-N.png
+          cp assets/branding/nougat-media-plus-master-N.png _site/assets/branding/nougat-media-plus-master-N.png
           cp assets/branding/nougat-media-plus-topbar-lockup.png _site/assets/branding/nougat-media-plus-topbar-lockup.png
           cp -R assets/channel_logos/builtin _site/assets/channel_logos/builtin
           cp -R components/games/bundled _site/components/games/bundled
