@@ -1,0 +1,1 @@
+.player-title-hud{transition:opacity .14s linear}.player-page.player-activity-hidden,.player-page.player-activity-hidden .video-frame,.player-page.player-activity-hidden video{cursor:none}.player-page.player-activity-hidden .player-title-hud{opacity:0}.player-page:fullscreen .player-title-hud{pointer-events:none}.fullscreen-transport{transition:opacity .12s linear}
