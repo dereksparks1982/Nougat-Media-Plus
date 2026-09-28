@@ -73,8 +73,11 @@
 
   function findCard(item) {
     if (!item) return null;
+    const cards=[...document.querySelectorAll('.media-card')];
+    const byId=cards.find((button)=>String(button.dataset.nougatMediaId||'')===String(item.id||''));
+    if(byId)return byId;
     const wanted = `Play ${item.name}`;
-    return [...document.querySelectorAll('.media-card')].find((button) => button.getAttribute('aria-label') === wanted) || null;
+    return cards.find((button) => button.getAttribute('aria-label') === wanted) || null;
   }
 
   function playItem(item) {
@@ -144,10 +147,11 @@
     cardArtworkQueued = false;
     if (!catalog.length) return;
     const byName = new Map(catalog.map((item) => [item.name, item]));
+    const byId = new Map(catalog.map((item) => [item.id, item]));
     document.querySelectorAll('.media-card').forEach((card) => {
       const label = String(card.getAttribute('aria-label') || '');
       const name = label.startsWith('Play ') ? label.slice(5) : '';
-      const item = byName.get(name);
+      const item = byId.get(String(card.dataset.nougatMediaId||'')) || byName.get(name);
       const art = card.querySelector('.media-art');
       if (!item || !item.poster || !art || art.querySelector('img') || art.dataset.nougatArtwork === item.poster) return;
 
