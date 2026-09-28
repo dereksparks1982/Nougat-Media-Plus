@@ -4,6 +4,7 @@
   const KEY='nougat-web-catalog-cache-v1';
   const originalFetch=window.fetch.bind(window);
   let forceNextCatalog=false;
+  let applyingBackgroundUpdate=false;
 
   function isCatalogRequest(input,init={}){
     try{
@@ -66,11 +67,19 @@
   };
 
   const refreshButton=document.getElementById('refreshButton');
-  if(refreshButton)refreshButton.addEventListener('click',()=>{forceNextCatalog=true;},{capture:true});
+  if(refreshButton)refreshButton.addEventListener('click',()=>{
+    if(!applyingBackgroundUpdate)forceNextCatalog=true;
+  },{capture:true});
 
   window.addEventListener('nougat:catalog-cache-updated',event=>{
     if(!event.detail?.changed)return;
     const status=document.getElementById('catalogStatus');
-    if(status&&!status.textContent.includes('REFRESH AVAILABLE'))status.dataset.backgroundRefresh='ready';
+    if(status)status.textContent=`LIBRARY UPDATED • ${Number(event.detail.count)||0} TOTAL`;
+    if(!refreshButton||applyingBackgroundUpdate)return;
+    applyingBackgroundUpdate=true;
+    queueMicrotask(()=>{
+      try{refreshButton.click();}
+      finally{setTimeout(()=>{applyingBackgroundUpdate=false;},750);}
+    });
   });
 })();
