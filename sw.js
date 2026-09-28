@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v30';
+const CACHE = 'nougat-web-player-v31';
 const SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const SHELL = [
   './modules.css',
   './modules-live-tv.css',
   './modules-scrollbars.css',
+  './modules-media-card-actions.css',
   './library-polish.css',
   './player-activity.css',
   './player-chapters.css',
@@ -39,6 +40,7 @@ const SHELL = [
   './modules-p2p-network.js',
   './modules-stream.js',
   './modules-bridge.js',
+  './modules-media-card-actions.js',
   './manifest.webmanifest',
   './assets/branding/nougat-media-plus-dock-N.png',
   './assets/branding/nougat-media-plus-topbar-lockup.png'
