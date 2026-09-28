@@ -17,11 +17,11 @@
   function renderGuide(data,source='Nougat host'){
     const out=document.getElementById('worldTvGuidePanel');if(!out)return;
     const currentTitle=data.current_title??data.CURRENT_TITLE??data.current?.title??'';
-    const currentStart=Number(data.current_start??data.CURRENT_START??data.current?.start||0);
-    const currentEnd=Number(data.current_end??data.CURRENT_END??data.current?.end||0);
+    const currentStart=Number(data.current_start??data.CURRENT_START??data.current?.start??0);
+    const currentEnd=Number(data.current_end??data.CURRENT_END??data.current?.end??0);
     const nextTitle=data.next_title??data.NEXT_TITLE??data.next?.title??'';
-    const nextStart=Number(data.next_start??data.NEXT_START??data.next?.start||0);
-    const nextEnd=Number(data.next_end??data.NEXT_END??data.next?.end||0);
+    const nextStart=Number(data.next_start??data.NEXT_START??data.next?.start??0);
+    const nextEnd=Number(data.next_end??data.NEXT_END??data.next?.end??0);
     const guideSource=data.source??data.SOURCE??source;
     out.innerHTML=`<div class="module-panel-grid"><div class="module-panel-card"><h3>NOW</h3><p>${esc(formatEntry(currentTitle,currentStart,currentEnd))}</p></div><div class="module-panel-card"><h3>NEXT</h3><p>${esc(formatEntry(nextTitle,nextStart,nextEnd))}</p></div></div><div class="status-line">GUIDE SOURCE • ${esc(guideSource||source)}</div>`;
   }
