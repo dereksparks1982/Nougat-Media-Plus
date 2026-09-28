@@ -102,11 +102,15 @@
     const title = document.getElementById('playerTitleHud');
     const status = document.getElementById('playerStatus');
     if (!player) return;
-    player.controls = true;
+    const streamLabel = label || 'Stream';
+    window.dispatchEvent(new CustomEvent('nougat:external-stream', { detail: { url, label: streamLabel } }));
+    player.dataset.nougatExternalStream = '1';
+    player.dataset.nougatExternalLabel = streamLabel;
+    player.controls = false;
     player.src = url;
     if (empty) empty.hidden = true;
-    if (title) { title.hidden = false; title.textContent = label || 'Stream'; }
-    if (status) status.textContent = 'DIRECT WEB STREAM';
+    if (title) { title.hidden = false; title.textContent = streamLabel; }
+    if (status) status.textContent = 'STARTING DIRECT WEB STREAM';
     navigate('player');
     player.load();
     const result = player.play();
