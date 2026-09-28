@@ -12,7 +12,8 @@
   let catalog=[];
   let timer=null;
   let remaining=10;
-  let fsHideTimer=null;
+  let activityTimer=null;
+  const ACTIVITY_MS=3000;
 
   const base=()=>String((window.NOUGAT_WEB_PLAYER||{}).baseUrl||'').trim().replace(/\/+$/,'');
   async function loadCatalog(){
@@ -33,7 +34,7 @@
   }
   function hideUpNext(){if(timer){clearInterval(timer);timer=null;}const el=document.getElementById('upNextOverlay');if(el)el.hidden=true;}
   function showUpNext(next){
-    const el=ensureOverlay();remaining=10;document.getElementById('upNextTitle').textContent=next.name;document.getElementById('upNextCountdown').textContent=`Playing in ${remaining} seconds`;el.hidden=false;
+    const el=ensureOverlay();remaining=10;document.getElementById('upNextTitle').textContent=next.name;document.getElementById('upNextCountdown').textContent=`Playing in ${remaining} seconds`;el.hidden=false;showActivity();
     timer=setInterval(()=>{remaining-=1;const label=document.getElementById('upNextCountdown');if(label)label.textContent=`Playing in ${Math.max(0,remaining)} seconds`;if(remaining<=0){hideUpNext();nextButton.click();}},1000);
   }
 
@@ -42,29 +43,42 @@
     controls=document.createElement('div');controls.id='fullscreenTransport';controls.className='fullscreen-transport';controls.hidden=true;
     controls.innerHTML='<button type="button" class="sheet-button fullscreen-square" id="fullscreenRewind" aria-label="Rewind 10 seconds">&lt;&lt;</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenPrevious" aria-label="Previous item">&lt;</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenPlay" aria-label="Play or pause">^</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenNext" aria-label="Next item">&gt;</button><button type="button" class="sheet-button fullscreen-square" id="fullscreenForward" aria-label="Forward 10 seconds">&gt;&gt;</button>';
     frame.appendChild(controls);
-    document.getElementById('fullscreenRewind').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.max(0,player.currentTime-10);showFullscreenControls();});
-    document.getElementById('fullscreenPrevious').addEventListener('click',()=>{prevButton.click();showFullscreenControls();});
-    document.getElementById('fullscreenPlay').addEventListener('click',()=>{if(player.paused)player.play().catch(()=>{});else player.pause();showFullscreenControls();});
-    document.getElementById('fullscreenNext').addEventListener('click',()=>{nextButton.click();showFullscreenControls();});
-    document.getElementById('fullscreenForward').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.min(player.duration,player.currentTime+10);showFullscreenControls();});
+    document.getElementById('fullscreenRewind').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.max(0,player.currentTime-10);showActivity();});
+    document.getElementById('fullscreenPrevious').addEventListener('click',()=>{prevButton.click();showActivity();});
+    document.getElementById('fullscreenPlay').addEventListener('click',()=>{if(player.paused)player.play().catch(()=>{});else player.pause();showActivity();});
+    document.getElementById('fullscreenNext').addEventListener('click',()=>{nextButton.click();showActivity();});
+    document.getElementById('fullscreenForward').addEventListener('click',()=>{if(Number.isFinite(player.duration))player.currentTime=Math.min(player.duration,player.currentTime+10);showActivity();});
     return controls;
   }
-  function showFullscreenControls(){
-    if(!document.fullscreenElement)return;
-    const controls=ensureFullscreenOverlay();controls.hidden=false;if(fsHideTimer)clearTimeout(fsHideTimer);fsHideTimer=setTimeout(()=>{controls.hidden=true;},2600);
+  function hideActivity(){
+    page.classList.add('player-activity-hidden');
+    const controls=document.getElementById('fullscreenTransport');if(controls)controls.hidden=true;
   }
+  function showActivity(){
+    page.classList.remove('player-activity-hidden');
+    if(document.fullscreenElement){const controls=ensureFullscreenOverlay();controls.hidden=false;}
+    if(activityTimer)clearTimeout(activityTimer);
+    activityTimer=setTimeout(hideActivity,ACTIVITY_MS);
+  }
+
   if(fullscreenButton){fullscreenButton.addEventListener('click',async(event)=>{
     if(!page.requestFullscreen)return;
     event.preventDefault();event.stopImmediatePropagation();
     try{if(document.fullscreenElement)await document.exitFullscreen();else await page.requestFullscreen();}catch(_){if(player.webkitEnterFullscreen)player.webkitEnterFullscreen();}
   },true);}
-  document.addEventListener('fullscreenchange',()=>{const controls=ensureFullscreenOverlay();controls.hidden=!document.fullscreenElement;if(document.fullscreenElement)showFullscreenControls();});
-  page.addEventListener('mousemove',showFullscreenControls);page.addEventListener('touchstart',showFullscreenControls,{passive:true});
+  document.addEventListener('fullscreenchange',()=>{
+    const controls=ensureFullscreenOverlay();controls.hidden=!document.fullscreenElement;
+    showActivity();
+  });
+  ['pointermove','pointerdown','touchstart'].forEach(type=>page.addEventListener(type,showActivity,{passive:true}));
+  page.addEventListener('keydown',showActivity);
 
   player.addEventListener('ended',()=>{const next=nextEpisode();if(next)showUpNext(next);});
-  player.addEventListener('play',hideUpNext);
-  player.addEventListener('loadedmetadata',hideUpNext);
-  window.addEventListener('hashchange',()=>{if(location.hash!=='#player')hideUpNext();});
+  player.addEventListener('play',()=>{hideUpNext();showActivity();});
+  player.addEventListener('pause',showActivity);
+  player.addEventListener('loadedmetadata',()=>{hideUpNext();showActivity();});
+  window.addEventListener('hashchange',()=>{if(location.hash!=='#player'){hideUpNext();if(activityTimer){clearTimeout(activityTimer);activityTimer=null;}page.classList.remove('player-activity-hidden');}});
   loadCatalog();
   window.setInterval(loadCatalog,60000);
+  showActivity();
 })();
