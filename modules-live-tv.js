@@ -7,6 +7,9 @@
   const button=(label,id,active=false,extra='')=>`<button type="button" class="sheet-button${active?' active-tool':''}" id="${id}" ${extra}>${esc(label)}</button>`;
   const bind=(id,fn)=>{const el=document.getElementById(id);if(el)el.addEventListener('click',fn);};
   const shell=html=>{const r=root();if(!r)return null;r.innerHTML=`<div class="module-workspace">${html}</div>`;return r.querySelector('.module-workspace');};
+  const BUILTIN_LOGOS=[
+    [/(PBS\s*KIDS|PBSKIDS)/i,'pbs_kids.bmp'],[/ION\s*PLUS/i,'ion_plus.bmp'],[/\bNBC\b/i,'nbc.bmp'],[/\bPBS\b/i,'pbs.bmp'],[/TELEMUNDO/i,'telemundo.bmp'],[/\bABC\b/i,'abc.bmp'],[/\bCBS\b/i,'cbs.bmp'],[/\bFOX\b/i,'fox.bmp'],[/\bCW\b/i,'cw.bmp'],[/ME\s*TV|METV/i,'metv.bmp'],[/\bION\b/i,'ion.bmp'],[/\bCREATE\b/i,'create.bmp'],[/\bBOUNCE\b/i,'bounce.bmp'],[/\bBUSTED\b/i,'busted.bmp'],[/SHOP\s*LC|SHOPLC/i,'shoplc.bmp']
+  ];
   let hostRef=null;
   let selectedId='';
   let channels=[];
@@ -21,39 +24,16 @@
   function channelId(c){return String(c.id||c.channel_id||c.channel||c.program_number||'');}
   function programChannelId(p){return String(p?.channel_id||p?.channelId||p?.channel||p?.program_number||'');}
   function channelName(c){return String(c.name||c.service||`Channel ${channelId(c)}`);}
+  function builtinChannelLogo(c){const haystack=[c?.name,c?.service,c?.network,c?.affiliate,c?.callsign,c?.call_sign].filter(Boolean).join(' ');const hit=BUILTIN_LOGOS.find(([pattern])=>pattern.test(haystack));return hit?`./assets/channel_logos/builtin/${hit[1]}`:'';}
   function channelLogo(c){
     const value=String(c.logo||c.logo_url||c.logoUrl||c.image||c.image_url||c.icon||'').trim();
-    if(!value)return '';
-    if(/^https?:\/\//i.test(value)||value.startsWith('data:')||value.startsWith('blob:'))return value;
-    if(value.startsWith('/'))return `${base()}${value}`;
-    try{return new URL(value,`${base()}/`).href;}catch(_){return '';}
+    if(value){if(/^https?:\/\//i.test(value)||value.startsWith('data:')||value.startsWith('blob:'))return value;if(value.startsWith('/'))return `${base()}${value}`;try{return new URL(value,`${base()}/`).href;}catch(_){}}
+    return builtinChannelLogo(c);
   }
-  function channelIdentity(c){
-    const logo=channelLogo(c);
-    const number=esc(c.virtual_channel||c.channel||c.physical_channel||'');
-    const image=logo?`<img data-live-channel-logo src="${esc(logo)}" alt="" loading="lazy" style="width:42px;height:28px;object-fit:contain;flex:0 0 42px">`:'';
-    return `<span class="live-tv-channel-identity">${image}<span><b>${number}</b> ${esc(channelName(c))}</span></span>`;
-  }
-  function epochSeconds(value){
-    if(value===null||value===undefined||value==='')return 0;
-    const n=Number(value);
-    if(Number.isFinite(n)&&n>0)return n>100000000000?Math.round(n/1000):n;
-    const parsed=Date.parse(String(value));
-    return Number.isFinite(parsed)?parsed/1000:0;
-  }
+  function channelIdentity(c){const logo=channelLogo(c);const number=esc(c.virtual_channel||c.channel||c.physical_channel||'');const image=logo?`<img data-live-channel-logo src="${esc(logo)}" alt="" loading="lazy">`:'';return `<span class="live-tv-channel-identity">${image}<span><b>${number}</b> ${esc(channelName(c))}</span></span>`;}
+  function epochSeconds(value){if(value===null||value===undefined||value==='')return 0;const n=Number(value);if(Number.isFinite(n)&&n>0)return n>100000000000?Math.round(n/1000):n;const parsed=Date.parse(String(value));return Number.isFinite(parsed)?parsed/1000:0;}
   function programStart(p){return epochSeconds(p?.start_unix??p?.start??p?.start_time??p?.startTime??p?.starts_at);}
-  function programEnd(p){
-    const explicit=epochSeconds(p?.end_unix??p?.end??p?.end_time??p?.endTime??p?.ends_at);
-    if(explicit)return explicit;
-    const start=programStart(p);
-    if(!start)return 0;
-    const ms=Number(p?.duration_ms||0);
-    if(Number.isFinite(ms)&&ms>0)return start+(ms/1000);
-    const seconds=Number(p?.duration_seconds??p?.duration??0);
-    if(Number.isFinite(seconds)&&seconds>0)return start+(seconds>604800?seconds/1000:seconds);
-    const next=programs.filter(x=>programChannelId(x)===programChannelId(p)&&programStart(x)>start).sort((a,b)=>programStart(a)-programStart(b))[0];
-    return next?programStart(next):0;
-  }
+  function programEnd(p){const explicit=epochSeconds(p?.end_unix??p?.end??p?.end_time??p?.endTime??p?.ends_at);if(explicit)return explicit;const start=programStart(p);if(!start)return 0;const ms=Number(p?.duration_ms||0);if(Number.isFinite(ms)&&ms>0)return start+(ms/1000);const seconds=Number(p?.duration_seconds??p?.duration??0);if(Number.isFinite(seconds)&&seconds>0)return start+(seconds>604800?seconds/1000:seconds);const next=programs.filter(x=>programChannelId(x)===programChannelId(p)&&programStart(x)>start).sort((a,b)=>programStart(a)-programStart(b))[0];return next?programStart(next):0;}
   function nowProgram(id){const now=Date.now()/1000;return programs.filter(p=>programChannelId(p)===id).sort((a,b)=>programStart(a)-programStart(b)).find(p=>{const start=programStart(p),end=programEnd(p);return start>0&&start<=now&&end>now;});}
   function nextProgram(id){const now=Date.now()/1000;return programs.filter(p=>programChannelId(p)===id&&programStart(p)>now).sort((a,b)=>programStart(a)-programStart(b))[0];}
   function time(unix){if(!Number(unix))return '';return new Date(Number(unix)*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
@@ -62,17 +42,8 @@
   function programProgress(p){const start=programStart(p),end=programEnd(p),now=Date.now()/1000;if(!start||!end||end<=start)return 0;return Math.max(0,Math.min(100,((now-start)/(end-start))*100));}
   function guideRows(){return channels.length?channels.map(c=>{const id=channelId(c),now=nowProgram(id),next=nextProgram(id);return `<button type="button" class="module-result-row${selectedId===id?' active-tool':''}" data-live-guide-id="${esc(id)}">${channelIdentity(c)}<span>${now?`${esc(timeRange(now))} ${esc(programTitle(now))}`:'No current guide data'}</span><span>${next?`NEXT ${esc(time(programStart(next)))} ${esc(programTitle(next))}`:''}</span></button>`;}).join(''):'<div class="module-empty">No saved channels. Scan the tuner from this page, or use System for tuner detection and refresh.</div>';}
   function tunerTable(){if(!tuner)return '<div class="module-output">No tuner status has been returned by the Nougat host. Tuner detection and refresh are in System.</div>';return `<table class="diagnostic-table"><tbody><tr><th>Device</th><td>${esc(tuner.name||tuner.id||'Tuner')}</td></tr><tr><th>Backend</th><td>${esc(tuner.backend||'Unknown')}</td></tr><tr><th>Status</th><td>${esc(tuner.status||'Unknown')}</td></tr><tr><th>Frontend</th><td>${tuner.frontend_accessible===false?'Unavailable':'Available'}</td></tr><tr><th>Signal</th><td>${Number.isFinite(Number(tuner.signal_percent))?`${esc(tuner.signal_percent)}%`:'Unknown'}</td></tr><tr><th>Quality</th><td>${Number.isFinite(Number(tuner.quality_percent))?`${esc(tuner.quality_percent)}%`:'Unknown'}</td></tr><tr><th>Delivery</th><td>${esc(tuner.delivery_systems||'Unknown')}</td></tr></tbody></table>`;}
-  function selectedProgramCard(){
-    const channel=channels.find(c=>channelId(c)===selectedId);if(!channel)return '';
-    const current=nowProgram(selectedId),next=nextProgram(selectedId),progress=current?programProgress(current):0;
-    return `<div class="live-tv-now-card"><div>${channelIdentity(channel)}</div><div><strong>NOW</strong><span>${current?esc(programTitle(current)):'No current guide data'}</span><small>${current?esc(timeRange(current)):''}</small>${current?`<div class="live-tv-progress"><i style="width:${progress.toFixed(1)}%"></i></div>`:''}</div><div><strong>NEXT</strong><span>${next?esc(programTitle(next)):'No upcoming guide data'}</span><small>${next?esc(timeRange(next)):''}</small></div></div>`;
-  }
-  function renderBody(message=''){
-    const body=document.getElementById('liveTvFullBody');if(!body)return;
-    body.innerHTML=`<h2 class="module-heading">LIVE TV GUIDE</h2>${tunerTable()}${selectedProgramCard()}<div class="status-line" id="liveTvFullStatus">${esc(message||`${channels.length} CHANNEL${channels.length===1?'':'S'} • ${programs.length} GUIDE EVENT${programs.length===1?'':'S'}`)}</div><div class="module-result-list live-tv-guide" id="liveTvGuideRows">${guideRows()}</div>`;
-    body.querySelectorAll('[data-live-channel-logo]').forEach(image=>image.addEventListener('error',()=>image.remove(),{once:true}));
-    body.querySelectorAll('[data-live-guide-id]').forEach(row=>row.addEventListener('click',()=>selectChannel(row.dataset.liveGuideId)));
-  }
+  function selectedProgramCard(){const channel=channels.find(c=>channelId(c)===selectedId);if(!channel)return '';const current=nowProgram(selectedId),next=nextProgram(selectedId),progress=current?programProgress(current):0;return `<div class="live-tv-now-card"><div>${channelIdentity(channel)}</div><div><strong>NOW</strong><span>${current?esc(programTitle(current)):'No current guide data'}</span><small>${current?esc(timeRange(current)):''}</small>${current?`<div class="live-tv-progress"><i style="width:${progress.toFixed(1)}%"></i></div>`:''}</div><div><strong>NEXT</strong><span>${next?esc(programTitle(next)):'No upcoming guide data'}</span><small>${next?esc(timeRange(next)):''}</small></div></div>`;}
+  function renderBody(message=''){const body=document.getElementById('liveTvFullBody');if(!body)return;body.innerHTML=`<h2 class="module-heading">LIVE TV GUIDE</h2>${tunerTable()}${selectedProgramCard()}<div class="status-line" id="liveTvFullStatus">${esc(message||`${channels.length} CHANNEL${channels.length===1?'':'S'} • ${programs.length} GUIDE EVENT${programs.length===1?'':'S'}`)}</div><div class="module-result-list live-tv-guide" id="liveTvGuideRows">${guideRows()}</div>`;body.querySelectorAll('[data-live-channel-logo]').forEach(image=>image.addEventListener('error',()=>image.remove(),{once:true}));body.querySelectorAll('[data-live-guide-id]').forEach(row=>row.addEventListener('click',()=>selectChannel(row.dataset.liveGuideId)));}
   function scrollSelected(behavior='smooth'){requestAnimationFrame(()=>{const row=[...document.querySelectorAll('[data-live-guide-id]')].find(x=>x.dataset.liveGuideId===selectedId);row?.scrollIntoView({block:'nearest',behavior});row?.focus({preventScroll:true});});}
   function selectChannel(id,message=''){const channel=channels.find(c=>channelId(c)===String(id||''));if(!channel)return;selectedId=channelId(channel);remember();const program=nowProgram(selectedId);renderBody(message||`Selected ${channelName(channel)}${program?` • ${programTitle(program)}`:''}`);scrollSelected();}
   function moveSelection(delta){const selectable=channels.filter(c=>channelId(c));if(!selectable.length)return;let index=selectable.findIndex(c=>channelId(c)===selectedId);if(index<0)index=delta<0?selectable.length:-1;index=(index+delta+selectable.length)%selectable.length;selectChannel(channelId(selectable[index]));}
