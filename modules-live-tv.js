@@ -3,7 +3,7 @@
   if(!window.NougatWebModules)return;
   const previous=window.NougatWebModules.activate.bind(window.NougatWebModules);
   const root=()=>document.getElementById('moduleView');
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const button=(label,id,active=false,extra='')=>`<button type="button" class="sheet-button${active?' active-tool':''}" id="${id}" ${extra}>${esc(label)}</button>`;
   const bind=(id,fn)=>{const el=document.getElementById(id);if(el)el.addEventListener('click',fn);};
   const shell=html=>{const r=root();if(!r)return null;r.innerHTML=`<div class="module-workspace">${html}</div>`;return r.querySelector('.module-workspace');};
