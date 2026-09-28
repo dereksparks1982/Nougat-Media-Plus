@@ -10,16 +10,12 @@
   const playerActive=()=>location.hash==='#player'||document.querySelector('[data-view-panel="player"]')?.classList.contains('active');
   const editable=target=>target&&(['INPUT','TEXTAREA','SELECT','BUTTON'].includes(target.tagName)||target.isContentEditable);
   const togglePlay=()=>{if(player.paused)player.play().catch(()=>{});else player.pause();};
-  const seekBy=seconds=>{if(!Number.isFinite(player.duration)||!Number.isFinite(player.currentTime))return;player.currentTime=Math.max(0,Math.min(player.duration,player.currentTime+seconds));};
   const volumeBy=delta=>{player.volume=Math.max(0,Math.min(1,player.volume+delta));if(delta>0&&player.muted)player.muted=false;};
 
   document.addEventListener('keydown',event=>{
     if(!playerActive()||editable(event.target))return;
-    if(event.code==='Space'){event.preventDefault();togglePlay();return;}
     if(event.key==='ArrowUp'){event.preventDefault();volumeBy(.05);return;}
-    if(event.key==='ArrowDown'){event.preventDefault();volumeBy(-.05);return;}
-    if(event.key==='ArrowLeft'){event.preventDefault();seekBy(-10);return;}
-    if(event.key==='ArrowRight'){event.preventDefault();seekBy(10);}
+    if(event.key==='ArrowDown'){event.preventDefault();volumeBy(-.05);}
   });
 
   player.addEventListener('click',event=>{
