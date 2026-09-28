@@ -118,6 +118,10 @@
     return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
   }
 
+  function isExternalStream() {
+    return player.dataset.nougatExternalStream === '1';
+  }
+
   function setServerState(state, text) {
     serverLight.classList.remove('online', 'busy', 'offline');
     serverLight.classList.add(state);
@@ -159,7 +163,7 @@
   }
 
   function saveResume(force = false) {
-    if (!selected || !Number.isFinite(player.currentTime)) return;
+    if (isExternalStream() || !selected || !Number.isFinite(player.currentTime)) return;
     const now = Date.now();
     if (!force && now - lastResumeWrite < 3000) return;
     lastResumeWrite = now;
@@ -320,6 +324,8 @@
 
   async function playItem(item, compatibility = !item.directPreferred, startAt = 0) {
     if (selected && selected.id !== item.id) saveResume(true);
+    delete player.dataset.nougatExternalStream;
+    delete player.dataset.nougatExternalLabel;
     selected = item;
     usingCompatibility = compatibility;
     autoFallbackArmed = !compatibility;
@@ -429,6 +435,15 @@
     player.currentTime = Math.max(0, Math.min(player.duration, player.currentTime + seconds));
   }
 
+  window.addEventListener('nougat:external-stream', () => {
+    if (selected) saveResume(true);
+    selected = null;
+    usingCompatibility = false;
+    autoFallbackArmed = false;
+    compatButton.disabled = true;
+    compatButton.textContent = 'COMPAT';
+  });
+
   document.querySelectorAll('.rail-button').forEach((button) => {
     button.addEventListener('click', () => setView(button.dataset.view));
   });
@@ -442,7 +457,7 @@
   refreshButton.addEventListener('click', async () => { await loadHealth(); await loadCatalog(); });
 
   playPause.addEventListener('click', async () => {
-    if (!selected) return;
+    if (!selected && !isExternalStream()) return;
     if (player.paused) { try { await player.play(); } catch (_) {} } else player.pause();
   });
   back30.addEventListener('click', () => skipBy(-30));
@@ -467,11 +482,18 @@
   player.addEventListener('durationchange', updatePlayerControls);
   player.addEventListener('timeupdate', () => { updatePlayerControls(); saveResume(false); });
   player.addEventListener('volumechange', updateVolumeBank);
-  player.addEventListener('play', () => { playPause.textContent = 'Ⅱ'; setPlayerStatus(usingCompatibility ? 'PLAYING • COMPATIBILITY' : 'PLAYING • DIRECT'); });
+  player.addEventListener('play', () => {
+    playPause.textContent = 'Ⅱ';
+    setPlayerStatus(isExternalStream() ? 'PLAYING • STREAM' : (usingCompatibility ? 'PLAYING • COMPATIBILITY' : 'PLAYING • DIRECT'));
+  });
   player.addEventListener('pause', () => { playPause.textContent = '▶'; saveResume(true); if (!player.ended) setPlayerStatus('PAUSED'); });
   player.addEventListener('waiting', () => setPlayerStatus('BUFFERING'));
-  player.addEventListener('ended', () => { saveResume(true); setPlayerStatus('PLAYBACK COMPLETE'); updatePlayerControls(); });
+  player.addEventListener('ended', () => { saveResume(true); setPlayerStatus(isExternalStream() ? 'STREAM COMPLETE' : 'PLAYBACK COMPLETE'); updatePlayerControls(); });
   player.addEventListener('error', () => {
+    if (isExternalStream()) {
+      setPlayerStatus('STREAM PLAYBACK ERROR');
+      return;
+    }
     if (selected && autoFallbackArmed) {
       const startAt = Number.isFinite(player.currentTime) ? player.currentTime : 0;
       autoFallbackArmed = false;
@@ -484,7 +506,7 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.target && /INPUT|TEXTAREA/.test(event.target.tagName)) return;
-    if (event.code === 'Space' && currentView === 'player' && selected) {
+    if (event.code === 'Space' && currentView === 'player' && (selected || isExternalStream())) {
       event.preventDefault();
       playPause.click();
     } else if (event.key === 'ArrowLeft' && currentView === 'player') {
