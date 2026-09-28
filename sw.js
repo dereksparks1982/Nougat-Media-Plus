@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v34';
+const CACHE = 'nougat-web-player-v35';
 const SHELL = [
   './',
   './index.html',
@@ -27,6 +27,7 @@ const SHELL = [
   './modules-world-tv-guide.js',
   './modules-radio.js',
   './modules-radio-modes.js',
+  './modules-radio-cellular.js',
   './modules-live-tv.js',
   './modules-live-tv-auto-refresh.js',
   './modules-studio-games.js',
