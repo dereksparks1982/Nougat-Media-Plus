@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v39';
+const CACHE = 'nougat-web-player-v40';
 const SHELL = [
   './',
   './index.html',
@@ -12,10 +12,12 @@ const SHELL = [
   './player-chapters.css',
   './player-tracks.css',
   './player-context.css',
+  './player-mobile.css',
   './enhancements.css',
   './config.js',
   './modules-catalog-cache.js',
   './app.js',
+  './connection-monitor.js',
   './player-enhancements.js',
   './player-chapters.js',
   './player-tracks.js',
