@@ -12,11 +12,12 @@
   let channels=[];
   let programs=[];
   let tuner=null;
+  let keyboardBound=false;
 
   function base(){return hostRef?.baseUrl?hostRef.baseUrl():'';}
   async function call(action,extra={}){const params=new URLSearchParams({action,...extra});const response=await fetch(`${base()}/nougat/v1/live-tv?${params}`,{cache:'no-store'});let data={};try{data=await response.json();}catch(_){data={};}if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);return data;}
-  function remember(){try{localStorage.setItem('nougat-web-live-tv-cache',JSON.stringify({channels,programs,tuner,when:Date.now()}));}catch(_){}}
-  function restore(){try{const x=JSON.parse(localStorage.getItem('nougat-web-live-tv-cache')||'{}')||{};channels=Array.isArray(x.channels)?x.channels:[];programs=Array.isArray(x.programs)?x.programs:[];tuner=x.tuner||null;}catch(_){}}
+  function remember(){try{localStorage.setItem('nougat-web-live-tv-cache',JSON.stringify({channels,programs,tuner,selectedId,when:Date.now()}));}catch(_){}}
+  function restore(){try{const x=JSON.parse(localStorage.getItem('nougat-web-live-tv-cache')||'{}')||{};channels=Array.isArray(x.channels)?x.channels:[];programs=Array.isArray(x.programs)?x.programs:[];tuner=x.tuner||null;selectedId=String(x.selectedId||'');}catch(_){}}
   function channelId(c){return String(c.id||c.channel_id||c.channel||c.program_number||'');}
   function channelName(c){return String(c.name||c.service||`Channel ${channelId(c)}`);}
   function channelLogo(c){
@@ -41,29 +42,65 @@
     const body=document.getElementById('liveTvFullBody');if(!body)return;
     body.innerHTML=`<h2 class="module-heading">LIVE TV GUIDE</h2>${tunerTable()}<div class="status-line" id="liveTvFullStatus">${esc(message||`${channels.length} CHANNEL${channels.length===1?'':'S'} • ${programs.length} GUIDE EVENT${programs.length===1?'':'S'}`)}</div><div class="module-result-list live-tv-guide" id="liveTvGuideRows">${guideRows()}</div>`;
     body.querySelectorAll('[data-live-channel-logo]').forEach(image=>image.addEventListener('error',()=>image.remove(),{once:true}));
-    body.querySelectorAll('[data-live-guide-id]').forEach(row=>row.addEventListener('click',()=>{selectedId=row.dataset.liveGuideId;renderBody(`Selected ${channelName(channels.find(c=>channelId(c)===selectedId)||{})}`);}));
+    body.querySelectorAll('[data-live-guide-id]').forEach(row=>row.addEventListener('click',()=>selectChannel(row.dataset.liveGuideId)));
+  }
+  function scrollSelected(behavior='smooth'){
+    requestAnimationFrame(()=>{
+      const row=[...document.querySelectorAll('[data-live-guide-id]')].find(x=>x.dataset.liveGuideId===selectedId);
+      row?.scrollIntoView({block:'nearest',behavior});
+      row?.focus({preventScroll:true});
+    });
+  }
+  function selectChannel(id,message=''){
+    const channel=channels.find(c=>channelId(c)===String(id||''));
+    if(!channel)return;
+    selectedId=channelId(channel);
+    remember();
+    const program=nowProgram(selectedId);
+    renderBody(message||`Selected ${channelName(channel)}${program?.title?` • ${program.title}`:''}`);
+    scrollSelected();
+  }
+  function moveSelection(delta){
+    const selectable=channels.filter(c=>channelId(c));
+    if(!selectable.length)return;
+    let index=selectable.findIndex(c=>channelId(c)===selectedId);
+    if(index<0)index=delta<0?selectable.length: -1;
+    index=(index+delta+selectable.length)%selectable.length;
+    selectChannel(channelId(selectable[index]));
   }
   function focusNow(){
     const current=channels.find(c=>nowProgram(channelId(c)));
     if(!current){renderBody('No current guide event is available to focus.');return;}
-    selectedId=channelId(current);
-    const program=nowProgram(selectedId);
-    renderBody(`NOW • ${channelName(current)}${program?.title?` • ${program.title}`:''}`);
-    requestAnimationFrame(()=>{
-      const rows=[...document.querySelectorAll('[data-live-guide-id]')];
-      const row=rows.find(x=>x.dataset.liveGuideId===selectedId);
-      row?.scrollIntoView({block:'center',behavior:'smooth'});
-    });
+    const id=channelId(current),program=nowProgram(id);
+    selectChannel(id,`NOW • ${channelName(current)}${program?.title?` • ${program.title}`:''}`);
   }
-  function absorb(data){if(Array.isArray(data.channels))channels=data.channels;if(Array.isArray(data.programs))programs=data.programs;if(data.tuner)tuner=data.tuner;else if(Array.isArray(data.tuners)&&data.tuners[0])tuner=data.tuners[0];remember();}
+  async function watchSelected(){
+    if(!selectedId){renderBody('Select a channel first.');return;}
+    const data=await run('watch',{id:selectedId});
+    const channel=channels.find(c=>channelId(c)===selectedId)||{};
+    if(data&&(data.url||data.streamUrl)&&hostRef?.playUrl)hostRef.playUrl(data.url||data.streamUrl,channelName(channel));
+  }
+  function liveTvKeydown(event){
+    const target=event.target;
+    if(target&&(['INPUT','TEXTAREA','SELECT'].includes(target.tagName)||target.isContentEditable))return;
+    if(event.key==='ArrowDown'){event.preventDefault();moveSelection(1);return;}
+    if(event.key==='ArrowUp'){event.preventDefault();moveSelection(-1);return;}
+    if(event.key==='Home'&&channels.length){event.preventDefault();selectChannel(channelId(channels[0]));return;}
+    if(event.key==='End'&&channels.length){event.preventDefault();selectChannel(channelId(channels[channels.length-1]));return;}
+    if(event.key==='Enter'&&selectedId){event.preventDefault();watchSelected();}
+  }
+  function bindKeyboard(){if(keyboardBound)return;document.addEventListener('keydown',liveTvKeydown);keyboardBound=true;}
+  function unbindKeyboard(){if(!keyboardBound)return;document.removeEventListener('keydown',liveTvKeydown);keyboardBound=false;}
+  function absorb(data){if(Array.isArray(data.channels))channels=data.channels;if(Array.isArray(data.programs))programs=data.programs;if(data.tuner)tuner=data.tuner;else if(Array.isArray(data.tuners)&&data.tuners[0])tuner=data.tuners[0];if(selectedId&&!channels.some(c=>channelId(c)===selectedId))selectedId='';remember();}
   async function run(action,extra={}){const status=document.getElementById('liveTvFullStatus');if(status)status.textContent=`LIVE TV • ${action.toUpperCase()}...`;try{const data=await call(action,extra);absorb(data);renderBody(data.status||`${action} complete.`);return data;}catch(err){renderBody(`Live TV host bridge unavailable: ${err.message||err}`);return null;}}
   async function renderLiveTv(host){
-    hostRef=host;restore();
+    hostRef=host;restore();bindKeyboard();
     shell(`<div class="module-toolbar">${button('Guide','liveGuide',true)}${button('Now','liveNow')}${button('Detect Tuner','liveDetect')}${button('Refresh Tuner','liveRefreshTuner')}${button('Scan Channels','liveScan')}${button('Watch Live','liveWatch')}${button('Stop Live','liveStop')}${button('Refresh Guide','liveRefreshGuide')}${button('Record','liveRecord')}</div><div id="liveTvFullBody"></div>`);
     bind('liveGuide',()=>run('guide'));bind('liveNow',focusNow);bind('liveDetect',()=>run('detect'));bind('liveRefreshTuner',()=>run('refresh'));bind('liveScan',()=>run('scan'));bind('liveRefreshGuide',()=>run('refresh-guide'));bind('liveStop',()=>run('stop'));bind('liveRecord',()=>selectedId?run('record',{id:selectedId}):renderBody('Select a channel before recording.'));
-    bind('liveWatch',async()=>{if(!selectedId){renderBody('Select a channel first.');return;}const data=await run('watch',{id:selectedId});if(data&&(data.url||data.streamUrl)&&hostRef?.playUrl)hostRef.playUrl(data.url||data.streamUrl,channelName(channels.find(c=>channelId(c)===selectedId)||{}));});
+    bind('liveWatch',watchSelected);
     renderBody();
+    if(selectedId)scrollSelected('auto');
     const data=await run('guide');if(!data&&channels.length)renderBody('Showing last saved Live TV guide because the host bridge is currently unavailable.');
   }
-  window.NougatWebModules.activate=function(name,host){if(name==='livetv')return renderLiveTv(host);return previous(name,host);};
+  window.NougatWebModules.activate=function(name,host){if(name==='livetv')return renderLiveTv(host);unbindKeyboard();return previous(name,host);};
 })();
