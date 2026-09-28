@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v40';
+const CACHE = 'nougat-web-player-v41';
 const SHELL = [
   './',
   './index.html',
@@ -49,6 +49,7 @@ const SHELL = [
   './modules-media-card-actions.js',
   './manifest.webmanifest',
   './assets/branding/nougat-media-plus-dock-N.png',
+  './assets/branding/nougat-media-plus-master-N.png',
   './assets/branding/nougat-media-plus-topbar-lockup.png'
 ];
 
