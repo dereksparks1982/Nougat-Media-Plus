@@ -3,7 +3,7 @@
   if(!window.NougatWebModules)return;
   const previous=window.NougatWebModules.activate.bind(window.NougatWebModules);
   const root=()=>document.getElementById('moduleView');
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   const button=(label,id,active=false,extra='')=>`<button type="button" class="sheet-button${active?' active-tool':''}" id="${id}" ${extra}>${esc(label)}</button>`;
   const bind=(id,fn)=>{const el=document.getElementById(id);if(el)el.addEventListener('click',fn);};
   const shell=html=>{const r=root();if(!r)return null;r.innerHTML=`<div class="module-workspace">${html}</div>`;return r.querySelector('.module-workspace');};
@@ -19,14 +19,28 @@
   function restore(){try{const x=JSON.parse(localStorage.getItem('nougat-web-live-tv-cache')||'{}')||{};channels=Array.isArray(x.channels)?x.channels:[];programs=Array.isArray(x.programs)?x.programs:[];tuner=x.tuner||null;}catch(_){}}
   function channelId(c){return String(c.id||c.channel_id||c.channel||c.program_number||'');}
   function channelName(c){return String(c.name||c.service||`Channel ${channelId(c)}`);}
+  function channelLogo(c){
+    const value=String(c.logo||c.logo_url||c.logoUrl||c.image||c.image_url||c.icon||'').trim();
+    if(!value)return '';
+    if(/^https?:\/\//i.test(value)||value.startsWith('data:')||value.startsWith('blob:'))return value;
+    if(value.startsWith('/'))return `${base()}${value}`;
+    try{return new URL(value,`${base()}/`).href;}catch(_){return '';}
+  }
+  function channelIdentity(c){
+    const logo=channelLogo(c);
+    const number=esc(c.virtual_channel||c.channel||c.physical_channel||'');
+    const image=logo?`<img data-live-channel-logo src="${esc(logo)}" alt="" loading="lazy" style="width:42px;height:28px;object-fit:contain;flex:0 0 42px">`:'';
+    return `<span style="display:flex;align-items:center;gap:8px;min-width:0">${image}<span><b>${number}</b> ${esc(channelName(c))}</span></span>`;
+  }
   function nowProgram(id){const now=Math.floor(Date.now()/1000);return programs.find(p=>String(p.channel_id||p.channelId||'')===id&&Number(p.start_unix||p.start||0)<=now&&now<Number(p.start_unix||p.start||0)+Number(p.duration_seconds||p.duration||0));}
   function nextProgram(id){const now=Math.floor(Date.now()/1000);return programs.filter(p=>String(p.channel_id||p.channelId||'')===id&&Number(p.start_unix||p.start||0)>now).sort((a,b)=>Number(a.start_unix||a.start||0)-Number(b.start_unix||b.start||0))[0];}
   function time(unix){if(!Number(unix))return '';return new Date(Number(unix)*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
-  function guideRows(){return channels.length?channels.map(c=>{const id=channelId(c),now=nowProgram(id),next=nextProgram(id);return `<button type="button" class="module-result-row${selectedId===id?' active-tool':''}" data-live-guide-id="${esc(id)}"><span><b>${esc(c.virtual_channel||c.channel||c.physical_channel||'')}</b> ${esc(channelName(c))}</span><span>${now?`${esc(time(now.start_unix||now.start))} ${esc(now.title||'')}`:'No current guide data'}</span><span>${next?`NEXT ${esc(time(next.start_unix||next.start))} ${esc(next.title||'')}`:''}</span></button>`;}).join(''):'<div class="module-empty">No saved channels. Detect or scan the tuner on the Nougat host.</div>';}
+  function guideRows(){return channels.length?channels.map(c=>{const id=channelId(c),now=nowProgram(id),next=nextProgram(id);return `<button type="button" class="module-result-row${selectedId===id?' active-tool':''}" data-live-guide-id="${esc(id)}">${channelIdentity(c)}<span>${now?`${esc(time(now.start_unix||now.start))} ${esc(now.title||'')}`:'No current guide data'}</span><span>${next?`NEXT ${esc(time(next.start_unix||next.start))} ${esc(next.title||'')}`:''}</span></button>`;}).join(''):'<div class="module-empty">No saved channels. Detect or scan the tuner on the Nougat host.</div>';}
   function tunerTable(){if(!tuner)return '<div class="module-output">No tuner status has been returned by the Nougat host.</div>';return `<table class="diagnostic-table"><tbody><tr><th>Device</th><td>${esc(tuner.name||tuner.id||'Tuner')}</td></tr><tr><th>Backend</th><td>${esc(tuner.backend||'Unknown')}</td></tr><tr><th>Status</th><td>${esc(tuner.status||'Unknown')}</td></tr><tr><th>Frontend</th><td>${tuner.frontend_accessible===false?'Unavailable':'Available'}</td></tr><tr><th>Signal</th><td>${Number.isFinite(Number(tuner.signal_percent))?`${esc(tuner.signal_percent)}%`:'Unknown'}</td></tr><tr><th>Quality</th><td>${Number.isFinite(Number(tuner.quality_percent))?`${esc(tuner.quality_percent)}%`:'Unknown'}</td></tr><tr><th>Delivery</th><td>${esc(tuner.delivery_systems||'Unknown')}</td></tr></tbody></table>`;}
   function renderBody(message=''){
     const body=document.getElementById('liveTvFullBody');if(!body)return;
     body.innerHTML=`<h2 class="module-heading">LIVE TV GUIDE</h2>${tunerTable()}<div class="status-line" id="liveTvFullStatus">${esc(message||`${channels.length} CHANNEL${channels.length===1?'':'S'} • ${programs.length} GUIDE EVENT${programs.length===1?'':'S'}`)}</div><div class="module-result-list live-tv-guide" id="liveTvGuideRows">${guideRows()}</div>`;
+    body.querySelectorAll('[data-live-channel-logo]').forEach(image=>image.addEventListener('error',()=>image.remove(),{once:true}));
     body.querySelectorAll('[data-live-guide-id]').forEach(row=>row.addEventListener('click',()=>{selectedId=row.dataset.liveGuideId;renderBody(`Selected ${channelName(channels.find(c=>channelId(c)===selectedId)||{})}`);}));
   }
   function focusNow(){
