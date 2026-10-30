@@ -86,13 +86,22 @@ std::string json_string_field(const std::string& object, const std::string& key)
     return out;
 }
 
+// Extract media items from {"ok":true,"items":[...]}, never the outer envelope.
 std::vector<std::string> json_objects(const std::string& text) {
     std::vector<std::string> result;
-    int depth = 0;
+    const std::size_t key = text.find("\"items\"");
+    if (key == std::string::npos) return result;
+    const std::size_t colon = text.find(':', key + 7U);
+    if (colon == std::string::npos) return result;
+    std::size_t start = colon + 1U;
+    while (start < text.size() && std::isspace(static_cast<unsigned char>(text[start]))) ++start;
+    if (start >= text.size() || text[start] != '[') return result;
+
+    int object_depth = 0;
     bool in_string = false;
     bool escaped = false;
-    std::size_t begin = std::string::npos;
-    for (std::size_t i = 0; i < text.size(); ++i) {
+    std::size_t object_begin = std::string::npos;
+    for (std::size_t i = start + 1U; i < text.size(); ++i) {
         const char c = text[i];
         if (in_string) {
             if (escaped) escaped = false;
@@ -101,18 +110,40 @@ std::vector<std::string> json_objects(const std::string& text) {
             continue;
         }
         if (c == '"') { in_string = true; continue; }
+        if (c == ']' && object_depth == 0) break;
         if (c == '{') {
-            if (depth == 0) begin = i;
-            ++depth;
-        } else if (c == '}' && depth > 0) {
-            --depth;
-            if (depth == 0 && begin != std::string::npos) {
-                result.push_back(text.substr(begin, i - begin + 1U));
-                begin = std::string::npos;
+            if (object_depth == 0) object_begin = i;
+            ++object_depth;
+        } else if (c == '}' && object_depth > 0) {
+            --object_depth;
+            if (object_depth == 0 && object_begin != std::string::npos) {
+                result.push_back(text.substr(object_begin, i - object_begin + 1U));
+                object_begin = std::string::npos;
             }
         }
     }
     return result;
+}
+
+std::string encode_query_component(const std::string& value) {
+    constexpr char hex[] = "0123456789ABCDEF";
+    std::string out;
+    for (unsigned char c : value) {
+        if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            out.push_back(static_cast<char>(c));
+        } else {
+            out.push_back('%');
+            out.push_back(hex[c >> 4U]);
+            out.push_back(hex[c & 15U]);
+        }
+    }
+    return out;
+}
+
+std::string peer_url_base(const LanPeer& peer) {
+    const std::string host = peer.address.find(':') != std::string::npos
+        ? "[" + peer.address + "]" : peer.address;
+    return "http://" + host + ":" + std::to_string(peer.port);
 }
 
 LanTrustState parse_trust(std::string value) {
@@ -127,7 +158,7 @@ LanTrustState parse_trust(std::string value) {
 
 std::string validated_http_url(const LanPeer& peer, const std::string& path_or_url) {
     if (!LanMediaService::is_private_lan_address(peer.address)) return {};
-    const std::string base = "http://" + peer.address + ":" + std::to_string(peer.port);
+    const std::string base = peer_url_base(peer);
     if (path_or_url.rfind("http://", 0U) == 0U) {
         const std::string expected = base + "/";
         if (path_or_url == base || path_or_url.rfind(expected, 0U) == 0U) return path_or_url;
@@ -185,9 +216,9 @@ bool LanViewerService::load_catalog(const LanPeer& peer,
         status = "Blocked catalog request outside the private LAN.";
         return false;
     }
-    const std::string url = "http://" + peer.address + ":" + std::to_string(peer.port) + "/nougat/v1/catalog";
+    const std::string url = peer_url_base(peer) + "/nougat/v1/catalog";
     const CommandResult response = run_command(
-        "curl -fsS --connect-timeout 2 --max-time 8 " + shell_quote(url));
+        "curl -fsS --noproxy '*' --connect-timeout 2 --max-time 8 " + shell_quote(url));
     if (response.code != 0) {
         status = "Could not read the paired peer catalog.";
         return false;
@@ -195,13 +226,14 @@ bool LanViewerService::load_catalog(const LanPeer& peer,
 
     for (const std::string& object : json_objects(response.output)) {
         LanRemoteItem item;
+        item.id = json_string_field(object, "id");
         item.name = json_string_field(object, "name");
         item.path = json_string_field(object, "path");
         item.media_url = json_string_field(object, "media_url");
         if (item.media_url.empty()) item.media_url = json_string_field(object, "url");
         item.trust = parse_trust(json_string_field(object, "scan_status"));
-        if (item.name.empty() && item.path.empty()) continue;
-        if (item.name.empty()) item.name = item.path;
+        if (item.id.empty() && item.name.empty() && item.path.empty()) continue;
+        if (item.name.empty()) item.name = item.path.empty() ? item.id : item.path;
         items.push_back(std::move(item));
     }
     status = "Read-only LAN catalog loaded: " + std::to_string(items.size()) + " item(s).";
@@ -222,8 +254,13 @@ bool LanViewerService::direct_stream_url(const LanPeer& peer,
         return false;
     }
 
+    // The LAN server selects media by ID, not a user-supplied filesystem path.
+    if (item.media_url.empty() && item.id.empty()) {
+        status = "The peer catalog did not provide a streamable media ID.";
+        return false;
+    }
     const std::string source = item.media_url.empty()
-        ? "/nougat/v1/media?path=" + item.path
+        ? "/nougat/v1/media?id=" + encode_query_component(item.id)
         : item.media_url;
     url = validated_http_url(peer, source);
     if (url.empty()) {

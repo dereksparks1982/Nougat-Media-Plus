@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v1-legal-20261030-v2';
+const CACHE = 'nougat-web-player-v1-legal-20261030-v2-lan-20261030';
 const SHELL = [
   './legal-notice.css',
   './legal-notice.js',
@@ -13,7 +13,12 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
+  // Optional icon must not invalidate the core app shell if an installation
+  // omits artwork. The approved icon is served by the host when present.
+  event.waitUntil(caches.open(CACHE).then((cache) =>
+    cache.addAll(SHELL.filter((asset) => asset !== './nougat-icon.png'))
+      .then(() => cache.add('./nougat-icon.png').catch(() => {}))
+  ));
   self.skipWaiting();
 });
 

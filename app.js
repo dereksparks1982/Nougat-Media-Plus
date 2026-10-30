@@ -52,6 +52,43 @@
   let currentView = 'home';
   let lastResumeWrite = 0;
   let resumeState = readResumeState();
+  let catalogRequest = null;
+  let connectivityStarted = false;
+
+  // Short, bounded requests prevent one stalled LAN request from freezing Refresh.
+  async function fetchJson(url) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9000);
+    try {
+      const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return await response.json();
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  function startConnectivityChecks() {
+    if (connectivityStarted) return;
+    connectivityStarted = true;
+    const reconnect = async () => {
+      if (window.NougatLegalAccepted !== true || document.hidden) return;
+      const online = await loadHealth();
+      if (online) await loadCatalog();
+    };
+    window.addEventListener('online', reconnect);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) reconnect();
+    });
+    window.setInterval(() => {
+      if (!document.hidden && window.NougatLegalAccepted === true) {
+        loadHealth().then((online) => {
+          if (online && !items.length) return loadCatalog();
+          return undefined;
+        });
+      }
+    }, 45000);
+  }
 
   function readResumeState() {
     try {
@@ -351,9 +388,7 @@
   async function loadHealth() {
     setServerState('busy', 'Connecting');
     try {
-      const response = await fetch(apiUrl('/nougat/v1/health'), { cache: 'no-store' });
-      if (!response.ok) throw new Error('health');
-      const health = await response.json();
+      const health = await fetchJson(apiUrl('/nougat/v1/health'));
       const total = Number(health.total) || 0;
       const available = Number(health.available);
       const text = Number.isFinite(available) && total > 0 ? `${available}/${total}` : 'Online';
@@ -365,13 +400,18 @@
     }
   }
 
-  async function loadCatalog() {
+  function loadCatalog() {
+    if (catalogRequest) return catalogRequest;
+    catalogRequest = loadCatalogOnce().finally(() => { catalogRequest = null; });
+    return catalogRequest;
+  }
+
+  async function loadCatalogOnce() {
     refreshButton.disabled = true;
     catalogStatus.textContent = 'Loading Nougat Library...';
     try {
-      const response = await fetch(apiUrl('/nougat/v1/catalog'), { cache: 'no-store' });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Catalog unavailable');
+      const payload = await fetchJson(apiUrl('/nougat/v1/catalog'));
+      if (!payload.ok) throw new Error(payload.error || 'Catalog unavailable');
       items = (Array.isArray(payload.items) ? payload.items : []).map(normalizeItem).filter((item) => item.id);
       const movies = items.filter((item) => item.type === 'Movie').length;
       const episodes = items.length - movies;
@@ -379,10 +419,14 @@
       renderHome();
       renderLibrary();
     } catch (error) {
-      items = [];
-      renderHome();
-      renderLibrary();
-      catalogStatus.textContent = `LIBRARY UNAVAILABLE • ${error.message || 'SERVER NOT READY'}`;
+      // Keep already-indexed items visible through brief host/network outages.
+      if (items.length) {
+        catalogStatus.textContent = `SERVER OFFLINE • SHOWING LAST LOADED LIBRARY • ${error.message || 'TRY REFRESH'}`;
+      } else {
+        renderHome();
+        renderLibrary();
+        catalogStatus.textContent = `LIBRARY UNAVAILABLE • ${error.message || 'SERVER NOT READY'}`;
+      }
     } finally {
       refreshButton.disabled = false;
     }
@@ -528,13 +572,18 @@
     await loadHealth();
     await loadCatalog();
     if (!items.length) {
-      window.setTimeout(async () => { await loadHealth(); await loadCatalog(); }, 1500);
+      window.setTimeout(async () => {
+        if (window.NougatLegalAccepted === true) { await loadHealth(); await loadCatalog(); }
+      }, 1500);
     }
+    startConnectivityChecks();
   }
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('./sw.js').then((registration) => registration.update()).catch(() => {});
   }
 
-  initialLoad();
+  // Never request a media catalog before the first-run terms are accepted.
+  if (window.NougatLegalAccepted === true) initialLoad();
+  else window.addEventListener('nougat:legal-accepted', () => initialLoad(), { once: true });
 })();

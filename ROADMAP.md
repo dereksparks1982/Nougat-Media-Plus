@@ -1,3 +1,9 @@
+## v0.0.69 LAN reliability source pass (2026-10-30; NOT accepted)
+
+The repository has a source-only repair candidate for locally served web assets, HTTP byte-range handling, early transcoding failure reporting, LAN catalog ID parsing, browser request timeouts, reconnect recovery and consent-aware startup. See [LAN Reliability Source Review](docs/builds/NOUGAT_v0_0_69_LAN_RELIABILITY_SOURCE_REVIEW_2026_10_30.md).
+
+**Still required before acceptance:** native C++ compile, web JS syntax checks, local HTTP GET/HEAD/206/416 tests, multi-item LAN peer discovery/catalog tests, first-run gate acceptance tests, phone playback, real transcoding and reconnect tests. A client-side notice is not a media API access-control mechanism. Do not claim successful runtime proof without actual test evidence.
+
 ## v0.0.69 source and validation priorities (2026-10-30, same-version)
 
 The current actionable gap review is [**v0.0.69 Same-Version Roadmap Gap Review**](docs/builds/NOUGAT_v0_0_69_ROADMAP_GAP_REVIEW_2026_10_30.md).

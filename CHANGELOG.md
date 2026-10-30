@@ -1,3 +1,14 @@
+## Unreleased: LAN web player reliability and catalog contract repairs (2026-10-30)
+
+- Complete the local LAN static-asset allowlist for first-run terms, scripts, configuration, service worker, manifest and the approved Nougat N icon.
+- Tighten HTTP byte-range validation, validate open files before sending success headers, and return 502 if transcoding never produces browser-playable output.
+- Validate LAN peer addresses as real numeric IP addresses instead of permissive string prefixes.
+- Extract every media item from the versioned JSON catalog envelope, preserve item IDs, and use ID-based media routes rather than unsupported filesystem-path queries.
+- Add nine-second bounded JSON requests, overlapping-refresh coalescing, recovery on reconnection and stale-library retention to both web player interfaces.
+- Defer initial health and catalog loads until the Terms of Service acknowledgement is recorded in the browser profile.
+- Refresh service-worker caches, avoid failing installation on optional icons, and add an offline source-contract audit script.
+- This source change is uncompiled and not hardware/browser acceptance-tested. No GitHub Actions, downloadable build, version increment or approved UI geometry changes.
+
 ## Unreleased: Same-version roadmap and verification audit (2026-10-30)
 
 - Review the current roadmap against identifiable source modules and document the next validation gates.

@@ -3,6 +3,7 @@
 #include "../media_server/jellyfin_api_client.hpp"
 
 #include <arpa/inet.h>
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cctype>
@@ -90,6 +91,12 @@ std::string static_content_type(const std::string& path) {
         return "text/javascript; charset=utf-8";
     if (path.size() >= 4U && path.substr(path.size() - 4U) == ".css")
         return "text/css; charset=utf-8";
+    if (path.size() >= 3U && path.substr(path.size() - 3U) == ".md")
+        return "text/markdown; charset=utf-8";
+    if (path.size() >= 4U && path.substr(path.size() - 4U) == ".png")
+        return "image/png";
+    if (path.size() >= 12U && path.substr(path.size() - 12U) == ".webmanifest")
+        return "application/manifest+json";
     return "application/octet-stream";
 }
 
@@ -228,32 +235,37 @@ ByteRange parse_range(const std::string& value, off_t size) {
     const std::string spec = value.substr(6U);
     if (spec.find(',') != std::string::npos) return range;
     const std::size_t dash = spec.find('-');
-    if (dash == std::string::npos) return range;
-
-    const std::string first_text = spec.substr(0, dash);
-    const std::string last_text = spec.substr(dash + 1U);
-    try {
-        if (first_text.empty()) {
-            if (last_text.empty()) return range;
-            const long long suffix = std::stoll(last_text);
-            if (suffix <= 0) return range;
-            const off_t count = static_cast<off_t>(std::min<long long>(suffix, size));
-            range.first = size - count;
+    if (dash == std::string::npos || spec.find('-', dash + 1U) != std::string::npos) return range;
+    // Do not accept values like "bytes=5junk-"; stoll permits trailing junk.
+    const auto positive_integer = [](const std::string& text, unsigned long long& result) {
+        if (text.empty() || !std::all_of(text.begin(), text.end(),
+                [](unsigned char c) { return c >= '0' && c <= '9'; })) return false;
+        try {
+            std::size_t position = 0;
+            result = std::stoull(text, &position);
+            return position == text.size();
+        } catch (...) {
+            return false;
+        }
+    };
+    const std::string start_text = spec.substr(0, dash);
+    const std::string stop_text = spec.substr(dash + 1U);
+    const auto size_unsigned = static_cast<unsigned long long>(size);
+    unsigned long long start_value = 0;
+    unsigned long long stop_value = 0;
+    if (start_text.empty()) {
+        if (!positive_integer(stop_text, stop_value) || stop_value == 0ULL) return range;
+        range.first = static_cast<off_t>(size_unsigned - std::min(stop_value, size_unsigned));
+        range.last = size - 1;
+    } else {
+        if (!positive_integer(start_text, start_value) || start_value >= size_unsigned) return range;
+        range.first = static_cast<off_t>(start_value);
+        if (stop_text.empty()) {
             range.last = size - 1;
         } else {
-            const long long parsed_first = std::stoll(first_text);
-            if (parsed_first < 0 || parsed_first >= size) return range;
-            range.first = static_cast<off_t>(parsed_first);
-            if (last_text.empty()) {
-                range.last = size - 1;
-            } else {
-                const long long parsed_last = std::stoll(last_text);
-                if (parsed_last < parsed_first) return range;
-                range.last = static_cast<off_t>(std::min<long long>(parsed_last, size - 1));
-            }
+            if (!positive_integer(stop_text, stop_value) || stop_value < start_value) return range;
+            range.last = static_cast<off_t>(std::min(stop_value, size_unsigned - 1ULL));
         }
-    } catch (...) {
-        return range;
     }
     range.valid = range.first >= 0 && range.last >= range.first && range.last < size;
     return range;
@@ -362,27 +374,39 @@ bool send_direct_media(int client,
     if (!resolve_catalog_item(state, id, video, error))
         return send_json_error(client, 404, "Not Found", error);
 
-    struct stat info{};
-    if (!regular_file(video.path, info))
+    // Open once and read from the SAME descriptor that was sized. This avoids
+    // sending a successful response before discovering that the file vanished.
+    const int file = open(video.path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (file < 0)
         return send_json_error(client, 404, "Not Found", "The selected media file is unavailable.");
-
+    struct stat info{};
+    if (fstat(file, &info) != 0 || !S_ISREG(info.st_mode)) {
+        close(file);
+        return send_json_error(client, 404, "Not Found", "The selected media is not a regular file.");
+    }
     const ByteRange range = parse_range(range_header, info.st_size);
     if (range.requested && !range.valid) {
-        return send_response(client, 416, "Range Not Satisfiable", "text/plain; charset=utf-8", {}, head_only,
+        close(file);
+        return send_response(client, 416, "Range Not Satisfiable", "text/plain; charset=utf-8",
+                             {}, head_only,
                              {{"Content-Range", "bytes */" + std::to_string(static_cast<long long>(info.st_size))}});
     }
-
     const off_t first = range.valid ? range.first : 0;
     const off_t last = range.valid ? range.last : info.st_size - 1;
-    const unsigned long long content_length = info.st_size > 0
+    const unsigned long long length = info.st_size > 0
         ? static_cast<unsigned long long>(last - first + 1)
         : 0ULL;
+    if (!head_only && length > 0ULL && lseek(file, first, SEEK_SET) < 0) {
+        close(file);
+        return send_json_error(client, 503, "Service Unavailable", "Cannot seek the selected media.");
+    }
 
     std::ostringstream header;
-    header << "HTTP/1.1 " << (range.valid ? 206 : 200) << (range.valid ? " Partial Content\r\n" : " OK\r\n")
+    header << "HTTP/1.1 " << (range.valid ? 206 : 200)
+           << (range.valid ? " Partial Content\r\n" : " OK\r\n")
            << "Server: Nougat/0.0.55\r\n"
            << "Content-Type: " << media_content_type(video.path) << "\r\n"
-           << "Content-Length: " << content_length << "\r\n"
+           << "Content-Length: " << length << "\r\n"
            << "Accept-Ranges: bytes\r\n"
            << "Cache-Control: private, max-age=0\r\n"
            << "X-Content-Type-Options: nosniff\r\n";
@@ -392,31 +416,26 @@ bool send_direct_media(int client,
                << static_cast<long long>(info.st_size) << "\r\n";
     }
     header << "Connection: close\r\n\r\n";
-    if (!send_all(client, header.str()) || head_only || content_length == 0ULL) return true;
-
-    const int file = open(video.path.c_str(), O_RDONLY);
-    if (file < 0) return false;
-    if (lseek(file, first, SEEK_SET) < 0) {
+    const bool header_sent = send_all(client, header.str());
+    if (!header_sent || head_only || length == 0ULL) {
         close(file);
-        return false;
+        return header_sent;
     }
 
-    unsigned long long remaining = content_length;
+    unsigned long long remaining = length;
     char buffer[128U * 1024U];
     bool ok = true;
     while (remaining > 0ULL && !state->stopping.load()) {
         const std::size_t wanted = static_cast<std::size_t>(
             std::min<unsigned long long>(remaining, sizeof(buffer)));
-        const ssize_t amount = read(file, buffer, wanted);
-        if (amount <= 0) {
-            ok = amount == 0;
-            break;
-        }
-        if (!send_all(client, buffer, static_cast<std::size_t>(amount))) {
+        const ssize_t bytes = read(file, buffer, wanted);
+        if (bytes < 0 && errno == EINTR) continue;
+        if (bytes <= 0) { ok = false; break; }
+        if (!send_all(client, buffer, static_cast<std::size_t>(bytes))) {
             ok = false;
             break;
         }
-        remaining -= static_cast<unsigned long long>(amount);
+        remaining -= static_cast<unsigned long long>(bytes);
     }
     close(file);
     return ok && remaining == 0ULL;
@@ -479,6 +498,19 @@ bool send_transcoded_media(int client,
 
     setpgid(child, child);
     close(output_pipe[1]);
+    // Do not send HTTP 200 before FFmpeg produces a usable first fragment.
+    char buffer[64U * 1024U];
+    ssize_t first_amount = -1;
+    do { first_amount = read(output_pipe[0], buffer, sizeof(buffer)); }
+    while (first_amount < 0 && errno == EINTR);
+    if (first_amount <= 0) {
+        close(output_pipe[0]);
+        if (kill(-child, SIGTERM) != 0 && errno != ESRCH) kill(child, SIGTERM);
+        int status = 0;
+        while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+        return send_json_error(client, 502, "Bad Gateway",
+                               "FFmpeg could not produce browser-playable media.");
+    }
     const std::string header =
         "HTTP/1.1 200 OK\r\n"
         "Server: Nougat/0.0.55\r\n"
@@ -488,8 +520,11 @@ bool send_transcoded_media(int client,
         "X-Nougat-Stream-Mode: ffmpeg-fragmented-mp4\r\n"
         "X-Content-Type-Options: nosniff\r\n"
         "Connection: close\r\n\r\n";
-    bool ok = send_all(client, header);
-    char buffer[64U * 1024U];
+    std::ostringstream first_chunk;
+    first_chunk << std::hex << static_cast<unsigned long long>(first_amount) << "\r\n";
+    bool ok = send_all(client, header) && send_all(client, first_chunk.str()) &&
+              send_all(client, buffer, static_cast<std::size_t>(first_amount)) &&
+              send_all(client, "\r\n", 2U);
     while (ok && !state->stopping.load()) {
         const ssize_t amount = read(output_pipe[0], buffer, sizeof(buffer));
         if (amount == 0) break;
@@ -609,13 +644,24 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
         send_response(client, 200, "OK", "text/plain; charset=utf-8", "User-agent: *\nDisallow: /\n", head_only);
     } else {
         std::string asset;
+        // Explicit allowlist: do not read arbitrary request-selected paths.
         if (path == "/" || path == "/index.html") asset = "index.html";
         else if (path == "/app.js") asset = "app.js";
         else if (path == "/styles.css") asset = "styles.css";
+        else if (path == "/config.js") asset = "config.js";
+        else if (path == "/legal-notice.js") asset = "legal-notice.js";
+        else if (path == "/legal-notice.css") asset = "legal-notice.css";
+        else if (path == "/LEGAL_NOTICE.md") asset = "LEGAL_NOTICE.md";
+        else if (path == "/sw.js") asset = "sw.js";
+        else if (path == "/manifest.webmanifest") asset = "manifest.webmanifest";
+        else if (path == "/nougat-icon.png") asset = "nougat-icon.png";
         if (asset.empty()) {
             send_json_error(client, 404, "Not Found", "That Nougat Web Player route does not exist.");
         } else {
-            const std::string disk_path = state->application_dir + "/components/web_player/" + asset;
+            // Use the existing approved Nougat N artwork for the local web icon.
+            const std::string disk_path = asset == "nougat-icon.png"
+                ? state->application_dir + "/assets/branding/nougat-media-plus-master-N.png"
+                : state->application_dir + "/components/web_player/" + asset;
             const std::string body = read_file(disk_path);
             if (body.empty())
                 send_json_error(client, 503, "Service Unavailable", "The Nougat Web Player assets are missing.");
@@ -779,20 +825,23 @@ void LanMediaService::stop() {
 }
 
 bool LanMediaService::is_private_lan_address(const std::string& address) {
-    if (address == "127.0.0.1" || address == "::1") return true;
-    if (address.rfind("10.", 0U) == 0U) return true;
-    if (address.rfind("192.168.", 0U) == 0U) return true;
-    if (address.rfind("169.254.", 0U) == 0U) return true;
-    if (address.rfind("fc", 0U) == 0U || address.rfind("fd", 0U) == 0U ||
-        address.rfind("fe80:", 0U) == 0U) return true;
-    if (address.rfind("172.", 0U) == 0U) {
-        const std::size_t second_dot = address.find('.', 4U);
-        if (second_dot != std::string::npos) {
-            const int second = std::atoi(address.substr(4U, second_dot - 4U).c_str());
-            return second >= 16 && second <= 31;
-        }
+    in_addr ipv4{};
+    if (inet_pton(AF_INET, address.c_str(), &ipv4) == 1) {
+        const std::uint32_t value = ntohl(ipv4.s_addr);
+        return (value >> 24U) == 127U ||
+               (value >> 24U) == 10U ||
+               (value >> 20U) == 0xAC1U ||
+               (value >> 16U) == 0xC0A8U ||
+               (value >> 16U) == 0xA9FEU;
     }
-    return false;
+    in6_addr ipv6{};
+    if (inet_pton(AF_INET6, address.c_str(), &ipv6) == 1) {
+        const unsigned char* octets = ipv6.s6_addr;
+        return IN6_IS_ADDR_LOOPBACK(&ipv6) ||
+               (octets[0] & 0xfeU) == 0xfcU ||
+               (octets[0] == 0xfeU && (octets[1] & 0xc0U) == 0x80U);
+    }
+    return false; // Reject DNS names and malformed private-network lookalikes.
 }
 
 }  // namespace reddmedia::lan

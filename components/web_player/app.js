@@ -19,6 +19,41 @@
   let usingCompatibility = false;
   let autoFallbackArmed = false;
   let statusClearTimer = 0;
+  let catalogRequest = null;
+  let connectivityStarted = false;
+
+  const fetchJson = async (url) => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9000);
+    try {
+      const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return await response.json();
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  };
+  const startConnectivityChecks = () => {
+    if (connectivityStarted) return;
+    connectivityStarted = true;
+    const reconnect = async () => {
+      if (window.NougatLegalAccepted !== true || document.hidden) return;
+      const online = await loadHealth();
+      if (online) await loadCatalog();
+    };
+    window.addEventListener('online', reconnect);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) reconnect();
+    });
+    window.setInterval(() => {
+      if (!document.hidden && window.NougatLegalAccepted === true) {
+        loadHealth().then((online) => {
+          if (online && !items.length) return loadCatalog();
+          return undefined;
+        });
+      }
+    }, 45000);
+  };
 
   const normalizedBaseUrl = () => {
     const configured = typeof config.baseUrl === 'string' ? config.baseUrl.trim() : '';
@@ -140,9 +175,7 @@
 
   const loadHealth = async () => {
     try {
-      const response = await fetch(apiUrl('/nougat/v1/health'), { cache: 'no-store' });
-      if (!response.ok) throw new Error('health');
-      const health = await response.json();
+      const health = await fetchJson(apiUrl('/nougat/v1/health'));
       const total = Number(health.total) || 0;
       const available = Number(health.available);
       if (Number.isFinite(available) && total > 0) {
@@ -157,13 +190,18 @@
     }
   };
 
-  const loadCatalog = async () => {
+  const loadCatalog = () => {
+    if (catalogRequest) return catalogRequest;
+    catalogRequest = loadCatalogOnce().finally(() => { catalogRequest = null; });
+    return catalogRequest;
+  };
+
+  const loadCatalogOnce = async () => {
     refreshButton.disabled = true;
     catalogStatus.textContent = 'Loading your Nougat Library…';
     try {
-      const response = await fetch(apiUrl('/nougat/v1/catalog'), { cache: 'no-store' });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Catalog unavailable');
+      const payload = await fetchJson(apiUrl('/nougat/v1/catalog'));
+      if (!payload.ok) throw new Error(payload.error || 'Catalog unavailable');
       items = (Array.isArray(payload.items) ? payload.items : [])
         .map(normalizeItem)
         .filter((item) => item.id);
@@ -177,9 +215,12 @@
         : 'Nougat is online, but no playable movies or TV episodes are currently indexed.';
       renderLibrary();
     } catch (error) {
-      items = [];
-      renderLibrary();
-      catalogStatus.textContent = `Library unavailable: ${error.message || 'Nougat server is not ready.'}`;
+      if (items.length) {
+        catalogStatus.textContent = `Server unavailable. Showing the last loaded library: ${error.message || 'Retry later.'}`;
+      } else {
+        renderLibrary();
+        catalogStatus.textContent = `Library unavailable: ${error.message || 'Nougat server is not ready.'}`;
+      }
     } finally {
       refreshButton.disabled = false;
     }
@@ -220,15 +261,17 @@
     await loadCatalog();
     if (!items.length) {
       window.setTimeout(async () => {
-        await loadHealth();
-        await loadCatalog();
+        if (window.NougatLegalAccepted === true) { await loadHealth(); await loadCatalog(); }
       }, 1500);
     }
+    startConnectivityChecks();
   };
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
-  initialLoad();
+  // The API is not contacted until legal consent is accepted.
+  if (window.NougatLegalAccepted === true) initialLoad();
+  else window.addEventListener('nougat:legal-accepted', () => initialLoad(), { once: true });
 })();

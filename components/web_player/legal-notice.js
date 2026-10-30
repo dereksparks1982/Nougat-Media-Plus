@@ -17,7 +17,7 @@
 
   let accepted = false;
   try { accepted = localStorage.getItem(key) === noticeVersion; } catch (_) { /* no valid receipt */ }
-  if (accepted) { gate.hidden = true; return; }
+  if (accepted) { window.NougatLegalAccepted = true; gate.hidden = true; return; }
 
   // Keep every other part of the UI inert while acceptance is outstanding.
   const background = Array.from(document.body.children).filter(node => node !== gate);
@@ -61,9 +61,11 @@
       if (storageError) storageError.hidden = false;
       return;
     }
+    window.NougatLegalAccepted = true;
     gate.hidden = true;
     for (const node of background) node.inert = false;
     document.documentElement.style.overflow = previousOverflow;
+    window.dispatchEvent(new Event('nougat:legal-accepted'));
   });
   gate.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {

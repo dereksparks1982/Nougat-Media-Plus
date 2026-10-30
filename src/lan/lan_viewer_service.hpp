@@ -25,6 +25,7 @@ struct LanPeer {
 };
 
 struct LanRemoteItem {
+    std::string id;
     std::string name;
     std::string path;
     std::string media_url;

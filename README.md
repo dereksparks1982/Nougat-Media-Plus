@@ -1,5 +1,7 @@
 # Nougat Media Plus
 
+**v0.0.69 LAN reliability source work (unreleased):** The local LAN player now has explicit routes for its configuration, legal notice, service worker and approved icon. Both browser interfaces defer library traffic until local notice acknowledgement, retain the last loaded library during brief outages, and use bounded requests and reconnect checks. The native LAN service improves byte-range validation and playback error reporting. This is committed source work, **not an owner-tested binary release**. See [LAN Reliability Source Review](docs/builds/NOUGAT_v0_0_69_LAN_RELIABILITY_SOURCE_REVIEW_2026_10_30.md).
+
 **First-run responsible-use acknowledgement:** Before normal use of the native GUI or web viewer, Nougat asks users to review its [Legal Notice](LEGAL_NOTICE.md), check an initially unchecked acknowledgement, and select **I Understand & Agree**. Acceptance is saved locally per notice version. Rejecting once explains that acceptance is required; rejecting again exits the native app or removes access to the browser viewer. Without acceptance, neither interface can be used normally. The existing project and third-party licenses remain unchanged.
 
 **Nougat Media Plus** is a native Linux media, entertainment, communications, games, production, networking, and system-tool platform developed by **Elderred Softworks LLC**.
