@@ -4,6 +4,9 @@
 
 #include <arpa/inet.h>
 #include <algorithm>
+#include <chrono>
+#include <condition_variable>
+#include <poll.h>
 #include <atomic>
 #include <cerrno>
 #include <cctype>
@@ -179,10 +182,25 @@ bool send_all(int client, const char* data, std::size_t bytes) {
     std::size_t sent = 0;
     while (sent < bytes) {
         const ssize_t amount = send(client, data + sent, bytes - sent, MSG_NOSIGNAL);
+        if (amount < 0 && errno == EINTR) continue;
         if (amount <= 0) return false;
         sent += static_cast<std::size_t>(amount);
     }
     return true;
+}
+
+bool pipe_readable_before(int fd, const std::atomic<bool>& stopping,
+                          std::chrono::milliseconds duration) {
+    const auto deadline = std::chrono::steady_clock::now() + duration;
+    while (!stopping.load() && std::chrono::steady_clock::now() < deadline) {
+        pollfd watcher{};
+        watcher.fd = fd;
+        watcher.events = POLLIN | POLLHUP | POLLERR;
+        const int ready = poll(&watcher, 1, 500);
+        if (ready > 0) return true;
+        if (ready < 0 && errno != EINTR) return false;
+    }
+    return false;
 }
 
 bool send_all(int client, const std::string& data) {
@@ -277,6 +295,9 @@ struct SharedState {
     std::string application_dir;
     std::atomic<bool> stopping{false};
     std::atomic<int> active_clients{0};
+    std::mutex clients_mutex;
+    std::condition_variable clients_drained;
+    std::set<int> open_clients;
     std::mutex catalog_mutex;
     reddmedia::JellyfinApiClient jellyfin;
     std::map<std::string, reddmedia::LibraryVideo> catalog;
@@ -328,19 +349,25 @@ bool send_catalog(int client, const std::shared_ptr<SharedState>& state, bool he
                                error.empty() ? "The Nougat media catalog is not ready." : error);
     }
 
-    std::ostringstream json;
-    json << "{\"ok\":true,\"version\":\"0.0.55\",\"count\":" << videos.size() << ",\"items\":[";
+    std::ostringstream items;
+    std::size_t ready_count = 0;
     for (std::size_t i = 0; i < videos.size(); ++i) {
         const auto& video = videos[i];
-        if (i != 0U) json << ',';
-        json << "{\"id\":\"" << json_escape(video.id)
-             << "\",\"name\":\"" << json_escape(video.name)
-             << "\",\"type\":\"" << json_escape(video.type)
-             << "\",\"year\":" << video.production_year
-             << ",\"directPreferred\":" << (browser_direct_preferred(video.path) ? "true" : "false")
-             << '}';
+        struct stat info{};
+        const bool ready = regular_file(video.path, info);
+        if (ready) ++ready_count;
+        if (i != 0U) items << ',';
+        items << "{\"id\":\"" << json_escape(video.id)
+              << "\",\"name\":\"" << json_escape(video.name)
+              << "\",\"type\":\"" << json_escape(video.type)
+              << "\",\"year\":" << video.production_year
+              << ",\"ready\":" << (ready ? "true" : "false")
+              << ",\"directPreferred\":" << (browser_direct_preferred(video.path) ? "true" : "false")
+              << '}';
     }
-    json << "]}";
+    std::ostringstream json;
+    json << "{\"ok\":true,\"version\":\"0.0.55\",\"count\":" << videos.size()
+         << ",\"available\":" << ready_count << ",\"items\":[" << items.str() << "]}";
     return send_response(client, 200, "OK", "application/json; charset=utf-8", json.str(), head_only);
 }
 
@@ -350,8 +377,12 @@ bool send_artwork(int client,
                   bool head_only) {
     if (id.empty())
         return send_json_error(client, 400, "Bad Request", "Missing media id.");
-    std::string bytes;
+    // Artwork must belong to an indexed library item, just like direct media.
+    reddmedia::LibraryVideo indexed;
     std::string error;
+    if (!resolve_catalog_item(state, id, indexed, error))
+        return send_json_error(client, 404, "Not Found", "That media item is not in the Nougat library.");
+    std::string bytes;
     {
         std::lock_guard<std::mutex> lock(state->catalog_mutex);
         if (!state->jellyfin.load_primary_image_bmp(id, std::string{}, 360, 540, bytes, error)) {
@@ -501,8 +532,10 @@ bool send_transcoded_media(int client,
     // Do not send HTTP 200 before FFmpeg produces a usable first fragment.
     char buffer[64U * 1024U];
     ssize_t first_amount = -1;
-    do { first_amount = read(output_pipe[0], buffer, sizeof(buffer)); }
-    while (first_amount < 0 && errno == EINTR);
+    if (pipe_readable_before(output_pipe[0], state->stopping, std::chrono::seconds(15))) {
+        do { first_amount = read(output_pipe[0], buffer, sizeof(buffer)); }
+        while (first_amount < 0 && errno == EINTR);
+    }
     if (first_amount <= 0) {
         close(output_pipe[0]);
         if (kill(-child, SIGTERM) != 0 && errno != ESRCH) kill(child, SIGTERM);
@@ -525,7 +558,16 @@ bool send_transcoded_media(int client,
     bool ok = send_all(client, header) && send_all(client, first_chunk.str()) &&
               send_all(client, buffer, static_cast<std::size_t>(first_amount)) &&
               send_all(client, "\r\n", 2U);
+    int idle_seconds = 0;
     while (ok && !state->stopping.load()) {
+        if (!pipe_readable_before(output_pipe[0], state->stopping,
+                                  std::chrono::seconds(1))) {
+            // An abandoned connection or stalled transcoder must not hold one
+            // of the limited LAN worker slots indefinitely.
+            if (++idle_seconds >= 60) { ok = false; break; }
+            continue;
+        }
+        idle_seconds = 0;
         const ssize_t amount = read(output_pipe[0], buffer, sizeof(buffer));
         if (amount == 0) break;
         if (amount < 0) {
@@ -545,8 +587,8 @@ bool send_transcoded_media(int client,
     }
     int status = 0;
     while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
-    if (ok) ok = send_all(client, "0\r\n\r\n", 5U);
-    return ok;
+    if (ok && !state->stopping.load()) ok = send_all(client, "0\r\n\r\n", 5U);
+    return ok && !state->stopping.load();
 }
 
 std::string request_header_value(const std::string& request, const std::string& wanted) {
@@ -573,8 +615,17 @@ std::string request_header_value(const std::string& request, const std::string& 
 void handle_client(int client, const std::shared_ptr<SharedState>& state) {
     struct ActiveClientGuard {
         std::shared_ptr<SharedState> state;
-        ~ActiveClientGuard() { state->active_clients.fetch_sub(1); }
-    } guard{state};
+        int client;
+        ~ActiveClientGuard() {
+            {
+                std::lock_guard<std::mutex> lock(state->clients_mutex);
+                state->open_clients.erase(client);
+                close(client); // Avoid descriptor reuse during shutdown.
+                state->active_clients.fetch_sub(1);
+            }
+            state->clients_drained.notify_all();
+        }
+    } guard{state, client};
 
     timeval receive_timeout{5, 0};
     timeval send_timeout{30, 0};
@@ -590,7 +641,6 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
     }
     if (request.find("\r\n\r\n") == std::string::npos) {
         send_json_error(client, 400, "Bad Request", "The HTTP request was incomplete.");
-        close(client);
         return;
     }
 
@@ -603,7 +653,6 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
     const bool head_only = method == "HEAD";
     if ((method != "GET" && !head_only) || target.empty() || protocol.rfind("HTTP/", 0U) != 0U) {
         send_json_error(client, 405, "Method Not Allowed", "Nougat Web Player accepts GET and HEAD requests only.");
-        close(client);
         return;
     }
 
@@ -676,7 +725,6 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
                                 "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"}});
         }
     }
-    close(client);
 }
 
 std::vector<std::string> local_private_ipv4_addresses() {
@@ -704,13 +752,23 @@ struct LanMediaService::Impl {
     std::thread worker;
 
     void shutdown() {
-        if (state) state->stopping.store(true);
+        if (state) {
+            state->stopping.store(true);
+            std::lock_guard<std::mutex> lock(state->clients_mutex);
+            for (int client : state->open_clients) ::shutdown(client, SHUT_RDWR);
+        }
         for (const int listener : listeners) {
             ::shutdown(listener, SHUT_RDWR);
             close(listener);
         }
         listeners.clear();
         if (worker.joinable()) worker.join();
+        if (state) {
+            // Detached handlers keep their shared state alive until completion.
+            std::unique_lock<std::mutex> lock(state->clients_mutex);
+            state->clients_drained.wait_for(lock, std::chrono::seconds(10),
+                [&] { return state->active_clients.load() == 0; });
+        }
         state.reset();
     }
 
@@ -817,7 +875,21 @@ void LanMediaService::prepare() {
                     close(client);
                     continue;
                 }
-                std::thread(handle_client, client, state).detach();
+                {
+                    std::lock_guard<std::mutex> lock(state->clients_mutex);
+                    state->open_clients.insert(client);
+                }
+                try {
+                    std::thread(handle_client, client, state).detach();
+                } catch (...) {
+                    {
+                        std::lock_guard<std::mutex> lock(state->clients_mutex);
+                        state->open_clients.erase(client);
+                        state->active_clients.fetch_sub(1);
+                        close(client);
+                    }
+                    state->clients_drained.notify_all();
+                }
             }
         }
     });

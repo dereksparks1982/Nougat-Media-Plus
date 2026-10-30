@@ -1,3 +1,12 @@
+## Unreleased: LAN connection lifecycle and stream reliability (2026-10-30)
+
+- Track active client sockets and wake them on LAN service shutdown; bound the drain wait for detached worker threads.
+- Poll FFmpeg pipes while checking application shutdown, bound startup waits, and stop streams that remain idle for sixty seconds.
+- Retry interrupted socket sends in both local media and online-stream delivery.
+- Report indexed/available media counts with per-item readiness; reject artwork IDs outside the current library.
+- Add opt-in Python HTTP contract checks and strengthen the existing offline source audit. Live tests are **not** executed by this source commit.
+- No layout changes, version increase, GitHub Actions, binaries, or user downloads.
+
 ## Unreleased: LAN same-origin configuration and playback race repair (2026-10-30)
 
 - Serve the LAN web player's configuration with an empty server base URL so local browsing uses the local HTTP host, while retaining the separate HTTPS GitHub Pages configuration in source.

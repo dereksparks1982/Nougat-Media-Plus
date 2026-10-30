@@ -113,6 +113,26 @@ class LocalWebContract(unittest.TestCase):
         self.assertIn("window.NougatLegalAccepted !== true",
                       (ROOT / "app.js").read_text(encoding="utf-8"))
 
+    def test_stream_shutdown_and_client_tracking_guards(self):
+        # Static invariants only; the opt-in HTTP suite exercises live routes.
+        self.assertIn("state->open_clients.insert(client)", SERVER)
+        self.assertIn("state->open_clients.erase(client)", SERVER)
+        self.assertIn("state->clients_drained.wait_for", SERVER)
+        self.assertIn("::shutdown(client, SHUT_RDWR)", SERVER)
+        self.assertIn("pipe_readable_before", SERVER)
+        self.assertIn("idle_seconds >= 60", SERVER)
+        self.assertIn("first_amount <= 0", SERVER)
+        bridge = (ROOT / "src" / "lan" / "web_stream_bridge.hpp").read_text(encoding="utf-8")
+        self.assertIn("wait_for_output", bridge)
+        self.assertIn("idle_seconds >= 60", bridge)
+        self.assertIn("std::chrono::seconds(20)", bridge)
+
+    def test_catalog_reports_file_availability_without_lying(self):
+        self.assertIn('"ready"', SERVER.replace('\\', ''))
+        self.assertIn('"available"', SERVER.replace('\\', ''))
+        self.assertIn("regular_file(video.path, info)", SERVER)
+        self.assertIn("resolve_catalog_item(state, id, indexed, error)", SERVER)
+
     def test_lan_catalog_contract_is_id_based(self):
         source = (ROOT / "src" / "lan" / "lan_viewer_service.cpp").read_text(encoding="utf-8")
         header = (ROOT / "src" / "lan" / "lan_viewer_service.hpp").read_text(encoding="utf-8")

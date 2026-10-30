@@ -1,3 +1,9 @@
+## v0.0.69 LAN lifecycle reliability source candidate (2026-10-30)
+
+Source changes now cover tracked client sockets during shutdown, bounded FFmpeg startup/idle waits, retryable socket interrupts, truthful catalog file availability, indexed artwork checks, and opt-in future HTTP contract tests. See [LAN Lifecycle Candidate](docs/builds/NOUGAT_v0_0_69_LAN_LIFECYCLE_SOURCE_CANDIDATE_2026_10_30.md).
+
+**Gate before acceptance:** Build and link on the internal Linux development tree, test stopping with active browser streams, run the opt-in HTTP range/asset cases on a private test server, and verify browser playback on actual devices. Neither source review nor an added test file equals completed runtime testing. No automatic releases, GitHub Actions, or app version changes.
+
 ## v0.0.69 LAN reliability source pass (2026-10-30; NOT accepted)
 
 The repository has a source-only repair candidate for locally served web assets, HTTP byte-range handling, early transcoding failure reporting, LAN catalog ID parsing, browser request timeouts, reconnect recovery and consent-aware startup. See [LAN Reliability Source Review](docs/builds/NOUGAT_v0_0_69_LAN_RELIABILITY_SOURCE_REVIEW_2026_10_30.md).

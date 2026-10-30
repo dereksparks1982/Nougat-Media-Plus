@@ -1,6 +1,8 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
+#include <poll.h>
 #include <atomic>
 #include <cerrno>
 #include <cctype>
@@ -24,6 +26,7 @@ inline bool send_all(int fd, const char* data, std::size_t size) {
     std::size_t sent = 0;
     while (sent < size) {
         const ssize_t amount = send(fd, data + sent, size - sent, MSG_NOSIGNAL);
+        if (amount < 0 && errno == EINTR) continue;
         if (amount <= 0) return false;
         sent += static_cast<std::size_t>(amount);
     }
@@ -32,6 +35,20 @@ inline bool send_all(int fd, const char* data, std::size_t size) {
 
 inline bool send_all(int fd, const std::string& data) {
     return send_all(fd, data.data(), data.size());
+}
+
+inline bool wait_for_output(int fd, const std::atomic<bool>& stopping,
+                            std::chrono::milliseconds limit) {
+    const auto deadline = std::chrono::steady_clock::now() + limit;
+    while (!stopping.load() && std::chrono::steady_clock::now() < deadline) {
+        pollfd watcher{};
+        watcher.fd = fd;
+        watcher.events = POLLIN | POLLHUP | POLLERR;
+        const int ready = poll(&watcher, 1, 500);
+        if (ready > 0) return true;
+        if (ready < 0 && errno != EINTR) return false;
+    }
+    return false;
 }
 
 inline std::string json_escape(const std::string& value) {
@@ -281,9 +298,10 @@ inline bool play(int client, const std::string& application_dir,
 
     char buffer[64U * 1024U];
     ssize_t first = -1;
-    do {
-        first = read(output_pipe[0], buffer, sizeof(buffer));
-    } while (first < 0 && errno == EINTR);
+    if (wait_for_output(output_pipe[0], stopping, std::chrono::seconds(20))) {
+        do { first = read(output_pipe[0], buffer, sizeof(buffer)); }
+        while (first < 0 && errno == EINTR);
+    }
 
     if (first <= 0) {
         terminate_group(extractor);
@@ -305,7 +323,13 @@ inline bool play(int client, const std::string& application_dir,
         "Connection: close\r\n\r\n";
 
     bool ok = send_all(client, header) && send_chunk(client, buffer, static_cast<std::size_t>(first));
+    int idle_seconds = 0;
     while (ok && !stopping.load()) {
+        if (!wait_for_output(output_pipe[0], stopping, std::chrono::seconds(1))) {
+            if (++idle_seconds >= 60) { ok = false; break; }
+            continue;
+        }
+        idle_seconds = 0;
         const ssize_t amount = read(output_pipe[0], buffer, sizeof(buffer));
         if (amount == 0) break;
         if (amount < 0) {
@@ -323,8 +347,8 @@ inline bool play(int client, const std::string& application_dir,
     }
     wait_child(extractor);
     wait_child(transcoder);
-    if (ok) ok = send_all(client, "0\r\n\r\n", 5U);
-    return ok;
+    if (ok && !stopping.load()) ok = send_all(client, "0\r\n\r\n", 5U);
+    return ok && !stopping.load();
 }
 
 }  // namespace detail
