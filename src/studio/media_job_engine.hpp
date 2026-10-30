@@ -2,6 +2,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
+#include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <mutex>
@@ -68,6 +69,11 @@ public:
     BatchResult enqueue_batch(const std::vector<BatchItem>& items, Preset preset);
     bool cancel(std::uint64_t id);
     bool retry(std::uint64_t id);
+    // Removes only a finished/cancelled/failed/interrupted queue RECORD.
+    // Never touches source files, completed exports, or encoder log files.
+    bool forget(std::uint64_t id);
+    // Read a bounded diagnostic log without following symlinks.
+    std::string recent_log(std::uint64_t id, std::size_t limit = 4096U) const;
     std::vector<Job> snapshot() const;
     bool persistence_ok() const;
     std::string persistence_error() const;

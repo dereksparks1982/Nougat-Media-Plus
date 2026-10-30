@@ -1,3 +1,13 @@
+## Unreleased: Studio queue history, navigation and diagnostics (2026-10-30)
+
+- Add mouse-wheel and Page Up/Down navigation through the existing Media Convert job list without moving controls.
+- Show selected job state/preset/errors, enable Ctrl+C copy of local diagnostic report and Ctrl+Delete history-only removal for terminal jobs.
+- Restore file-browser Escape/Enter/Backspace keyboard handling on the Media Convert panel.
+- Add bounded symlink-safe local encoder log reading and non-destructive terminal-job history removal.
+- Introduce backwards-compatible V2 internal queue state that preserves next job ID after records are forgotten; ensure atomic counter persistence and rollback.
+- Extend queue regression tests, add Studio UI source audit, update README and roadmap.
+- No native runtime acceptance, application version bump, GitHub Actions, downloads or executable artifacts.
+
 ## Unreleased: Studio Media Convert source integration (2026-10-30)
 
 - Add a Media Convert tool beneath the existing Studio File Splitter and File Assembler buttons.

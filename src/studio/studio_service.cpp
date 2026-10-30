@@ -81,6 +81,10 @@ BatchResult StudioService::submit_batch(const std::vector<ExportRequest>& reques
 }
 bool StudioService::cancel(std::uint64_t id) { return engine_.cancel(id); }
 bool StudioService::retry(std::uint64_t id) { return engine_.retry(id); }
+bool StudioService::forget(std::uint64_t id) { return engine_.forget(id); }
+std::string StudioService::recent_log(std::uint64_t id, std::size_t limit) const {
+    return engine_.recent_log(id, limit);
+}
 std::vector<Job> StudioService::jobs() const { return engine_.snapshot(); }
 bool StudioService::persistence_ok() const { return engine_.persistence_ok(); }
 std::string StudioService::persistence_error() const { return engine_.persistence_error(); }

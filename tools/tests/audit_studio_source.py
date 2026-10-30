@@ -47,6 +47,19 @@ class StudioContracts(unittest.TestCase):
         self.assertIn("if (!save_locked())", CPP)
         self.assertIn("BatchResult enqueue_batch", H)
 
+    def test_durable_history_and_diagnostic_contract(self):
+        self.assertIn("NOUGAT_STUDIO_QUEUE_V2", CPP)
+        self.assertIn("NOUGAT_STUDIO_QUEUE_V1", CPP)  # backwards-compatible migration
+        self.assertIn("durable_next_id", CPP)
+        self.assertIn("next_id_ = next;", CPP)
+        self.assertIn("bool Engine::forget", CPP)
+        self.assertIn("std::string Engine::recent_log", CPP)
+        self.assertIn("O_NOFOLLOW | O_NONBLOCK", CPP)
+        self.assertIn("Studio encoder log is not a regular file", CPP)
+        self.assertIn("std::clamp<std::size_t>", CPP)
+        self.assertIn("bool forget(std::uint64_t id)", H)
+        self.assertIn("recent_log(std::uint64_t id", H)
+
     def test_worker_lifecycle_and_recovery(self):
         for required in ("JobState::Queued", "JobState::Running",
                          "JobState::Completed", "JobState::Failed",

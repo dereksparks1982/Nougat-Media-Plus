@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstddef>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -209,7 +210,7 @@ bool Engine::save_locked() {
         persistence_error_ = "Cannot create temporary Studio queue state.";
         return false;
     }
-    std::string serialized = "NOUGAT_STUDIO_QUEUE_V1\n";
+    std::string serialized = "NOUGAT_STUDIO_QUEUE_V2\t" + std::to_string(next_id_) + "\n";
     for (const Job& job : jobs_) {
         serialized += std::to_string(job.id) + "\t" +
           std::to_string(static_cast<int>(job.preset)) + "\t" +
@@ -245,9 +246,20 @@ void Engine::load() {
         return;
     }
     std::string line;
-    if (!std::getline(in, line) || line != "NOUGAT_STUDIO_QUEUE_V1") {
+    if (!std::getline(in, line)) {
         persistence_ok_ = false;
-        persistence_error_ = "Unrecognized Studio queue format.";
+        persistence_error_ = "Studio queue header is missing.";
+        return;
+    }
+    const bool legacy = line == "NOUGAT_STUDIO_QUEUE_V1";
+    std::uint64_t durable_next_id = 0;
+    const std::string current = "NOUGAT_STUDIO_QUEUE_V2\t";
+    if (!legacy &&
+        (line.rfind(current, 0U) != 0U ||
+         !parse_uint64(line.substr(current.size()), durable_next_id) ||
+         durable_next_id == 0U)) {
+        persistence_ok_ = false;
+        persistence_error_ = "Unrecognized or invalid Studio queue header.";
         return;
     }
     std::vector<Job> restored;
@@ -290,6 +302,14 @@ void Engine::load() {
     if (in.bad()) {
         persistence_ok_ = false; persistence_error_ = "Cannot read the Studio queue."; return;
     }
+    // The next ID must survive even when the last completed record is
+    // deliberately removed. Otherwise a restart can reuse old log filenames.
+    if (!legacy && durable_next_id < next_id_) {
+        persistence_ok_ = false;
+        persistence_error_ = "Studio queue next ID is older than its job history.";
+        return;
+    }
+    if (!legacy) next_id_ = durable_next_id;
     jobs_ = std::move(restored);
     // A former running/queued job is never launched blindly on restart.
     (void)save_locked();
@@ -315,11 +335,12 @@ EnqueueResult Engine::enqueue(const fs::path& input, const fs::path& output,
     job.preset = preset;
     job.duration_ms = duration_ms;
     jobs_.push_back(job);
+    ++next_id_;
     if (!save_locked()) {
         jobs_.pop_back();
+        --next_id_;
         return {false, 0, persistence_error_};
     }
-    ++next_id_;
     cv_.notify_one();
     return {true, job.id, {}};
 }
@@ -360,11 +381,13 @@ BatchResult Engine::enqueue_batch(const std::vector<BatchItem>& items, Preset pr
         jobs_.push_back(std::move(job));
         ids.push_back(next - 1U);
     }
+    const std::uint64_t previous_next_id = next_id_;
+    next_id_ = next;
     if (!save_locked()) {
         jobs_.resize(old_size); // Roll back the entire batch in memory.
+        next_id_ = previous_next_id;
         return {false, {}, persistence_error_};
     }
-    next_id_ = next;
     cv_.notify_one();
     return {true, std::move(ids), {}};
 }
@@ -408,6 +431,64 @@ bool Engine::retry(std::uint64_t id) {
     }
     return false;
 }
+bool Engine::forget(std::uint64_t id) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!persistence_ok_) return false;
+    auto it = std::find_if(jobs_.begin(), jobs_.end(),
+        [id](const Job& job) { return job.id == id; });
+    if (it == jobs_.end() || is_active(it->state)) return false;
+    const auto index = static_cast<std::size_t>(std::distance(jobs_.begin(), it));
+    const Job removed = *it;
+    jobs_.erase(it);
+    if (!save_locked()) {
+        jobs_.insert(jobs_.begin() + static_cast<std::ptrdiff_t>(index), removed);
+        return false;
+    }
+    // Exported files and logs remain untouched. Only history is forgotten.
+    return true;
+}
+
+std::string Engine::recent_log(std::uint64_t id, std::size_t limit) const {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (std::none_of(jobs_.begin(), jobs_.end(),
+                [id](const Job& job) { return job.id == id; }))
+            return "No Studio job matches this ID.";
+    }
+    limit = std::clamp<std::size_t>(limit, 256U, 16384U);
+    const auto file = queue_path_.parent_path() / "studio-logs" /
+                      ("job-" + std::to_string(id) + ".log");
+    const int fd = open(file.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+    if (fd < 0) return "No Studio encoder log is available yet.";
+    struct stat info{};
+    if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode)) {
+        close(fd);
+        return "The Studio encoder log is not a regular file.";
+    }
+    const auto count = static_cast<std::size_t>(
+        std::min<off_t>(info.st_size, static_cast<off_t>(limit)));
+    if (count > 0U && lseek(fd, info.st_size - static_cast<off_t>(count), SEEK_SET) < 0) {
+        close(fd);
+        return "Studio could not seek the encoder log.";
+    }
+    std::string tail;
+    tail.resize(count);
+    std::size_t received = 0;
+    while (received < count) {
+        const ssize_t n = read(fd, &tail[received], count - received);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) break;
+        received += static_cast<std::size_t>(n);
+    }
+    close(fd);
+    tail.resize(received);
+    for (char& c : tail) {
+        const unsigned char value = static_cast<unsigned char>(c);
+        if ((value < 32U && c != '\n' && c != '\t') || value == 127U) c = ' ';
+    }
+    return tail.empty() ? "The encoder log is empty." : tail;
+}
+
 std::vector<Job> Engine::snapshot() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return jobs_;

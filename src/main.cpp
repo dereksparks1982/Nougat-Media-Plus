@@ -2082,6 +2082,8 @@ public:
     Rect studioMediaConvertToolBtn, studioConvertSourceBtn, studioConvertFolderBtn;
     Rect studioConvertPresetBtn, studioConvertQueueBtn, studioConvertCancelBtn, studioConvertRetryBtn;
     std::vector<std::pair<Rect,std::uint64_t>> studioConvertRows;
+    Rect studioConvertHistoryViewport;
+    int studioConvertHistoryOffset = 0; // 0 = newest history; wheel up = older.
     std::string studioConvertSource;
     std::string studioConvertFolder = home_dir() + "/Downloads";
     std::string studioConvertStatus = "Choose a media file and an output folder.";
@@ -10023,7 +10025,7 @@ public:
     }
 
     void handle_studio_key(XKeyEvent& event, KeySym ks) {
-        if (studioPanel != StudioPanel::FileSplitter) return;
+        // The embedded file chooser accepts keyboard input in Media Convert too.
         if (studio_browser_active()) {
             if (ks == XK_Escape) { close_studio_browser(); return; }
             if (ks == XK_BackSpace) {
@@ -10035,6 +10037,53 @@ public:
             if (ks == XK_Return || ks == XK_KP_Enter) { studio_browser_apply_selection(); return; }
             return;
         }
+        if (studioPanel == StudioPanel::MediaConvert) {
+            if ((ks == XK_Page_Up || ks == XK_Page_Down) && studioConvertService) {
+                const auto jobs=studioConvertService->jobs();
+                const int visible=std::max(1,studioConvertHistoryViewport.h/23);
+                const int maxOffset=std::max(0,static_cast<int>(jobs.size())-visible);
+                const int step=std::max(1,visible);
+                studioConvertHistoryOffset=std::clamp(
+                    studioConvertHistoryOffset+(ks==XK_Page_Up?step:-step),0,maxOffset);
+                redraw(); return;
+            }
+            if ((event.state & ControlMask) && studioConvertService &&
+                studioConvertSelectedJob != 0 &&
+                (ks == XK_c || ks == XK_C || ks == XK_Delete)) {
+                const auto jobs=studioConvertService->jobs();
+                const auto item=std::find_if(jobs.begin(),jobs.end(),
+                    [&](const ::nougat::studio::Job& job) {
+                        return job.id==studioConvertSelectedJob;
+                    });
+                if (item == jobs.end()) {
+                    studioConvertStatus="Selected job no longer exists.";
+                } else if (ks == XK_Delete) {
+                    if (studioConvertService->forget(item->id)) {
+                        studioConvertStatus="Removed job #"+std::to_string(item->id)+
+                            " from history. Export and encoder log are preserved.";
+                        studioConvertSelectedJob=0;
+                        studioConvertHistoryOffset=0;
+                    } else {
+                        studioConvertStatus="Active jobs cannot be removed from history.";
+                    }
+                } else {
+                    std::string detail="Nougat Studio job #"+std::to_string(item->id)+
+                        "\nState: "+::nougat::studio::state_name(item->state)+
+                        "\nPreset: "+::nougat::studio::preset_name(item->preset)+
+                        "\nInput: "+item->input.string()+
+                        "\nOutput: "+item->output.string()+
+                        "\nProgress: "+std::to_string(item->progress_percent)+
+                        "\nError: "+item->error+
+                        "\nEncoder log (latest 4096 bytes):\n"+
+                        studioConvertService->recent_log(item->id,4096U);
+                    own_clipboard_text(detail);
+                    studioConvertStatus="Selected job details and recent encoder log copied.";
+                }
+                redraw(); return;
+            }
+            return;
+        }
+        if (studioPanel != StudioPanel::FileSplitter) return;
         if (studioInputFocus <= 0) return;
         if (ks == XK_Escape) { studioInputFocus=0; studioInputSelectAll=false; redraw(); return; }
         if (ks == XK_Tab) {
@@ -10720,6 +10769,7 @@ public:
                 const auto result = studioConvertSubmission.get();
                 if (result.ok) {
                     studioConvertSelectedJob = result.id;
+                    studioConvertHistoryOffset = 0;
                     studioConvertStatus = "Export queued as job " + std::to_string(result.id) + ".";
                 } else studioConvertStatus = "Export rejected: " + result.error;
             } catch (const std::exception& error) {
@@ -10936,6 +10986,16 @@ public:
             for (const auto& row : studioConvertRows) {
                 if (row.first.contains(x,y)) {
                     studioConvertSelectedJob = row.second;
+                    if (studioConvertService) {
+                        for (const auto& job : studioConvertService->jobs()) {
+                            if (job.id != studioConvertSelectedJob) continue;
+                            studioConvertStatus = "#" + std::to_string(job.id) +
+                                " " + ::nougat::studio::state_name(job.state) +
+                                " / " + ::nougat::studio::preset_name(job.preset) +
+                                (job.error.empty() ? "" : ": " + job.error);
+                            break;
+                        }
+                    }
                     redraw(); return;
                 }
             }
@@ -16193,14 +16253,21 @@ public:
             button_on(target,studioConvertRetryBtn,"Retry Job");
             if (!narrowConvert)
                 text(target,left+284,panel.y+258,
-                     "Select a queue row, then cancel or retry.",palette.muted);
+                     "Select row: wheel/PgUp, Ctrl+C details, Ctrl+Del forget.",palette.muted);
             studioConvertRows.clear();
+            studioConvertHistoryViewport={
+                left,panel.y+278+verticalShift,panel.w-36,
+                std::max(0,panel.h-292-verticalShift)
+            };
             if (studioConvertService) {
                 const auto jobs=studioConvertService->jobs();
                 const int rowHeight=23;
                 const int available=std::max(0,(panel.h-292-verticalShift)/rowHeight);
                 const int count=std::min(available,static_cast<int>(jobs.size()));
-                const std::size_t start=jobs.size()-static_cast<std::size_t>(count);
+                const int maxOffset=std::max(0,static_cast<int>(jobs.size())-count);
+                studioConvertHistoryOffset=std::clamp(studioConvertHistoryOffset,0,maxOffset);
+                const std::size_t start=jobs.size()-static_cast<std::size_t>(count)
+                                        -static_cast<std::size_t>(studioConvertHistoryOffset);
                 for (int i=0;i<count;++i) {
                     const auto& job=jobs[start+static_cast<std::size_t>(i)];
                     Rect row{left,panel.y+278+verticalShift+i*rowHeight,panel.w-36,rowHeight-2};
@@ -17975,6 +18042,17 @@ public:
             radioServiceScrollX = std::max(0, std::min(radioServiceMaxScrollX,
                 radioServiceScrollX + (button == Button4 ? -180 : 180)));
             layout();
+            redraw();
+            return true;
+        }
+        if (currentView == ViewMode::Studio && target == win &&
+            studioPanel == StudioPanel::MediaConvert && !studio_browser_active() &&
+            studioConvertHistoryViewport.contains(x,y) && studioConvertService) {
+            const auto jobs=studioConvertService->jobs();
+            const int visible=std::max(0,studioConvertHistoryViewport.h/23);
+            const int maxOffset=std::max(0,static_cast<int>(jobs.size())-visible);
+            studioConvertHistoryOffset=std::clamp(
+                studioConvertHistoryOffset+(button==Button4?3:-3),0,maxOffset);
             redraw();
             return true;
         }

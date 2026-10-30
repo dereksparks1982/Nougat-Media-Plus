@@ -34,6 +34,8 @@ public:
     BatchResult submit_batch(const std::vector<ExportRequest>& requests);
     bool cancel(std::uint64_t job_id);
     bool retry(std::uint64_t job_id);
+    bool forget(std::uint64_t job_id);
+    std::string recent_log(std::uint64_t job_id, std::size_t limit = 4096U) const;
     std::vector<Job> jobs() const;
     bool persistence_ok() const;
     std::string persistence_error() const;

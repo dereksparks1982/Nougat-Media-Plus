@@ -1,3 +1,9 @@
+## v0.0.69 Studio queue navigation and history safety (2026-10-30)
+
+Building on the existing Media Convert UI, Studio now has mouse-wheel/Page Up/Down access to historical jobs, selected-job error reporting, Ctrl+C local diagnostics and Ctrl+Delete removal of completed/cancelled/failed/interrupted **queue records only**. The durable internal queue format advances to V2 for next-ID persistence, with V1 migration, atomic counter saves and bounded symlink-safe log reads. Approved UI geometry and application version are unchanged.
+
+See [Studio Queue History Source Review](docs/builds/NOUGAT_v0_0_69_STUDIO_QUEUE_HISTORY_SOURCE_2026_10_30.md). Next gate: native compilation, isolated core tests, real FFmpeg export testing, and actual keyboard/mouse input checks. No GitHub Actions or executable distribution.
+
 ## v0.0.69 Studio Media Convert integrated into Tools (2026-10-30)
 
 The Studio Tools page now has a dedicated Media Convert panel, reached from a new button below the approved File Splitter and File Assembler positions. The source integration uses Nougat's internal file browser, eight processing presets, unique protected output names, asynchronous inspection/submission and the existing durable Studio job queue with status, cancel and retry. See [Media Convert UI source review](docs/builds/NOUGAT_v0_0_69_STUDIO_MEDIA_CONVERT_UI_SOURCE_2026_10_30.md).

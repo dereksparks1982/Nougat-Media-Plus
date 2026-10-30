@@ -135,6 +135,74 @@ int main() {
         }
     }
 
+    // A forgotten finished record must never cause old job IDs or encoder
+    // log filenames to be reused after restart. Outputs/logs remain intact.
+    std::uint64_t high_water = 0;
+    const auto history_out = scratch.path / "history.mp3";
+    {
+        Engine engine(queue, "/no/such/ffmpeg");
+        const auto created = engine.enqueue(input, history_out, Preset::AudioMp3);
+        assert(created.ok);
+        high_water = created.id;
+        for (int i = 0; i < 200; ++i) {
+            if (find_job(engine, high_water).state == JobState::Failed) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        assert(find_job(engine, high_water).state == JobState::Failed);
+        const auto logs = queue.parent_path() / "studio-logs";
+        fs::create_directories(logs);
+        write_file(logs / ("job-" + std::to_string(high_water) + ".log"),
+                   "FFmpeg diagnostic:\nerror\033[31m here\n");
+        const std::string diagnostic = engine.recent_log(high_water, 4096);
+        assert(diagnostic.find("FFmpeg diagnostic:") != std::string::npos);
+        assert(diagnostic.find('\033') == std::string::npos);
+        assert(!engine.forget(0));
+        assert(engine.forget(high_water));
+        assert(!engine.forget(high_water));
+        assert(fs::exists(logs / ("job-" + std::to_string(high_water) + ".log")));
+        assert(!fs::exists(history_out));
+    }
+    {
+        Engine engine(queue, "/no/such/ffmpeg");
+        assert(engine.persistence_ok());
+        const auto next = engine.enqueue(input, history_out, Preset::AudioMp3);
+        assert(next.ok && next.id > high_water);
+        const auto logs = queue.parent_path() / "studio-logs";
+        const auto fake = scratch.path / "external-log";
+        write_file(fake, "Do not follow this symlink");
+        const auto symlink_path = logs / ("job-" + std::to_string(next.id) + ".log");
+        std::error_code ec;
+        fs::create_symlink(fake, symlink_path, ec);
+        if (!ec) {
+            assert(engine.recent_log(next.id).find("Do not follow") == std::string::npos);
+        }
+    }
+
+    // Upgrade a valid V1 queue on load without relaunching old work.
+    {
+        const fs::path old = scratch.path / "legacy-state" / "queue.txt";
+        fs::create_directories(old.parent_path());
+        const auto encode = [](const std::string& value) {
+            static constexpr char hex[] = "0123456789ABCDEF";
+            std::string out;
+            for (unsigned char c : value) { out += hex[c >> 4U]; out += hex[c & 15U]; }
+            return out;
+        };
+        write_file(old,"NOUGAT_STUDIO_QUEUE_V1\n7\t4\t3\t0\t"+
+                       encode(input.string())+"\t"+
+                       encode((scratch.path / "legacy.mp3").string())+"\t\n");
+        Engine engine(old, "/no/such/ffmpeg");
+        assert(engine.persistence_ok());
+        assert(engine.snapshot().size() == 1U);
+        assert(engine.snapshot()[0].state == JobState::Failed);
+        std::ifstream upgraded(old);
+        std::string magic;
+        std::getline(upgraded, magic);
+        assert(magic.rfind("NOUGAT_STUDIO_QUEUE_V2\t", 0U) == 0U);
+        const auto newer = engine.enqueue(input, scratch.path / "next.mp3", Preset::AudioMp3);
+        assert(newer.ok && newer.id > 7U);
+    }
+
     // A malformed queue is rejected, not overwritten or silently executed.
     {
         const fs::path invalid = scratch.path / "bad-state" / "queue.txt";
