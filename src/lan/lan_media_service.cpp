@@ -662,7 +662,12 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
             const std::string disk_path = asset == "nougat-icon.png"
                 ? state->application_dir + "/assets/branding/nougat-media-plus-master-N.png"
                 : state->application_dir + "/components/web_player/" + asset;
-            const std::string body = read_file(disk_path);
+            // Local LAN pages must use their serving host, not the separate
+            // GitHub Pages HTTPS bridge configured in the repository file.
+            // This preserves offline/WAN-independent playback and matches CSP.
+            const std::string body = asset == "config.js"
+                ? "window.NOUGAT_WEB_PLAYER = Object.freeze({enabled:true,baseUrl:''});\n"
+                : read_file(disk_path);
             if (body.empty())
                 send_json_error(client, 503, "Service Unavailable", "The Nougat Web Player assets are missing.");
             else

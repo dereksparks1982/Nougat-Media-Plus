@@ -101,6 +101,18 @@ class LocalWebContract(unittest.TestCase):
                 self.assertIn(item, content)
             self.assertIn("-lan-20261030", content)
 
+    def test_local_host_configuration_and_fallback_safety(self):
+        # The checked-in config is for the published web viewer. Local LAN
+        # pages must instead use their own host under connect-src 'self'.
+        self.assertIn('asset == "config.js"', SERVER)
+        self.assertIn("baseUrl:''", SERVER)
+        for path in (ROOT / "app.js", WEB / "app.js"):
+            content = path.read_text(encoding="utf-8")
+            self.assertIn("selected === failedItem", content)
+            self.assertIn("!usingCompatibility", content)
+        self.assertIn("window.NougatLegalAccepted !== true",
+                      (ROOT / "app.js").read_text(encoding="utf-8"))
+
     def test_lan_catalog_contract_is_id_based(self):
         source = (ROOT / "src" / "lan" / "lan_viewer_service.cpp").read_text(encoding="utf-8")
         header = (ROOT / "src" / "lan" / "lan_viewer_service.hpp").read_text(encoding="utf-8")

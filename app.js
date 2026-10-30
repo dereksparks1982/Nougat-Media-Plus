@@ -539,16 +539,21 @@
       return;
     }
     if (selected && autoFallbackArmed) {
+      const failedItem = selected;
       const startAt = Number.isFinite(player.currentTime) ? player.currentTime : 0;
       autoFallbackArmed = false;
       setPlayerStatus('DIRECT PLAY UNSUPPORTED • SWITCHING TO COMPATIBILITY');
-      window.setTimeout(() => playItem(selected, true, startAt), 150);
+      window.setTimeout(() => {
+        // A stale error must not switch a newly selected title.
+        if (selected === failedItem && !usingCompatibility) playItem(failedItem, true, startAt);
+      }, 150);
       return;
     }
     setPlayerStatus('PLAYBACK ERROR • TRY COMPAT');
   });
 
   document.addEventListener('keydown', (event) => {
+    if (window.NougatLegalAccepted !== true) return;
     if (event.target && /INPUT|TEXTAREA/.test(event.target.tagName)) return;
     if (event.code === 'Space' && currentView === 'player' && (selected || isExternalStream())) {
       event.preventDefault();

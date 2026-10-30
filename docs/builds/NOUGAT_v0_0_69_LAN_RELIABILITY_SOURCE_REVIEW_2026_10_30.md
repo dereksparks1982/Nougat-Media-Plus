@@ -11,6 +11,7 @@
 
 - Serve every document required by the standalone-style LAN web player through an explicit static asset allowlist: `index.html`, `app.js`, `styles.css`, `config.js`, `sw.js`, `legal-notice.js`, `legal-notice.css`, `LEGAL_NOTICE.md`, the web manifest and the icon route.
 - Serve the icon route from the existing approved Nougat N asset. No artwork or approved application geometry was redesigned.
+- Serve a same-origin `config.js` for LAN-hosted pages, overriding only the local HTTP response; the published GitHub Pages HTTPS bridge configuration stays unchanged. This is required by the local page's `connect-src 'self'` security policy.
 - Add correct MIME types for Markdown, PNG and web manifests.
 - Parse single HTTP byte ranges strictly. Reject nonnumeric and malformed ranges instead of interpreting partially numeric strings.
 - Open and validate the media file before sending HTTP 200 or 206. Stream from the same file descriptor used for validation and report 416 on unsatisfiable ranges.
@@ -32,6 +33,7 @@
 - Coalesce concurrent catalog reloads to prevent overlapping requests.
 - Keep last-loaded library cards if the service temporarily fails; show an honest stale/offline message.
 - Retry on browser reconnect or tab visibility and check host status periodically while visible.
+- Prevent a delayed direct-play failure from switching the wrong newly selected title. Keep keyboard shortcuts disabled until first-run terms have been accepted.
 - Start health/catalog loading only after the local first-run terms event, including when a prior receipt is already saved.
 - Advance service-worker cache keys and make the local player's optional icon cache nonfatal.
 

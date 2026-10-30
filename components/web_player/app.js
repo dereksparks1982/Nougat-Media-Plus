@@ -248,9 +248,12 @@
   });
   player.addEventListener('error', () => {
     if (selected && autoFallbackArmed) {
+      const failedItem = selected;
       autoFallbackArmed = false;
       setPlayerStatus('Direct play was not supported by this browser. Switching to compatibility mode…');
-      window.setTimeout(() => playItem(selected, true), 150);
+      window.setTimeout(() => {
+        if (selected === failedItem && !usingCompatibility) playItem(failedItem, true);
+      }, 150);
       return;
     }
     setPlayerStatus('This browser could not play the selected item. Try Browser Compatibility or refresh the Library.');

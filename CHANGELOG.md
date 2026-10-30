@@ -1,3 +1,10 @@
+## Unreleased: LAN same-origin configuration and playback race repair (2026-10-30)
+
+- Serve the LAN web player's configuration with an empty server base URL so local browsing uses the local HTTP host, while retaining the separate HTTPS GitHub Pages configuration in source.
+- Prevent delayed playback errors from changing the newly selected movie or episode to compatibility mode.
+- Keep root web-player keyboard shortcuts inactive until the first-run notice is accepted.
+- Expand the offline source-contract audit. No UI geometry changes, downloadable build or GitHub Actions.
+
 ## Unreleased: LAN web player reliability and catalog contract repairs (2026-10-30)
 
 - Complete the local LAN static-asset allowlist for first-run terms, scripts, configuration, service worker, manifest and the approved Nougat N icon.
