@@ -1,3 +1,11 @@
+## Unreleased: First-run legal notice (2026-10-30)
+
+- Show a responsible-use legal notice before the normal native X11 GUI starts; preserve command-line tests without graphical prompts.
+- Show the acknowledgement in both the GitHub Pages viewer and the component web player without changing their existing layout.
+- Require an unchecked acceptance box before agreement and store acknowledgement locally per notice version.
+- Add LEGAL_NOTICE.md and update the README; preserve existing license terms and application version.
+- No GitHub Actions, binary builds, or published release were used for this source change.
+
 ## v0.0.61 - Drone Mission Control and Games Library Expansion
 
 ## v0.0.64 - Network Center and Satellite Foundation

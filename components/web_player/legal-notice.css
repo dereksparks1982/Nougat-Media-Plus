@@ -1,0 +1,28 @@
+/* First-run overlay only. Nougat's existing UI geometry is untouched. */
+#nougatLegalGate {
+  position: fixed; inset: 0; z-index: 2147483647; display: grid;
+  place-items: center; padding: 20px; overflow-y: auto;
+  background: rgba(0, 9, 7, .95); color: #f1f6ef;
+}
+#nougatLegalGate[hidden] { display: none !important; }
+#nougatLegalGate .nougat-legal-panel {
+  width: min(680px, 100%); max-height: calc(100dvh - 40px);
+  overflow-y: auto; border: 1px solid #73b88d; border-radius: 12px;
+  background: #10251e; padding: clamp(18px, 4vw, 32px);
+  box-shadow: 0 16px 60px #000a; line-height: 1.55;
+}
+#nougatLegalGate h1 { margin: 0 0 12px; color: #f0d08a; font-size: 1.55rem; }
+#nougatLegalGate p { margin: 0 0 14px; }
+#nougatLegalGate a { color: #b8e4c7; text-decoration: underline; }
+#nougatLegalGate .nougat-legal-check {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 18px 0; cursor: pointer; font-weight: 600;
+}
+#nougatLegalGate input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; flex: 0 0 auto; accent-color: #73b88d; }
+#nougatLegalGate button {
+  display: block; width: 100%; padding: 13px 16px; border: 0; border-radius: 7px;
+  background: #78bc91; color: #07180e; font: inherit; font-weight: 800; cursor: pointer;
+}
+#nougatLegalGate button:disabled { background: #73877b; color: #28372c; cursor: not-allowed; }
+#nougatLegalGate button:focus-visible, #nougatLegalGate input:focus-visible { outline: 3px solid #ffe3a5; outline-offset: 3px; }
+#nougatLegalGate .nougat-legal-note { font-size: .88rem; color: #bac9be; }

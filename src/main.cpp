@@ -1,4 +1,5 @@
 #include <X11/Xlib.h>
+#include "legal_notice.h"
 #include <initializer_list>
 #include "network_center.h"
 #include "satellite_center.h"
@@ -20177,6 +20178,7 @@ int main(int argc, char** argv) {
         printf("Nougat Media Plus native library API PASS: %zu video(s) cataloged for direct playback.\n", videos.size());
         return 0;
     }
+    if (!nougat_show_first_run_legal_notice()) return 0;
     App app;
     if (!app.init()) return 1;
     app.event_loop();

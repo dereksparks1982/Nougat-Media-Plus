@@ -17,6 +17,7 @@ configure_file("${CMAKE_SOURCE_DIR}/src/games/rpcs3_runtime_wrapper.sh" "${NMP_R
 
 add_executable(Nougat_Media_Plus_v68
     src/main.cpp
+    src/legal_notice.cpp
     src/network_center.cpp
     src/satellite_center.cpp
     components/satellite/sgp4/sgp4.c
