@@ -9,6 +9,7 @@ Use with a throwaway test library and a trusted local host, not production data.
 from __future__ import annotations
 
 import json
+import http.cookiejar
 import os
 import unittest
 import urllib.error
@@ -18,13 +19,19 @@ import urllib.request
 BASE = os.environ.get("NOUGAT_LAN_TEST_BASE", "").rstrip("/")
 MEDIA_ID = os.environ.get("NOUGAT_LAN_TEST_MEDIA_ID", "")
 # Never allow proxy environment variables to tunnel local HTTP requests.
-CLIENT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+COOKIE_JAR = http.cookiejar.CookieJar()
+CLIENT = urllib.request.build_opener(
+    urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(COOKIE_JAR)
+)
+NO_COOKIE_CLIENT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def request(path: str, *, method: str = "GET", headers: dict | None = None):
+def request(path: str, *, method: str = "GET",
+            headers: dict | None = None, accepted: bool = True):
     req = urllib.request.Request(BASE + path, method=method, headers=headers or {})
+    opener = CLIENT if accepted else NO_COOKIE_CLIENT
     try:
-        with CLIENT.open(req, timeout=12) as response:
+        with opener.open(req, timeout=12) as response:
             return response.status, response.headers, response.read()
     except urllib.error.HTTPError as exc:
         return exc.code, exc.headers, exc.read()
@@ -45,6 +52,35 @@ class LanHttpContracts(unittest.TestCase):
             raise AssertionError("Use a numeric loopback/private-LAN address") from exc
         if not (addr.is_private or addr.is_loopback or addr.is_link_local):
             raise AssertionError("WAN targets are forbidden")
+        if parsed.path or parsed.query or parsed.fragment:
+            raise AssertionError("Use the root LAN server URL only")
+        # The test runner explicitly accepts the terms for its own private
+        # test session. No privileged browser or user identity is implied.
+        code, _, body = request("/nougat/v1/terms/accept", method="POST",
+                                headers={"Origin": BASE})
+        if code != 200 or not json.loads(body).get("accepted"):
+            raise AssertionError("Test-only acknowledgement session failed")
+
+    def test_private_routes_reject_missing_cookie(self):
+        for path in ("/nougat/v1/catalog",
+                     "/nougat/v1/artwork?id=invalid",
+                     "/nougat/v1/media?id=invalid",
+                     "/nougat/v1/transcode?id=invalid",
+                     "/nougat/v1/stream?action=resolve&url=invalid"):
+            with self.subTest(path=path):
+                code, _, raw = request(path, accepted=False)
+                self.assertEqual(code, 403)
+                self.assertFalse(json.loads(raw)["ok"])
+
+    def test_terms_status_and_cross_site_rejection(self):
+        code, _, body = request("/nougat/v1/terms/status")
+        self.assertEqual(code, 200)
+        self.assertTrue(json.loads(body)["accepted"])
+        code, _, _ = request("/nougat/v1/terms/status", accepted=False)
+        self.assertEqual(code, 403)
+        code, _, _ = request("/nougat/v1/terms/accept", method="POST",
+                             headers={"Origin": "http://unrelated.example"}, accepted=False)
+        self.assertEqual(code, 403)
 
     def test_health_has_lan_only_flag(self):
         code, _, raw = request("/nougat/v1/health")

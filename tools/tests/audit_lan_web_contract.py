@@ -133,6 +133,24 @@ class LocalWebContract(unittest.TestCase):
         self.assertIn("regular_file(video.path, info)", SERVER)
         self.assertIn("resolve_catalog_item(state, id, indexed, error)", SERVER)
 
+    def test_server_acknowledgement_session_gate(self):
+        self.assertIn('"/nougat/v1/terms/accept"', SERVER)
+        self.assertIn('"/nougat/v1/terms/status"', SERVER)
+        self.assertIn('terms_cookie_valid', SERVER)
+        self.assertIn('state->accepted_sessions.insert(token)', SERVER)
+        self.assertIn('state->accepted_sessions.find(token)', SERVER)
+        self.assertIn('"/dev/urandom"', SERVER)
+        self.assertIn('HttpOnly; SameSite=Strict', SERVER)
+        self.assertIn('!terms_cookie_valid(state, request_header_value(request, "cookie"))', SERVER)
+        self.assertIn('path != "/nougat/v1/health"', SERVER)
+        for path in (ROOT / "legal-notice.js", WEB / "legal-notice.js"):
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("registerLanSession", source)
+            self.assertIn("'/nougat/v1/terms/accept'", source)
+            self.assertIn("'/nougat/v1/terms/status'", source)
+            self.assertIn("credentials: 'same-origin'", source)
+            self.assertIn("registerLanSession().then(unlock)", source)
+
     def test_lan_catalog_contract_is_id_based(self):
         source = (ROOT / "src" / "lan" / "lan_viewer_service.cpp").read_text(encoding="utf-8")
         header = (ROOT / "src" / "lan" / "lan_viewer_service.hpp").read_text(encoding="utf-8")

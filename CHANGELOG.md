@@ -1,3 +1,12 @@
+## Unreleased: LAN-side terms acknowledgement session (2026-10-30)
+
+- Gate native LAN media API routes behind a server-recognized terms acknowledgement session, so direct media URLs return HTTP 403 without a session.
+- Add same-origin `POST /nougat/v1/terms/accept` and cookie-verifying `GET /nougat/v1/terms/status`.
+- Issue random process-local HTTP-only SameSite cookies and invalidate sessions on restart; preserve public static terms assets and health checks.
+- Change both web notices to obtain and verify a LAN terms session before loading the catalog; silently refresh existing locally saved acknowledgements after restart.
+- Add opt-in HTTP and source-level guards for rejection, session issuance and protected routes; refresh service-worker caches.
+- Applies to the local LAN HTTP service, not the separate hosted remote bridge. No binary, version bump, layout change, GitHub Actions or owner testing.
+
 ## Unreleased: LAN connection lifecycle and stream reliability (2026-10-30)
 
 - Track active client sockets and wake them on LAN service shutdown; bound the drain wait for detached worker threads.

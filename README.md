@@ -1,5 +1,7 @@
 # Nougat Media Plus
 
+**LAN-hosted first-run terms enforcement (source candidate):** The local media server now requires a server-recognized acknowledgement cookie before answering private media API routes, rather than relying solely on the browser overlay. The existing GitHub Pages bridge is separate and is not secured by this LAN-only change. See [LAN Terms Session Candidate](docs/builds/NOUGAT_v0_0_69_LAN_TERMS_SESSION_CANDIDATE_2026_10_30.md). Full browser/runtime verification remains outstanding.
+
 **LAN streaming lifecycle development (unreleased):** Source-only improvements now track HTTP clients during shutdown, bound video stream startup and idle waits, and mark missing media unavailable in catalog responses. An opt-in LAN HTTP regression suite is included for future validation. See [LAN Lifecycle Source Candidate](docs/builds/NOUGAT_v0_0_69_LAN_LIFECYCLE_SOURCE_CANDIDATE_2026_10_30.md). **This is not a tested executable or release.**
 
 **v0.0.69 LAN reliability source work (unreleased):** The local LAN player now has explicit routes for its configuration, legal notice, service worker and approved icon. Both browser interfaces defer library traffic until local notice acknowledgement, retain the last loaded library during brief outages, and use bounded requests and reconnect checks. The native LAN service improves byte-range validation and playback error reporting. This is committed source work, **not an owner-tested binary release**. See [LAN Reliability Source Review](docs/builds/NOUGAT_v0_0_69_LAN_RELIABILITY_SOURCE_REVIEW_2026_10_30.md).

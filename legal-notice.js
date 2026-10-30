@@ -17,7 +17,21 @@
 
   let accepted = false;
   try { accepted = localStorage.getItem(key) === noticeVersion; } catch (_) { /* no valid receipt */ }
-  if (accepted) { window.NougatLegalAccepted = true; gate.hidden = true; return; }
+  // GitHub Pages uses a separate HTTPS bridge. LAN-served HTTP pages
+  // register a server-side acknowledgement before loading any media data.
+  const requiresLanSession = location.protocol === 'http:';
+  const registerLanSession = async () => {
+    if (!requiresLanSession) return;
+    const response = await fetch('/nougat/v1/terms/accept', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store'
+    });
+    if (!response.ok) throw new Error('LAN terms acceptance failed');
+    const status = await fetch('/nougat/v1/terms/status', {
+      credentials: 'same-origin', cache: 'no-store'
+    });
+    if (!status.ok || !(await status.json()).accepted)
+      throw new Error('The LAN server did not retain the acknowledgement cookie');
+  };
 
   // Keep every other part of the UI inert while acceptance is outstanding.
   const background = Array.from(document.body.children).filter(node => node !== gate);
@@ -50,22 +64,34 @@
     reject.focus();
   };
 
-  checkbox.addEventListener('change', () => { agree.disabled = !checkbox.checked; });
-  reject.addEventListener('click', refuse);
-  agree.addEventListener('click', () => {
-    if (!checkbox.checked) return;
-    try {
-      localStorage.setItem(key, noticeVersion);
-      if (localStorage.getItem(key) !== noticeVersion) throw new Error('Storage unavailable');
-    } catch (_) {
-      if (storageError) storageError.hidden = false;
-      return;
-    }
+  const unlock = () => {
     window.NougatLegalAccepted = true;
     gate.hidden = true;
     for (const node of background) node.inert = false;
     document.documentElement.style.overflow = previousOverflow;
     window.dispatchEvent(new Event('nougat:legal-accepted'));
+  };
+  const showAcceptanceError = () => {
+    if (storageError) {
+      storageError.textContent = 'Could not confirm or save acknowledgement. Check your browser settings and LAN server, then retry.';
+      storageError.hidden = false;
+    }
+  };
+  checkbox.addEventListener('change', () => { agree.disabled = !checkbox.checked; });
+  reject.addEventListener('click', refuse);
+  agree.addEventListener('click', async () => {
+    if (!checkbox.checked || agree.disabled) return;
+    agree.disabled = true;
+    try {
+      await registerLanSession();
+      localStorage.setItem(key, noticeVersion);
+      if (localStorage.getItem(key) !== noticeVersion) throw new Error('Storage unavailable');
+    } catch (_) {
+      showAcceptanceError();
+      agree.disabled = !checkbox.checked;
+      return;
+    }
+    unlock();
   });
   gate.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
@@ -82,5 +108,14 @@
       event.preventDefault(); focusable[0].focus();
     }
   });
-  checkbox.focus();
+  if (accepted) {
+    // A service restart invalidates process-local sessions. Re-register a
+    // saved acknowledgement without asking the user to tick the box again.
+    registerLanSession().then(unlock).catch(() => {
+      showAcceptanceError();
+      checkbox.focus();
+    });
+  } else {
+    checkbox.focus();
+  }
 })();

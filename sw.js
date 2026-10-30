@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v41-legal-20261030-v2-lan-20261030';
+const CACHE = 'nougat-web-player-v41-legal-20261030-v2-lan-20261030-terms-session';
 const SHELL = [
   './legal-notice.css',
   './legal-notice.js',

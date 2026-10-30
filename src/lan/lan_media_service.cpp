@@ -20,6 +20,7 @@
 #include <memory>
 #include <mutex>
 #include <netinet/in.h>
+#include <array>
 #include <set>
 #include <sstream>
 #include <string>
@@ -298,6 +299,8 @@ struct SharedState {
     std::mutex clients_mutex;
     std::condition_variable clients_drained;
     std::set<int> open_clients;
+    std::mutex terms_mutex;
+    std::set<std::string> accepted_sessions;
     std::mutex catalog_mutex;
     reddmedia::JellyfinApiClient jellyfin;
     std::map<std::string, reddmedia::LibraryVideo> catalog;
@@ -612,6 +615,78 @@ std::string request_header_value(const std::string& request, const std::string& 
     return {};
 }
 
+std::string issue_terms_token() {
+    // Non-predictable, process-local cookie. No password, user account, or cloud.
+    std::array<unsigned char, 32> bytes{};
+    const int fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return {};
+    std::size_t filled = 0;
+    while (filled < bytes.size()) {
+        const ssize_t count = read(fd, bytes.data() + filled, bytes.size() - filled);
+        if (count < 0 && errno == EINTR) continue;
+        if (count <= 0) break;
+        filled += static_cast<std::size_t>(count);
+    }
+    close(fd);
+    if (filled != bytes.size()) return {};
+    static constexpr char hex[] = "0123456789abcdef";
+    std::string token;
+    token.reserve(bytes.size() * 2U);
+    for (unsigned char byte : bytes) {
+        token.push_back(hex[byte >> 4U]);
+        token.push_back(hex[byte & 0x0fU]);
+    }
+    return token;
+}
+
+bool terms_cookie_valid(const std::shared_ptr<SharedState>& state,
+                        const std::string& cookie_header) {
+    std::size_t start = 0;
+    while (start < cookie_header.size()) {
+        const std::size_t semicolon = cookie_header.find(';', start);
+        std::string cookie = cookie_header.substr(
+            start, semicolon == std::string::npos ? std::string::npos : semicolon - start);
+        const std::size_t first = cookie.find_first_not_of(" \t");
+        if (first != std::string::npos) cookie.erase(0, first);
+        constexpr const char* name = "nougat_terms=";
+        if (cookie.rfind(name, 0U) == 0U) {
+            const std::string token = cookie.substr(std::strlen(name));
+            if (token.size() != 64U) return false;
+            std::lock_guard<std::mutex> lock(state->terms_mutex);
+            return state->accepted_sessions.find(token) != state->accepted_sessions.end();
+        }
+        if (semicolon == std::string::npos) break;
+        start = semicolon + 1U;
+    }
+    return false;
+}
+
+bool issue_terms_session(int client, const std::shared_ptr<SharedState>& state,
+                         const std::string& request) {
+    // A cross-site browser cannot silently accept terms on the user's behalf.
+    // This is an acknowledgement session, NOT strong authentication: an HTTP
+    // client can script the endpoint and local LAN traffic is not encrypted.
+    const std::string host = request_header_value(request, "host");
+    const std::string origin = request_header_value(request, "origin");
+    if (host.empty() || origin != "http://" + host)
+        return send_json_error(client, 403, "Forbidden",
+                               "The terms acknowledgement must originate from this LAN viewer.");
+    const std::string token = issue_terms_token();
+    if (token.empty())
+        return send_json_error(client, 503, "Service Unavailable",
+                               "Nougat could not initialize the terms session.");
+    {
+        std::lock_guard<std::mutex> lock(state->terms_mutex);
+        // Limit long-running server memory usage from repeated acknowledgements.
+        if (state->accepted_sessions.size() >= 4096U) state->accepted_sessions.clear();
+        state->accepted_sessions.insert(token);
+    }
+    return send_response(client, 200, "OK", "application/json; charset=utf-8",
+                         "{\"ok\":true,\"accepted\":true,\"notice\":\"2026-10-30-v2\"}",
+                         false, {{"Set-Cookie", "nougat_terms=" + token +
+                                          "; Path=/nougat/v1/; HttpOnly; SameSite=Strict; Max-Age=86400"}});
+}
+
 void handle_client(int client, const std::shared_ptr<SharedState>& state) {
     struct ActiveClientGuard {
         std::shared_ptr<SharedState> state;
@@ -651,8 +726,11 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
     std::string protocol;
     first_line >> method >> target >> protocol;
     const bool head_only = method == "HEAD";
-    if ((method != "GET" && !head_only) || target.empty() || protocol.rfind("HTTP/", 0U) != 0U) {
-        send_json_error(client, 405, "Method Not Allowed", "Nougat Web Player accepts GET and HEAD requests only.");
+    const bool terms_post = method == "POST" && target == "/nougat/v1/terms/accept";
+    if ((method != "GET" && !head_only && !terms_post) ||
+        target.empty() || protocol.rfind("HTTP/", 0U) != 0U) {
+        send_json_error(client, 405, "Method Not Allowed",
+                        "Nougat Web Player accepts GET and HEAD, plus POST for terms acknowledgement.");
         return;
     }
 
@@ -665,7 +743,21 @@ void handle_client(int client, const std::shared_ptr<SharedState>& state) {
     }
     const auto query_map = query_values(query);
 
-    if (path == "/nougat/v1/health") {
+    if (terms_post) {
+        issue_terms_session(client, state, request);
+    } else if (path == "/nougat/v1/terms/status") {
+        const bool valid = terms_cookie_valid(state, request_header_value(request, "cookie"));
+        send_response(client, valid ? 200 : 403, valid ? "OK" : "Forbidden",
+                      "application/json; charset=utf-8",
+                      valid ? "{\"ok\":true,\"accepted\":true,\"notice\":\"2026-10-30-v2\"}"
+                            : "{\"ok\":false,\"accepted\":false}",
+                      head_only);
+    } else if (path.rfind("/nougat/v1/", 0U) == 0U &&
+               path != "/nougat/v1/health" &&
+               !terms_cookie_valid(state, request_header_value(request, "cookie"))) {
+        send_json_error(client, 403, "Forbidden",
+                        "Accept the Nougat Terms of Service in the LAN viewer before using media APIs.");
+    } else if (path == "/nougat/v1/health") {
         send_response(client, 200, "OK", "application/json; charset=utf-8",
                       "{\"ok\":true,\"product\":\"Nougat Media Suite\",\"version\":\"0.0.55\",\"service\":\"LAN Web Player\",\"lanOnly\":true}",
                       head_only);

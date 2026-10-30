@@ -1,3 +1,9 @@
+## v0.0.69 LAN terms session source candidate (2026-10-30)
+
+The LAN HTTP server now has an explicit acknowledgement session boundary for catalog and media APIs; the first-run browser notice verifies that session before loading private data. This addresses direct-URL access without the prior browser-only consent screen **on the local LAN server only**. See [LAN Terms Session Candidate](docs/builds/NOUGAT_v0_0_69_LAN_TERMS_SESSION_CANDIDATE_2026_10_30.md).
+
+**Release gate:** manual compile/link, HTTP session and Origin checks, browser acceptance/rejection and restart checks, device playback, and security review. Do not confuse a self-reported terms acknowledgement with authenticated user access or TLS protection. The separate GitHub Pages remote bridge needs its own server-enforced acceptance design.
+
 ## v0.0.69 LAN lifecycle reliability source candidate (2026-10-30)
 
 Source changes now cover tracked client sockets during shutdown, bounded FFmpeg startup/idle waits, retryable socket interrupts, truthful catalog file availability, indexed artwork checks, and opt-in future HTTP contract tests. See [LAN Lifecycle Candidate](docs/builds/NOUGAT_v0_0_69_LAN_LIFECYCLE_SOURCE_CANDIDATE_2026_10_30.md).
