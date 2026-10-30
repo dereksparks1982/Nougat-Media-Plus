@@ -514,6 +514,7 @@ bool Engine::process(const Job& job, std::string& error,
     const fs::path logs = queue_path_.parent_path() / "studio-logs";
     std::error_code ec;
     fs::create_directories(logs, ec);
+    if (ec) { close(pipefd[0]); close(pipefd[1]); error = "Could not create private Studio job log folder."; return false; }
     const std::string log_path = (logs / ("job-" + std::to_string(job.id) + ".log")).string();
 
     const pid_t child = fork();
@@ -530,6 +531,10 @@ bool Engine::process(const Job& job, std::string& error,
         if (null_in >= 0) { dup2(null_in, STDIN_FILENO); if (null_in > STDERR_FILENO) close(null_in); }
         const int log_fd = open(log_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0600);
         if (log_fd >= 0) { dup2(log_fd, STDERR_FILENO); if (log_fd > STDERR_FILENO) close(log_fd); }
+        else {
+            const int error_sink = open("/dev/null", O_WRONLY);
+            if (error_sink >= 0) { dup2(error_sink, STDERR_FILENO); if (error_sink > STDERR_FILENO) close(error_sink); }
+        }
         // All allocation was completed before fork(), important in a
         // multi-threaded GUI process. Only async-signal-safe calls here.
         execv(ffmpeg_.c_str(), argv.data());
@@ -544,7 +549,16 @@ bool Engine::process(const Job& job, std::string& error,
     int status = 0;
     bool reaped = false;
     auto terminate_at = std::chrono::steady_clock::time_point{};
+    auto last_output = std::chrono::steady_clock::now();
+    bool stalled = false;
     while (pipe_open || !reaped) {
+        // A hung encoder, or a grandchild retaining the progress pipe, must
+        // not keep Nougat's single Studio worker blocked indefinitely.
+        if (std::chrono::steady_clock::now() - last_output > std::chrono::seconds(120)) {
+            stalled = true;
+            if (!reaped) { kill(-child, SIGKILL); kill(child, SIGKILL); }
+            break;
+        }
         const bool cancelling = closing_.load() || cancel_running_.load();
         if (cancelling && terminate_at == std::chrono::steady_clock::time_point{}) {
             kill(-child, SIGTERM);
@@ -563,6 +577,7 @@ bool Engine::process(const Job& job, std::string& error,
             else if (read_bytes < 0 && errno != EINTR) {
                 close(pipefd[0]); pipe_open = false;
             } else if (read_bytes > 0) {
+                last_output = std::chrono::steady_clock::now();
                 pending.append(buffer, static_cast<std::size_t>(read_bytes));
                 if (pending.size() > 65536U) pending.erase(0, pending.size() - 32768U);
                 std::size_t end = 0;
@@ -593,7 +608,17 @@ bool Engine::process(const Job& job, std::string& error,
             else if (waited < 0 && errno == ECHILD) { reaped = true; status = -1; }
         }
     }
+    if (pipe_open) close(pipefd[0]);
+    if (!reaped) {
+        int last_status = -1;
+        while (waitpid(child, &last_status, 0) < 0 && errno == EINTR) {}
+        status = last_status;
+    }
     child_group_.store(-1);
+    if (stalled) {
+        error = "FFmpeg made no progress for two minutes and was stopped.";
+        return false;
+    }
     if (closing_.load() || cancel_running_.load()) {
         error = "Studio job cancelled or interrupted."; return false;
     }
@@ -606,6 +631,10 @@ bool Engine::process(const Job& job, std::string& error,
     }
     // link() creates the completed destination only when it does not already
     // exist. rename() here would silently overwrite a late-arriving user file.
+    if (closing_.load() || cancel_running_.load()) {
+        error = "Studio export was cancelled before publication.";
+        return false;
+    }
     if (link(temporary.c_str(), job.output.c_str()) != 0) {
         error = "Cannot commit export without overwriting an existing file."; return false;
     }

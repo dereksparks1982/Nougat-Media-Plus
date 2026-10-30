@@ -1,3 +1,9 @@
+## v0.0.69 Studio inspection, export planning and job reliability (2026-10-30)
+
+Built a standalone FFprobe media inspector (track codecs, dimensions, optional duration, bounded subprocess/output), advisory remux compatibility evaluation and a native StudioService facade for preflight, single export, homogeneous-preset batch, queue snapshots, retry and cancellation. The existing FFmpeg worker now has a bounded no-progress timeout and an additional last-moment cancel check before publishing exports. See [Studio Inspection and Service Source Review](docs/builds/NOUGAT_v0_0_69_STUDIO_INSPECTION_SERVICE_SOURCE_2026_10_30.md).
+
+**Pending:** native compile/link and real-media tests; thread-safe wiring to the existing Studio controls without changing layout, output presets with advanced settings, actual conversion quality tests, queue/log UI, trim/edit tools and hardware acceleration discovery. No GUI controls are newly functional from this backend-only source candidate. Nougat stays v0.0.69 and GitHub Actions remain off.
+
 ## v0.0.69 Studio shared processing engine source candidate (2026-10-30)
 
 Studio now has a shared native FFmpeg job runner for eight basic export/remux/audio presets, a persistent one-worker queue, atomic batch insertion, explicit cancellation/retry, and safe no-overwrite temporary outputs. It is compiled into the native application's **source list**, but no Studio UI controls have been rewired in this batch. See [Studio Source Candidate](docs/builds/NOUGAT_v0_0_69_STUDIO_ENGINE_SOURCE_CANDIDATE_2026_10_30.md).

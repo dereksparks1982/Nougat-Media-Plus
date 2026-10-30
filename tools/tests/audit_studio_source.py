@@ -67,6 +67,41 @@ class StudioContracts(unittest.TestCase):
         self.assertIn("job.id", CPP)
         self.assertIn("O_NOFOLLOW", CPP)
 
+    def test_ffprobe_contract(self):
+        header = (ROOT / "src/studio/media_inspector.hpp").read_text(encoding="utf-8")
+        source = (ROOT / "src/studio/media_inspector.cpp").read_text(encoding="utf-8")
+        for name in ("MediaProbe", "StreamInfo", "CopyAssessment", "MediaInspector"):
+            self.assertIn(name, header)
+        for check in ("-show_entries", "format=duration:stream=codec_type,codec_name,width,height",
+                      "65536U", "std::chrono::steady_clock::now()", "execv(executable.c_str()",
+                      "waitpid(child", "CopyAssessment::CompatibleCandidate"):
+            self.assertIn(check, source)
+        self.assertIn("src/studio/media_inspector.cpp", CMAKE)
+        self.assertIn("src/studio/studio_service.cpp", CMAKE)
+
+    def test_studio_controller_and_guarded_exports(self):
+        head = (ROOT / "src/studio/studio_service.hpp").read_text(encoding="utf-8")
+        source = (ROOT / "src/studio/studio_service.cpp").read_text(encoding="utf-8")
+        self.assertIn("ExportPlan plan", head)
+        self.assertIn("submit_batch", head)
+        self.assertIn("inspector_.inspect", source)
+        self.assertIn("engine_.enqueue_batch(items, preset)", source)
+        self.assertIn("request.output.extension() != extension", source)
+        self.assertIn("Source has no audio track", source)
+        self.assertIn("Source has no video track", source)
+        self.assertIn("seconds(120)", CPP)
+        self.assertIn("private Studio job log folder", CPP)
+        self.assertIn("Studio export was cancelled before publication", CPP)
+
+    def test_isolated_subprocess_tests_are_present(self):
+        for filename in ("test_studio_media_inspector.cpp",
+                         "test_studio_fake_ffmpeg.cpp"):
+            test = ROOT / "tools/tests" / filename
+            self.assertTrue(test.is_file(), filename)
+            content = test.read_text(encoding="utf-8")
+            self.assertIn("mkdtemp", content)
+            self.assertNotIn("curl ", content)
+
     def test_test_source_exists(self):
         path = ROOT / "tools/tests/test_studio_media_job_engine.cpp"
         self.assertTrue(path.is_file())

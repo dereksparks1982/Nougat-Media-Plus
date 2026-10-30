@@ -1,3 +1,12 @@
+## Unreleased: Studio media inspection and export service foundation (2026-10-30)
+
+- Add bounded FFprobe inspection for local media tracks, codecs, dimensions and duration; classify remux as an advisory candidate, never guaranteed.
+- Add StudioService for output preflight, required audio/video tracks, single-job and batch submission and queue/status access.
+- Integrate inspector and service compilation into the existing native source target without changing application version or UI geometry.
+- Bound stalled FFmpeg worker output, improve log-folder failure handling and prevent output publication after a cancellation.
+- Add fake FFprobe and FFmpeg subprocess regression test sources plus expanded source-level contract checks.
+- Runtime compilation, actual media processing and GUI integration remain outstanding. No GitHub Actions, executable delivery or downloads.
+
 ## Unreleased: Studio shared FFmpeg processing engine (2026-10-30)
 
 - Add reusable native Studio media-processing engine and API for queued local exports.
