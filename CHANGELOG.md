@@ -1,3 +1,13 @@
+## Unreleased: Studio shared FFmpeg processing engine (2026-10-30)
+
+- Add reusable native Studio media-processing engine and API for queued local exports.
+- Implement eight fixed formats: lossless MP4/MKV remux, H.264 MP4, VP9 WebM, MP3, FLAC, WAV and Opus.
+- Add atomic batch enqueue, state persistence/recovery, explicit retry/cancel, known-duration progress and private job logs.
+- Validate absolute input/output paths and prevent overwrites using temporary same-directory outputs and atomic no-replace hard-link publication.
+- Start FFmpeg directly with an argv vector, track child processes, clean cancelled/temp outputs, and preserve original sources.
+- Integrate engine source into existing native CMake list; add C++ and Python regression-test sources and Studio build review.
+- UI integration, compile/link, real FFmpeg runs and owner acceptance remain outstanding. No GitHub Actions, binaries, ZIPs, UI geometry changes or app version increases.
+
 ## Unreleased: Games runtime containment and emulator discovery (2026-10-30)
 
 - Introduce process ownership and X11 client evidence checks so unrelated desktop windows are not captured as Games output.

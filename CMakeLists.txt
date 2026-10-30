@@ -26,6 +26,7 @@ add_executable(Nougat_Media_Plus_v68
     src/chat/nougat_chat.cpp
     src/games/emulator_host.cpp
     src/games/emulator_registry.cpp
+    src/studio/media_job_engine.cpp
     src/games/ps3_profile.cpp
     src/console/runtime_manager.cpp
     src/games/uo_client.cpp

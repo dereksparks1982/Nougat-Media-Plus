@@ -1,3 +1,9 @@
+## v0.0.69 Studio shared processing engine source candidate (2026-10-30)
+
+Studio now has a shared native FFmpeg job runner for eight basic export/remux/audio presets, a persistent one-worker queue, atomic batch insertion, explicit cancellation/retry, and safe no-overwrite temporary outputs. It is compiled into the native application's **source list**, but no Studio UI controls have been rewired in this batch. See [Studio Source Candidate](docs/builds/NOUGAT_v0_0_69_STUDIO_ENGINE_SOURCE_CANDIDATE_2026_10_30.md).
+
+**Required later:** native compilation, actual sample conversion/remux/audio extraction, interrupted/cancelled jobs, disk-full and file-collision tests; FFprobe-based compatibility/progress discovery; Studio UI queue wiring without changing approved geometry; more presets, trim/audio workflows and timeline work. No emulator/UI changes, no GitHub Actions, no executable downloads and no owner-approved version change.
+
 ## v0.0.69 Games emulator containment and discovery source candidate (2026-10-30)
 
 Games development now includes a strict window-ownership decision policy (process tree and process-group evidence), child reaping on stop, emulator-exit diagnostics, bounded launch waits, and an honest per-system detected/unverified backend probe. The previously separate emulator registry is now in the native application CMake source list. This does **not** establish functional parity for NES/SNES/PS3/Xbox 360 or any other system.
