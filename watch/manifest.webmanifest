@@ -1,0 +1,24 @@
+{
+  "name": "Nougat Watch",
+  "short_name": "Nougat Watch",
+  "description": "Watch your Nougat movies and TV from a phone or browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#04130e",
+  "theme_color": "#071914",
+  "icons": [
+    {
+      "src": "../assets/branding/nougat-media-plus-master-N.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "../assets/branding/nougat-media-plus-dock-N.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -38,19 +38,34 @@
   };
 
   async function ensureCatalog(force = false) {
+    if (window.NougatLegalAccepted !== true) return catalog;
+    // Never hold navigation hostage to a missing/offline media bridge.
+    // A timeout and a settled (not forever-cached) promise permit reconnects.
     if (catalogPromise && !force) return catalogPromise;
-    catalogPromise = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const request = (async () => {
       try {
-        const response = await fetch(`${baseUrl()}/nougat/v1/catalog`, { cache: 'no-store' });
+        const response = await fetch(`${baseUrl()}/nougat/v1/catalog`, {
+          cache: 'no-store', credentials: 'omit', signal: controller.signal
+        });
+        if (!response.ok) throw new Error('Catalog HTTP ' + response.status);
         const data = await response.json();
-        if (!response.ok || !data.ok) throw new Error(data.error || 'Catalog unavailable');
-        catalog = (Array.isArray(data.items) ? data.items : []).map(normalize).filter((item) => item.id);
+        if (!data.ok) throw new Error(data.error || 'Catalog unavailable');
+        catalog = (Array.isArray(data.items) ? data.items : [])
+          .slice(0, 3000).map(normalize).filter((item) => item.id);
       } catch (_) {
-        catalog = [];
+        // Keep the previously loaded library during short network outages.
+      } finally {
+        clearTimeout(timeout);
       }
       return catalog;
     })();
-    return catalogPromise;
+    catalogPromise = request;
+    request.finally(() => {
+      if (catalogPromise === request) catalogPromise = null;
+    });
+    return request;
   }
 
   function getResume(item) {
@@ -199,11 +214,53 @@
     baseUrl
   };
 
-  async function activate(view) {
-    if (!window.NougatWebModules || !view || ['home','player','library'].includes(view)) return;
-    await ensureCatalog(false);
-    window.NougatWebModules.activate(view, host);
-    if (view === 'discover') requestAnimationFrame(hydrateDiscoverPoster);
+  function activate(view) {
+    if (window.NougatLegalAccepted !== true || !view || ['home','player','library'].includes(view)) return;
+    const surface = document.getElementById('moduleView');
+    try {
+      if (!window.NougatWebModules || typeof window.NougatWebModules.activate !== 'function')
+        throw new Error('Module scripts did not load.');
+      // Every page must render immediately; slow/offline catalogs can update
+      // asynchronously, but cannot prevent using System, Radio, Studio, etc.
+      const result = window.NougatWebModules.activate(view, host);
+      if (result && typeof result.catch === 'function') result.catch((error) => {
+        showModuleFailure(view, error);
+      });
+      if (view === 'discover') requestAnimationFrame(hydrateDiscoverPoster);
+    } catch (error) {
+      showModuleFailure(view, error);
+    }
+    // Fire-and-forget; a network timeout must never block a tab click.
+    if (!catalog.length && !catalogPromise) void ensureCatalog(false);
+    if (!surface) return;
+    queueMicrotask(() => {
+      if (document.querySelector('.rail-button.active')?.dataset.view !== view) return;
+      if (!surface.querySelector('.module-workspace')) {
+        showModuleFailure(view, new Error('No module content was rendered.'));
+      }
+    });
+  }
+
+  function showModuleFailure(view, error) {
+    if (document.querySelector('.rail-button.active')?.dataset.view !== view) return;
+    const surface = document.getElementById('moduleView');
+    if (!surface) return;
+    const shell = document.createElement('div');
+    shell.className = 'module-workspace module-fallback';
+    const heading = document.createElement('h2');
+    heading.className = 'module-heading';
+    heading.textContent = String(view).toUpperCase();
+    const message = document.createElement('p');
+    message.className = 'module-copy';
+    message.textContent = 'This tab could not start: ' +
+      String(error?.message || error || 'Unknown error') +
+      '. You can still use Home, Player, Library or Quick Watch.';
+    const link = document.createElement('a');
+    link.href = './watch/';
+    link.className = 'sheet-button module-watch-link';
+    link.textContent = 'Open Quick Watch';
+    shell.append(heading, message, link);
+    surface.replaceChildren(shell);
   }
 
   document.querySelectorAll('.rail-button').forEach((button) => {
@@ -220,10 +277,22 @@
     if (view && !['home','player','library'].includes(view)) setTimeout(() => activate(view), 0);
   });
 
-  ensureCatalog(false).then(() => {
+  function initializeModules() {
+    // Apply the first-run legal gate before fetching any private catalog.
     observeMediaCards();
-    queueMediaCardArtwork();
     const initial = location.hash.replace(/^#/, '').trim().toLowerCase();
     if (initial && !['home','player','library'].includes(initial)) activate(initial);
+    void ensureCatalog(false).then(() => {
+      queueMediaCardArtwork();
+      const selectedView = document.querySelector('.rail-button.active')?.dataset.view;
+      if (catalog.length && (selectedView === 'discover' || selectedView === 'search'))
+        activate(selectedView);
+    });
+  }
+  if (window.NougatLegalAccepted === true) initializeModules();
+  else window.addEventListener('nougat:legal-accepted', initializeModules, { once: true });
+  window.addEventListener('online', () => {
+    if (window.NougatLegalAccepted === true)
+      void ensureCatalog(true).then(() => queueMediaCardArtwork());
   });
 })();

@@ -1,3 +1,9 @@
+## v0.0.69 GitHub Pages Watch accessibility and web navigation (2026-10-30)
+
+New `/watch/` Pages companion for phone-first movies and TV, based on the same HTTPS media bridge routes used by Hanafi. Root Pages now links directly to Quick Watch; README begins with both browser URLs and a concise explanation of Nougat's capabilities instead of build notes. The existing module sidebar now renders immediately on navigation without blocking on a remote catalog request, with explicit failure feedback and short-screen label scrolling.
+
+Read the [GitHub Pages Watch/Navigation Source Review](docs/builds/NOUGAT_v0_0_69_PAGES_WATCH_NAVIGATION_2026_10_30.md). Next acceptance requirements: actual Pages deployment verification, HTTPS/CORS and remote media playback checks, responsive mobile screenshots, and per-tab host integration testing. Do not run GitHub Actions or change approved native UI geometry; keep v0.0.69.
+
 ## v0.0.69 Advanced Studio editing, export and profile engine (2026-10-30)
 
 Source implementation: typed video trim/crop/rotate/resize/FPS/CRF/bitrate options; audio track selection/normalization/gain; SRT sidecar addition/burn-in, subtitle removal, stream selection and text-subtitle extraction; local named profile storage; queue V3 job-settings persistence (backward-compatible V1/V2 reading); per-export duration and advisory disk-space estimates. Both native and isolated CMake source lists include the new modules. See [Advanced Studio Export Source Review](docs/builds/NOUGAT_v0_0_69_STUDIO_ADVANCED_EXPORT_SOURCE_2026_10_30.md).

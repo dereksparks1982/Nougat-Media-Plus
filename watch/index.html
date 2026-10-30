@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#071914">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Nougat Watch">
+  <meta name="description" content="Phone-friendly movies and TV from your Nougat server.">
+  <title>Watch · Nougat Media Plus</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="../assets/branding/nougat-media-plus-master-N.png">
+  <link rel="stylesheet" href="../legal-notice.css">
+  <link rel="stylesheet" href="./watch.css">
+</head>
+<body>
+  <div id="nougatLegalGate" role="dialog" aria-modal="true" aria-labelledby="nougatLegalTitle" aria-describedby="nougatLegalDescription">
+    <section class="nougat-legal-panel">
+      <h1 id="nougatLegalTitle">Nougat Media Plus: Terms of Service</h1>
+      <p id="nougatLegalDescription">Nougat Media Plus is general-purpose software for media, streaming, networking, and technical tools. You are responsible for material you access, download, transmit, stream, or share and for complying with applicable laws.</p>
+      <p>Use content, networks, and services only where you have the necessary rights or permission. Elderred Softworks LLC does not authorize illegal use and, to the extent permitted by law, disclaims responsibility for unlawful or unauthorized use by others.</p>
+      <p>Review the <a href="../LEGAL_NOTICE.md" target="_blank" rel="noopener noreferrer">full legal notice</a>, <a href="../LICENSE" target="_blank" rel="noopener noreferrer">license</a>, and <a href="../THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener noreferrer">third-party notices</a>.</p>
+      <label class="nougat-legal-check"><input id="nougatLegalConsent" type="checkbox"><span>I have read and understand this notice, and I agree to use Nougat Media Plus lawfully.</span></label>
+      <p id="nougatLegalRejectWarning" class="nougat-legal-warning" role="alert" hidden>You must accept the Terms of Service to use Nougat Media Plus. Refusing again exits the viewer.</p>
+      <div class="nougat-legal-actions">
+        <button type="button" id="nougatLegalReject" class="nougat-legal-reject">Reject Terms</button>
+        <button type="button" id="nougatLegalAgree" disabled>I Understand &amp; Agree</button>
+      </div>
+      <p id="nougatLegalStorageError" class="nougat-legal-note" role="alert" hidden>Acceptance could not be saved. Enable local storage before continuing.</p>
+    </section>
+  </div>
+  <header class="watch-header">
+    <a class="brand" href="../#home" aria-label="Nougat Media Plus home">
+      <img src="../assets/branding/nougat-media-plus-master-N.png" width="44" height="44" alt="">
+      <span><strong>N O U G A T</strong><small>WATCH</small></span>
+    </a>
+    <nav aria-label="Web player navigation">
+      <a href="../#library">Full Player</a>
+      <a href="https://github.com/dereksparks1982/Nougat-Media-Plus">Project</a>
+    </nav>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="headline">
+      <p class="eyebrow">YOUR MEDIA, YOUR SERVER</p>
+      <h1 id="headline">Ready when you are.</h1>
+      <p>Movies and TV in a simpler, phone-friendly player. Your files stay on your media host, not GitHub.</p>
+    </section>
+    <section class="connection" aria-label="Media connection">
+      <div class="status-line"><span id="connectionLight" class="light" aria-hidden="true"></span><strong id="connectionStatus" role="status" aria-live="polite">Not connected</strong><button id="retry" type="button">Refresh</button></div>
+      <details id="connectionSettings">
+        <summary>Change media server</summary>
+        <form id="serverForm">
+          <label for="serverUrl">HTTPS bridge address</label>
+          <div class="form-row"><input id="serverUrl" type="url" inputmode="url" autocomplete="url" spellcheck="false" placeholder="https://your-media-host.example" required><button type="submit">Connect</button></div>
+          <p>Use the HTTPS media-bridge address for a server you control. It must allow browser requests from this GitHub Pages site. The initial address comes from Nougat's existing configuration.</p>
+          <button id="resetServer" type="button" class="text-button">Restore default address</button>
+        </form>
+      </details>
+    </section>
+    <section class="library-panel" aria-labelledby="libraryTitle">
+      <div class="library-head"><h2 id="libraryTitle">Your library</h2><span id="libraryCount" class="count">0 titles</span></div>
+      <div class="toolbar">
+        <label for="searchInput" class="visually-hidden">Find a movie or show</label>
+        <input id="searchInput" type="search" placeholder="Search movies and TV" autocomplete="off">
+        <div class="filters" role="group" aria-label="Media type">
+          <button class="active" type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="movies" aria-pressed="false">Movies</button>
+          <button type="button" data-filter="tv" aria-pressed="false">TV</button>
+        </div>
+      </div>
+      <p id="libraryNotice" class="notice" role="status" aria-live="polite">Connect to a Nougat server to see your library.</p>
+      <div id="library" class="cards"></div>
+    </section>
+    <section class="watch-panel" id="watchPanel" aria-label="Video playback" hidden>
+      <div class="now-playing"><div><p class="eyebrow">NOW PLAYING</p><h2 id="nowTitle">Select a title</h2></div><button id="closePlayer" type="button" aria-label="Close player">Close</button></div>
+      <video id="video" controls playsinline preload="metadata" controlslist="nodownload" aria-label="Nougat video player"></video>
+      <p id="playbackStatus" role="status" aria-live="polite">Ready</p>
+      <div class="player-actions">
+        <button id="back10" type="button">−10s</button>
+        <button id="forward10" type="button">+10s</button>
+        <button id="compatibility" type="button">Try compatibility stream</button>
+      </div>
+      <p class="help">If a format will not play directly in your browser, use the compatibility stream. Some formats require transcoding on the media host.</p>
+    </section>
+  </main>
+  <footer><p>Nougat Media Plus · Elderred Softworks LLC</p><p>GitHub Pages hosts the viewer only. Your media is streamed from your configured server.</p></footer>
+  <script src="../legal-notice.js"></script>
+  <script src="../config.js"></script>
+  <script src="./watch.js"></script>
+</body>
+</html>

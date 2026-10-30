@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v41-legal-20261030-v2-lan-20261030-terms-session';
+const CACHE = 'nougat-web-player-v42-watch-pages-20261030';
 const SHELL = [
   './legal-notice.css',
   './legal-notice.js',
@@ -51,6 +51,11 @@ const SHELL = [
   './modules-bridge.js',
   './modules-media-card-actions.js',
   './manifest.webmanifest',
+  './watch/',
+  './watch/index.html',
+  './watch/watch.css',
+  './watch/watch.js',
+  './watch/manifest.webmanifest',
   './assets/branding/nougat-media-plus-dock-N.png',
   './assets/branding/nougat-media-plus-master-N.png',
   './assets/branding/nougat-media-plus-topbar-lockup.png'

@@ -1,3 +1,14 @@
+## Unreleased: GitHub Pages Quick Watch and web navigation repair (2026-10-30)
+
+- Add a standalone phone-friendly Watch page with HTTPS server settings, search, Movies/TV filtering, direct/compatibility streams, local resume history and connection feedback.
+- Reuse the HTTPS Nougat media bridge architecture established in the Hanafi viewer; personal media files stay on the media host.
+- Link Quick Watch from the full web player's Home screen and expose both web-player URLs at the very top of the README.
+- Rewrite the README as a product/features guide. Build and release history remains in this changelog and the technical docs.
+- Repair module navigation so tab rendering no longer waits indefinitely for the remote catalog; add request timeout, retry behavior and clear failure panel.
+- Prevent collapsed sidebar labels and text collisions on short-screen displays without changing approved native UI geometry.
+- Expand service-worker cache entries for the Watch page and add source-level Pages navigation validation.
+- Source-only update; remote playback, live mobile layout and deployment still require real browser checks. No GitHub Actions, downloads or v0.0.69 change.
+
 ## Unreleased: Advanced Studio export and edit engine (2026-10-30)
 
 - Add validated per-job advanced edits: trim, crop, rotate, scaling, FPS, CRF/bitrate and audio quality.

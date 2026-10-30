@@ -369,3 +369,83 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--green-hot);
   .media-card-body { padding-left: 7px; padding-right: 7px; }
   .media-title { font-size: 11px; }
 }
+
+/* GitHub Pages: a small, non-displacing entrance to the mobile Watch page. */
+.nougat-home-watch-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:0 8px 10px}
+.nougat-home-watch-row .section-title{margin:0}
+.nougat-watch-home-link{display:inline-block;flex:0 0 auto;padding:6px 9px;border:1px solid #2a8d55;border-radius:8px;background:#09251a;color:#a8ffc9;text-decoration:none;font-size:11px;font-weight:800;letter-spacing:.04em;line-height:1.2}
+.nougat-watch-home-link:hover,.nougat-watch-home-link:focus-visible{outline:2px solid #55e38c;outline-offset:2px}
+@media(max-width:550px){.nougat-watch-home-link{font-size:10px;padding:5px 7px}}
+
+/* GitHub Pages navigation containment: keep the original rail position but
+   allow all thirteen buttons to remain readable at small viewport heights.
+   The original flex-shrink behavior collapsed labels under neighboring tabs. */
+.module-rail {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #2b8f57 #010a07;
+  isolation: isolate;
+}
+.module-rail .rail-button {
+  flex: 0 0 42px;
+  min-height: 42px;
+  max-height: none;
+  width: 100%;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  z-index: 1;
+}
+.module-rail .rail-button span:last-child {
+  display: block;
+  max-width: 100%;
+  font-size: inherit;
+  overflow: hidden;
+  text-overflow: clip;
+}
+.module-rail .rail-n {
+  position: static;
+  display: block;
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  margin: 7px auto 0;
+  pointer-events: none;
+}
+.app-content {
+  left: 86px;
+  right: 0;
+  min-width: 0;
+  isolation: isolate;
+}
+.app-content .view,
+.app-content .module-workspace {
+  min-width: 0;
+  max-width: 100%;
+}
+.module-watch-link {
+  display: inline-block;
+  margin: 8px 4px;
+  padding: 10px 16px;
+  color: #baf0c8;
+  text-decoration: none;
+}
+@media (max-width: 700px) {
+  .module-rail {
+    left: 4px;
+    width: 58px;
+    padding-bottom: 6px;
+  }
+  .module-rail .rail-button {
+    min-height: 39px;
+    flex-basis: 39px;
+  }
+  .module-rail .rail-n {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+  .app-content { left: 66px; }
+}
