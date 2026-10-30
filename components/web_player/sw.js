@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v1-legal-20261030';
+const CACHE = 'nougat-web-player-v1-legal-20261030-v2';
 const SHELL = [
   './legal-notice.css',
   './legal-notice.js',

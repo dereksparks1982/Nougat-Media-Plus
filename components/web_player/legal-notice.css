@@ -26,3 +26,19 @@
 #nougatLegalGate button:disabled { background: #73877b; color: #28372c; cursor: not-allowed; }
 #nougatLegalGate button:focus-visible, #nougatLegalGate input:focus-visible { outline: 3px solid #ffe3a5; outline-offset: 3px; }
 #nougatLegalGate .nougat-legal-note { font-size: .88rem; color: #bac9be; }
+
+/* Two-stage refusal is isolated to the notice; existing UI geometry is unchanged. */
+#nougatLegalGate .nougat-legal-warning {
+  color: #ffe6b4; background: #48341a; padding: 12px;
+  border: 1px solid #d5a868; border-radius: 6px; font-weight: 700;
+}
+#nougatLegalGate .nougat-legal-warning[hidden] { display: none; }
+#nougatLegalGate .nougat-legal-actions {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px;
+}
+#nougatLegalGate .nougat-legal-reject {
+  color: #f2f6f2; background: #304238; border: 1px solid #97b5a1;
+}
+@media (max-width: 460px) {
+  #nougatLegalGate .nougat-legal-actions { grid-template-columns: 1fr; }
+}

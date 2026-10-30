@@ -1,3 +1,11 @@
+## Unreleased: Mandatory acceptance and two-step refusal (2026-10-30)
+
+- Show a mandatory Terms of Service acknowledgement and explicit refusal behavior before normal native and web use.
+- On first refusal, explain that acceptance is required to use Nougat Media Plus.
+- On second refusal, close the native app; browser viewers attempt to close the tab, otherwise blanking the interface.
+- Keep ordinary features inaccessible without an acknowledgement; save acceptance locally.
+- Advance only the notice receipt to 2026-10-30-v2 so existing users see the revised terms. No application version change and no GitHub Actions.
+
 ## Unreleased: First-run legal notice (2026-10-30)
 
 - Show a responsible-use legal notice before the normal native X11 GUI starts; preserve command-line tests without graphical prompts.

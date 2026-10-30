@@ -18,13 +18,17 @@
 <body>
   <div id="nougatLegalGate" role="dialog" aria-modal="true" aria-labelledby="nougatLegalTitle" aria-describedby="nougatLegalDescription">
     <section class="nougat-legal-panel">
-      <h1 id="nougatLegalTitle">Nougat Media Plus: Legal Notice</h1>
+      <h1 id="nougatLegalTitle">Nougat Media Plus: Terms of Service</h1>
       <p id="nougatLegalDescription">Nougat Media Plus is general-purpose software for media, streaming, networking, and technical tools. You are responsible for material you access, download, transmit, stream, or share and for complying with applicable laws.</p>
       <p>Use content, networks, and services only where you have the necessary rights or permission. Elderred Softworks LLC does not authorize illegal use and, to the extent permitted by law, disclaims responsibility for unlawful or unauthorized use by others.</p>
       <p>Review the <a href="./LEGAL_NOTICE.md" target="_blank" rel="noopener noreferrer">full legal notice</a>, <a href="https://github.com/dereksparks1982/Nougat-Media-Plus/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">license</a>, and <a href="https://github.com/dereksparks1982/Nougat-Media-Plus/blob/main/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener noreferrer">third-party notices</a>. Existing licenses remain in force.</p>
       <p class="nougat-legal-note">This notice appears once per browser profile for this notice version. It may return after a notice revision or local data reset.</p>
       <label class="nougat-legal-check"><input id="nougatLegalConsent" type="checkbox"><span>I have read and understand this notice, and I agree to use Nougat Media Plus lawfully.</span></label>
-      <button type="button" id="nougatLegalAgree" disabled>I Understand &amp; Agree</button>
+      <p id="nougatLegalRejectWarning" class="nougat-legal-warning" role="alert" hidden>You must accept the Terms of Service to use Nougat Media Plus. If you refuse again, the application will close.</p>
+      <div class="nougat-legal-actions">
+        <button type="button" id="nougatLegalReject" class="nougat-legal-reject">Reject Terms</button>
+        <button type="button" id="nougatLegalAgree" disabled>I Understand &amp; Agree</button>
+      </div>
       <p id="nougatLegalStorageError" class="nougat-legal-note" role="alert" hidden>Acceptance could not be saved. Enable local storage before continuing.</p>
     </section>
   </div>

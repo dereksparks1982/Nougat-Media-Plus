@@ -1,6 +1,6 @@
-# Nougat Media Plus: Legal Notice and Responsible Use
+# Nougat Media Plus: Terms of Service and Responsible Use
 
-**Notice version:** 2026-10-30-v1  
+**Notice version:** 2026-10-30-v2  
 **Publisher:** Elderred Softworks LLC
 
 Nougat Media Plus is general-purpose software for media playback, management, streaming, networking, communications, research, and other technical activities. The software does not itself grant rights to obtain, copy, transmit, redistribute, or access content, systems, or services owned or controlled by others.
@@ -13,6 +13,6 @@ Nougat Media Plus is general-purpose software for media playback, management, st
 
 **Project licensing.** Review the [README](README.md), [LICENSE](LICENSE), [Third-Party Notices](THIRD_PARTY_NOTICES.md), and [Licensing Policy](docs/LICENSING_POLICY.md). Existing project and third-party licenses remain in force. This notice does not replace or change those licenses.
 
-**First-run acknowledgement.** On first normal graphical use, an unchecked acknowledgement and **I Understand & Agree** button must be completed before the native app or browser viewer becomes usable. Acceptance is stored locally for this notice version. The notice returns when its version changes or locally saved acceptance is removed. Closing or declining prevents normal use until acknowledgement.
+**First-run acknowledgement.** On first normal graphical use, an unchecked acknowledgement and **I Understand & Agree** button must be completed before the native app or browser viewer becomes usable. Acceptance is stored locally for this notice version. The notice returns when its version changes or locally saved acceptance is removed. Rejecting the terms first displays a warning that acceptance is required. Refusing again closes the native application. For browser viewers, a second refusal attempts to close the tab and otherwise removes access to the interface. Closing without acceptance never grants access.
 
 This document explains responsible use; it is not a substitute for professional legal advice.

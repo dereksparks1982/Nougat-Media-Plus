@@ -12,7 +12,7 @@
 #include <system_error>
 
 namespace {
-constexpr const char* kVersion = "2026-10-30-v1";
+constexpr const char* kVersion = "2026-10-30-v2";
 constexpr int kWidth = 820;
 constexpr int kHeight = 490;
 
@@ -92,6 +92,7 @@ bool nougat_show_first_run_legal_notice() {
     XSetInputFocus(display, window, RevertToParent, CurrentTime);
 
     bool checked = false;
+    bool refused_once = false;
     bool storage_failed = false;
     bool accepted = false;
     bool done = false;
@@ -111,7 +112,9 @@ bool nougat_show_first_run_legal_notice() {
         fill(display, window, gc, background, 0, 0, kWidth, kHeight);
         fill(display, window, gc, panel, 18, 18, kWidth - 36, kHeight - 36);
         line(display, window, gc, gold, 40, 56, "NOUGAT MEDIA PLUS | FIRST-RUN LEGAL NOTICE");
-        line(display, window, gc, muted, 40, 86, "Please read carefully. Acceptance is required to continue.");
+        line(display, window, gc, refused_once ? gold : muted, 40, 86,
+             refused_once ? "You must accept the Terms of Service to use Nougat. Refuse again to exit."
+                          : "Please read carefully. Acceptance is required to continue.");
         for (int i = 0; i < 10; ++i) line(display, window, gc, white, 40, 116 + i * 24, rows[i]);
         fill(display, window, gc, checked ? accent : muted, 40, 369, 19, 19);
         fill(display, window, gc, panel, 43, 372, 13, 13);
@@ -119,9 +122,20 @@ bool nougat_show_first_run_legal_notice() {
         line(display, window, gc, white, 71, 383, "I have read this notice and agree to use Nougat lawfully.");
         fill(display, window, gc, checked ? accent : muted, 510, 414, 264, 36);
         line(display, window, gc, background, 540, 438, "I UNDERSTAND & AGREE");
-        line(display, window, gc, muted, 40, 438, "Cancel / Exit (Esc)");
+        line(display, window, gc, muted, 40, 438, refused_once ? "Refuse & Exit (Esc)" : "Reject Terms (Esc)");
         if (storage_failed) line(display, window, gc, gold, 40, 467, "Could not save acceptance. Check configuration permissions.");
         XFlush(display);
+    };
+
+    auto refuse = [&] {
+        if (refused_once) {
+            done = true;
+        } else {
+            refused_once = true;
+            checked = false;
+            storage_failed = false;
+            paint();
+        }
     };
 
     paint();
@@ -129,7 +143,7 @@ bool nougat_show_first_run_legal_notice() {
         XEvent event{};
         XNextEvent(display, &event);
         if (event.type == Expose && event.xexpose.count == 0) paint();
-        if (event.type == ClientMessage && static_cast<Atom>(event.xclient.data.l[0]) == close_message) done = true;
+        if (event.type == ClientMessage && static_cast<Atom>(event.xclient.data.l[0]) == close_message) refuse();
         if (event.type == ButtonPress) {
             const int x = event.xbutton.x;
             const int y = event.xbutton.y;
@@ -139,11 +153,11 @@ bool nougat_show_first_run_legal_notice() {
                 storage_failed = !accepted;
                 done = accepted;
                 if (!done) paint();
-            } else if (x >= 38 && x <= 250 && y >= 411 && y <= 455) done = true;
+            } else if (x >= 38 && x <= 250 && y >= 411 && y <= 455) refuse();
         }
         if (event.type == KeyPress) {
             const KeySym key = XLookupKeysym(&event.xkey, 0);
-            if (key == XK_Escape) done = true;
+            if (key == XK_Escape) refuse();
             if (key == XK_space) { checked = !checked; storage_failed = false; paint(); }
             if ((key == XK_Return || key == XK_KP_Enter) && checked) {
                 accepted = save_acceptance();

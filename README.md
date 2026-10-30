@@ -1,6 +1,6 @@
 # Nougat Media Plus
 
-**First-run responsible-use acknowledgement:** Before normal use of the native GUI or web viewer, Nougat asks users to review its [Legal Notice](LEGAL_NOTICE.md), check an initially unchecked acknowledgement, and select **I Understand & Agree**. Acceptance is saved locally per notice version. The existing project and third-party licenses remain unchanged.
+**First-run responsible-use acknowledgement:** Before normal use of the native GUI or web viewer, Nougat asks users to review its [Legal Notice](LEGAL_NOTICE.md), check an initially unchecked acknowledgement, and select **I Understand & Agree**. Acceptance is saved locally per notice version. Rejecting once explains that acceptance is required; rejecting again exits the native app or removes access to the browser viewer. Without acceptance, neither interface can be used normally. The existing project and third-party licenses remain unchanged.
 
 **Nougat Media Plus** is a native Linux media, entertainment, communications, games, production, networking, and system-tool platform developed by **Elderred Softworks LLC**.
 
