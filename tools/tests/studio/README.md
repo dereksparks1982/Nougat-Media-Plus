@@ -11,3 +11,5 @@ To protect the active development installation, any future CMake configure/build
 Passing the isolated tests would not prove MP4/Matroska codec support, real output quality, the Studio GUI controls, cancellation under hardware load or libVLC playback. Those still require a separate acceptance phase.
 
 The isolated Studio CMake project now also includes `test_studio_folder_batch` and `test_studio_queue_controls`, using temporary fake media fixtures. These tests are still opt-in, never GitHub Actions and not evidence of full application or codec acceptance.
+
+The advanced export source phase adds `test_studio_advanced_export` and `test_studio_profiles` to the isolated C++17 test project. They cover edit argument plans, serialized queue profiles, subtitle-track extraction and local named profile persistence. Tests remain opt-in and are **not** GitHub Actions, executable releases or proof of live FFmpeg compatibility.

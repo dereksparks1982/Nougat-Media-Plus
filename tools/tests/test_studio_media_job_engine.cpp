@@ -198,9 +198,65 @@ int main() {
         std::ifstream upgraded(old);
         std::string magic;
         std::getline(upgraded, magic);
-        assert(magic.rfind("NOUGAT_STUDIO_QUEUE_V2\t", 0U) == 0U);
+        assert(magic.rfind("NOUGAT_STUDIO_QUEUE_V3\t", 0U) == 0U);
         const auto newer = engine.enqueue(input, scratch.path / "next.mp3", Preset::AudioMp3);
         assert(newer.ok && newer.id > 7U);
+    }
+
+    // Advanced per-job options survive failure, exit and reloading.
+    const auto advanced_out=scratch.path / "advanced.mp3";
+    std::uint64_t advanced_id=0;
+    {
+        Engine engine(queue, "/no/such/ffmpeg");
+        ExportEdits edits;
+        edits.start_ms=1200;
+        edits.duration_ms=5000;
+        edits.gain_tenths_db=-30;
+        edits.normalize_audio=true;
+        edits.audio_kbps=192;
+        const auto result=engine.enqueue(input,advanced_out,Preset::AudioMp3,5000,edits);
+        assert(result.ok);
+        advanced_id=result.id;
+        for (int i=0;i<200;++i) {
+            if (find_job(engine, advanced_id).state==JobState::Failed) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        assert(find_job(engine,advanced_id).state==JobState::Failed);
+    }
+    {
+        Engine engine(queue,"/no/such/ffmpeg");
+        assert(engine.persistence_ok());
+        const auto prior=find_job(engine,advanced_id);
+        assert(prior.edits.duration_ms==5000);
+        assert(prior.edits.start_ms==1200);
+        assert(prior.edits.gain_tenths_db==-30);
+        assert(prior.edits.normalize_audio);
+        assert(prior.edits.audio_kbps==192);
+    }
+    // V2 remains readable, then moves safely to V3 on save.
+    {
+        const fs::path old=scratch.path/"v2-state"/"queue.txt";
+        fs::create_directories(old.parent_path());
+        const auto encode=[](const std::string& value) {
+            static constexpr char symbols[]="0123456789ABCDEF";
+            std::string out;
+            for (unsigned char c:value) {
+                out+=symbols[c>>4U];
+                out+=symbols[c&15U];
+            }
+            return out;
+        };
+        write_file(old,"NOUGAT_STUDIO_QUEUE_V2\t45\n"
+                       "40\t4\t3\t0\t"+encode(input.string())+"\t"+
+                       encode((scratch.path/"older.mp3").string())+"\t\n");
+        Engine engine(old,"/no/such/ffmpeg");
+        assert(engine.persistence_ok());
+        assert(engine.snapshot().size()==1U);
+        assert(engine.snapshot()[0].edits.crf==-1);
+        std::ifstream content(old);
+        std::string line;
+        std::getline(content,line);
+        assert(line=="NOUGAT_STUDIO_QUEUE_V3\t45");
     }
 
     // A malformed queue is rejected, not overwritten or silently executed.

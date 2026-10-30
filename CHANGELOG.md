@@ -1,3 +1,13 @@
+## Unreleased: Advanced Studio export and edit engine (2026-10-30)
+
+- Add validated per-job advanced edits: trim, crop, rotate, scaling, FPS, CRF/bitrate and audio quality.
+- Add audio stream selection, gain/normalization, stream dropping, subtitle track selection, external SRT addition/burn-in, and a ninth SRT-extraction export preset.
+- Persist advanced settings across queued jobs, batches and restart using Studio queue V3; retain V1/V2 migration and no-overwrite outputs.
+- Add a local named profile library with validated names and atomic state writes, connected through StudioService.
+- Add source inspection preflight for chosen audio/subtitle tracks and advisory output size/free-space estimates.
+- Add focused C++ export/profile fixtures, extend queue migration regression, register modules and tests with native and isolated CMake, and document new limits.
+- Advanced UI controls, native compilation and real FFmpeg testing remain outstanding; no GitHub Actions, downloads, executable release, UI geometry changes or application version bump.
+
 ## Unreleased: Studio folder batch and queue controls (2026-10-30)
 
 - Add bounded folder-batch scanner, preview result and skipped-file diagnostics with symlink, overlap and overwrite guards.

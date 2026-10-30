@@ -30,6 +30,8 @@ add_executable(Nougat_Media_Plus_v68
     src/studio/media_inspector.cpp
     src/studio/studio_service.cpp
     src/studio/folder_batch_planner.cpp
+    src/studio/advanced_export.cpp
+    src/studio/profile_library.cpp
     src/games/ps3_profile.cpp
     src/console/runtime_manager.cpp
     src/games/uo_client.cpp

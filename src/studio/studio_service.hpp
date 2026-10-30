@@ -1,6 +1,7 @@
 #pragma once
 #include "media_inspector.hpp"
 #include "media_job_engine.hpp"
+#include "profile_library.hpp"
 
 #include <filesystem>
 #include <string>
@@ -16,6 +17,10 @@ struct ExportPlan {
     MediaProbe media;
     Preset preset = Preset::VideoMp4H264;
     CopyAdvice copy;
+    // Advisory only. CRF-based output sizes cannot be predicted reliably.
+    std::uint64_t estimated_output_bytes = 0;
+    std::uintmax_t available_disk_bytes = 0;
+    std::string warning;
     std::string error;
 };
 
@@ -23,6 +28,7 @@ struct ExportRequest {
     std::filesystem::path input;
     std::filesystem::path output;
     Preset preset = Preset::VideoMp4H264;
+    ExportEdits edits;
 };
 
 // Backend controller for a future Studio UI. Calls to plan/submit perform a
@@ -45,9 +51,16 @@ public:
     bool forget(std::uint64_t job_id);
     std::string recent_log(std::uint64_t job_id, std::size_t limit = 4096U) const;
     std::vector<Job> jobs() const;
+    bool save_profile(const NamedProfile& profile, std::string& error);
+    bool remove_profile(const std::string& name, std::string& error);
+    std::vector<NamedProfile> profiles() const;
+    // Sets edits/preset on a request but never queues without explicit submit.
+    bool apply_profile(const std::string& name, ExportRequest& request) const;
+    bool profiles_available() const;
     bool persistence_ok() const;
     std::string persistence_error() const;
 private:
+    ProfileLibrary profile_library_;
     MediaInspector inspector_;
     Engine engine_;
 };

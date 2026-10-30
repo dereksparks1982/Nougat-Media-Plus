@@ -66,6 +66,7 @@ const char* output_extension(Preset preset) noexcept {
     case Preset::AudioFlac: return ".flac";
     case Preset::AudioWav: return ".wav";
     case Preset::AudioOpus: return ".opus";
+    case Preset::SubtitleSrt: return ".srt";
     }
     return "";
 }

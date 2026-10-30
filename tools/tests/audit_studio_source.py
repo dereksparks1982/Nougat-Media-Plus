@@ -19,9 +19,9 @@ class StudioContracts(unittest.TestCase):
         self.assertIn("Nougat_Media_Plus_v68", CMAKE)  # existing, not changed
         self.assertNotIn("Nougat_Media_Plus_v70", CMAKE)
 
-    def test_eight_safe_preset_mappings(self):
+    def test_nine_safe_preset_mappings(self):
         presets = ("RemuxMp4", "RemuxMkv", "VideoMp4H264", "VideoWebmVp9",
-                   "AudioMp3", "AudioFlac", "AudioWav", "AudioOpus")
+                   "AudioMp3", "AudioFlac", "AudioWav", "AudioOpus", "SubtitleSrt")
         for name in presets:
             with self.subTest(name=name):
                 self.assertIn("Preset::" + name, CPP)

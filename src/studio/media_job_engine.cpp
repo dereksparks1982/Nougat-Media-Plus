@@ -47,6 +47,8 @@ Format format_for(Preset preset) {
         return {".wav", "wav", {"-map","0:a:0","-vn","-c:a","pcm_s16le"}};
     case Preset::AudioOpus:
         return {".opus", "opus", {"-map","0:a:0","-vn","-c:a","libopus","-b:a","128k"}};
+    case Preset::SubtitleSrt:
+        return {".srt", "srt", {"-map","0:s:0","-c:s","srt"}};
     }
     return {"", "", {}};
 }
@@ -158,6 +160,7 @@ const char* preset_name(Preset preset) {
     case Preset::AudioFlac: return "audio-flac";
     case Preset::AudioWav: return "audio-wav";
     case Preset::AudioOpus: return "audio-opus";
+    case Preset::SubtitleSrt: return "subtitle-srt";
     }
     return "unknown";
 }
@@ -210,7 +213,7 @@ bool Engine::save_locked() {
         persistence_error_ = "Cannot create temporary Studio queue state.";
         return false;
     }
-    std::string serialized = "NOUGAT_STUDIO_QUEUE_V2\t" + std::to_string(next_id_) + "\n";
+    std::string serialized = "NOUGAT_STUDIO_QUEUE_V3\t" + std::to_string(next_id_) + "\n";
     for (const Job& job : jobs_) {
         serialized += std::to_string(job.id) + "\t" +
           std::to_string(static_cast<int>(job.preset)) + "\t" +
@@ -218,7 +221,8 @@ bool Engine::save_locked() {
           std::to_string(job.duration_ms) + "\t" +
           hex_encode(job.input.string()) + "\t" +
           hex_encode(job.output.string()) + "\t" +
-          hex_encode(job.error) + "\n";
+          hex_encode(job.error) + "\t" +
+          hex_encode(serialize_export_edits(job.edits)) + "\n";
     }
     const bool ok = write_all(fd, serialized) && fsync(fd) == 0;
     close(fd);
@@ -252,11 +256,13 @@ void Engine::load() {
         return;
     }
     const bool legacy = line == "NOUGAT_STUDIO_QUEUE_V1";
+    const bool v2 = line.rfind("NOUGAT_STUDIO_QUEUE_V2\t", 0U) == 0U;
+    const bool v3 = line.rfind("NOUGAT_STUDIO_QUEUE_V3\t", 0U) == 0U;
     std::uint64_t durable_next_id = 0;
-    const std::string current = "NOUGAT_STUDIO_QUEUE_V2\t";
+    const std::string current = v3 ? "NOUGAT_STUDIO_QUEUE_V3\t" :
+                                "NOUGAT_STUDIO_QUEUE_V2\t";
     if (!legacy &&
-        (line.rfind(current, 0U) != 0U ||
-         !parse_uint64(line.substr(current.size()), durable_next_id) ||
+        ((!v2 && !v3) || !parse_uint64(line.substr(current.size()), durable_next_id) ||
          durable_next_id == 0U)) {
         persistence_ok_ = false;
         persistence_error_ = "Unrecognized or invalid Studio queue header.";
@@ -268,13 +274,20 @@ void Engine::load() {
             persistence_ok_ = false; persistence_error_ = "Studio queue exceeds safe limits."; return;
         }
         const auto fields = split_tabs(line);
-        if (fields.size() != 7U) {
+        if (fields.size() != (v3 ? 8U : 7U)) {
             persistence_ok_ = false; persistence_error_ = "Studio queue record is malformed."; return;
         }
         std::uint64_t id=0, preset=0, status=0, duration=0;
-        std::string input, output, err;
+        std::string input, output, err, edit_data;
+        ExportEdits edits;
+        if (v3 && (!hex_decode(fields[7], edit_data) ||
+                   !deserialize_export_edits(edit_data, edits))) {
+            persistence_ok_ = false;
+            persistence_error_ = "Studio queue has an invalid advanced export profile.";
+            return;
+        }
         if (!parse_uint64(fields[0], id) || id == 0 || id == UINT64_MAX ||
-            !parse_uint64(fields[1], preset) || preset > 7 ||
+            !parse_uint64(fields[1], preset) || preset > 8 ||
             !parse_uint64(fields[2], status) || status > 5 ||
             !parse_uint64(fields[3], duration) ||
             !hex_decode(fields[4], input) || !hex_decode(fields[5], output) ||
@@ -292,6 +305,7 @@ void Engine::load() {
         job.state = static_cast<JobState>(status);
         job.duration_ms = duration;
         job.error = err;
+        job.edits = edits;
         if (is_active(job.state)) {
             job.state = JobState::Interrupted;
             job.error = "Job interrupted by a previous application exit. Retry explicitly.";
@@ -316,9 +330,12 @@ void Engine::load() {
 }
 
 EnqueueResult Engine::enqueue(const fs::path& input, const fs::path& output,
-                              Preset preset, std::uint64_t duration_ms) {
+                              Preset preset, std::uint64_t duration_ms,
+                              const ExportEdits& edits) {
     std::string error;
-    if (!validate_files(input, output, preset, error)) return {false, 0, error};
+    if (!validate_files(input, output, preset, error) ||
+        !validate_export_edits(edits, preset, error))
+        return {false, 0, error};
     std::lock_guard<std::mutex> lock(mutex_);
     if (!persistence_ok_) return {false, 0, persistence_error_};
     if (jobs_.size() >= 10000U || next_id_ == UINT64_MAX)
@@ -334,6 +351,7 @@ EnqueueResult Engine::enqueue(const fs::path& input, const fs::path& output,
     job.output = output;
     job.preset = preset;
     job.duration_ms = duration_ms;
+    job.edits = edits;
     jobs_.push_back(job);
     ++next_id_;
     if (!save_locked()) {
@@ -351,7 +369,8 @@ BatchResult Engine::enqueue_batch(const std::vector<BatchItem>& items, Preset pr
     std::set<fs::path> target_paths;
     for (const BatchItem& item : items) {
         std::string error;
-        if (!validate_files(item.input, item.output, preset, error))
+        if (!validate_files(item.input, item.output, preset, error) ||
+            !validate_export_edits(item.edits, preset, error))
             return {false, {}, error};
         if (!target_paths.insert(item.output.lexically_normal()).second)
             return {false, {}, "Batch contains duplicate output paths."};
@@ -378,6 +397,7 @@ BatchResult Engine::enqueue_batch(const std::vector<BatchItem>& items, Preset pr
         job.output = item.output;
         job.preset = preset;
         job.duration_ms = item.estimated_duration_ms;
+        job.edits = item.edits;
         jobs_.push_back(std::move(job));
         ids.push_back(next - 1U);
     }
@@ -418,7 +438,8 @@ bool Engine::retry(std::uint64_t id) {
     for (Job& job : jobs_) {
         if (job.id != id || is_active(job.state) || job.state == JobState::Completed) continue;
         std::string error;
-        if (!validate_files(job.input, job.output, job.preset, error)) {
+        if (!validate_files(job.input, job.output, job.preset, error) ||
+            !validate_export_edits(job.edits, job.preset, error)) {
             job.error = error; (void)save_locked(); return false;
         }
         const Job previous = job;
@@ -595,7 +616,8 @@ void Engine::worker_loop() {
 
 bool Engine::process(const Job& job, std::string& error,
                      const std::function<void(int)>& report) {
-    if (!validate_files(job.input, job.output, job.preset, error)) return false;
+    if (!validate_files(job.input, job.output, job.preset, error) ||
+        !validate_export_edits(job.edits, job.preset, error)) return false;
     struct stat encoder_info{};
     if (ffmpeg_.empty() || ffmpeg_.front() != '/' ||
         stat(ffmpeg_.c_str(), &encoder_info) != 0 ||
@@ -617,13 +639,14 @@ bool Engine::process(const Job& job, std::string& error,
 
     int pipefd[2]{};
     if (pipe(pipefd) != 0) { error = "Cannot start FFmpeg progress tracking."; return false; }
-    const Format format = format_for(job.preset);
-    std::vector<std::string> args{
-        ffmpeg_, "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-nostats", "-progress", "pipe:1", "-y", "-i", job.input.string()
-    };
-    args.insert(args.end(), format.options.begin(), format.options.end());
-    args.insert(args.end(), {"-f", format.muxer, temporary});
+    ExportCommand prepared = build_export_command(
+        ffmpeg_, job.preset, job.edits, job.input, temporary);
+    if (!prepared.ok) {
+        close(pipefd[0]); close(pipefd[1]);
+        error = prepared.error;
+        return false;
+    }
+    std::vector<std::string> args = std::move(prepared.argv);
     std::vector<char*> argv;
     argv.reserve(args.size() + 1U);
     for (auto& value : args) argv.push_back(const_cast<char*>(value.c_str()));

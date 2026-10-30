@@ -1,3 +1,9 @@
+## v0.0.69 Advanced Studio editing, export and profile engine (2026-10-30)
+
+Source implementation: typed video trim/crop/rotate/resize/FPS/CRF/bitrate options; audio track selection/normalization/gain; SRT sidecar addition/burn-in, subtitle removal, stream selection and text-subtitle extraction; local named profile storage; queue V3 job-settings persistence (backward-compatible V1/V2 reading); per-export duration and advisory disk-space estimates. Both native and isolated CMake source lists include the new modules. See [Advanced Studio Export Source Review](docs/builds/NOUGAT_v0_0_69_STUDIO_ADVANCED_EXPORT_SOURCE_2026_10_30.md).
+
+**Still to build and test:** dedicated advanced Studio UI controls without moving approved geometry, timeline multi-cut and joining, actual FFmpeg regression runs, selected subtitle codec compatibility, installer/packaging acceptance and on-device testing. Source checks do not establish runtime success. No GitHub Actions, executable downloads or v0.0.69 increase.
+
 ## v0.0.69 Studio folder batches and queue control (2026-10-30)
 
 Source-only expansion: asynchronous folder preview and batch submission from the existing Studio Media Convert panel; bounded non-recursive/recursive media selection, output collision reports, opt-in explicit queuing, queue pause and queued-job order controls. Tests and both CMake lists updated. See [Studio Folder Batch and Queue Control](docs/builds/NOUGAT_v0_0_69_STUDIO_FOLDER_BATCH_SOURCE_2026_10_30.md).

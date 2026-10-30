@@ -1,4 +1,5 @@
 #pragma once
+#include "advanced_export.hpp"
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -15,7 +16,7 @@ namespace nougat::studio {
 enum class JobState { Queued, Running, Completed, Failed, Cancelled, Interrupted };
 enum class Preset {
     RemuxMp4, RemuxMkv, VideoMp4H264, VideoWebmVp9,
-    AudioMp3, AudioFlac, AudioWav, AudioOpus
+    AudioMp3, AudioFlac, AudioWav, AudioOpus, SubtitleSrt
 };
 
 struct Job {
@@ -23,6 +24,7 @@ struct Job {
     std::filesystem::path input;
     std::filesystem::path output;
     Preset preset = Preset::VideoMp4H264;
+    ExportEdits edits;
     JobState state = JobState::Queued;
     // -1 means duration unknown; reported progress is advisory, never a proof
     // that an output has been committed to its final destination.
@@ -40,6 +42,7 @@ struct BatchItem {
     std::filesystem::path input;
     std::filesystem::path output;
     std::uint64_t estimated_duration_ms = 0;
+    ExportEdits edits;
 };
 struct BatchResult {
     bool ok = false;
@@ -65,7 +68,8 @@ public:
     EnqueueResult enqueue(const std::filesystem::path& input,
                           const std::filesystem::path& output,
                           Preset preset,
-                          std::uint64_t estimated_duration_ms = 0);
+                          std::uint64_t estimated_duration_ms = 0,
+                          const ExportEdits& edits = {});
     BatchResult enqueue_batch(const std::vector<BatchItem>& items, Preset preset);
     bool cancel(std::uint64_t id);
     bool retry(std::uint64_t id);
