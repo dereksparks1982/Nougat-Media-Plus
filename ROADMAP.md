@@ -1,3 +1,9 @@
+## v0.0.69 Studio Media Convert integrated into Tools (2026-10-30)
+
+The Studio Tools page now has a dedicated Media Convert panel, reached from a new button below the approved File Splitter and File Assembler positions. The source integration uses Nougat's internal file browser, eight processing presets, unique protected output names, asynchronous inspection/submission and the existing durable Studio job queue with status, cancel and retry. See [Media Convert UI source review](docs/builds/NOUGAT_v0_0_69_STUDIO_MEDIA_CONVERT_UI_SOURCE_2026_10_30.md).
+
+**Remaining before acceptance:** native compilation, sample media conversion, remuxing, audio extraction, output collisions and recovery checks; advanced output naming/presets, clip trimming, subtitle controls, queue log viewer and production timeline. No UI layout displacement, GitHub Actions, executable release or version change.
+
 ## v0.0.69 Studio inspection, export planning and job reliability (2026-10-30)
 
 Built a standalone FFprobe media inspector (track codecs, dimensions, optional duration, bounded subprocess/output), advisory remux compatibility evaluation and a native StudioService facade for preflight, single export, homogeneous-preset batch, queue snapshots, retry and cancellation. The existing FFmpeg worker now has a bounded no-progress timeout and an additional last-moment cancel check before publishing exports. See [Studio Inspection and Service Source Review](docs/builds/NOUGAT_v0_0_69_STUDIO_INSPECTION_SERVICE_SOURCE_2026_10_30.md).

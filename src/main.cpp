@@ -70,6 +70,8 @@
 #include "world_tv/world_tv_service.hpp"
 #include "radio/radio_backend.hpp"
 #include "chat/nougat_chat.hpp"
+#include "studio/studio_service.hpp"
+#include <future>
 
 // NOUGAT_V54_FILE_SPLITTER_PROFESSIONAL
 
@@ -957,7 +959,7 @@ enum class StreamPlatform { YouTube, Vimeo, Rumble, RuTube, VK, OK };
 enum class LibraryDisplayMode { Grid, List };
 enum class GamesDisplayMode { Grid, List };
 enum class GamesPanel { Library, Systems, Controllers, Settings };
-enum class StudioPanel { Tools, Drone, FileSplitter }; // NOUGAT_V60_DRONE_STUDIO_TAB
+enum class StudioPanel { Tools, Drone, FileSplitter, MediaConvert }; // NOUGAT_V60_DRONE_STUDIO_TAB
 enum class StudioBrowserPurpose { Inactive, SourceFile, SourceFolder, SourceZipManifest, OutputFolder };
 enum class RadioPanel { Local, Emergency, Weather, Satellite, Shortwave, Internet, Favorites, Recordings, Cellular }; // NOUGAT_V58_RADIO_ALL_SERVICES
 enum class CardContextKind { Unset, Home, Library, Discover, LiveTV, WorldTV, Games };
@@ -2076,6 +2078,19 @@ public:
     StudioPanel studioPanel = StudioPanel::Tools;
     bool studioAssemblerMode = false; // NOUGAT_V59_SEPARATE_FILE_ASSEMBLER
     Rect studioToolsTab, studioDroneTab, studioFileSplitterToolBtn, studioFileAssemblerToolBtn, studioBackToToolsBtn;
+    // Media Convert is a new Tools action; existing splitter/assembler geometry is unchanged.
+    Rect studioMediaConvertToolBtn, studioConvertSourceBtn, studioConvertFolderBtn;
+    Rect studioConvertPresetBtn, studioConvertQueueBtn, studioConvertCancelBtn, studioConvertRetryBtn;
+    std::vector<std::pair<Rect,std::uint64_t>> studioConvertRows;
+    std::string studioConvertSource;
+    std::string studioConvertFolder = home_dir() + "/Downloads";
+    std::string studioConvertStatus = "Choose a media file and an output folder.";
+    ::nougat::studio::Preset studioConvertPreset = ::nougat::studio::Preset::VideoMp4H264;
+    std::uint64_t studioConvertSelectedJob = 0;
+    long long studioConvertLastPollMs = 0;
+    std::string studioConvertLastSignature;
+    std::unique_ptr<::nougat::studio::StudioService> studioConvertService;
+    std::future<::nougat::studio::EnqueueResult> studioConvertSubmission;
     // NOUGAT_V61_DRONE_MISSION_CONTROL_STATE
     Rect studioDroneRefreshBtn, studioDroneNewShotBtn, studioDroneSimulateBtn, studioDroneRecordPathBtn;
     Rect studioDroneSaveShotBtn, studioDroneClearPathBtn, studioDroneMapRect, studioDroneLiveVideoRect;
@@ -10348,6 +10363,22 @@ public:
     void open_studio_browser(StudioBrowserPurpose purpose) {
         studioBrowserPurpose = purpose;
         std::filesystem::path initial;
+        if (studioPanel == StudioPanel::MediaConvert) {
+            if (purpose == StudioBrowserPurpose::OutputFolder)
+                initial = studioConvertFolder;
+            else if (!studioConvertSource.empty())
+                initial = studioConvertSource;
+            else initial = home_dir();
+            initial = studio_browser_existing_directory(initial);
+            studioBrowserPath = initial.string();
+            studioBrowserSelectedPath.clear();
+            studioBrowserScroll = 0;
+            studioInputFocus = 0;
+            studioInputSelectAll = false;
+            studioConvertStatus = "Browse inside Nougat; no external file chooser.";
+            redraw();
+            return;
+        }
         if (purpose == StudioBrowserPurpose::OutputFolder) {
             initial = studioOutputPath.empty() ? std::filesystem::path(home_dir()) : std::filesystem::path(studioOutputPath);
         } else if (!studioSourcePath.empty()) {
@@ -10418,6 +10449,25 @@ public:
     }
 
     void studio_browser_apply_selection() {
+        if (studioPanel == StudioPanel::MediaConvert) {
+            if (studioBrowserPurpose == StudioBrowserPurpose::OutputFolder) {
+                studioConvertFolder = studioBrowserPath;
+                studioConvertStatus = "Output folder selected. Existing files will not be overwritten.";
+                close_studio_browser();
+                return;
+            }
+            if (studioBrowserPurpose == StudioBrowserPurpose::SourceFile) {
+                if (studioBrowserSelectedPath.empty()) {
+                    studioConvertStatus = "Select a media file first.";
+                    redraw();
+                    return;
+                }
+                studioConvertSource = studioBrowserSelectedPath;
+                studioConvertStatus = "Source selected. Choose a format and queue your export.";
+                close_studio_browser();
+                return;
+            }
+        }
         if (studioBrowserPurpose == StudioBrowserPurpose::SourceFolder ||
             studioBrowserPurpose == StudioBrowserPurpose::OutputFolder) {
             const std::string selected = studioBrowserPath;
@@ -10577,6 +10627,127 @@ public:
         studioDroneStatus="Waypoint "+std::to_string(studioDroneWaypoints.size())+" added to "+studioDroneShotName+".";
     }
 
+    void ensure_studio_convert_service() {
+        if (!studioConvertService)
+            studioConvertService = std::make_unique<::nougat::studio::StudioService>();
+    }
+
+    std::filesystem::path studio_convert_output_file() const {
+        if (studioConvertSource.empty() || studioConvertFolder.empty()) return {};
+        const std::filesystem::path source(studioConvertSource);
+        const std::filesystem::path directory(studioConvertFolder);
+        const auto preset = studioConvertPreset;
+        const char* extension = ".mp4";
+        switch (preset) {
+            case ::nougat::studio::Preset::RemuxMp4:
+            case ::nougat::studio::Preset::VideoMp4H264: extension = ".mp4"; break;
+            case ::nougat::studio::Preset::RemuxMkv: extension = ".mkv"; break;
+            case ::nougat::studio::Preset::VideoWebmVp9: extension = ".webm"; break;
+            case ::nougat::studio::Preset::AudioMp3: extension = ".mp3"; break;
+            case ::nougat::studio::Preset::AudioFlac: extension = ".flac"; break;
+            case ::nougat::studio::Preset::AudioWav: extension = ".wav"; break;
+            case ::nougat::studio::Preset::AudioOpus: extension = ".opus"; break;
+        }
+        // Choose a free name without touching any existing media. This allows
+        // repeated exports and different presets while preserving past results.
+        const std::string base = source.stem().string() + "-nougat";
+        const auto queued = studioConvertService ? studioConvertService->jobs() :
+            std::vector<::nougat::studio::Job>{};
+        for (int suffix = 1; suffix <= 9999; ++suffix) {
+            const std::string suffix_text = suffix == 1 ? "" : "-" + std::to_string(suffix);
+            const auto proposed = directory / (base + suffix_text + extension);
+            std::error_code ec;
+            if (std::filesystem::exists(proposed,ec) ||
+                std::filesystem::is_symlink(proposed,ec) || ec) continue;
+            bool reserved = false;
+            for (const auto& job : queued) {
+                if (job.output == proposed &&
+                    (job.state == ::nougat::studio::JobState::Queued ||
+                     job.state == ::nougat::studio::JobState::Running)) {
+                    reserved = true;
+                    break;
+                }
+            }
+            if (!reserved) return proposed;
+        }
+        return {};
+    }
+
+    void start_studio_convert_job() {
+        if (studioConvertSubmission.valid()) {
+            studioConvertStatus = "An export is still being prepared. Please wait.";
+            redraw();
+            return;
+        }
+        const auto output = studio_convert_output_file();
+        if (output.empty()) {
+            studioConvertStatus = "Choose a source file and output folder first.";
+            redraw();
+            return;
+        }
+        if (!std::filesystem::is_regular_file(std::filesystem::path(studioConvertSource))) {
+            studioConvertStatus = "The source must be an existing regular file.";
+            redraw();
+            return;
+        }
+        if (!std::filesystem::is_directory(std::filesystem::path(studioConvertFolder))) {
+            studioConvertStatus = "The output folder is unavailable.";
+            redraw();
+            return;
+        }
+        if (std::filesystem::exists(output) || std::filesystem::is_symlink(output)) {
+            studioConvertStatus = "Export already exists. Nougat will not overwrite it: " + output.filename().string();
+            redraw();
+            return;
+        }
+        ensure_studio_convert_service();
+        const ::nougat::studio::ExportRequest request{
+            std::filesystem::path(studioConvertSource), output, studioConvertPreset};
+        auto* service = studioConvertService.get();
+        studioConvertStatus = "Inspecting media and preparing the export...";
+        studioConvertSubmission = std::async(std::launch::async, [service, request] {
+            return service->submit(request);
+        });
+        redraw();
+    }
+
+    void poll_studio_convert() {
+        if (!studioConvertService) return;
+        bool update = false;
+        if (studioConvertSubmission.valid() &&
+            studioConvertSubmission.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+            try {
+                const auto result = studioConvertSubmission.get();
+                if (result.ok) {
+                    studioConvertSelectedJob = result.id;
+                    studioConvertStatus = "Export queued as job " + std::to_string(result.id) + ".";
+                } else studioConvertStatus = "Export rejected: " + result.error;
+            } catch (const std::exception& error) {
+                studioConvertStatus = std::string("Export preparation failed: ") + error.what();
+            }
+            update = true;
+        }
+        const long long now = now_ms();
+        if (now - studioConvertLastPollMs >= 350LL) {
+            studioConvertLastPollMs = now;
+            const auto jobs = studioConvertService->jobs();
+            std::string signature;
+            const std::size_t first = jobs.size() > 6U ? jobs.size()-6U : 0U;
+            for (std::size_t i=first; i<jobs.size(); ++i) {
+                const auto& job=jobs[i];
+                signature += std::to_string(job.id) + ":" +
+                    ::nougat::studio::state_name(job.state) + ":" +
+                    std::to_string(job.progress_percent) + ";";
+            }
+            if (signature != studioConvertLastSignature) {
+                studioConvertLastSignature = std::move(signature);
+                update = true;
+            }
+        }
+        if (update && currentView==ViewMode::Studio &&
+            studioPanel==StudioPanel::MediaConvert && !fullscreen) redraw();
+    }
+
     void handle_studio_click(int x, int y) {
         if (studio_browser_active()) { handle_studio_browser_click(x,y); return; }
         if (studioToolsTab.contains(x,y)) {
@@ -10706,6 +10877,13 @@ public:
             return;
         }
         if (studioPanel==StudioPanel::Tools) {
+            if (studioMediaConvertToolBtn.contains(x,y)) {
+                studioPanel = StudioPanel::MediaConvert;
+                ensure_studio_convert_service();
+                studioConvertStatus = "Choose a source file, output folder and export preset.";
+                redraw();
+                return;
+            }
             if (studioFileSplitterToolBtn.contains(x,y)) {
                 studioPanel=StudioPanel::FileSplitter;
                 studioAssemblerMode=false;
@@ -10720,6 +10898,46 @@ public:
                 studioInputSelectAll=false;
                 studioStatus="Choose a parts manifest or any numbered split part. Nougat will discover the complete set.";
                 redraw();
+            }
+            return;
+        }
+        if (studioPanel==StudioPanel::MediaConvert) {
+            if (studioBackToToolsBtn.contains(x,y)) {
+                studioPanel=StudioPanel::Tools; redraw(); return;
+            }
+            if (studioConvertSourceBtn.contains(x,y)) {
+                open_studio_browser(StudioBrowserPurpose::SourceFile); return;
+            }
+            if (studioConvertFolderBtn.contains(x,y)) {
+                open_studio_browser(StudioBrowserPurpose::OutputFolder); return;
+            }
+            if (studioConvertPresetBtn.contains(x,y)) {
+                int index = static_cast<int>(studioConvertPreset);
+                studioConvertPreset = static_cast<::nougat::studio::Preset>((index + 1) % 8);
+                studioConvertStatus = "Preset: " +
+                    std::string(::nougat::studio::preset_name(studioConvertPreset));
+                redraw(); return;
+            }
+            if (studioConvertQueueBtn.contains(x,y)) { start_studio_convert_job(); return; }
+            if (studioConvertCancelBtn.contains(x,y)) {
+                if (studioConvertService && studioConvertService->cancel(studioConvertSelectedJob))
+                    studioConvertStatus = "Cancellation requested for job " +
+                        std::to_string(studioConvertSelectedJob) + ".";
+                else studioConvertStatus = "No cancellable selected job.";
+                redraw(); return;
+            }
+            if (studioConvertRetryBtn.contains(x,y)) {
+                if (studioConvertService && studioConvertService->retry(studioConvertSelectedJob))
+                    studioConvertStatus = "Retry queued for job " +
+                        std::to_string(studioConvertSelectedJob) + ".";
+                else studioConvertStatus = "Selected job cannot be retried.";
+                redraw(); return;
+            }
+            for (const auto& row : studioConvertRows) {
+                if (row.first.contains(x,y)) {
+                    studioConvertSelectedJob = row.second;
+                    redraw(); return;
+                }
             }
             return;
         }
@@ -15921,10 +16139,82 @@ public:
             studioFileAssemblerToolBtn={panel.x+18+studioToolW+studioToolGap,panel.y+78,studioToolW,38};
             button_on(target,studioFileSplitterToolBtn,"File Splitter");
             button_on(target,studioFileAssemblerToolBtn,"File Assembler");
+            studioMediaConvertToolBtn={panel.x+18,panel.y+202,studioToolW,38};
+            button_on(target,studioMediaConvertToolBtn,"Media Convert");
+            text(target,panel.x+18,panel.y+258,
+                 "Convert or remux video, extract audio, and monitor your durable Studio queue.",palette.muted);
             text(target,panel.x+18,panel.y+140,
                  "File Splitter creates verified parts. File Assembler restores a complete verified original.",palette.text);
             text(target,panel.x+18,panel.y+164,
                  "Assembler accepts a manifest or any numbered part, discovers the rest, rebuilds, and SHA-256 verifies the result.",palette.muted);
+            return;
+        }
+
+        if (studioPanel == StudioPanel::MediaConvert) {
+            studioBackToToolsBtn={panel.x+panel.w-150,panel.y+12,132,30};
+            button_on(target,studioBackToToolsBtn,"Back to Tools");
+            text(target,panel.x+18,panel.y+28,"MEDIA CONVERT",palette.text);
+            text(target,panel.x+18,panel.y+51,
+                 "FFmpeg exports run in Nougat's persistent Studio queue. Originals are never overwritten.",palette.muted);
+            const int left=panel.x+18;
+            const int right=panel.x+panel.w-18;
+            studioConvertSourceBtn={left,panel.y+72,145,32};
+            studioConvertFolderBtn={left,panel.y+112,145,32};
+            button_on(target,studioConvertSourceBtn,"Choose Media File");
+            button_on(target,studioConvertFolderBtn,"Output Folder");
+            text(target,left+155,panel.y+93,
+                 head_to_width(studioConvertSource.empty() ? "No source selected." : studioConvertSource,
+                               std::max(90,right-left-160)),palette.text);
+            text(target,left+155,panel.y+133,
+                 head_to_width(studioConvertFolder,std::max(90,right-left-160)),palette.text);
+            // New tool controls may stack on narrow windows. The original
+            // Tools / Drone / Splitter / Assembler geometry stays untouched.
+            const bool narrowConvert = panel.w < 510;
+            const int verticalShift = narrowConvert ? 40 : 0;
+            studioConvertPresetBtn={left,panel.y+153,
+                                    narrowConvert ? panel.w-36 : 245,32};
+            studioConvertQueueBtn={
+                narrowConvert ? left : left+255,
+                panel.y+153+(narrowConvert?40:0),
+                narrowConvert ? panel.w-36 : std::min(150,panel.w-291),32};
+            button_on(target,studioConvertPresetBtn,
+                      std::string("Format: ") + ::nougat::studio::preset_name(studioConvertPreset));
+            button_on(target,studioConvertQueueBtn,"Queue Export");
+            const auto destination = studio_convert_output_file();
+            text(target,left,panel.y+204+verticalShift,
+                 head_to_width(destination.empty()?"Output name: choose media file first.":
+                               "Output: "+destination.filename().string(),panel.w-36),palette.muted);
+            text(target,left,panel.y+224+verticalShift,
+                 head_to_width(studioConvertStatus,panel.w-36),palette.text);
+            const int actionWidth=narrowConvert ? std::max(80,(panel.w-44)/2) : 132;
+            studioConvertCancelBtn={left,panel.y+238+verticalShift,actionWidth,30};
+            studioConvertRetryBtn={left+actionWidth+8,panel.y+238+verticalShift,actionWidth,30};
+            button_on(target,studioConvertCancelBtn,"Cancel Job");
+            button_on(target,studioConvertRetryBtn,"Retry Job");
+            if (!narrowConvert)
+                text(target,left+284,panel.y+258,
+                     "Select a queue row, then cancel or retry.",palette.muted);
+            studioConvertRows.clear();
+            if (studioConvertService) {
+                const auto jobs=studioConvertService->jobs();
+                const int rowHeight=23;
+                const int available=std::max(0,(panel.h-292-verticalShift)/rowHeight);
+                const int count=std::min(available,static_cast<int>(jobs.size()));
+                const std::size_t start=jobs.size()-static_cast<std::size_t>(count);
+                for (int i=0;i<count;++i) {
+                    const auto& job=jobs[start+static_cast<std::size_t>(i)];
+                    Rect row{left,panel.y+278+verticalShift+i*rowHeight,panel.w-36,rowHeight-2};
+                    if (job.id==studioConvertSelectedJob) fill(target,row,palette.selection);
+                    else if ((i&1)!=0) fill(target,row,palette.field);
+                    const std::string percent=job.progress_percent<0?"?":
+                        std::to_string(job.progress_percent)+"%";
+                    text(target,row.x+5,row.y+16,
+                         head_to_width("#"+std::to_string(job.id)+"  "+
+                           ::nougat::studio::state_name(job.state)+"  "+percent+"  "+
+                           job.output.filename().string(),row.w-10),palette.text);
+                    studioConvertRows.push_back({row,job.id});
+                }
+            }
             return;
         }
 
@@ -18772,6 +19062,7 @@ public:
             poll_ytdlp_process();
             poll_nougat_workers();
             poll_studio_worker();
+            poll_studio_convert();
             poll_drone_simulation();
             maybe_auto_analyze_studio_source();
             poll_home_worker();
@@ -18880,6 +19171,9 @@ public:
     }
     void shutdown() {
         shuttingDown = true;
+        // Async preflight must finish before its StudioService can be destroyed.
+        if (studioConvertSubmission.valid()) studioConvertSubmission.wait();
+        studioConvertService.reset();
         if (studioJobRunning) {
             stop_studio_job();
             const long long deadline=now_ms()+2200LL;

@@ -1,3 +1,12 @@
+## Unreleased: Studio Media Convert source integration (2026-10-30)
+
+- Add a Media Convert tool beneath the existing Studio File Splitter and File Assembler buttons.
+- Connect Nougat's file browser and eight conversion presets to the shared Studio service and persistent job queue.
+- Prepare exports asynchronously, suggest unused output filenames, and show recent jobs with cancellation and retry.
+- Preserve the existing Studio Tools and Drone layout and previous file tools.
+- Add source regression checks; native compilation and live conversion are still pending.
+- Keep v0.0.69. No GitHub Actions, downloads or executable release.
+
 ## Unreleased: Studio media inspection and export service foundation (2026-10-30)
 
 - Add bounded FFprobe inspection for local media tracks, codecs, dimensions and duration; classify remux as an advisory candidate, never guaranteed.
