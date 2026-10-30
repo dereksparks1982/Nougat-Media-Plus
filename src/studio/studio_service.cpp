@@ -1,4 +1,5 @@
 #include "studio_service.hpp"
+#include "folder_batch_planner.hpp"
 
 #include <utility>
 
@@ -79,8 +80,21 @@ BatchResult StudioService::submit_batch(const std::vector<ExportRequest>& reques
     }
     return engine_.enqueue_batch(items, preset);
 }
+FolderBatchPlan StudioService::preview_folder(const FolderBatchOptions& options) const {
+    return plan_folder_batch(options, engine_.snapshot());
+}
+BatchResult StudioService::submit_folder(const FolderBatchPlan& preview) {
+    if (!preview.ok || preview.exports.empty() || preview.exports.size() > 1000U)
+        return {false, {}, "A valid folder preview is required before queuing a batch."};
+    return submit_batch(preview.exports);
+}
 bool StudioService::cancel(std::uint64_t id) { return engine_.cancel(id); }
 bool StudioService::retry(std::uint64_t id) { return engine_.retry(id); }
+void StudioService::set_queue_paused(bool paused) { engine_.set_queue_paused(paused); }
+bool StudioService::queue_paused() const { return engine_.queue_paused(); }
+bool StudioService::move_queued(std::uint64_t id, int direction) {
+    return engine_.move_queued(id, direction);
+}
 bool StudioService::forget(std::uint64_t id) { return engine_.forget(id); }
 std::string StudioService::recent_log(std::uint64_t id, std::size_t limit) const {
     return engine_.recent_log(id, limit);

@@ -1,3 +1,9 @@
+## v0.0.69 Studio folder batches and queue control (2026-10-30)
+
+Source-only expansion: asynchronous folder preview and batch submission from the existing Studio Media Convert panel; bounded non-recursive/recursive media selection, output collision reports, opt-in explicit queuing, queue pause and queued-job order controls. Tests and both CMake lists updated. See [Studio Folder Batch and Queue Control](docs/builds/NOUGAT_v0_0_69_STUDIO_FOLDER_BATCH_SOURCE_2026_10_30.md).
+
+**Outstanding:** native compile/link, core C++ test execution, actual FFmpeg and FFprobe processing, device/GUI acceptance and high-volume batch validation. No geometry moves, GitHub Actions, version bump or download.
+
 ## v0.0.69 Studio queue navigation and history safety (2026-10-30)
 
 Building on the existing Media Convert UI, Studio now has mouse-wheel/Page Up/Down access to historical jobs, selected-job error reporting, Ctrl+C local diagnostics and Ctrl+Delete removal of completed/cancelled/failed/interrupted **queue records only**. The durable internal queue format advances to V2 for next-ID persistence, with V1 migration, atomic counter saves and bounded symlink-safe log reads. Approved UI geometry and application version are unchanged.

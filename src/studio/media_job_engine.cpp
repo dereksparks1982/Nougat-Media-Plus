@@ -489,6 +489,44 @@ std::string Engine::recent_log(std::uint64_t id, std::size_t limit) const {
     return tail.empty() ? "The encoder log is empty." : tail;
 }
 
+void Engine::set_queue_paused(bool paused) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        queue_paused_ = paused;
+    }
+    cv_.notify_all();
+}
+
+bool Engine::queue_paused() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return queue_paused_;
+}
+
+bool Engine::move_queued(std::uint64_t id, int direction) {
+    if (direction != -1 && direction != 1) return false;
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!persistence_ok_) return false;
+    auto found = std::find_if(jobs_.begin(), jobs_.end(),
+        [id](const Job& job) { return job.id == id && job.state == JobState::Queued; });
+    if (found == jobs_.end()) return false;
+    auto other = jobs_.end();
+    if (direction < 0) {
+        for (auto it = jobs_.begin(); it != found; ++it)
+            if (it->state == JobState::Queued) other = it;
+    } else {
+        for (auto it = found + 1; it != jobs_.end(); ++it)
+            if (it->state == JobState::Queued) { other = it; break; }
+    }
+    if (other == jobs_.end()) return false;
+    std::iter_swap(found, other);
+    if (!save_locked()) {
+        std::iter_swap(found, other);
+        return false;
+    }
+    cv_.notify_all();
+    return true;
+}
+
 std::vector<Job> Engine::snapshot() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return jobs_;
@@ -512,8 +550,9 @@ void Engine::worker_loop() {
         {
             std::unique_lock<std::mutex> lock(mutex_);
             cv_.wait(lock, [&] {
-                return closing_.load() || std::any_of(jobs_.begin(), jobs_.end(),
-                    [](const Job& j) { return j.state == JobState::Queued; });
+                return closing_.load() || (!queue_paused_ &&
+                    std::any_of(jobs_.begin(), jobs_.end(),
+                        [](const Job& j) { return j.state == JobState::Queued; }));
             });
             if (closing_.load()) return;
             auto job = std::find_if(jobs_.begin(), jobs_.end(),

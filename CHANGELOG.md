@@ -1,3 +1,12 @@
+## Unreleased: Studio folder batch and queue controls (2026-10-30)
+
+- Add bounded folder-batch scanner, preview result and skipped-file diagnostics with symlink, overlap and overwrite guards.
+- Connect Media Convert's internal folder picker to asynchronous preview; submit only on explicit Queue Export after stream preflight.
+- Add Ctrl+B folder selection, Ctrl+Shift+B recursion toggle, Ctrl+Shift+C preview report, Ctrl+P queue pause and Ctrl+Up/Down queued job ordering.
+- Preserve job sequence across restarts; rollback failed order persistence and keep existing FFmpeg and UI geometry unchanged.
+- Add two C++ test sources, offline contract audit and both native/isolated CMake source wiring.
+- Source candidate only: compilation, real media processing and owner testing outstanding. No GitHub Actions, download, binary or version increase.
+
 ## Unreleased: Studio queue history, navigation and diagnostics (2026-10-30)
 
 - Add mouse-wheel and Page Up/Down navigation through the existing Media Convert job list without moving controls.

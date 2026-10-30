@@ -9,3 +9,5 @@ Tests: `test_studio_media_job_engine`, `test_studio_media_inspector` and `test_s
 To protect the active development installation, any future CMake configure/build/CTest execution should use a disposable build directory **on the internal development drive**, never an in-source build or the external storage drive. Do not run this test project against a user's actual media folders.
 
 Passing the isolated tests would not prove MP4/Matroska codec support, real output quality, the Studio GUI controls, cancellation under hardware load or libVLC playback. Those still require a separate acceptance phase.
+
+The isolated Studio CMake project now also includes `test_studio_folder_batch` and `test_studio_queue_controls`, using temporary fake media fixtures. These tests are still opt-in, never GitHub Actions and not evidence of full application or codec acceptance.

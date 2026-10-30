@@ -69,6 +69,11 @@ public:
     BatchResult enqueue_batch(const std::vector<BatchItem>& items, Preset preset);
     bool cancel(std::uint64_t id);
     bool retry(std::uint64_t id);
+    // Pauses new work, never suspends or kills a running FFmpeg process.
+    void set_queue_paused(bool paused);
+    bool queue_paused() const;
+    // Change the order of queued work only. direction=-1 moves earlier.
+    bool move_queued(std::uint64_t id, int direction);
     // Removes only a finished/cancelled/failed/interrupted queue RECORD.
     // Never touches source files, completed exports, or encoder log files.
     bool forget(std::uint64_t id);
@@ -95,6 +100,7 @@ private:
     std::atomic<bool> closing_{false};
     std::atomic<bool> cancel_running_{false};
     std::atomic<int> child_group_{-1};
+    bool queue_paused_ = false;
     std::uint64_t next_id_ = 1;
     bool persistence_ok_ = true;
     std::string persistence_error_;

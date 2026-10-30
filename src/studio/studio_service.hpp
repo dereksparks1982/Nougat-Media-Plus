@@ -8,6 +8,9 @@
 
 namespace nougat::studio {
 
+struct FolderBatchOptions;
+struct FolderBatchPlan;
+
 struct ExportPlan {
     bool valid = false;
     MediaProbe media;
@@ -32,8 +35,13 @@ public:
     ExportPlan plan(const ExportRequest& request) const;
     EnqueueResult submit(const ExportRequest& request);
     BatchResult submit_batch(const std::vector<ExportRequest>& requests);
+    FolderBatchPlan preview_folder(const FolderBatchOptions& options) const;
+    BatchResult submit_folder(const FolderBatchPlan& preview);
     bool cancel(std::uint64_t job_id);
     bool retry(std::uint64_t job_id);
+    void set_queue_paused(bool paused);
+    bool queue_paused() const;
+    bool move_queued(std::uint64_t job_id, int direction);
     bool forget(std::uint64_t job_id);
     std::string recent_log(std::uint64_t job_id, std::size_t limit = 4096U) const;
     std::vector<Job> jobs() const;

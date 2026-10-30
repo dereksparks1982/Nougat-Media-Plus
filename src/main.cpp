@@ -71,6 +71,7 @@
 #include "radio/radio_backend.hpp"
 #include "chat/nougat_chat.hpp"
 #include "studio/studio_service.hpp"
+#include "studio/folder_batch_planner.hpp"
 #include <future>
 
 // NOUGAT_V54_FILE_SPLITTER_PROFESSIONAL
@@ -2093,6 +2094,14 @@ public:
     std::string studioConvertLastSignature;
     std::unique_ptr<::nougat::studio::StudioService> studioConvertService;
     std::future<::nougat::studio::EnqueueResult> studioConvertSubmission;
+    std::string studioConvertBatchSource;
+    bool studioConvertBatchRecursive = false;
+    bool studioConvertBatchPreviewReady = false;
+    bool studioConvertBatchRefreshPending = false;
+    ::nougat::studio::FolderBatchPlan studioConvertBatchPlan;
+    ::nougat::studio::FolderBatchOptions studioConvertBatchOptions;
+    std::future<::nougat::studio::FolderBatchPlan> studioConvertBatchPreviewTask;
+    std::future<::nougat::studio::BatchResult> studioConvertBatchSubmission;
     // NOUGAT_V61_DRONE_MISSION_CONTROL_STATE
     Rect studioDroneRefreshBtn, studioDroneNewShotBtn, studioDroneSimulateBtn, studioDroneRecordPathBtn;
     Rect studioDroneSaveShotBtn, studioDroneClearPathBtn, studioDroneMapRect, studioDroneLiveVideoRect;
@@ -10038,6 +10047,50 @@ public:
             return;
         }
         if (studioPanel == StudioPanel::MediaConvert) {
+            if ((event.state & ControlMask) && (ks==XK_b || ks==XK_B)) {
+                if (event.state & ShiftMask) {
+                    if (studioConvertBatchSource.empty()) {
+                        studioConvertStatus="Choose a batch folder with Ctrl+B first.";
+                        redraw(); return;
+                    }
+                    studioConvertBatchRecursive=!studioConvertBatchRecursive;
+                    start_studio_batch_preview();
+                } else open_studio_browser(StudioBrowserPurpose::SourceFolder);
+                return;
+            }
+            if ((event.state & ControlMask) && (event.state & ShiftMask) &&
+                (ks==XK_c || ks==XK_C) && studioConvertBatchPreviewReady) {
+                std::string summary="Nougat Studio folder batch preview\nSource: "+
+                    studioConvertBatchSource+"\nOutput: "+studioConvertFolder+
+                    "\nPreset: "+::nougat::studio::preset_name(studioConvertPreset)+
+                    "\nEligible: "+std::to_string(studioConvertBatchPlan.exports.size())+
+                    "\nSkipped: "+std::to_string(studioConvertBatchPlan.skipped.size())+"\n";
+                for (const auto& request : studioConvertBatchPlan.exports)
+                    summary+="READY "+request.input.string()+" -> "+request.output.string()+"\n";
+                for (const auto& skipped : studioConvertBatchPlan.skipped)
+                    summary+="SKIP "+skipped.source.string()+": "+skipped.reason+"\n";
+                own_clipboard_text(summary);
+                studioConvertStatus="Copied folder preview and skip reasons to clipboard.";
+                redraw(); return;
+            }
+            if ((event.state & ControlMask) && (ks==XK_p || ks==XK_P)) {
+                ensure_studio_convert_service();
+                const bool pause=!studioConvertService->queue_paused();
+                studioConvertService->set_queue_paused(pause);
+                studioConvertStatus=pause
+                    ? "Queue paused: active encode finishes; next jobs wait."
+                    : "Queue resumed.";
+                redraw(); return;
+            }
+            if ((event.state & ControlMask) &&
+                (ks==XK_Up || ks==XK_Down) && studioConvertService &&
+                studioConvertSelectedJob != 0) {
+                const bool moved=studioConvertService->move_queued(
+                    studioConvertSelectedJob,ks==XK_Up?-1:1);
+                studioConvertStatus=moved?"Queued job order updated.":
+                    "Only queued jobs can move, and cannot pass the queue edge.";
+                redraw(); return;
+            }
             if ((ks == XK_Page_Up || ks == XK_Page_Down) && studioConvertService) {
                 const auto jobs=studioConvertService->jobs();
                 const int visible=std::max(1,studioConvertHistoryViewport.h/23);
@@ -10503,6 +10556,14 @@ public:
                 studioConvertFolder = studioBrowserPath;
                 studioConvertStatus = "Output folder selected. Existing files will not be overwritten.";
                 close_studio_browser();
+                if (!studioConvertBatchSource.empty()) start_studio_batch_preview();
+                return;
+            }
+            if (studioBrowserPurpose == StudioBrowserPurpose::SourceFolder) {
+                studioConvertBatchSource=studioBrowserPath;
+                studioConvertSource.clear();
+                close_studio_browser();
+                start_studio_batch_preview();
                 return;
             }
             if (studioBrowserPurpose == StudioBrowserPurpose::SourceFile) {
@@ -10512,6 +10573,8 @@ public:
                     return;
                 }
                 studioConvertSource = studioBrowserSelectedPath;
+                studioConvertBatchSource.clear();
+                studioConvertBatchPreviewReady=false;
                 studioConvertStatus = "Source selected. Choose a format and queue your export.";
                 close_studio_browser();
                 return;
@@ -10681,6 +10744,37 @@ public:
             studioConvertService = std::make_unique<::nougat::studio::StudioService>();
     }
 
+    void start_studio_batch_preview() {
+        if (studioConvertBatchSource.empty()) return;
+        if (studioConvertBatchPreviewTask.valid()) {
+            studioConvertBatchRefreshPending=true;
+            studioConvertBatchPreviewReady=false;
+            studioConvertStatus="Folder options changed; rescanning after current preview.";
+            redraw(); return;
+        }
+        if (studioConvertBatchSubmission.valid()) {
+            studioConvertStatus="A batch submission is still running.";
+            redraw(); return;
+        }
+        studioConvertBatchRefreshPending=false;
+        ensure_studio_convert_service();
+        studioConvertBatchPreviewReady=false;
+        studioConvertBatchPlan={};
+        ::nougat::studio::FolderBatchOptions options;
+        options.source_directory=studioConvertBatchSource;
+        options.output_directory=studioConvertFolder;
+        options.preset=studioConvertPreset;
+        options.recursive=studioConvertBatchRecursive;
+        options.max_files=200;
+        options.max_depth=4;
+        studioConvertBatchOptions=options;
+        auto* service=studioConvertService.get();
+        studioConvertStatus="Scanning folder (no exports created)...";
+        studioConvertBatchPreviewTask=std::async(std::launch::async,
+            [service, options] { return service->preview_folder(options); });
+        redraw();
+    }
+
     std::filesystem::path studio_convert_output_file() const {
         if (studioConvertSource.empty() || studioConvertFolder.empty()) return {};
         const std::filesystem::path source(studioConvertSource);
@@ -10723,6 +10817,34 @@ public:
     }
 
     void start_studio_convert_job() {
+        if (!studioConvertBatchSource.empty()) {
+            if (studioConvertBatchPreviewTask.valid() || studioConvertBatchSubmission.valid()) {
+                studioConvertStatus="Batch scan/submission still processing.";
+                redraw(); return;
+            }
+            if (!studioConvertBatchPreviewReady || !studioConvertBatchPlan.ok ||
+                studioConvertBatchPlan.exports.empty()) {
+                studioConvertStatus="Complete a valid folder preview first (Ctrl+B).";
+                redraw(); return;
+            }
+            if (studioConvertBatchOptions.source_directory != studioConvertBatchSource ||
+                studioConvertBatchOptions.output_directory != studioConvertFolder ||
+                studioConvertBatchOptions.preset != studioConvertPreset ||
+                studioConvertBatchOptions.recursive != studioConvertBatchRecursive) {
+                studioConvertBatchPreviewReady=false;
+                studioConvertStatus="Folder options changed. Preview again before submission.";
+                redraw(); return;
+            }
+            ensure_studio_convert_service();
+            const auto planned=studioConvertBatchPlan;
+            auto* service=studioConvertService.get();
+            studioConvertBatchPreviewReady=false;
+            studioConvertStatus="Inspecting "+std::to_string(planned.exports.size())+
+                " files before atomic queue submission...";
+            studioConvertBatchSubmission=std::async(std::launch::async,
+                [service,planned] { return service->submit_folder(planned); });
+            redraw(); return;
+        }
         if (studioConvertSubmission.valid()) {
             studioConvertStatus = "An export is still being prepared. Please wait.";
             redraw();
@@ -10763,6 +10885,50 @@ public:
     void poll_studio_convert() {
         if (!studioConvertService) return;
         bool update = false;
+        if (studioConvertBatchPreviewTask.valid() &&
+            studioConvertBatchPreviewTask.wait_for(std::chrono::milliseconds(0)) ==
+                std::future_status::ready) {
+            try {
+                auto preview=studioConvertBatchPreviewTask.get();
+                if (studioConvertBatchOptions.source_directory == studioConvertBatchSource &&
+                    studioConvertBatchOptions.output_directory == studioConvertFolder &&
+                    studioConvertBatchOptions.preset == studioConvertPreset &&
+                    studioConvertBatchOptions.recursive == studioConvertBatchRecursive) {
+                    studioConvertBatchPreviewReady=preview.ok;
+                    studioConvertBatchPlan=std::move(preview);
+                    studioConvertStatus=studioConvertBatchPlan.ok
+                        ? "Batch preview: "+std::to_string(studioConvertBatchPlan.exports.size())+
+                          " ready, "+std::to_string(studioConvertBatchPlan.skipped.size())+
+                          " skipped. Queue Export to proceed."
+                        : "Batch preview rejected: "+studioConvertBatchPlan.error;
+                } else {
+                    studioConvertBatchPreviewReady=false;
+                    studioConvertStatus="Folder options changed. Refreshing preview.";
+                    studioConvertBatchRefreshPending=!studioConvertBatchSource.empty();
+                }
+            } catch (const std::exception& e) {
+                studioConvertStatus=std::string("Folder scan failed: ")+e.what();
+            }
+            if (studioConvertBatchRefreshPending && !studioConvertBatchSource.empty())
+                start_studio_batch_preview();
+            update=true;
+        }
+        if (studioConvertBatchSubmission.valid() &&
+            studioConvertBatchSubmission.wait_for(std::chrono::milliseconds(0)) ==
+                std::future_status::ready) {
+            try {
+                const auto result=studioConvertBatchSubmission.get();
+                if (result.ok && !result.ids.empty()) {
+                    studioConvertSelectedJob=result.ids.front();
+                    studioConvertHistoryOffset=0;
+                    studioConvertStatus="Queued "+std::to_string(result.ids.size())+
+                        " batch exports. Originals untouched.";
+                } else studioConvertStatus="Batch rejected: "+result.error;
+            } catch (const std::exception& e) {
+                studioConvertStatus=std::string("Batch submission failed: ")+e.what();
+            }
+            update=true;
+        }
         if (studioConvertSubmission.valid() &&
             studioConvertSubmission.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
             try {
@@ -10930,7 +11096,7 @@ public:
             if (studioMediaConvertToolBtn.contains(x,y)) {
                 studioPanel = StudioPanel::MediaConvert;
                 ensure_studio_convert_service();
-                studioConvertStatus = "Choose a source file, output folder and export preset.";
+                studioConvertStatus = "Choose a media file, or Ctrl+B to preview a folder batch.";
                 redraw();
                 return;
             }
@@ -10966,6 +11132,7 @@ public:
                 studioConvertPreset = static_cast<::nougat::studio::Preset>((index + 1) % 8);
                 studioConvertStatus = "Preset: " +
                     std::string(::nougat::studio::preset_name(studioConvertPreset));
+                if (!studioConvertBatchSource.empty()) start_studio_batch_preview();
                 redraw(); return;
             }
             if (studioConvertQueueBtn.contains(x,y)) { start_studio_convert_job(); return; }
@@ -16223,7 +16390,9 @@ public:
             button_on(target,studioConvertSourceBtn,"Choose Media File");
             button_on(target,studioConvertFolderBtn,"Output Folder");
             text(target,left+155,panel.y+93,
-                 head_to_width(studioConvertSource.empty() ? "No source selected." : studioConvertSource,
+                 head_to_width(!studioConvertBatchSource.empty() ?
+                                "Batch folder: "+studioConvertBatchSource :
+                                (studioConvertSource.empty() ? "No source selected. Ctrl+B for folders." : studioConvertSource),
                                std::max(90,right-left-160)),palette.text);
             text(target,left+155,panel.y+133,
                  head_to_width(studioConvertFolder,std::max(90,right-left-160)),palette.text);
@@ -16242,8 +16411,13 @@ public:
             button_on(target,studioConvertQueueBtn,"Queue Export");
             const auto destination = studio_convert_output_file();
             text(target,left,panel.y+204+verticalShift,
-                 head_to_width(destination.empty()?"Output name: choose media file first.":
-                               "Output: "+destination.filename().string(),panel.w-36),palette.muted);
+                 head_to_width(!studioConvertBatchSource.empty()
+                     ? (studioConvertBatchPreviewReady
+                         ? "Batch preview: "+std::to_string(studioConvertBatchPlan.exports.size())+
+                           " ready. Queue Export to confirm."
+                         : "Batch folder selected; awaiting preview.")
+                     : (destination.empty()?"Output name: choose media file first.":
+                           "Output: "+destination.filename().string()),panel.w-36),palette.muted);
             text(target,left,panel.y+224+verticalShift,
                  head_to_width(studioConvertStatus,panel.w-36),palette.text);
             const int actionWidth=narrowConvert ? std::max(80,(panel.w-44)/2) : 132;
