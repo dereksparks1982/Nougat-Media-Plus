@@ -4,7 +4,7 @@
   // This viewer is an HTTPS GitHub Pages shell, not a media-file host.
   // Keep credentials out of requests; public bridge routes are intentionally
   // separate from the Hanafi private-library and administrative routes.
-  const SERVER_KEY = 'nougat-watch-server-v1';
+  const sharedHost = window.NougatWebHost;
   const RESUME_PREFIX = 'nougat-watch-position-v1:';
   const REQUEST_TIMEOUT = 9000;
   const MAX_ITEMS = 2500;
@@ -33,21 +33,13 @@
   let restoreAt = 0;
 
   function normalizeServer(value) {
-    try {
-      const url = new URL(String(value || '').trim());
-      if (url.protocol !== 'https:' || url.username || url.password ||
-          url.pathname !== '/' || url.search || url.hash ||
-          !url.hostname || !url.hostname.includes('.')) return '';
-      // Deliberately reject http:, javascript:, file:, credentials, paths and
-      // extra query strings. No cross-origin cookies are transmitted.
-      return url.origin;
-    } catch (_) { return ''; }
+    return sharedHost ? sharedHost.validate(value) : '';
   }
   function defaultServer() {
-    return normalizeServer(config.enabled === false ? '' : config.baseUrl);
+    return sharedHost ? sharedHost.getDefault() : normalizeServer(config.baseUrl);
   }
   function savedServer() {
-    try { return normalizeServer(localStorage.getItem(SERVER_KEY)); } catch (_) { return ''; }
+    return sharedHost ? sharedHost.getBase() : defaultServer();
   }
   function api(path, id = '') {
     const query = id ? '?id=' + encodeURIComponent(id) : '';
@@ -67,8 +59,9 @@
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
     try {
       const response = await fetch(api(path), {
-        mode: 'cors', credentials: 'omit', redirect: 'error',
-        cache: 'no-store', signal: controller.signal
+        mode: 'cors',
+        credentials: new URL(api(path), location.href).origin === location.origin ? 'same-origin' : 'omit',
+        redirect: 'error', cache: 'no-store', signal: controller.signal
       });
       if (!response.ok) throw new Error('HTTP ' + response.status);
       return await response.json();
@@ -207,8 +200,11 @@
     }
   }
   function setServer(value, persist = false) {
-    const parsed = normalizeServer(value);
-    if (!parsed) return false;
+    const localMode = location.protocol === 'http:' &&
+      !String(config.baseUrl || '').trim() &&
+      (!value || value === location.origin);
+    const parsed = localMode ? '' : normalizeServer(value);
+    if (!parsed && !localMode) return false;
     if (selected) { saveResume(true); selected = null; }
     video.pause();
     video.removeAttribute('src');
@@ -223,8 +219,8 @@
     serverInput.value = base;
     statusMessage('Ready to connect');
     render();
-    if (persist) {
-      try { localStorage.setItem(SERVER_KEY, base); } catch (_) {}
+    if (persist && !localMode && sharedHost && !sharedHost.setServer(base)) {
+      statusMessage('Browser settings could not be saved', 'offline');
     }
     refresh();
     return true;
@@ -273,8 +269,13 @@
     } else el('connectionSettings').open = false;
   });
   el('resetServer').addEventListener('click', () => {
-    try { localStorage.removeItem(SERVER_KEY); } catch (_) {}
-    if (!setServer(defaultServer())) statusMessage('Default HTTPS media bridge is not configured', 'offline');
+    if (sharedHost && !sharedHost.reset()) {
+      statusMessage('Cannot reset settings in this browser', 'offline');
+      return;
+    }
+    const defaultValue = defaultServer() ||
+      (location.protocol === 'http:' && !config.baseUrl ? location.origin : '');
+    if (!setServer(defaultValue)) statusMessage('Default media bridge is not configured', 'offline');
     else el('connectionSettings').open = false;
   });
   refreshButton.addEventListener('click', refresh);
@@ -329,9 +330,15 @@
     if (window.NougatLegalAccepted === true) refresh();
   });
   window.addEventListener('beforeunload', () => saveResume(true));
+  window.addEventListener('nougat:host-changed', () => {
+    if (window.NougatLegalAccepted !== true || !sharedHost) return;
+    const next = sharedHost.getBase();
+    if (next && next !== base) setServer(next);
+  });
 
   function init() {
-    const configured = savedServer() || defaultServer();
+    const configured = savedServer() || defaultServer() ||
+      (location.protocol === 'http:' && !config.baseUrl ? location.origin : '');
     if (!configured) {
       statusMessage('No HTTPS bridge configured', 'offline');
       el('connectionSettings').open = true;

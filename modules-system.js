@@ -24,7 +24,7 @@
   }
   async function getJson(path){
     const base=hostRef&&hostRef.baseUrl?hostRef.baseUrl():'';
-    const response=await fetch(`${base}${path}`,{cache:'no-store'});
+    const response=await window.NougatWebAPI.request(`${base}${path}`,{cache:'no-store'});
     let data={};try{data=await response.json();}catch(_){data={};}
     if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
     return data;

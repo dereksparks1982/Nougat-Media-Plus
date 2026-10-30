@@ -52,7 +52,7 @@
   }
   async function action(name,extra={}){
     const s=readState();const params=new URLSearchParams({action:name,service,frequency:String(s.frequencyHz),modulation:s.modulation,step:String(s.stepHz),gain:String(s.gain),squelch:String(s.squelch),...extra});
-    const base=hostRef?.baseUrl?hostRef.baseUrl():'';const response=await fetch(`${base}/nougat/v1/radio?${params}`,{cache:'no-store'});let data={};try{data=await response.json();}catch(_){data={};}if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);return data;
+    const base=hostRef?.baseUrl?hostRef.baseUrl():'';const response=await window.NougatWebAPI.request(`${base}/nougat/v1/radio?${params}`,{cache:'no-store'});let data={};try{data=await response.json();}catch(_){data={};}if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);return data;
   }
   function setStatus(text){const el=document.getElementById('radioFullStatus');if(el)el.textContent=text;}
   function updateLabels(){const s=readState();const freq=document.getElementById('radioFreq');if(freq)freq.value=mhz(s.frequencyHz);const gain=document.getElementById('radioGain');if(gain){gain.value=s.gain;document.getElementById('radioGainValue').textContent=`${s.gain}%`;}const squelch=document.getElementById('radioSquelch');if(squelch){squelch.value=s.squelch;document.getElementById('radioSquelchValue').textContent=String(s.squelch);}}

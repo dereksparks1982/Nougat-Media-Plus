@@ -12,6 +12,8 @@ The browser viewers are hosted on GitHub Pages. Your personal media files **are 
 
 Nougat Watch is the straightforward way to watch from a phone or tablet: connect to your host, search movies or TV, tap a title, play it, and resume later. The full web player has a larger interface with additional modules.
 
+**Connect once for both viewers:** In the full web player, choose **CONNECT** in the top bar to enter or test your HTTPS media server. Quick Watch uses the same saved server setting in that browser.
+
 **To stream remotely:** keep your Nougat media host running and reachable through an HTTPS endpoint that allows connections from the Nougat Pages origin. The web page alone cannot serve files from a computer that is offline. If your host address changes, open **Change media server** in Nougat Watch and enter your own HTTPS bridge address.
 
 ## What Nougat includes

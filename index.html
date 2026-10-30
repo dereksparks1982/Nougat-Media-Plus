@@ -24,6 +24,8 @@
   <link rel="stylesheet" href="./player-mobile.css">
   <link rel="stylesheet" href="./enhancements.css">
   <link rel="stylesheet" href="./legal-notice.css">
+  <link rel="stylesheet" href="./web-host-panel.css">
+  <link rel="stylesheet" href="./web-capabilities.css">
 </head>
 <body>
   <div id="nougatLegalGate" role="dialog" aria-modal="true" aria-labelledby="nougatLegalTitle" aria-describedby="nougatLegalDescription">
@@ -49,10 +51,27 @@
       <span class="server-label">Server:</span>
       <span class="server-light" id="serverLight" aria-hidden="true"></span>
       <span class="server-text" id="healthBadge">Connecting</span>
+      <button type="button" class="web-host-button" id="webHostOpen" aria-label="Configure media server" aria-haspopup="dialog" aria-controls="webHostDialog">CONNECT</button>
       <span class="version-label">WEB</span>
     </div>
   </header>
 
+  <dialog id="webHostDialog" class="web-host-dialog" aria-labelledby="webHostTitle">
+    <form id="webHostForm" method="dialog">
+      <h2 id="webHostTitle">Connect to your Nougat media host</h2>
+      <p>Both the full player and Quick Watch use this server. GitHub Pages does not store your movies or TV shows.</p>
+      <label for="webHostAddress">HTTPS media bridge address</label>
+      <input id="webHostAddress" type="url" placeholder="https://your-server.example" autocomplete="url" spellcheck="false" inputmode="url">
+      <p id="webHostStatus" class="web-host-message" role="status" aria-live="polite">Enter the HTTPS origin of a server you control.</p>
+      <div class="web-host-actions">
+        <button id="webHostTest" type="button">Test connection</button>
+        <button id="webHostSave" type="submit">Save &amp; connect</button>
+        <button id="webHostDefault" type="button">Use default</button>
+        <button id="webHostClose" type="button">Close</button>
+      </div>
+      <a href="./watch/">Open phone-friendly Quick Watch</a>
+    </form>
+  </dialog>
   <aside class="module-rail" aria-label="Nougat modules">
     <button class="rail-button active" type="button" data-view="home"><span class="rail-icon">⌂</span><span>HOME</span></button>
     <button class="rail-button" type="button" data-view="player"><span class="rail-icon">▶</span><span>PLAYER</span></button>
@@ -133,6 +152,8 @@
 
   <script src="./legal-notice.js"></script>
   <script src="./config.js"></script>
+  <script src="./web-host.js"></script>
+  <script src="./web-api.js"></script>
   <script src="./modules.js"></script>
   <script src="./modules-broadcast.js"></script>
   <script src="./modules-world-tv-catalog.js"></script>
@@ -156,6 +177,7 @@
   <script src="./modules-catalog-cache.js"></script>
   <script src="./app.js"></script>
   <script src="./connection-monitor.js"></script>
+  <script src="./web-host-panel.js"></script>
   <script src="./player-enhancements.js"></script>
   <script src="./player-chapters.js"></script>
   <script src="./player-tracks.js"></script>
@@ -165,5 +187,6 @@
   <script src="./player-media-session.js"></script>
   <script src="./modules-bridge.js"></script>
   <script src="./modules-media-card-actions.js"></script>
+  <script src="./web-capabilities.js"></script>
 </body>
 </html>

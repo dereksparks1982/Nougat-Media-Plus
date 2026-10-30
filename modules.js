@@ -7,6 +7,7 @@
   let discoverKind = 'movie';
   let discoverPick = null;
   let searchPanel = 'search';
+  let crawlerSameDomain = true;
   let streamPlatform = 'YouTube';
   const streamPlatforms = ['YouTube', 'Vimeo', 'Rumble', 'RuTube', 'VK', 'OK'];
 
@@ -139,13 +140,36 @@
   function renderCrawlerPane() {
     const pane=document.getElementById('searchPane'); if(!pane)return;
     pane.innerHTML=`<h2 class="module-heading">CRAWLER</h2><div class="module-field"><span>SEED URL</span><input id="crawlerSeed" type="url" placeholder="https://example.com"></div>
-      <div class="module-toolbar">${button('Start Crawl','crawlStart')}${button('Same Domain','crawlDomain',true)}${button('Clear','crawlClear')}</div>
+      <div class="module-toolbar">${button('Start Crawl','crawlStart')}${button('Same Domain','crawlDomain',crawlerSameDomain)}${button('Clear','crawlClear')}</div>
       <div class="module-output" id="crawlerOutput">Ready. Browser security allows crawling only URLs that permit cross-origin fetches.</div>`;
-    bind('crawlClear',()=>{document.getElementById('crawlerOutput').textContent='Ready.';});
+    bind('crawlClear',()=>{document.getElementById('crawlerSeed').value='';document.getElementById('crawlerOutput').textContent='Cleared.';});
+    bind('crawlDomain',()=>{
+      crawlerSameDomain=!crawlerSameDomain;
+      document.getElementById('crawlDomain').classList.toggle('active-tool',crawlerSameDomain);
+      document.getElementById('crawlerOutput').textContent=crawlerSameDomain
+        ? 'Same-domain filter enabled.' : 'Showing all links returned by the fetched page.';
+    });
     bind('crawlStart',async()=>{
       const url=document.getElementById('crawlerSeed').value.trim(); const out=document.getElementById('crawlerOutput');
       if(!url){out.textContent='Enter a seed URL.';return;} out.textContent='Fetching '+url+' ...';
-      try{const r=await fetch(url,{mode:'cors'});const text=await r.text();const base=new URL(url);const doc=new DOMParser().parseFromString(text,'text/html');const links=[...doc.querySelectorAll('a[href]')].map(a=>{try{return new URL(a.getAttribute('href'),base).href;}catch(_){return null;}}).filter(Boolean);const same=[...new Set(links.filter(h=>{try{return new URL(h).host===base.host;}catch(_){return false;}}))].slice(0,150);out.textContent=`Fetched ${r.status} ${r.statusText}\n${same.length} same-domain links\n\n${same.join('\n')}`;}catch(err){out.textContent='Crawler blocked or failed: '+(err.message||err);}
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),8000);
+      try{
+        const base=new URL(url);
+        if(base.protocol!=='https:'||base.username||base.password)throw new Error('Use an HTTPS URL without credentials.');
+        const r=await fetch(base.href,{mode:'cors',credentials:'omit',signal:controller.signal});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        const text=await r.text();
+        if(text.length>1024*1024)throw new Error('Page exceeded the 1 MiB browser crawler limit.');
+        const doc=new DOMParser().parseFromString(text,'text/html');
+        const links=[...doc.querySelectorAll('a[href]')].map(a=>{
+          try{const link=new URL(a.getAttribute('href'),base);return link.protocol==='https:'?link.href:null;}
+          catch(_){return null;}
+        }).filter(Boolean);
+        const found=[...new Set(links.filter(h=>!crawlerSameDomain||new URL(h).host===base.host))].slice(0,150);
+        out.textContent=`Fetched ${r.status} • ${found.length} ${crawlerSameDomain?'same-domain':'HTTPS'} links\n\n${found.join('\n')}`;
+      }catch(err){out.textContent='Crawler blocked or failed: '+(err.message||err);}
+      finally{clearTimeout(timer);}
     });
   }
 
@@ -162,7 +186,12 @@
     const pane=document.getElementById('searchPane'); if(!pane)return;
     pane.innerHTML=`<h2 class="module-heading">ARCHIVE</h2><div class="module-field"><span>SEARCH</span><input id="archiveQuery" type="search"></div>
       <div class="archive-links" id="archiveLinks"><a class="archive-link" href="https://archive.org" target="_blank" rel="noopener">Internet Archive</a><a class="archive-link" href="https://web.archive.org" target="_blank" rel="noopener">Wayback Machine</a></div>`;
-    const q=document.getElementById('archiveQuery'); q.addEventListener('keydown',(e)=>{if(e.key==='Enter'){const term=q.value.trim();if(term)window.open('https://archive.org/search?query='+encodeURIComponent(term),'_blank','noopener');}});
+    const q=document.getElementById('archiveQuery');
+    const searchArchive=()=>{const term=q.value.trim();if(term)window.open('https://archive.org/search?query='+encodeURIComponent(term),'_blank','noopener');};
+    q.addEventListener('keydown',(e)=>{if(e.key==='Enter')searchArchive();});
+    const run=document.createElement('button');run.type='button';run.className='sheet-button';
+    run.textContent='Search Archive';run.addEventListener('click',searchArchive);
+    pane.querySelector('.archive-links').before(run);
   }
 
   function renderStream() {
@@ -185,6 +214,45 @@
     w.innerHTML=`<div class="module-toolbar">${button('Overview','networkOverview',true)}${button('Connections','networkConnections')}${button('Devices','networkDevices')}${button('Security','networkSecurity')}${button('Diagnostics','networkDiagnostics')}${button('Logs','networkLogs')}</div>
       <h2 class="module-heading">NETWORK</h2><table class="diagnostic-table" id="networkTable"><tbody><tr><th>Nougat bridge</th><td>Checking...</td></tr></tbody></table><div class="module-toolbar">${button('Refresh','networkRefresh')}</div>`;
     bind('networkRefresh',renderNetwork);
+    // The enhanced Network module replaces this fallback when available.
+    // Keep every fallback navigation button functional too.
+    const networkSections=[
+      ['networkOverview',()=>renderNetwork()],
+      ['networkConnections',()=>showNetworkSection('Connections',[
+        ['Network',navigator.onLine?'Online':'Offline'],
+        ['Media host',host?.baseUrl?.()||'Same origin']])],
+      ['networkDevices',()=>showNetworkSection('Devices',[
+        ['Device access','Browser permission required; physical device probing needs the Linux host.'],
+        ['Hardware threads',navigator.hardwareConcurrency||'Not reported']])],
+      ['networkSecurity',()=>showNetworkSection('Security',[
+        ['Viewer protocol',location.protocol],
+        ['Secure context',window.isSecureContext?'Yes':'No'],
+        ['Host inspection','Unavailable in a browser.']])],
+      ['networkDiagnostics',()=>showNetworkSection('Diagnostics',[
+        ['Browser',navigator.userAgent],
+        ['Connection',navigator.connection?.effectiveType||'Not reported']])],
+      ['networkLogs',()=>showNetworkSection('Logs',[
+        ['Host logs','Not exposed by the public web bridge.'],
+        ['Browser state',navigator.onLine?'Online':'Offline']])]
+    ];
+    function showNetworkSection(name,records){
+      const table=document.getElementById('networkTable');
+      if(!table)return;
+      table.replaceChildren();
+      const tbody=document.createElement('tbody');
+      for(const [label,value] of records){
+        const row=document.createElement('tr');
+        const th=document.createElement('th');th.textContent=label;
+        const td=document.createElement('td');td.textContent=String(value);
+        row.append(th,td);tbody.appendChild(row);
+      }
+      table.appendChild(tbody);
+      document.querySelectorAll('[id^="network"]').forEach(element=>{
+        if(element.classList.contains('sheet-button'))
+          element.classList.toggle('active-tool',element.id==='network'+name);
+      });
+    }
+    networkSections.forEach(([id,handler])=>bind(id,handler));
     const table=document.getElementById('networkTable');
     try{const base=host.baseUrl?host.baseUrl():'';const start=performance.now();const r=await fetch(base+'/nougat/v1/health',{cache:'no-store'});const data=await r.json();const ms=Math.round(performance.now()-start);table.innerHTML=`<tbody><tr><th>Bridge</th><td>${r.ok?'Online':'Error'}</td></tr><tr><th>Endpoint</th><td>${esc(base||'same origin')}</td></tr><tr><th>Latency</th><td>${ms} ms</td></tr><tr><th>Service</th><td>${esc(data.service||'Nougat Web Player')}</td></tr><tr><th>Version</th><td>${esc(data.version||'Unknown')}</td></tr><tr><th>Browser online</th><td>${navigator.onLine?'Yes':'No'}</td></tr></tbody>`;}catch(err){table.innerHTML=`<tbody><tr><th>Bridge</th><td>Offline</td></tr><tr><th>Error</th><td>${esc(err.message||err)}</td></tr><tr><th>Browser online</th><td>${navigator.onLine?'Yes':'No'}</td></tr></tbody>`;}
   }
@@ -194,6 +262,7 @@
     let storage='Unavailable'; try{if(navigator.storage&&navigator.storage.estimate){const s=await navigator.storage.estimate();storage=`${Math.round((s.usage||0)/1048576)} MB / ${Math.round((s.quota||0)/1048576)} MB`;}}catch(_){}
     w.innerHTML=`<div class="module-toolbar">${button('Diagnostics','systemDiag',true)}${button('Refresh Server','systemRefresh')}${button('Clear Web Cache','systemClearCache')}</div>
       <h2 class="module-heading">SYSTEM</h2><table class="diagnostic-table"><tbody><tr><th>Browser</th><td>${esc(navigator.userAgent)}</td></tr><tr><th>Platform</th><td>${esc(navigator.platform||'Unknown')}</td></tr><tr><th>CPU threads</th><td>${navigator.hardwareConcurrency||'Unknown'}</td></tr><tr><th>Memory</th><td>${navigator.deviceMemory?navigator.deviceMemory+' GB':'Not reported'}</td></tr><tr><th>Web storage</th><td>${esc(storage)}</td></tr><tr><th>Service worker</th><td>${'serviceWorker' in navigator?'Supported':'Unavailable'}</td></tr><tr><th>Fullscreen</th><td>${document.fullscreenEnabled?'Supported':'Browser-managed'}</td></tr></tbody></table><div class="module-output" id="systemOutput">Web diagnostics ready.</div>`;
+    bind('systemDiag',renderSystem);
     bind('systemRefresh',async()=>{document.getElementById('systemOutput').textContent='Refreshing Nougat server state...';if(host.refresh){await host.refresh();document.getElementById('systemOutput').textContent='Nougat health and catalog refreshed.';}});
     bind('systemClearCache',async()=>{const out=document.getElementById('systemOutput');try{const keys=await caches.keys();await Promise.all(keys.map(k=>caches.delete(k)));out.textContent=`Cleared ${keys.length} Nougat web cache(s). Reloading shell...`;setTimeout(()=>location.reload(),350);}catch(err){out.textContent='Cache clear failed: '+(err.message||err);}});
   }

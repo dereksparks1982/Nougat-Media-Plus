@@ -1,3 +1,13 @@
+## Unreleased: Web player controls and shared server setting (2026-10-30)
+
+- Add one saved HTTPS media-host setting shared by full player and Quick Watch, plus a full-player test/save/default connection dialog.
+- Repair module-to-player playback by media ID and refresh libraries safely after a server switch without stale responses.
+- Add a bounded browser service request helper for Live TV, Radio, Network, System, tuner and World TV guide calls.
+- Fix Search Crawler's Same Domain toggle, add bounded HTTPS-only crawling, and make Archive search clickable.
+- Repair base Network/System fallback button actions; provide a compact explanation of native-only requirements on web modules.
+- Update the Pages service-worker shell, add isolated source and host-state tests, and preserve the product-focused README and v0.0.69.
+- Native services, real Pages/phone playback and interactive acceptance remain untested. No GitHub Actions or downloads.
+
 ## Unreleased: GitHub Pages Quick Watch and web navigation repair (2026-10-30)
 
 - Add a standalone phone-friendly Watch page with HTTPS server settings, search, Movies/TV filtering, direct/compatibility streams, local resume history and connection feedback.

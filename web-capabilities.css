@@ -1,0 +1,6 @@
+
+.web-capability-note{margin:18px 0 4px;border:1px solid #235f40;border-radius:10px;padding:10px 13px;background:#061b13;color:#b7d3c2;font-size:12px}
+.web-capability-note summary{cursor:pointer;font-weight:750;color:#bdf4cd;line-height:1.5}
+.web-capability-note p{max-width:780px;line-height:1.5}
+.web-capability-note button{padding:9px 12px;margin:4px 0;min-height:38px;cursor:pointer}
+@media(max-width:700px){.web-capability-note{margin:10px 0;padding:10px;font-size:11px}}

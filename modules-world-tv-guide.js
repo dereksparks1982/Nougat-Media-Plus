@@ -27,7 +27,7 @@
   }
   function renderUnavailable(message){const out=document.getElementById('worldTvGuidePanel');if(out)out.innerHTML=`<div class="module-output world-tv-status">${esc(message)}</div>`;}
   async function hostGuide(id){
-    const response=await fetch(`${base()}/nougat/v1/world-tv?action=guide&id=${encodeURIComponent(id)}`,{cache:'no-store'});
+    const response=await window.NougatWebAPI.request(`${base()}/nougat/v1/world-tv?action=guide&id=${encodeURIComponent(id)}`,{cache:'no-store'});
     let data={};try{data=await response.json();}catch(_){data={};}
     if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
     const ok=data.ok!==false&&(data.current_title||data.CURRENT_TITLE||data.next_title||data.NEXT_TITLE||data.current||data.next);

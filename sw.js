@@ -1,4 +1,4 @@
-const CACHE = 'nougat-web-player-v42-watch-pages-20261030';
+const CACHE = 'nougat-web-player-v43-controls-host-20261030';
 const SHELL = [
   './legal-notice.css',
   './legal-notice.js',
@@ -18,6 +18,12 @@ const SHELL = [
   './player-mobile.css',
   './enhancements.css',
   './config.js',
+  './web-host.js',
+  './web-api.js',
+  './web-host-panel.js',
+  './web-host-panel.css',
+  './web-capabilities.js',
+  './web-capabilities.css',
   './modules-catalog-cache.js',
   './app.js',
   './connection-monitor.js',

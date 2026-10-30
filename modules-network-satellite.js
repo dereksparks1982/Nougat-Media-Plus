@@ -50,7 +50,7 @@
 
     try {
       const start = performance.now();
-      const response = await fetch(`${base}/nougat/v1/health`, { cache: 'no-store' });
+      const response = await window.NougatWebAPI.request(`${base}/nougat/v1/health`, { cache: 'no-store' });
       const data = await response.json();
       snapshot.bridgeLatency = Math.max(0, Math.round(performance.now() - start));
       snapshot.bridgeOnline = response.ok && data && data.ok !== false;
@@ -62,7 +62,7 @@
     }
 
     try {
-      const response = await fetch(`${base}/nougat/v1/catalog`, { cache: 'no-store' });
+      const response = await window.NougatWebAPI.request(`${base}/nougat/v1/catalog`, { cache: 'no-store' });
       const data = await response.json();
       if (response.ok && data) snapshot.catalogCount = Number(data.count ?? (Array.isArray(data.items) ? data.items.length : NaN));
       else snapshot.catalogError = data && data.error ? data.error : `HTTP ${response.status}`;

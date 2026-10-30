@@ -11,7 +11,7 @@
 
   function base(){return hostRef?.baseUrl?hostRef.baseUrl():'';}
   async function call(action){
-    const response=await fetch(`${base()}/nougat/v1/live-tv?action=${encodeURIComponent(action)}`,{cache:'no-store'});
+    const response=await window.NougatWebAPI.request(`${base()}/nougat/v1/live-tv?action=${encodeURIComponent(action)}`,{cache:'no-store'});
     let data={};try{data=await response.json();}catch(_){data={};}
     if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
     return data;

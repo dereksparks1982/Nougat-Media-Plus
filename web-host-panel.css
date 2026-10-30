@@ -1,0 +1,16 @@
+
+/* The host-settings dialog overlays the existing shell; no approved positions move. */
+.web-host-button{flex:none;background:#0a2c1c;color:#b8f6cb;border:1px solid #318d5a;border-radius:7px;padding:5px 9px;min-height:29px;cursor:pointer;font-size:10px;font-weight:800}
+.web-host-button:hover{border-color:#55e38c}
+.web-host-dialog{position:fixed;inset:0;width:min(500px,calc(100vw - 24px));max-height:calc(100dvh - 30px);overflow-y:auto;margin:auto;border:1px solid #358b57;border-radius:14px;padding:22px;background:#061c14;color:#e1efe8;box-shadow:0 18px 70px #000c;z-index:200}
+.web-host-dialog::backdrop{background:#000a}
+.web-host-dialog h2{margin:0 0 14px;font-size:1.2rem}
+.web-host-dialog p{color:#9bbfad;line-height:1.5}
+.web-host-dialog label{display:block;font-weight:750;margin-top:12px;margin-bottom:6px}
+.web-host-dialog input{background:#04120e;color:#e1efe8;border:1px solid #358b57;border-radius:7px;width:100%;min-height:44px;padding:9px;font:inherit}
+.web-host-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.web-host-actions button{background:#103721;border:1px solid #318d5a;border-radius:7px;min-height:42px;padding:7px 12px;cursor:pointer}
+.web-host-actions button:hover{border-color:#55e38c}
+.web-host-message{font-size:.87rem;min-height:1.5em;overflow-wrap:anywhere}
+.web-host-dialog a{display:inline-block;color:#96fcb9}
+@media(max-width:700px){.web-host-button{font-size:9px;padding:5px 6px}.topbar-state{gap:5px}}

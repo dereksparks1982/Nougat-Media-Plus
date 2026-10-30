@@ -1,3 +1,9 @@
+## v0.0.69 Web player control and shared media-host phase (2026-10-30)
+
+Add one HTTPS media-host setting for full and phone viewers, a test/save/reset dialog, safe host switching, module-to-player playback by ID, bounded host request handling and genuine controls for Crawler, Archive and base Network/System fallbacks. Browser modules now explain native-only requirements rather than silently implying that all hardware functions run through static Pages.
+
+See [Web Player Controls & Shared Host Source Review](docs/builds/NOUGAT_v0_0_69_WEB_PLAYER_CONTROLS_SHARED_HOST_2026_10_30.md). Next priorities: real browser/phone acceptance, stream/CORS testing against an available host, fixing any uncovered module actions and validating responsive layouts. No GitHub Actions, binary distribution or v0.0.69 change.
+
 ## v0.0.69 GitHub Pages Watch accessibility and web navigation (2026-10-30)
 
 New `/watch/` Pages companion for phone-first movies and TV, based on the same HTTPS media bridge routes used by Hanafi. Root Pages now links directly to Quick Watch; README begins with both browser URLs and a concise explanation of Nougat's capabilities instead of build notes. The existing module sidebar now renders immediately on navigation without blocking on a remote catalog request, with explicit failure feedback and short-screen label scrolling.

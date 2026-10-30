@@ -18,7 +18,7 @@
   let keyboardBound=false;
 
   function base(){return hostRef?.baseUrl?hostRef.baseUrl():'';}
-  async function call(action,extra={}){const params=new URLSearchParams({action,...extra});const response=await fetch(`${base()}/nougat/v1/live-tv?${params}`,{cache:'no-store'});let data={};try{data=await response.json();}catch(_){data={};}if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);return data;}
+  async function call(action,extra={}){const params=new URLSearchParams({action,...extra});const response=await window.NougatWebAPI.request(`${base()}/nougat/v1/live-tv?${params}`,{cache:'no-store'});let data={};try{data=await response.json();}catch(_){data={};}if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);return data;}
   function remember(){try{localStorage.setItem('nougat-web-live-tv-cache',JSON.stringify({channels,programs,tuner,selectedId,when:Date.now()}));}catch(_){}}
   function restore(){try{const x=JSON.parse(localStorage.getItem('nougat-web-live-tv-cache')||'{}')||{};channels=Array.isArray(x.channels)?x.channels:[];programs=Array.isArray(x.programs)?x.programs:[];tuner=x.tuner||null;selectedId=String(x.selectedId||'');}catch(_){}}
   function channelId(c){return String(c.id||c.channel_id||c.channel||c.program_number||'');}

@@ -5,8 +5,10 @@
   let catalogPromise = null;
   let cardArtworkObserver = null;
   let cardArtworkQueued = false;
+  let catalogRevision = 0;
 
   const baseUrl = () => {
+    if (window.NougatWebHost) return window.NougatWebHost.getBase();
     const cfg = window.NOUGAT_WEB_PLAYER || {};
     return String(cfg.baseUrl || '').trim().replace(/\/+$/, '');
   };
@@ -42,16 +44,22 @@
     // Never hold navigation hostage to a missing/offline media bridge.
     // A timeout and a settled (not forever-cached) promise permit reconnects.
     if (catalogPromise && !force) return catalogPromise;
+    const revision = catalogRevision;
+    const endpoint = baseUrl();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     const request = (async () => {
       try {
-        const response = await fetch(`${baseUrl()}/nougat/v1/catalog`, {
-          cache: 'no-store', credentials: 'omit', signal: controller.signal
+        const response = await fetch(`${endpoint}/nougat/v1/catalog`, {
+          cache: 'no-store',
+          credentials: new URL(endpoint || location.origin, location.href).origin === location.origin
+            ? 'same-origin' : 'omit',
+          signal: controller.signal
         });
         if (!response.ok) throw new Error('Catalog HTTP ' + response.status);
         const data = await response.json();
         if (!data.ok) throw new Error(data.error || 'Catalog unavailable');
+        if (revision !== catalogRevision) return catalog;
         catalog = (Array.isArray(data.items) ? data.items : [])
           .slice(0, 3000).map(normalize).filter((item) => item.id);
       } catch (_) {
@@ -96,11 +104,16 @@
   }
 
   function playItem(item) {
+    if (item?.id && window.NougatWebPlayer?.playById(item.id)) return;
     const card = findCard(item);
     if (card) {
       const video = document.getElementById('player');
       if (video) video.controls = false;
       card.click();
+      return;
+    }
+    if (window.NougatWebPlayer?.openLibraryFor) {
+      window.NougatWebPlayer.openLibraryFor(item?.name || '', item?.type === 'Episode' ? 'tv' : 'movies');
       return;
     }
     navigate('library');
@@ -294,5 +307,19 @@
   window.addEventListener('online', () => {
     if (window.NougatLegalAccepted === true)
       void ensureCatalog(true).then(() => queueMediaCardArtwork());
+  });
+  window.addEventListener('nougat:host-changed', () => {
+    catalogRevision++;
+    catalog = [];
+    catalogPromise = null;
+    document.querySelectorAll('.media-art[data-nougat-artwork]').forEach((art) => {
+      delete art.dataset.nougatArtwork;
+    });
+    if (window.NougatLegalAccepted !== true) return;
+    void ensureCatalog(true).then(() => {
+      queueMediaCardArtwork();
+      const active = document.querySelector('.rail-button.active')?.dataset.view;
+      if (active && ['search','discover'].includes(active)) activate(active);
+    });
   });
 })();

@@ -54,13 +54,18 @@
   let resumeState = readResumeState();
   let catalogRequest = null;
   let connectivityStarted = false;
+  let hostRevision = 0;
 
   // Short, bounded requests prevent one stalled LAN request from freezing Refresh.
   async function fetchJson(url) {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 9000);
     try {
-      const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+      const response = await fetch(url, {
+        cache: 'no-store',
+        credentials: new URL(url, location.href).origin === location.origin ? 'same-origin' : 'omit',
+        redirect: 'error', signal: controller.signal
+      });
       if (!response.ok) throw new Error('HTTP ' + response.status);
       return await response.json();
     } finally {
@@ -104,6 +109,7 @@
   }
 
   function normalizedBaseUrl() {
+    if (window.NougatWebHost) return window.NougatWebHost.getBase();
     const configured = typeof config.baseUrl === 'string' ? config.baseUrl.trim() : '';
     return configured.replace(/\/+$/, '');
   }
@@ -386,31 +392,39 @@
   }
 
   async function loadHealth() {
+    const revision = hostRevision;
     setServerState('busy', 'Connecting');
     try {
       const health = await fetchJson(apiUrl('/nougat/v1/health'));
+      if (revision !== hostRevision) return false;
       const total = Number(health.total) || 0;
       const available = Number(health.available);
       const text = Number.isFinite(available) && total > 0 ? `${available}/${total}` : 'Online';
       setServerState('online', text);
       return true;
     } catch (_) {
-      setServerState('offline', 'Offline');
+      if (revision === hostRevision) setServerState('offline', 'Offline');
       return false;
     }
   }
 
   function loadCatalog() {
     if (catalogRequest) return catalogRequest;
-    catalogRequest = loadCatalogOnce().finally(() => { catalogRequest = null; });
-    return catalogRequest;
+    const pending = loadCatalogOnce();
+    catalogRequest = pending;
+    pending.finally(() => {
+      if (catalogRequest === pending) catalogRequest = null;
+    });
+    return pending;
   }
 
   async function loadCatalogOnce() {
+    const revision = hostRevision;
     refreshButton.disabled = true;
     catalogStatus.textContent = 'Loading Nougat Library...';
     try {
       const payload = await fetchJson(apiUrl('/nougat/v1/catalog'));
+      if (revision !== hostRevision) return;
       if (!payload.ok) throw new Error(payload.error || 'Catalog unavailable');
       items = (Array.isArray(payload.items) ? payload.items : []).map(normalizeItem).filter((item) => item.id);
       const movies = items.filter((item) => item.type === 'Movie').length;
@@ -419,6 +433,7 @@
       renderHome();
       renderLibrary();
     } catch (error) {
+      if (revision !== hostRevision) return;
       // Keep already-indexed items visible through brief host/network outages.
       if (items.length) {
         catalogStatus.textContent = `SERVER OFFLINE • SHOWING LAST LOADED LIBRARY • ${error.message || 'TRY REFRESH'}`;
@@ -428,7 +443,7 @@
         catalogStatus.textContent = `LIBRARY UNAVAILABLE • ${error.message || 'SERVER NOT READY'}`;
       }
     } finally {
-      refreshButton.disabled = false;
+      if (revision === hostRevision) refreshButton.disabled = false;
     }
   }
 
@@ -570,6 +585,49 @@
   });
 
   window.addEventListener('beforeunload', () => saveResume(true));
+
+  window.addEventListener('nougat:host-changed', () => {
+    if (window.NougatLegalAccepted !== true) return;
+    saveResume(true);
+    hostRevision += 1;
+    player.pause();
+    player.removeAttribute('src');
+    player.load();
+    selected = null;
+    items = [];
+    catalogRequest = null;
+    emptyPlayer.hidden = false;
+    playerTitleHud.hidden = true;
+    compatButton.disabled = true;
+    catalogStatus.textContent = 'Media host changed. Loading your library...';
+    renderHome();
+    renderLibrary();
+    loadHealth().then((online) => { if (online) return loadCatalog(); });
+  });
+
+  // A stable bridge for Discover, Search, and other modules. Their cards
+  // should launch media by exact ID without relying on current grid/filter.
+  window.NougatWebPlayer = Object.freeze({
+    playById(id) {
+      if (window.NougatLegalAccepted !== true) return false;
+      const item = items.find((entry) => entry.id === String(id));
+      if (!item || !item.ready) return false;
+      const record = resumeRecord(item);
+      const start = record && !record.completed ?
+        Math.max(0, Number(record.position_ms || 0) / 1000) : 0;
+      void playItem(item, !item.directPreferred, start);
+      return true;
+    },
+    openLibraryFor(query, mediaKind) {
+      if (window.NougatLegalAccepted !== true) return;
+      setLibraryFilter(mediaKind === 'tv' ? 'tv' : 'movies');
+      search.value = String(query || '');
+      setView('library');
+      renderLibrary();
+    },
+    getCatalog: () => items.slice(),
+    getBaseUrl: normalizedBaseUrl
+  });
 
   async function initialLoad() {
     createVolumeBank();
