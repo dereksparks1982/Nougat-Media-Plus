@@ -1,3 +1,11 @@
+## v0.0.69 Games emulator containment and discovery source candidate (2026-10-30)
+
+Games development now includes a strict window-ownership decision policy (process tree and process-group evidence), child reaping on stop, emulator-exit diagnostics, bounded launch waits, and an honest per-system detected/unverified backend probe. The previously separate emulator registry is now in the native application CMake source list. This does **not** establish functional parity for NES/SNES/PS3/Xbox 360 or any other system.
+
+See [Games Runtime Source Candidate](docs/builds/NOUGAT_v0_0_69_GAMES_RUNTIME_SOURCE_CANDIDATE_2026_10_30.md) and the [25-system Verification Matrix](docs/GAMES_BACKEND_VERIFICATION_MATRIX_v0_0_69.md). Future acceptance requires compiling and running real games, controller and audio testing, safe in-player embedding, and process cleanup/relaunch checks.
+
+**Do not** move approved geometry, run GitHub Actions, publish executables, or silently change the existing CMake project/target name or owner-approved v0.0.69 version.
+
 ## v0.0.69 LAN terms session source candidate (2026-10-30)
 
 The LAN HTTP server now has an explicit acknowledgement session boundary for catalog and media APIs; the first-run browser notice verifies that session before loading private data. This addresses direct-URL access without the prior browser-only consent screen **on the local LAN server only**. See [LAN Terms Session Candidate](docs/builds/NOUGAT_v0_0_69_LAN_TERMS_SESSION_CANDIDATE_2026_10_30.md).

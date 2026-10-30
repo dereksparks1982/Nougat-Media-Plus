@@ -1,4 +1,5 @@
 #include "emulator_host.hpp"
+#include "emulator_window_policy.hpp"
 
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
@@ -347,6 +348,35 @@ bool process_alive(pid_t pid) {
     return errno == EPERM;
 }
 
+bool reap_child_until(pid_t child, std::chrono::milliseconds timeout) {
+    if (child <= 1) return true;
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    do {
+        int status = 0;
+        const pid_t result = waitpid(child, &status, WNOHANG);
+        if (result == child || (result < 0 && errno == ECHILD)) return true;
+        if (result < 0 && errno != EINTR) return false;
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    } while (std::chrono::steady_clock::now() < deadline);
+    return false;
+}
+
+std::string failed_launch_message(int status) {
+    if (WIFEXITED(status)) {
+        const int code = WEXITSTATUS(status);
+        if (code == 127) {
+            return "Emulator command could not start or its required runtime was unavailable (exit 127).";
+        }
+        return "The emulator exited before creating a Nougat game window (exit code " +
+               std::to_string(code) + ").";
+    }
+    if (WIFSIGNALED(status)) {
+        return "The emulator terminated before creating a Nougat game window (signal " +
+               std::to_string(WTERMSIG(status)) + ").";
+    }
+    return "The emulator exited before Nougat could embed its game window.";
+}
+
 std::string state_message(HostState state,
                           const std::string& title,
                           const std::string& backend,
@@ -497,11 +527,8 @@ bool force_geometry() {
         const std::string backend_hint = lower_ascii(backend);
         const std::string backend_token = normalized_window_token(backend_hint);
         const bool xenia_backend = xenia_backend_family(backend_hint);
-        const bool mesen_backend = mesen_backend_family(backend_hint);
-        const bool pcsx2_backend = pcsx2_backend_family(backend_hint);
         const std::set<Window> managed_clients =
             xenia_backend ? ewmh_client_windows(display, root) : std::set<Window>{};
-        const long long age = monotonic_ms() - started_ms;
         for (Window window : candidates) {
             if (!window || window == shell || window == parent) continue;
             if (preexisting.count(window) != 0U) continue;
@@ -522,7 +549,14 @@ bool force_geometry() {
             // NOUGAT_V63_REPAIR5C_XENIA_GATE_DEFERRED
 
             const pid_t owner_pid = x_window_pid(display, window);
-            const bool process_owned = owner_pid > 1 && process_descends_from(owner_pid, child);
+            const bool tree_owned = owner_pid > 1 &&
+                                    child > 1 && process_descends_from(owner_pid, child);
+            // An emulator launched through a short-lived wrapper may become
+            // reparented before its X11 window appears. Its isolated process
+            // group is stronger evidence than a similarly named window.
+            const bool group_owned = owner_pid > 1 && process_group > 1 &&
+                                     getpgid(owner_pid) == process_group;
+            const bool process_owned = tree_owned || group_owned;
             const std::string identity = safe_window_identity(display, window);
             const std::string identity_token = normalized_window_token(identity);
             const bool direct_backend_match =
@@ -531,33 +565,23 @@ bool force_geometry() {
             const bool xenia_family_match =
                 xenia_backend &&
                 identity_token.find("xenia") != std::string::npos;
-            // NOUGAT_V63_REPAIR5_FRESH_RENDER_CAPTURE
-            // These three backends were owner-tested as launching successfully.
-            // Once forced onto X11, any new suitably sized client created after
-            // this launch is eligible for immediate containment. The preexisting
-            // snapshot prevents Nougat from taking unrelated desktop windows.
-            const bool fresh_strict_backend_window =
-                (xenia_backend || mesen_backend || pcsx2_backend) &&
-                preexisting.count(window) == 0U &&
-                age >= 0 && age < 30000;
-            const bool backend_owned =
-                direct_backend_match || xenia_family_match || fresh_strict_backend_window;
+            const bool backend_owned = direct_backend_match || xenia_family_match;
 
-            // NOUGAT_V63_REPAIR5C_XENIA_POST_OWNERSHIP_GATE
-            if (xenia_backend && !managed_clients.empty() &&
-                managed_clients.count(window) == 0U && !preembedded &&
-                !process_owned && !fresh_strict_backend_window) {
-                continue;
-            }
-
-            // Do not ever grab an arbitrary unrelated desktop window. The real
-            // emulator client must either belong to the launched process tree or
-            // identify itself as the requested backend. The short age allowance
-            // lets wrappers publish their PID/class shortly after mapping.
-            if (!process_owned && !backend_owned && !preembedded) {
-                if (age < 1500) continue;
-                continue;
-            }
+            const window_policy::Evidence evidence{
+                preexisting.count(window) == 0U,
+                preembedded,
+                tree_owned,
+                group_owned,
+                backend_owned,
+                owner_pid > 1 && !process_owned,
+                xenia_backend,
+                !managed_clients.empty(),
+                managed_clients.count(window) != 0U
+            };
+            // Do not attach an arbitrary newly opened desktop window. The
+            // former 'fresh large window' rule could capture unrelated apps.
+            // Retain the backend-specific fallback only when PID is absent.
+            if (!window_policy::eligible(evidence)) continue;
 
             long long score = static_cast<long long>(attrs.width) * attrs.height;
             if (preembedded) score += 5000000000LL;
@@ -611,7 +635,7 @@ bool EmulatorHost::start(Display* display,
     impl_->height = std::max(1, height);
     impl_->backend = request.backend;
     impl_->title = request.title;
-    impl_->timeout_ms = std::max(5000, request.window_timeout_ms);
+    impl_->timeout_ms = std::clamp(request.window_timeout_ms, 5000, 90000);
     impl_->preexisting.clear();
     for (Window window : window_tree_candidates(display, impl_->root)) impl_->preexisting.insert(window);
 
@@ -625,16 +649,17 @@ bool EmulatorHost::start(Display* display,
     if (child == 0) {
         setpgid(0, 0);
 
-        // NOUGAT_V53_XENIA_PRE_VULKAN_EMBED
-        // Let cooperating native emulator runtimes attach before their first
-        // top-level map / graphics swapchain creation.
-        const std::string nougat_embed_xid =
-            std::to_string(static_cast<unsigned long long>(parent_window));
-        setenv("NOUGAT_EMBED_XID", nougat_embed_xid.c_str(), 1);
-
+        // Apply nonempty backend-specific environment settings first.
         for (const auto& entry : request.environment) {
             if (!entry.first.empty()) setenv(entry.first.c_str(), entry.second.c_str(), 1);
         }
+
+        // Preserve Nougat's authoritative player surface even if a backend
+        // request accidentally includes its own NOUGAT_EMBED_XID override.
+        // Cooperating runtimes must attach to this actual Games viewport.
+        const std::string nougat_embed_xid =
+            std::to_string(static_cast<unsigned long long>(parent_window));
+        setenv("NOUGAT_EMBED_XID", nougat_embed_xid.c_str(), 1);
 
         // NOUGAT_V61_EMBED_WORKDIR_REMOVED
         // Preserve the accepted emulator cwd behavior used by the owner-tested
@@ -686,7 +711,9 @@ HostEvent EmulatorHost::poll() {
 
     if (impl_->state == HostState::Embedded) {
         if (!impl_->embedded_window || !impl_->window_still_exists(impl_->embedded_window)) {
-            impl_->embedded_window = 0;
+            // A vanished game window is not a reason to keep the emulator
+            // process running invisibly after the UI returns to Games.
+            stop();
             impl_->state = HostState::Exited;
         } else {
             int status = 0;
@@ -699,7 +726,7 @@ HostEvent EmulatorHost::poll() {
             if (now - impl_->last_geometry_ms >= 150) {
                 impl_->last_geometry_ms = now;
                 if (!impl_->force_geometry()) {
-                    impl_->embedded_window = 0;
+                    stop();
                     impl_->state = HostState::Exited;
                 }
             }
@@ -714,7 +741,7 @@ HostEvent EmulatorHost::poll() {
                 impl_->child = -1;
                 if (impl_->process_group <= 1 || kill(-impl_->process_group, 0) != 0) {
                     impl_->state = HostState::Failed;
-                    event.message = "The emulator exited before Nougat could embed its game window.";
+                    event.message = failed_launch_message(status);
                 }
             }
         }
@@ -832,9 +859,15 @@ void EmulatorHost::stop() {
     } else if (child > 1 && process_alive(child)) {
         kill(child, SIGTERM);
     }
-    if (child > 1) {
-        int status = 0;
-        waitpid(child, &status, WNOHANG);
+    // Reap the direct child after shutdown. One WNOHANG call can leave
+    // a zombie behind when SIGTERM has not yet been processed.
+    if (child > 1 && !reap_child_until(child, std::chrono::milliseconds(750))) {
+        if (process_group > 1) {
+            kill(-process_group, SIGKILL);
+        } else {
+            kill(child, SIGKILL);
+        }
+        (void)reap_child_until(child, std::chrono::milliseconds(1500));
     }
 
     if (impl_->display && impl_->embedded_window) {

@@ -1,9 +1,11 @@
 #include "emulator_registry.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
 #include <sstream>
+#include <utility>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -197,20 +199,54 @@ bool pcsx2_bios_available(const std::string& application_dir) {
     return std::any_of(directories.begin(), directories.end(), directory_has_bios);
 }
 
-std::vector<EmulatorSupport> ready_emulation_support(const std::string& application_dir) {
-    static const char* systems[] = {
+namespace {
+const std::vector<std::string>& supported_system_names() {
+    static const std::vector<std::string> systems = {
         "NES", "SNES", "Game Boy", "Game Boy Color", "Game Boy Advance", "Nintendo 64",
         "Sega Genesis", "Sega Master System", "Sega Game Gear", "Atari 2600", "Atari 5200",
         "Atari 7800", "Atari 8-bit", "Atari Lynx", "PlayStation", "PlayStation 2",
         "PlayStation Portable", "PlayStation 3", "GameCube", "Wii", "Wii U", "Arcade",
         "Nintendo Switch", "DOS", "Xbox 360"
     };
+    return systems;
+}
+}
+
+std::vector<EmulatorProbe> inspect_emulation_support(const std::string& application_dir) {
+    std::vector<EmulatorProbe> probes;
+    probes.reserve(supported_system_names().size());
+    for (const std::string& system : supported_system_names()) {
+        EmulatorProbe p;
+        p.system = system;
+        p.executable = find_emulator(application_dir, system);
+        if (p.executable.empty()) {
+            p.state = EmulatorProbeState::ExecutableMissing;
+            p.note = "No executable backend was detected for this system.";
+        } else {
+            p.backend = emulator_display_name(system, p.executable);
+            if (system == "PlayStation 2" && !pcsx2_bios_available(application_dir)) {
+                p.state = EmulatorProbeState::FirmwareCandidateMissing;
+                p.note = "PCSX2 executable found; no plausible user-supplied BIOS file was detected.";
+            } else {
+                p.state = EmulatorProbeState::DetectedUnverified;
+                p.note = "Runtime located. Actual boot, game compatibility, input and Nougat window containment have not been tested.";
+            }
+        }
+        // Discovery never launches an emulator. Do not misrepresent readiness.
+        p.launch_tested = false;
+        p.containment_tested = false;
+        probes.push_back(std::move(p));
+    }
+    return probes;
+}
+
+std::vector<EmulatorSupport> ready_emulation_support(const std::string& application_dir) {
+    // Historical API: "ready" means a runnable file and any preliminary
+    // BIOS-candidate check, not a verified playable/embedded emulator.
     std::vector<EmulatorSupport> ready;
-    for (const char* system : systems) {
-        const std::string executable = find_emulator(application_dir, system);
-        if (executable.empty()) continue;
-        if (std::string(system) == "PlayStation 2" && !pcsx2_bios_available(application_dir)) continue;
-        ready.push_back({system, emulator_display_name(system, executable), executable});
+    for (const auto& probe : inspect_emulation_support(application_dir)) {
+        if (probe.state != EmulatorProbeState::DetectedUnverified) continue;
+        ready.push_back({probe.system, probe.backend, probe.executable});
     }
     return ready;
 }

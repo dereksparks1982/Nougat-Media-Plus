@@ -1,3 +1,13 @@
+## Unreleased: Games runtime containment and emulator discovery (2026-10-30)
+
+- Introduce process ownership and X11 client evidence checks so unrelated desktop windows are not captured as Games output.
+- Support isolated process-group ownership when an emulator launcher exits or reparents its child.
+- Stop and reap emulator processes when their embedded window disappears; improve bounded failure cleanup and early-exit messages.
+- Keep authoritative Nougat player XID when passing launch environment variables; bound game-window wait times.
+- Compile the emulator registry source into the existing native target; add a non-executing 25-system detection API with honest missing/firmware/unverified status.
+- Add focused C++17 policy/probe tests, offline source audit, Games runtime build note, and per-system verification matrix.
+- No ROMs, BIOS files, UI geometry changes, accepted emulator claims, GitHub Actions, executable artifacts, or application version change.
+
 ## Unreleased: LAN-side terms acknowledgement session (2026-10-30)
 
 - Gate native LAN media API routes behind a server-recognized terms acknowledgement session, so direct media URLs return HTTP 403 without a session.
