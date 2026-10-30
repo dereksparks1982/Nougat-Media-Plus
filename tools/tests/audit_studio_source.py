@@ -102,6 +102,18 @@ class StudioContracts(unittest.TestCase):
             self.assertIn("mkdtemp", content)
             self.assertNotIn("curl ", content)
 
+    def test_isolated_studio_core_project(self):
+        isolated = (ROOT / "tools/tests/studio/CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn("project(NougatStudioCoreTests", isolated)
+        self.assertIn("add_library(nougat_studio_core STATIC", isolated)
+        self.assertIn("media_inspector.cpp", isolated)
+        self.assertIn("studio_service.cpp", isolated)
+        self.assertIn("test_studio_media_inspector", isolated)
+        self.assertIn("test_studio_fake_ffmpeg", isolated)
+        self.assertIn("test_studio_media_job_engine", isolated)
+        self.assertIn("enable_testing()", isolated)
+        self.assertTrue((ROOT / "tools/tests/studio/README.md").is_file())
+
     def test_test_source_exists(self):
         path = ROOT / "tools/tests/test_studio_media_job_engine.cpp"
         self.assertTrue(path.is_file())

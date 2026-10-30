@@ -44,3 +44,7 @@ The existing `src/studio/media_job_engine.cpp` now has an optional FFprobe inspe
 Connect `StudioService` to the existing Studio controls without shifting approved UI geometry, provide queue display and log viewing, add preset and trim controls, and perform native compilation and real-media playback/processing tests in a future owner-approved session.
 
 **No ZIP, installer, executable release, GitHub Actions, external-drive project work, user testing request, or application-version increase.**
+
+## Isolated core test project
+
+`tools/tests/studio/CMakeLists.txt` builds the Studio library and three unit/integration test sources independently of the full Nougat GUI and its heavy optional runtime dependencies. This project is intentionally opt-in, internal-drive-only, and not wired to GitHub Actions. No compiled artifacts or test results are being delivered in this source update.

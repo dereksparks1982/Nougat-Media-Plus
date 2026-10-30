@@ -5,6 +5,7 @@
 - Integrate inspector and service compilation into the existing native source target without changing application version or UI geometry.
 - Bound stalled FFmpeg worker output, improve log-folder failure handling and prevent output publication after a cancellation.
 - Add fake FFprobe and FFmpeg subprocess regression test sources plus expanded source-level contract checks.
+- Add an independent, opt-in Studio core CMake/CTest project to compile the engine and its three test suites without the full Nougat application.
 - Runtime compilation, actual media processing and GUI integration remain outstanding. No GitHub Actions, executable delivery or downloads.
 
 ## Unreleased: Studio shared FFmpeg processing engine (2026-10-30)
