@@ -1,3 +1,10 @@
+## Unreleased: Same-version roadmap and verification audit (2026-10-30)
+
+- Review the current roadmap against identifiable source modules and document the next validation gates.
+- Prioritize legal-notice refusal testing, LAN browser playback, embedded emulators, Studio processing and radio/TV functionality.
+- State that public client-side legal acknowledgement is not equivalent to server-enforced authorization.
+- No version change, no binary distribution and no GitHub Actions.
+
 ## Unreleased: Mandatory acceptance and two-step refusal (2026-10-30)
 
 - Show a mandatory Terms of Service acknowledgement and explicit refusal behavior before normal native and web use.

@@ -1,3 +1,11 @@
+## v0.0.69 source and validation priorities (2026-10-30, same-version)
+
+The current actionable gap review is [**v0.0.69 Same-Version Roadmap Gap Review**](docs/builds/NOUGAT_v0_0_69_ROADMAP_GAP_REVIEW_2026_10_30.md).
+
+**Next verification order:** (1) first-run terms acceptance and refusal paths, including the web client-versus-server authorization boundary; (2) local-network browser streaming and reconnect reliability; (3) emulator backend matrix and in-player containment; (4) shared media-processing/Studio queue foundations; (5) Radio, Live TV, and World TV hardware and feed verification. Future Weather, Calendar, and DAW work remains roadmap-only unless explicitly approved.
+
+All these items must be proven at runtime. This section does not increment the version, change approved UI geometry, mark a candidate as accepted, create a binary release, or authorize GitHub Actions.
+
 ## v0.0.65 planned - Military UI Enhancement and Nougat Chat Scaffolding
 
 - Replace the Video Player seek control in regular/half-screen and fullscreen playback with the exact owner-approved military green-glass seek-bar design: square track, square ends, oversized square handle extending above and below the track, no old caramel palette, and no separate background panel.
