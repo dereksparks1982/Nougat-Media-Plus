@@ -82,3 +82,8 @@ footer p{margin:4px}
  .player-actions button{flex:1}
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important}}
+
+/* Four filters stay touchable on narrow phones without overflowing the cards. */
+.filters{flex-wrap:wrap}
+.filters button{flex:0 1 auto}
+@media(max-width:360px){.filters{width:100%}.filters button{flex:1 1 calc(50% - 5px)}}

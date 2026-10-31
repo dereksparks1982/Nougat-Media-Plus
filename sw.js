@@ -1,4 +1,6 @@
-const CACHE = 'nougat-web-player-v43-controls-host-20261030';
+// Static GitHub Pages app shell only. Never cache personal media catalogs,
+// artwork, video, stream responses or cross-origin media host traffic.
+const CACHE = 'nougat-web-player-v44-resume-host-offline-20261030';
 const SHELL = [
   './legal-notice.css',
   './legal-notice.js',
@@ -19,6 +21,7 @@ const SHELL = [
   './enhancements.css',
   './config.js',
   './web-host.js',
+  './web-resume.js',
   './web-api.js',
   './web-host-panel.js',
   './web-host-panel.css',
@@ -66,34 +69,79 @@ const SHELL = [
   './assets/branding/nougat-media-plus-master-N.png',
   './assets/branding/nougat-media-plus-topbar-lockup.png'
 ];
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
-  self.skipWaiting();
+const CORE = new Set([
+  './index.html', './watch/index.html', './app.js',
+  './watch/watch.js', './legal-notice.js', './web-host.js',
+  './web-resume.js'
+]);
+const ROOT = new URL(self.registration.scope);
+const ALLOWED = new Set(SHELL.map(path => new URL(path, ROOT).pathname));
+const STATIC_TYPES = new Set(['document','script','style','image','manifest','font','']);
+function staticRequest(request) {
+  const url=new URL(request.url);
+  if (request.method !== 'GET' || url.origin !== ROOT.origin ||
+      !url.pathname.startsWith(ROOT.pathname) || url.search ||
+      !ALLOWED.has(url.pathname)) return false;
+  if (url.pathname.includes('/nougat/v1/') ||
+      url.pathname.includes('/api/') ||
+      request.headers.get('range') ||
+      request.cache === 'no-store') return false;
+  return STATIC_TYPES.has(request.destination);
+}
+self.addEventListener('install', event => {
+  event.waitUntil((async () => {
+    const cache=await caches.open(CACHE);
+    const results=await Promise.allSettled(SHELL.map(async path => {
+      // An unavailable optional asset must not make the whole SW installation
+      // fail, keeping phones on an older build indefinitely.
+      const url=new URL(path,ROOT);
+      const response=await fetch(url.href,{
+        cache:'reload',credentials:'omit',redirect:'error'
+      });
+      if (!response.ok || response.type !== 'basic')
+        throw new Error('Unavailable shell asset: ' + path);
+      await cache.put(url.href,response);
+      return path;
+    }));
+    const cachedCore=results.filter((outcome,i) =>
+      outcome.status==='fulfilled' && CORE.has(SHELL[i])).length;
+    if (cachedCore < CORE.size)
+      throw new Error('Essential Nougat web files were not cached.');
+    await self.skipWaiting();
+  })());
 });
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => Promise.all(
-      keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))
-    ))
-  );
-  self.clients.claim();
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const keys=await caches.keys();
+    await Promise.all(keys.filter(key =>
+      key.startsWith('nougat-web-player-') && key!==CACHE
+    ).map(key=>caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
-
-self.addEventListener('fetch', (event) => {
-  const request = event.request;
-  if (request.method !== 'GET') return;
-  const url = new URL(request.url);
-  if (url.pathname.startsWith('/nougat/v1/')) return;
-  if (url.origin !== self.location.origin) return;
-  event.respondWith(
-    fetch(request).then((response) => {
-      if (response && response.ok && response.type === 'basic') {
-        const copy = response.clone();
-        caches.open(CACHE).then((cache) => cache.put(request, copy));
+self.addEventListener('fetch', event => {
+  const request=event.request;
+  if (!staticRequest(request)) return;
+  event.respondWith((async () => {
+    const cache=await caches.open(CACHE);
+    const lookup=new URL(request.url);
+    const key=lookup.origin+lookup.pathname;
+    try {
+      const response=await fetch(request);
+      if (response.ok && response.type==='basic') {
+        await cache.put(key,response.clone()).catch(()=>{});
       }
       return response;
-    }).catch(() => caches.match(request))
-  );
+    } catch (_) {
+      const offline=await cache.match(key);
+      if (offline) return offline;
+      if (request.mode==='navigate') {
+        const shell=lookup.pathname.startsWith(new URL('./watch/',ROOT).pathname)
+          ? './watch/index.html' : './index.html';
+        const cached=await cache.match(new URL(shell,ROOT).href);
+        if (cached) return cached;
+      }
+      return Response.error();
+    }
+  })());
 });

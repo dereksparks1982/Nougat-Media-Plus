@@ -16,7 +16,7 @@
 
   async function action(name,extra={}){
     const params=new URLSearchParams({action:name,...extra});
-    const response=await fetch(`${base()}/nougat/v1/radio?${params}`,{cache:'no-store'});
+    const response=await window.NougatWebAPI.request(`${base()}/nougat/v1/radio?${params}`,{cache:'no-store'});
     let data={};try{data=await response.json();}catch(_){data={};}
     if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
     return data;

@@ -1,3 +1,14 @@
+## Unreleased: Web playback reliability and host isolation (2026-10-30)
+
+- Share per-host browser-local Continue Watching between full Web Player and Quick Watch, with safe migration of older resume data and a phone Continue filter.
+- Eliminate duplicated hardcoded catalog requests from fullscreen player, media-session and media-card actions.
+- Replace the legacy unbounded connection monitor with host-aware health events and a reconnect cooldown.
+- Scope offline catalog storage to one media-server origin; return cached results only on genuine transport failure and label them offline.
+- Harden Pages service-worker installation and static caching so missing optional assets do not block core updates and personal media/API traffic is never cached.
+- Route remaining Radio/Stream/TMDb and manual-match requests through the shared bounded API.
+- Add offline regression fixtures and an expanded Pages source audit. Native/web runtime acceptance is not claimed.
+- No GitHub Actions, download, executable, accepted layout movement or v0.0.69 change.
+
 ## Unreleased: Web player controls and shared server setting (2026-10-30)
 
 - Add one saved HTTPS media-host setting shared by full player and Quick Watch, plus a full-player test/save/default connection dialog.

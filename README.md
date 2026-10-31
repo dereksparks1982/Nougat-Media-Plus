@@ -1,6 +1,8 @@
 # Nougat Media Plus
 
-**Nougat Media Plus** is a Linux-first media center and entertainment platform developed by **Elderred Softworks LLC**. It brings personal movies and TV, music and radio, live television, games, production tools, and network capabilities together in one project.
+**Nougat Media Plus** is a Linux-first media center and entertainment platform developed by **Elderred Softworks LLC**.
+
+Current development line: **v0.0.69**. It brings personal movies and TV, music and radio, live television, games, production tools, and network capabilities together in one project.
 
 ## Watch your movies and TV
 
@@ -10,7 +12,7 @@
 
 The browser viewers are hosted on GitHub Pages. Your personal media files **are not uploaded to GitHub**. Playback, catalogs, and artwork come from your running Nougat media server through an HTTPS bridge, including the compatible bridge used for the Hanafi web viewer.
 
-Nougat Watch is the straightforward way to watch from a phone or tablet: connect to your host, search movies or TV, tap a title, play it, and resume later. The full web player has a larger interface with additional modules.
+Nougat Watch is the straightforward way to watch from a phone or tablet: connect to your host, search movies or TV, tap a title, play it, and resume later. Watch's **Continue** filter and the full player's Continue Watching section use the same per-server browser-local playback positions. The full web player has a larger interface with additional modules.
 
 **Connect once for both viewers:** In the full web player, choose **CONNECT** in the top bar to enter or test your HTTPS media server. Quick Watch uses the same saved server setting in that browser.
 

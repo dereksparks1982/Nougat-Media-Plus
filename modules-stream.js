@@ -20,7 +20,7 @@
     return url;
   }
   async function resolveHost(url){
-    const response=await fetch(`${base()}/nougat/v1/stream?action=resolve&platform=${encodeURIComponent(platform)}&url=${encodeURIComponent(url)}`,{cache:'no-store'});
+    const response=await window.NougatWebAPI.request(`${base()}/nougat/v1/stream?action=resolve&platform=${encodeURIComponent(platform)}&url=${encodeURIComponent(url)}`,{cache:'no-store'});
     let data={};try{data=await response.json();}catch(_){data={};}
     if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
     return data;

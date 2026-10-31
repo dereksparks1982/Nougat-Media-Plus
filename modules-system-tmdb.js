@@ -7,7 +7,7 @@
 
   function base(){return hostRef?.baseUrl?hostRef.baseUrl():'';}
   async function action(name){
-    const response=await fetch(`${base()}/nougat/v1/discover?action=${encodeURIComponent(`tmdb-${name}`)}`,{cache:'no-store'});
+    const response=await window.NougatWebAPI.request(`${base()}/nougat/v1/discover?action=${encodeURIComponent(`tmdb-${name}`)}`,{cache:'no-store'});
     let data={};try{data=await response.json();}catch(_){data={};}
     if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
     return data;

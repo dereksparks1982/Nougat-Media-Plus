@@ -91,8 +91,9 @@
   }
   function resumeKey() { return RESUME_PREFIX + base; }
   function readResume() {
+    if (window.NougatWebResume) return window.NougatWebResume.read(base);
     try {
-      const record = JSON.parse(localStorage.getItem(resumeKey()) || '{}');
+      const record=JSON.parse(localStorage.getItem(resumeKey())||'{}');
       return record && typeof record === 'object' && !Array.isArray(record) ? record : {};
     } catch (_) { return {}; }
   }
@@ -103,22 +104,38 @@
     lastSave = now;
     const seconds = video.ended || (Number.isFinite(video.duration) &&
       video.duration - video.currentTime < 20) ? 0 : video.currentTime;
-    if (seconds > 10) resume[selected.id] = { seconds, updated: now };
-    else delete resume[selected.id];
-    // Bound long-lived storage to the most recently watched 200 titles.
-    const records = Object.entries(resume).sort((a, b) =>
-      Number(b[1]?.updated || 0) - Number(a[1]?.updated || 0)).slice(0, 200);
-    resume = Object.fromEntries(records);
-    try { localStorage.setItem(resumeKey(), JSON.stringify(resume)); } catch (_) {}
+    if (window.NougatWebResume) {
+      window.NougatWebResume.set(base, selected.id, {
+        position_ms: Math.round(seconds * 1000),
+        duration_ms: Number.isFinite(video.duration) ? Math.round(video.duration * 1000) : 0,
+        updated: now,
+        completed: seconds <= 10,
+        title: selected.title
+      });
+      resume = readResume();
+    } else {
+      if (seconds > 10) resume[selected.id] = { seconds, updated: now };
+      else delete resume[selected.id];
+      try { localStorage.setItem(resumeKey(), JSON.stringify(resume)); } catch (_) {}
+    }
   }
   function timeLabel(seconds) {
     const min = Math.floor(seconds / 60);
     return min >= 60 ? Math.floor(min / 60) + 'h ' + min % 60 + 'm' : min + 'm';
   }
   function filteredItems() {
-    const query = search.value.toLocaleLowerCase().trim();
-    return items.filter(item => (mode === 'all' || item.kind === mode) &&
-      (!query || item.title.toLocaleLowerCase().includes(query) || String(item.year).includes(query)));
+    const query=search.value.toLocaleLowerCase().trim();
+    const filtered=items.filter(item => {
+      const position=Number(resume[item.id]?.position_ms||0);
+      const incomplete=resume[item.id]?.completed !== true;
+      const matches=mode==='all' || item.kind===mode ||
+        (mode==='continue' && position>=10000 && incomplete);
+      return matches && (!query || item.title.toLocaleLowerCase().includes(query) ||
+        String(item.year).includes(query));
+    });
+    if (mode==='continue') filtered.sort((a,b) =>
+      Number(resume[b.id]?.updated||0)-Number(resume[a.id]?.updated||0));
+    return filtered;
   }
   function createPoster(item) {
     const container = document.createElement('span');
@@ -154,7 +171,10 @@
       title.textContent = item.title;
       const details = document.createElement('span');
       details.className = 'card-meta';
-      const position = Number(resume[item.id]?.seconds || 0);
+      const position = Number(
+        resume[item.id]?.position_ms != null
+          ? resume[item.id].position_ms / 1000
+          : resume[item.id]?.seconds || 0);
       details.textContent = [item.kind === 'tv' ? 'TV Episode' : 'Movie',
         item.year || '', position > 10 ? 'Resume ' + timeLabel(position) : '',
         item.ready ? '' : 'Unavailable'].filter(Boolean).join(' · ');
@@ -246,7 +266,10 @@
     el('nowTitle').textContent = item.title + (item.year ? ' (' + item.year + ')' : '');
     el('watchPanel').hidden = false;
     el('watchPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const previous = Number(resume[item.id]?.seconds || 0);
+    const previous = Number(
+      resume[item.id]?.position_ms != null
+        ? resume[item.id].position_ms / 1000
+        : resume[item.id]?.seconds || 0);
     startStream(!item.direct, previous);
   }
 
@@ -300,6 +323,7 @@
     video.load();
     selected = null;
     el('watchPanel').hidden = true;
+    render();
   });
   video.addEventListener('loadedmetadata', () => {
     if (restoreAt > 0 && Number.isFinite(video.duration)) {
@@ -330,6 +354,10 @@
     if (window.NougatLegalAccepted === true) refresh();
   });
   window.addEventListener('beforeunload', () => saveResume(true));
+  window.addEventListener('nougat:resume-changed', () => {
+    resume = readResume();
+    render();
+  });
   window.addEventListener('nougat:host-changed', () => {
     if (window.NougatLegalAccepted !== true || !sharedHost) return;
     const next = sharedHost.getBase();

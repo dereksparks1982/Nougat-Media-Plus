@@ -1,3 +1,9 @@
+## v0.0.69 Web playback, Continue Watching and offline safety (2026-10-30)
+
+The next reliability source build synchronizes browser-local watch positions between Quick Watch and full Web Player **per media host**, eliminates old hardcoded background catalog and health calls, isolates cached libraries from one another and limits the Pages service worker to static shell assets. The phone viewer gains Continue filtering and the remaining radio/stream/TMDb/manual-match requests use the bounded requester. See [Web Playback Reliability Review](docs/builds/NOUGAT_v0_0_69_WEB_PLAYBACK_RELIABILITY_2026_10_30.md).
+
+**Acceptance still needed:** real Pages/browser mobile checks, a running media host, HTTPS/CORS streaming, browser codec testing and user-interface verification. Do not use GitHub Actions or change v0.0.69.
+
 ## v0.0.69 Web player control and shared media-host phase (2026-10-30)
 
 Add one HTTPS media-host setting for full and phone viewers, a test/save/reset dialog, safe host switching, module-to-player playback by ID, bounded host request handling and genuine controls for Crawler, Archive and base Network/System fallbacks. Browser modules now explain native-only requirements rather than silently implying that all hardware functions run through static Pages.

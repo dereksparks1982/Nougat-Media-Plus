@@ -58,7 +58,7 @@ class PagesContracts(unittest.TestCase):
                          "/nougat/v1/media", "/nougat/v1/transcode",
                          "/nougat/v1/poster", "/nougat/v1/artwork"):
             self.assertIn(endpoint, js)
-        for rule in ("https:", "credentials: 'omit'", "AbortController",
+        for rule in ("https:", "'same-origin' : 'omit'", "AbortController",
                      "nougat:legal-accepted", "NougatLegalAccepted",
                      "search.addEventListener", "compatButton.addEventListener",
                      "localStorage", "resumeKey()", "selected = null",

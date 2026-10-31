@@ -15,12 +15,19 @@
   let activityTimer=null;
   const ACTIVITY_MS=3000;
 
-  const base=()=>String((window.NOUGAT_WEB_PLAYER||{}).baseUrl||'').trim().replace(/\/+$/,'');
-  async function loadCatalog(){
-    try{const r=await fetch(`${base()}/nougat/v1/catalog`,{cache:'no-store'});const data=await r.json();if(r.ok&&data&&Array.isArray(data.items))catalog=data.items.map(x=>({id:String(x.id||''),name:String(x.name||x.title||''),type:String(x.type||x.kind||'')}));}catch(_){}
+  function loadCatalog(){
+    // Consume the full player's already-loaded catalog instead of issuing
+    // a second unbounded request against the old, hardcoded media host.
+    const source=window.NougatWebPlayer?.getCatalog?.() || [];
+    catalog=source.map(x=>({id:String(x.id||''),name:String(x.name||''),type:String(x.type||'')}));
   }
   function isEpisode(item){return /episode|television|tv/i.test(String(item?.type||''));}
-  function currentIndex(){const title=hud.textContent.trim();return catalog.findIndex(x=>x.name===title);}
+  function currentIndex(){
+    const id=String(player.dataset.nougatMediaId||'');
+    if(id)return catalog.findIndex(x=>x.id===id);
+    const title=hud.textContent.trim();
+    return catalog.findIndex(x=>x.name===title);
+  }
   function nextEpisode(){const i=currentIndex();if(i<0||i+1>=catalog.length)return null;const current=catalog[i],next=catalog[i+1];return isEpisode(current)&&isEpisode(next)?next:null;}
   function ensureOverlay(){
     let el=document.getElementById('upNextOverlay');if(el)return el;
@@ -90,6 +97,9 @@
   player.addEventListener('loadedmetadata',()=>{hideUpNext();showActivity();});
   window.addEventListener('hashchange',()=>{if(location.hash!=='#player'){hideUpNext();if(activityTimer){clearTimeout(activityTimer);activityTimer=null;}page.classList.remove('player-activity-hidden');}});
   loadCatalog();
-  window.setInterval(loadCatalog,60000);
+  window.addEventListener('nougat:catalog-updated',loadCatalog);
+  window.addEventListener('nougat:host-changed',()=>{
+    catalog=[];hideUpNext();loadCatalog();
+  });
   showActivity();
 })();

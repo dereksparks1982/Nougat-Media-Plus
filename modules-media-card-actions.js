@@ -2,8 +2,7 @@
   'use strict';
 
   const MATCH_KEY='nougat-web-manual-matches-v1';
-  const cfg=window.NOUGAT_WEB_PLAYER||{};
-  const base=()=>String(cfg.baseUrl||'').trim().replace(/\/+$/,'');
+  const base=()=>window.NougatWebHost?.getBase()||'';
   let catalog=[];
   let observer=null;
   let menu=null;
@@ -11,8 +10,15 @@
   let activeItem=null;
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const readMatches=()=>{try{return JSON.parse(localStorage.getItem(MATCH_KEY)||'{}')||{};}catch(_){return {};}};
-  const writeMatches=value=>{try{localStorage.setItem(MATCH_KEY,JSON.stringify(value));}catch(_){}};
+  const matchesKey=()=>MATCH_KEY+':'+encodeURIComponent(base()||location.origin);
+  const readMatches=()=>{try{
+    const saved=localStorage.getItem(matchesKey());
+    const legacy=base()===window.NougatWebHost?.getDefault()?
+      localStorage.getItem(MATCH_KEY):null;
+    const data=JSON.parse(saved||legacy||'{}');
+    return data&&typeof data==='object'&&!Array.isArray(data)?data:{};
+  }catch(_){return {};}};
+  const writeMatches=value=>{try{localStorage.setItem(matchesKey(),JSON.stringify(value));}catch(_){}};
   const normalize=raw=>({
     id:String(raw.id||''),
     name:String(raw.name||raw.title||raw.filename||'Untitled media'),
@@ -22,13 +28,10 @@
     poster:String(raw.poster||raw.posterUrl||raw.image||raw.imageUrl||'')
   });
 
-  async function loadCatalog(){
-    try{
-      const r=await fetch(`${base()}/nougat/v1/catalog`,{cache:'no-store'});
-      const data=await r.json();
-      if(!r.ok||!data.ok)throw new Error(data.error||`HTTP ${r.status}`);
-      catalog=(Array.isArray(data.items)?data.items:[]).map(normalize).filter(x=>x.id);
-    }catch(_){catalog=[];}
+  function loadCatalog(){
+    // Match the full player's current host and catalog.
+    catalog=(window.NougatWebPlayer?.getCatalog?.()||[])
+      .map(normalize).filter(x=>x.id);
     applyAll();
   }
 
@@ -124,8 +127,11 @@
   }
 
   async function postMatch(payload){
-    if(!base())return false;
-    try{const r=await fetch(`${base()}/nougat/v1/metadata/manual-match`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'});return r.ok;}catch(_){return false;}
+    try{
+      const r=await window.NougatWebAPI.request(`${base()}/nougat/v1/metadata/manual-match`,{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+      });return r.ok;
+    }catch(_){return false;}
   }
 
   function openFix(){
@@ -177,5 +183,10 @@
   ensureUi();
   observer=new MutationObserver(()=>requestAnimationFrame(applyAll));observer.observe(document.body,{childList:true,subtree:true});
   loadCatalog();
-  document.getElementById('refreshButton')?.addEventListener('click',()=>setTimeout(loadCatalog,250));
+  window.addEventListener('nougat:catalog-updated',loadCatalog);
+  window.addEventListener('nougat:host-changed',()=>{
+    catalog=[];activeItem=null;hideMenu();
+    if(dialog?.open)dialog.close();
+    applyAll();
+  });
 })();

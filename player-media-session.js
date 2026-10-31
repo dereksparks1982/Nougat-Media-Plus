@@ -9,8 +9,7 @@
 
   let catalog=[];
   let lastPositionUpdate=0;
-  const cfg=window.NOUGAT_WEB_PLAYER||{};
-  const base=()=>String(cfg.baseUrl||'').trim().replace(/\/+$/,'');
+  const base=()=>window.NougatWebHost?.getBase()||'';
 
   function normalize(raw){
     const kind=String(raw.kind||raw.type||'').toLowerCase();
@@ -28,18 +27,18 @@
     if(/^https?:\/\//i.test(raw)||raw.startsWith('data:')||raw.startsWith('blob:'))return raw;
     if(raw.startsWith('/'))return `${base()}${raw}`;
     if(raw)return raw;
-    return item.id&&base()?`${base()}/nougat/v1/artwork?id=${encodeURIComponent(item.id)}`:'';
+    return item.id?`${base()}/nougat/v1/artwork?id=${encodeURIComponent(item.id)}`:'';
   }
-  async function loadCatalog(){
-    try{
-      const response=await fetch(`${base()}/nougat/v1/catalog`,{cache:'no-store'});
-      const data=await response.json();
-      if(response.ok&&data&&Array.isArray(data.items))catalog=data.items.map(normalize).filter(x=>x.id);
-    }catch(_){}
+  function loadCatalog(){
+    const raw=window.NougatWebPlayer?.getCatalog?.()||[];
+    catalog=raw.map(normalize).filter(x=>x.id);
   }
   function currentItem(){
     const title=hud.textContent.trim();
-    return catalog.find(x=>x.name===title)||catalog.find(x=>title.startsWith(`${x.name} •`))||null;
+    const id=String(player.dataset.nougatMediaId||'');
+    return catalog.find(x=>x.id===id)||
+      catalog.find(x=>x.name===title)||
+      catalog.find(x=>title.startsWith(`${x.name} •`))||null;
   }
   function updateMetadata(){
     const title=hud.textContent.trim();
@@ -81,6 +80,12 @@
   player.addEventListener('ratechange',()=>updatePosition(true));
 
   new MutationObserver(updateMetadata).observe(hud,{childList:true,characterData:true,subtree:true});
-  loadCatalog().then(updateMetadata);
-  setInterval(loadCatalog,60000);
+  loadCatalog();
+  updateMetadata();
+  window.addEventListener('nougat:catalog-updated',()=>{
+    loadCatalog();updateMetadata();
+  });
+  window.addEventListener('nougat:host-changed',()=>{
+    catalog=[];loadCatalog();updateMetadata();
+  });
 })();

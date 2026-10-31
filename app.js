@@ -96,15 +96,18 @@
   }
 
   function readResumeState() {
+    if (window.NougatWebResume)
+      return window.NougatWebResume.read(normalizedBaseUrl());
     try {
-      const parsed = JSON.parse(localStorage.getItem(RESUME_KEY) || '{}');
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch (_) {
-      return {};
-    }
+      const parsed=JSON.parse(localStorage.getItem(RESUME_KEY)||'{}');
+      return parsed && typeof parsed==='object' ? parsed : {};
+    } catch (_) { return {}; }
   }
-
-  function writeResumeState() {
+  function writeResumeState(id) {
+    if (window.NougatWebResume) {
+      window.NougatWebResume.set(normalizedBaseUrl(), id, resumeState[id]);
+      return;
+    }
     try { localStorage.setItem(RESUME_KEY, JSON.stringify(resumeState)); } catch (_) {}
   }
 
@@ -169,6 +172,9 @@
     serverLight.classList.remove('online', 'busy', 'offline');
     serverLight.classList.add(state);
     healthBadge.textContent = text;
+    window.dispatchEvent(new CustomEvent('nougat:health-state', {
+      detail: { state, text, server: normalizedBaseUrl() }
+    }));
   }
 
   function setPlayerStatus(message) {
@@ -219,7 +225,7 @@
       title: selected.name,
       completed: duration > 0 && position >= Math.max(0, duration - COMPLETE_WINDOW_MS)
     };
-    writeResumeState();
+    writeResumeState(selected.id);
     renderHome();
   }
 
@@ -380,6 +386,7 @@
     setView('player');
     setPlayerStatus(compatibility ? 'STARTING BROWSER COMPATIBILITY STREAM' : 'STARTING DIRECT PLAY');
 
+    player.dataset.nougatMediaId = item.id;
     player.src = streamUrl(item, compatibility);
     player.load();
     const applyStart = () => {
@@ -426,10 +433,14 @@
       const payload = await fetchJson(apiUrl('/nougat/v1/catalog'));
       if (revision !== hostRevision) return;
       if (!payload.ok) throw new Error(payload.error || 'Catalog unavailable');
-      items = (Array.isArray(payload.items) ? payload.items : []).map(normalizeItem).filter((item) => item.id);
+      items = (Array.isArray(payload.items) ? payload.items : []).slice(0,3000)
+        .map(normalizeItem).filter((item) => item.id);
+      window.dispatchEvent(new CustomEvent('nougat:catalog-updated'));
       const movies = items.filter((item) => item.type === 'Movie').length;
       const episodes = items.length - movies;
-      catalogStatus.textContent = `${movies} MOVIES • ${episodes} TV EPISODES • ${items.length} TOTAL`;
+      catalogStatus.textContent = payload.__nougatOfflineCatalog
+        ? `OFFLINE LIBRARY CACHE • ${items.length} TITLES • RECONNECT TO PLAY`
+        : `${movies} MOVIES • ${episodes} TV EPISODES • ${items.length} TOTAL`;
       renderHome();
       renderLibrary();
     } catch (error) {
@@ -497,6 +508,7 @@
   window.addEventListener('nougat:external-stream', () => {
     if (selected) saveResume(true);
     selected = null;
+    delete player.dataset.nougatMediaId;
     usingCompatibility = false;
     autoFallbackArmed = false;
     compatButton.disabled = true;
@@ -586,6 +598,11 @@
 
   window.addEventListener('beforeunload', () => saveResume(true));
 
+  window.addEventListener('nougat:resume-changed', () => {
+    resumeState = readResumeState();
+    renderHome();
+    renderLibrary();
+  });
   window.addEventListener('nougat:host-changed', () => {
     if (window.NougatLegalAccepted !== true) return;
     saveResume(true);
@@ -594,7 +611,10 @@
     player.removeAttribute('src');
     player.load();
     selected = null;
+    delete player.dataset.nougatMediaId;
     items = [];
+    resumeState = readResumeState();
+    window.dispatchEvent(new CustomEvent('nougat:catalog-updated'));
     catalogRequest = null;
     emptyPlayer.hidden = false;
     playerTitleHud.hidden = true;
